@@ -659,6 +659,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::bootstrap,
+            commands::health,
             // v1.0.1 revert: P0#13 commands-by-topic split is
             // gone, so every entry uses the flat `commands::name`
             // path.  `chat` is the only name that historically
