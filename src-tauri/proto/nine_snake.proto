@@ -1,0 +1,365 @@
+// nine-snake v0.3 gRPC service definitions.
+//
+// 22 RPCs across 5 services (see design doc §13):
+//   * MemoryService   — 8 RPCs (Store, Get, Search, ListRecent,
+//                              UpdateImportance, Delete, GetMany, GetStats)
+//   * SwarmService    — 4 RPCs (Execute, ListAgents, GetAgent, StreamEvents)
+//   * ReflectService  — 3 RPCs (ReflectNow, ListReflections, GetReflection)
+//   * LlmService      — 3 RPCs (Complete, Chat, Embed)
+//   * SkillService    — 4 RPCs (Create, Use, Rate, List)   (v0.3 new)
+
+syntax = "proto3";
+
+package nine_snake.v1;
+
+// ---------------------------------------------------------------------------
+// Common types
+// ---------------------------------------------------------------------------
+
+enum MemoryLayer {
+  MEMORY_LAYER_UNSPECIFIED = 0;
+  L0 = 1;
+  L1 = 2;
+  L2 = 3;
+  L3 = 4;
+  L4 = 5;
+  L5 = 6;
+  L6 = 7;
+  L7 = 8;
+}
+
+enum MemoryType {
+  MEMORY_TYPE_UNSPECIFIED = 0;
+  SEMANTIC = 1;
+  EPISODIC = 2;
+  PROCEDURAL = 3;
+  EMOTIONAL = 4;
+  METACOGNITIVE = 5;
+}
+
+message Memory {
+  string id = 1;
+  MemoryType memory_type = 2;
+  MemoryLayer layer = 3;
+  string content = 4;
+  string summary_50 = 5;
+  string summary_150 = 6;
+  string summary_500 = 7;
+  string summary_2000 = 8;
+  float importance = 9;
+  uint32 access_count = 10;
+  int64 last_access = 11;
+  int64 created_at = 12;
+  string source = 13;
+  string metadata_json = 14;
+  string compressed_from = 15;
+  uint32 compression_gen = 16;
+  bool pinned = 17;
+}
+
+message ErrorInfo {
+  string code = 1;
+  string message = 2;
+}
+
+// ---------------------------------------------------------------------------
+// MemoryService
+// ---------------------------------------------------------------------------
+
+message StoreMemoryRequest {
+  string content = 1;
+  MemoryType memory_type = 2;
+  MemoryLayer layer = 3;
+  string source = 4;
+  string metadata_json = 5;
+}
+message StoreMemoryResponse {
+  string id = 1;
+  bool merged = 2;
+  float similarity = 3; // 0 means not set
+}
+
+message GetMemoryRequest {
+  string id = 1;
+}
+
+message SearchRequest {
+  string query = 1;
+  uint32 k = 2;
+  MemoryLayer layer = 3;
+}
+
+message SearchHit {
+  Memory memory = 1;
+  float score = 2;
+}
+message SearchResponse {
+  repeated SearchHit hits = 1;
+}
+
+message ListRecentRequest {
+  uint32 limit = 1;
+}
+message ListRecentResponse {
+  repeated Memory memories = 1;
+}
+
+message UpdateImportanceRequest {
+  string id = 1;
+  float importance = 2;
+}
+
+message DeleteRequest {
+  string id = 1;
+}
+message DeleteResponse {
+  bool deleted = 1;
+}
+
+message GetManyRequest {
+  repeated string ids = 1;
+}
+message GetManyResponse {
+  repeated Memory memories = 1;
+}
+
+message StatsRequest {}
+message StatsResponse {
+  uint64 total_memories = 1;
+  uint64 by_layer_l0 = 2;
+  uint64 by_layer_l1 = 3;
+  uint64 by_layer_l2 = 4;
+  uint64 by_layer_l3 = 5;
+  uint64 by_layer_l4 = 6;
+  uint64 by_layer_l5 = 7;
+  uint64 by_layer_l6 = 8;
+  uint64 by_layer_l7 = 9;
+}
+
+service MemoryService {
+  rpc Store(StoreMemoryRequest)     returns (StoreMemoryResponse);
+  rpc Get(GetMemoryRequest)         returns (Memory);
+  rpc Search(SearchRequest)         returns (SearchResponse);
+  rpc ListRecent(ListRecentRequest) returns (ListRecentResponse);
+  rpc UpdateImportance(UpdateImportanceRequest) returns (Memory);
+  rpc Delete(DeleteRequest)         returns (DeleteResponse);
+  rpc GetMany(GetManyRequest)       returns (GetManyResponse);
+  rpc GetStats(StatsRequest)        returns (StatsResponse);
+}
+
+// ---------------------------------------------------------------------------
+// SwarmService
+// ---------------------------------------------------------------------------
+
+enum AgentKind {
+  AGENT_KIND_UNSPECIFIED = 0;
+  CODER = 1;
+  WRITER = 2;
+  REVIEWER = 3;
+}
+
+message Agent {
+  AgentKind kind = 1;
+  string name = 2;
+  string system_prompt = 3;
+  string description = 4;
+}
+
+message AgentOutput {
+  AgentKind kind = 1;
+  string author = 2;
+  string body = 3;
+  float confidence = 4;
+}
+
+message SwarmRequest {
+  string description = 1;
+  repeated AgentKind pipeline = 2;
+  uint32 max_retries = 3;
+}
+message SwarmResponse {
+  bool approved = 1;
+  string verdict = 2;
+  repeated AgentOutput outputs = 3;
+}
+
+message ListAgentsRequest {}
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+}
+
+message GetAgentRequest {
+  AgentKind kind = 1;
+}
+
+message StreamEventsRequest {
+  string task_id = 1;
+}
+message SwarmEvent {
+  // One of: agent_started, agent_finished, task_approved, task_rejected.
+  string event_type = 1;
+  AgentKind agent = 2;
+  string body = 3;
+  int64 ts = 4;
+}
+
+service SwarmService {
+  rpc Execute(SwarmRequest)         returns (SwarmResponse);
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  rpc GetAgent(GetAgentRequest)     returns (Agent);
+  rpc StreamEvents(StreamEventsRequest) returns (stream SwarmEvent);
+}
+
+// ---------------------------------------------------------------------------
+// ReflectService
+// ---------------------------------------------------------------------------
+
+message Reflection {
+  string id = 1;
+  repeated string source_memories = 2;
+  string content = 3;
+  MemoryLayer layer = 4;
+  MemoryType memory_type = 5;
+  float importance = 6;
+  string trigger_kind = 7;
+  repeated string lessons = 8;
+  float confidence = 9;
+  int64 created_at = 10;
+}
+
+message ReflectRequest {}
+message ReflectResponse {
+  repeated Reflection reflections = 1;
+}
+
+message ListReflectionsRequest {
+  uint32 limit = 1;
+}
+message ListReflectionsResponse {
+  repeated Reflection reflections = 1;
+}
+
+message GetReflectionRequest {
+  string id = 1;
+}
+
+service ReflectService {
+  rpc ReflectNow(ReflectRequest)             returns (ReflectResponse);
+  rpc ListReflections(ListReflectionsRequest) returns (ListReflectionsResponse);
+  rpc GetReflection(GetReflectionRequest)     returns (Reflection);
+}
+
+// ---------------------------------------------------------------------------
+// LlmService
+// ---------------------------------------------------------------------------
+
+message ChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message CompleteRequest {
+  string prompt = 1;
+  string model = 2;
+}
+message CompleteResponse {
+  string text = 1;
+  string model = 2;
+  int64 eval_count = 3;
+  int64 total_duration_ns = 4;
+}
+
+message ChatRequest {
+  repeated ChatMessage messages = 1;
+  string model = 2;
+  float temperature = 3;
+}
+message ChatResponse {
+  ChatMessage message = 1;
+  string model = 2;
+  int64 eval_count = 3;
+  int64 total_duration_ns = 4;
+}
+
+message EmbedRequest {
+  string text = 1;
+}
+message EmbedResponse {
+  repeated float vector = 1;
+  uint32 dim = 2;
+}
+
+service LlmService {
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
+  rpc Chat(ChatRequest)         returns (ChatResponse);
+  rpc Embed(EmbedRequest)       returns (EmbedResponse);
+}
+
+// ---------------------------------------------------------------------------
+// SkillService (v0.3 new)
+// ---------------------------------------------------------------------------
+
+message Skill {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string code = 4;
+  string language = 5;
+  repeated string tags = 6;
+  uint32 usage_count = 7;
+  float avg_rating = 8;
+  uint32 rating_count = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  string source_memory_id = 12;
+}
+
+message SkillResult {
+  string skill_id = 1;
+  string output = 2;
+  uint64 execution_time_ms = 3;
+  uint32 tokens_used = 4;
+}
+
+message CreateSkillRequest {
+  string name = 1;
+  string description = 2;
+  string code = 3;
+  string language = 4;
+  repeated string tags = 5;
+  string source_memory_id = 6;
+}
+message UseSkillRequest {
+  string id = 1;
+  map<string, string> params = 2;
+}
+message UseSkillResponse {
+  SkillResult result = 1;
+}
+message RateSkillRequest {
+  string id = 1;
+  float rating = 2;
+}
+message ListSkillsRequest {
+  string language = 1;
+  string tag = 2;
+  uint32 limit = 3;
+}
+message ListSkillsResponse {
+  repeated Skill skills = 1;
+}
+message SearchSkillsRequest {
+  string query = 1;
+  uint32 limit = 2;
+}
+message SearchSkillsResponse {
+  repeated Skill skills = 1;
+}
+
+service SkillService {
+  rpc Create(CreateSkillRequest)  returns (Skill);
+  rpc Use(UseSkillRequest)        returns (UseSkillResponse);
+  rpc Rate(RateSkillRequest)      returns (Skill);
+  rpc List(ListSkillsRequest)     returns (ListSkillsResponse);
+  rpc Search(SearchSkillsRequest) returns (SearchSkillsResponse);
+}

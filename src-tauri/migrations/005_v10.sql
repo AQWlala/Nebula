@@ -1,0 +1,25 @@
+-- =============================================================================
+-- v1.0 migration (005_v10.sql)
+--
+-- P0#9 (Approach A) — drop the orphan `e2ee_keys` table.
+--
+-- Rationale:
+--   The v0.5 migration (004_v05.sql) created `e2ee_keys`, but the
+--   application never inserted into or selected from it; the
+--   `E2eeIdentity` was in-memory only.  Carrying the unused table
+--   into v1.0 was a foot-gun: any future code that naively
+--   `SELECT * FROM e2ee_keys` would return zero rows and silently
+--   generate fresh identities on every boot (the v0.5 behaviour,
+--   now acknowledged as broken).
+--
+-- This migration drops the table for users upgrading from v0.5.
+-- Fresh installs don't have the table (004 was edited to remove
+-- the `CREATE TABLE` statement), so the `IF EXISTS` makes this
+-- migration a no-op for them.
+--
+-- v1.1 will re-introduce a properly-designed persistence table
+-- (`e2ee_identities_v2`) together with `E2eeIdentity::persist()`
+-- and `E2eeIdentity::load()` in `sync/e2ee.rs`.
+-- =============================================================================
+
+DROP TABLE IF EXISTS e2ee_keys;

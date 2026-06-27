@@ -1,0 +1,38 @@
+# v1.0.1 P0#02: enable Dependabot for the three dependency surfaces
+# we ship (Rust crates in src-tauri, Node packages at the repo root,
+# and the GitHub Actions we pin in .github/workflows/). Weekly cadence
+# matches the cadence of the security audit job (see test.yml).
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    # Keep PRs reviewable — one Cargo update per week.
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    # Bumping actions is a privileged change: in addition to the
+    # normal code review, the new SHA must be verified against
+    # the upstream tauri-action release notes before merge.
+    reviewers:
+      - "nine-snake/maintainers"

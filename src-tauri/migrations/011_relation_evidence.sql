@@ -1,0 +1,1 @@
+ALTER TABLE memory_relations ADD COLUMN evidence TEXT;

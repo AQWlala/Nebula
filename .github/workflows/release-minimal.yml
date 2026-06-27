@@ -1,0 +1,205 @@
+name: release-minimal
+
+# v1.1: stripped release build that disables the heaviest optional
+# crates (gRPC server + LanceDB vector store) so the installer can
+# be produced in a fraction of the time of the full release.
+#
+# Triggered by tags of the form `vX.Y.Z-minimal`. The full release
+# workflow (`release.yml`) is intentionally restricted to plain
+# `vX.Y.Z` tags so the two never run on the same push.
+#
+# What you get in the .exe:
+#   - Tauri 2.0 shell + IPC
+#   - SQLite memory (8-layer v7.0, sponge / blackhole / reflect)
+#   - Ollama chat + embed (HTTP)
+#   - E2EE (AES-256-GCM, X25519, HKDF)
+#   - Skills engine + Tool registry
+#   - Editor, writing engine, work engine, OS integration
+# What is NOT compiled in:
+#   - gRPC server (22 RPCs)             — feature `grpc` off
+#   - LanceDB on-disk vector store      — feature `vector-store` off
+#       (memory_search falls back to a linear in-RAM cosine scan;
+#        vectors are not persisted to disk)
+#
+# Both gaps are documented in the v1.0 release notes as deferred
+# wire-shim / optional storage and are safe to drop for a first
+# end-user install.
+
+on:
+  push:
+    tags:
+      # v1.1: tags are intentionally NOT prefixed with `v` so they
+      # don't collide with the full `release.yml` workflow (which
+      # matches `v[0-9]*.[0-9]*.[0-9]*`). Using `1.0.1-minimal`
+      # instead of `v1.0.1-minimal` is the cheapest way to keep
+      # the two workflows on disjoint tag namespaces.
+      - '[0-9]*.[0-9]*.[0-9]*-minimal'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-minimal-${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage
+          - platform: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - platform: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - platform: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+
+    steps:
+      - name: Set up job
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf build-essential file
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install JS deps
+        shell: bash
+        run: npm ci
+
+      - name: Build frontend
+        shell: bash
+        run: npm run build
+
+      - name: Compile Rust (no default features)
+        shell: bash
+        run: |
+          set -e
+          cd src-tauri
+          # Always stage the build log under build-logs/ *before* the
+          # cargo invocation, so even on failure the artifact upload
+          # step (which runs on `always()`) can pick it up.
+          mkdir -p ../build-logs
+          set +e
+          cargo build --release --no-default-features --target "${{ matrix.target }}" 2>&1 | tee /tmp/cargo-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+          cp /tmp/cargo-build.log ../build-logs/cargo-build-${{ matrix.platform }}.log
+          echo "--- cargo build done (exit=$BUILD_EXIT) ---"
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "--- last 80 lines of build log ---"
+            tail -n 80 /tmp/cargo-build.log
+            exit $BUILD_EXIT
+          fi
+          ls -la target/${{ matrix.target }}/release/ 2>&1 || true
+
+      - name: Bundle installers
+        shell: bash
+        run: |
+          set -e
+          # tauri bundle picks up the just-built binary via
+          # mainBinaryName from tauri.conf.json. We force the
+          # target dir so the bundler finds the right artefact.
+          npx --no-install tauri bundle \
+            --target "${{ matrix.target }}" \
+            --bundles "${{ matrix.bundles }}" 2>&1 | tee bundle.log
+          echo "--- tauri bundle done ---"
+          ls -la src-tauri/target/${{ matrix.target }}/release/bundle/ 2>&1 || true
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-minimal-${{ matrix.platform }}
+          path: build-logs/
+          if-no-files-found: ignore
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-snake-minimal-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          if-no-files-found: error
+
+  release:
+    name: publish-release-minimal
+    needs: build
+    runs-on: ubuntu-latest
+    # v1.1-fix: minimal tags are intentionally NOT prefixed with `v`
+    # (e.g. `1.0.1-minimal`) to avoid colliding with the full release
+    # workflow. The condition now matches any tag containing `-minimal`.
+    if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-minimal')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate latest.json for Tauri updater
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          echo "Generating latest.json for tag: $TAG_NAME"
+          cat > latest.json <<EOF
+          {
+            "version": "$TAG_NAME",
+            "notes": "See https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-linux-x86_64.AppImage"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-macos-x86_64.dmg"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-macos-aarch64.dmg"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-windows-x86_64-setup.exe"
+              }
+            }
+          }
+          EOF
+          cat latest.json
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*
+            latest.json
+          generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

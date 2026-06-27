@@ -1,0 +1,220 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage
+          - platform: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - platform: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - platform: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install protoc (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y protobuf-compiler
+
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
+
+      - name: Install protoc (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: choco install -y --no-progress protoc 2>&1 | tail -n 5
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Generate icons
+        shell: bash
+        run: |
+          if [[ ! -f "src-tauri/icons/32x32.png" ]]; then
+            python scripts/generate-icons.py
+          fi
+
+      - name: Import Apple Developer Certificate
+        if: matrix.os == 'macos-latest' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          echo $APPLE_CERTIFICATE | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k $KEYCHAIN_PATH \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -A -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          rm -f /tmp/cert.p12
+
+      - name: Cleanup Keychain
+        if: always() && matrix.os == 'macos-latest' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          security delete-keychain $KEYCHAIN_PATH || true
+          rm -f /tmp/cert.p12 || true
+
+      - name: Build & sign
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -e
+          echo "=== Tauri Build & sign step ==="
+          echo "Platform: ${{ matrix.platform }}"
+          echo "Target:   ${{ matrix.target }}"
+          echo "Bundles:  ${{ matrix.bundles }}"
+          echo "Rust:     $(rustc --version 2>&1 || echo NOT INSTALLED)"
+          echo "Node:     $(node --version 2>&1 || echo NOT INSTALLED)"
+          echo "Tauri CLI (local): $(npx --no-install tauri --version 2>&1 || echo NOT FOUND)"
+          echo "protoc:   $(protoc --version 2>&1 || echo NOT FOUND)"
+          echo "TAURI_SIGNING_PRIVATE_KEY present: $([ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && echo yes || echo no)"
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo ">>> Building WITH updater signing"
+          else
+            echo ">>> Building WITHOUT updater signing (no TAURI_SIGNING_PRIVATE_KEY secret)"
+          fi
+          echo "--- starting tauri build ---"
+          set +e
+          npx --no-install tauri build \
+            --target "${{ matrix.target }}" \
+            --bundles "${{ matrix.bundles }}" 2>&1 | tee build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "--- tauri build done (exit=$BUILD_EXIT) ---"
+          echo "Bundle output:"
+          ls -la src-tauri/target/${{ matrix.target }}/release/bundle/ 2>&1 || true
+          echo "Last 80 lines of build.log:"
+          tail -n 80 build.log 2>&1 || true
+          mkdir -p build-logs
+          cp build.log build-logs/build-${{ matrix.platform }}.log
+          exit $BUILD_EXIT
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.platform }}
+          path: build-logs/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-snake-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          if-no-files-found: error
+
+  release:
+    name: publish-release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate latest.json for Tauri updater
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          echo "Generating latest.json for tag: $TAG_NAME"
+          cat > latest.json <<EOF
+          {
+            "version": "$TAG_NAME",
+            "notes": "See https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_amd64.AppImage"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_x64.dmg"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_aarch64.dmg"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_x64-setup.exe"
+              }
+            }
+          }
+          EOF
+          cat latest.json
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*
+            latest.json
+          generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
