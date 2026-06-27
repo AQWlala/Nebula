@@ -113,9 +113,6 @@ jobs:
         shell: bash
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -130,6 +127,15 @@ jobs:
           echo "Node:     $(node --version 2>&1 || echo NOT INSTALLED)"
           echo "Tauri CLI (local): $(npx --no-install tauri --version 2>&1 || echo NOT FOUND)"
           echo "protoc:   $(protoc --version 2>&1 || echo NOT FOUND)"
+          # Set Apple notarization vars only if all secrets are configured
+          if [ -n "${{ secrets.APPLE_ID }}" ] && [ -n "${{ secrets.APPLE_PASSWORD }}" ] && [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+            export APPLE_ID="${{ secrets.APPLE_ID }}"
+            export APPLE_PASSWORD="${{ secrets.APPLE_PASSWORD }}"
+            export APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
+            echo ">>> Apple notarization: ENABLED"
+          else
+            echo ">>> Apple notarization: DISABLED (missing APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID secrets)"
+          fi
           echo "TAURI_SIGNING_PRIVATE_KEY present: $([ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && echo yes || echo no)"
           if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
             echo ">>> Building WITH updater signing"
