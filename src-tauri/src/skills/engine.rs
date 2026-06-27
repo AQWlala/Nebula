@@ -868,6 +868,7 @@ fn run_python_sandboxed(script_path: &std::path::Path) -> ShellOutcome {
 // the standard POSIX values and stable across the platforms we
 // support.
 #[cfg(unix)]
+#[allow(non_camel_case_types)]
 mod rlimit_bindings {
     pub type libc_rlim_t = u64;
     #[repr(C)]
