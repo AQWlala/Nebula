@@ -2,6 +2,22 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.4] - 2026-06-27
+
+🔧 **Bug 修复版 — 修复启动崩溃 / IPC 命令注册 / 前后端参数匹配 / 安全守卫恢复**。
+
+### Fixed
+
+* 修复 `tauri.conf.json` 中 `autostart` 配置导致 `PluginInitialization` panic（启动崩溃）
+* 注册缺失的 IPC 命令：`bootstrap`、`health`、`skill_import`
+* 修复 `chat()` 前端参数名不匹配：`{ req }` → `{ request: { user_message } }`
+* 修复 `skillImport()` 参数名不匹配：`{ url }` → `{ identifier }`
+* 修复 `ChatResponse` 类型不匹配：后端返回 `{ model, role, content }`，前端之前期望 `{ reply }`
+* 恢复 `tauri.conf.json::plugins.updater.pubkey` + `keys/updater_public.b64`（P0 安全守卫测试恢复）
+* 修复 README 环境变量名不一致：`ANTHROPIC_API_KEY` → `NINE_SNAKE_ANTHROPIC_KEY`
+* 修复 README 版本号 badge：v1.1.0 → v1.1.4
+* CI/CD：Release job `if: always()` 修复、安装包过滤（排除 .so 和 build logs）、版本号同步
+
 ## [Unreleased] - v1.1
 
 🎉 **功能增强版 — 全面升级 LLM 支持 / Agent 能力 / 安全模型 / 前端体验**。
@@ -14,7 +30,7 @@
   * 新增 `anthropic.rs`：Anthropic Claude Messages API 原生客户端
   * 支持 Claude 3 Haiku / Sonnet / Opus 系列模型
   * Gateway 降级链：Ollama → OpenAI 兼容端 → Anthropic Claude
-  * 通过 `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` 环境变量配置
+  * 通过 `NINE_SNAKE_ANTHROPIC_KEY` / `NINE_SNAKE_ANTHROPIC_MODEL` 环境变量配置
 
 * **统一 Tool 抽象层** (`src-tauri/src/tools/`)
   * `Tool` trait（`Send + Sync`）：任意能力（Shell / 文件读取 / 网页搜索）可实现统一接口

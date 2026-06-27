@@ -46,9 +46,11 @@
     "homepage": "https://github.com/AQWlala/nine-snake"
   },
   "plugins": {
-
     "globalShortcut": {
       "shortcut": "CmdOrCtrl+Shift+H"
+    },
+    "updater": {
+      "pubkey": "vl2AY5Eme9dkHDZG0e/4e+cFmuk/41zgGH9LCAmflVc="
     }
   }
 }

@@ -2,7 +2,7 @@
 
 > A local-first AI assistant that grows with you. 砍掉一个头，长出两个。
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v1.1.0-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v1.1.4-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **九头蛇**是一款本地优先的桌面 AI 助手，用 Rust + Tauri 2.0 + Preact 构建。它拥有 8 层记忆系统、多 Agent 协作、端到端加密同步，所有数据默认存储在本地，你的记忆只属于你。
 
@@ -187,8 +187,8 @@ npm run test:e2e
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama 服务地址 |
 | `NINE_SNAKE_CHAT_MODEL` | `qwen2.5:3b` | 对话模型 |
 | `NINE_SNAKE_EMBED_MODEL` | `BAAI/bge-small-zh-v1.5` | 嵌入模型 |
-| `ANTHROPIC_API_KEY` | — | Anthropic Claude API Key |
-| `ANTHROPIC_MODEL` | `claude-3-5-haiku-20241022` | Claude 模型名 |
+| `NINE_SNAKE_ANTHROPIC_KEY` | — | Anthropic Claude API Key |
+| `NINE_SNAKE_ANTHROPIC_MODEL` | `claude-3-5-haiku-20241022` | Claude 模型名 |
 
 ---
 
