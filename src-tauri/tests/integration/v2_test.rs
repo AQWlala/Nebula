@@ -43,6 +43,7 @@ fn test_agent_bus_broadcast() {
         content: "hello".to_string(),
         timestamp: 0,
         msg_type: nine_snake_lib::swarm::bus::BusMessageType::Notification,
+        correlation_id: None,
     });
     let msg = sub.try_recv().unwrap();
     assert_eq!(msg.content, "hello");
@@ -60,6 +61,7 @@ fn test_agent_bus_point_to_point() {
             content: "ping".to_string(),
             timestamp: 0,
             msg_type: nine_snake_lib::swarm::bus::BusMessageType::Request,
+            correlation_id: None,
         }).await.unwrap();
         let msg = rx.recv().await.unwrap();
         assert_eq!(msg.content, "ping");

@@ -34,3 +34,9 @@ keys/updater_private_password.b64
 # Build logs
 build_log*.txt
 cargo_build_log*.txt
+
+# Temp build dir
+tmp-target/
+
+# Debug logs
+cargo-errors*.txt

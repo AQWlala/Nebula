@@ -360,6 +360,7 @@ impl SwarmOrchestrator {
             ),
             timestamp: chrono::Utc::now().timestamp_millis(),
             msg_type: super::bus::BusMessageType::Notification,
+            correlation_id: None,
         });
 
         let outputs = if outputs.len() > 1 {
