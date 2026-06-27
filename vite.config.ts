@@ -1,15 +1,10 @@
-import { defineConfig, type UserConfig } from 'vite';
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 
-const config: UserConfig = {
+export default defineConfig({
   plugins: [preact()],
-
   build: {
-    minify: 'terser',
-    terserOptions: {
-      compress: false,
-      mangle: false,
-    },
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -20,6 +15,10 @@ const config: UserConfig = {
       },
     },
   },
-};
-
-export default defineConfig(config);
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test-setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+  },
+});
