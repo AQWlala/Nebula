@@ -46,21 +46,9 @@
     "homepage": "https://github.com/AQWlala/nine-snake"
   },
   "plugins": {
-    "autostart": {
-      "macosLauncher": "LaunchAgent"
-    },
+    "autostart": {},
     "globalShortcut": {
       "shortcut": "CmdOrCtrl+Shift+H"
-    },
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://github.com/AQWlala/nine-snake/releases/latest/download/latest.json"
-      ],
-      "pubkey": "vl2AY5Eme9dkHDZG0e/4e+cFmuk/41zgGH9LCAmflVc=",
-      "windows": {
-        "installMode": "passive"
-      }
     }
   }
 }
