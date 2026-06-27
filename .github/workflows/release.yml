@@ -112,7 +112,7 @@ jobs:
       - name: Build & sign
         shell: bash
         env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -135,11 +135,6 @@ jobs:
             echo ">>> Building WITH updater signing"
           else
             echo ">>> Building WITHOUT updater signing (no TAURI_SIGNING_PRIVATE_KEY secret)"
-          fi
-          # On macOS without Apple signing identity, skip codesign
-          if [[ "${{ matrix.os }}" == "macos-latest" && -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
-            echo ">>> No Apple signing identity — ad-hoc signing for macOS"
-            export CODESIGN_IDENTITY="-"
           fi
           echo "--- starting tauri build ---"
           set +e
