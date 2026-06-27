@@ -91,7 +91,7 @@ export function ChatPanel() {
       });
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: res.reply, timestamp: Date.now() },
+        { role: 'assistant', content: res.content, timestamp: Date.now() },
       ]);
     } catch (e) {
       const err = e as { name?: string; message?: string };

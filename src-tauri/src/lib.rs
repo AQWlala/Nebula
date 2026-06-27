@@ -698,6 +698,7 @@ pub fn run() {
             commands::skill_rate,
             commands::skill_list,
             commands::skill_search,
+            commands::skill_import,
             // v0.5: writing.
             commands::writing_list_templates,
             commands::writing_get_template,

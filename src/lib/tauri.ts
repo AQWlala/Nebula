@@ -69,9 +69,9 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  reply: string;
-  conversation_id: string;
-  memories_stored: number;
+  model: string;
+  role: string;
+  content: string;
 }
 
 /** v0.3: explicit DTO matching the Rust `StoreMemoryRequest`. */
@@ -247,7 +247,7 @@ export interface CommandError {
 
 export class NineSnakeAPI {
   static chat(req: ChatRequest): Promise<ChatResponse> {
-    return invoke('chat', { req });
+    return invoke('chat', { request: { user_message: req.message, conversation_id: req.conversation_id } });
   }
 
   /**
@@ -330,7 +330,7 @@ export class NineSnakeAPI {
   }
 
   static skillImport(url: string, source: string): Promise<ImportResult> {
-    return invoke('skill_import', { url, source });
+    return invoke('skill_import', { identifier: url, source });
   }
 
   // -----------------------------------------------------------------------
