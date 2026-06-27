@@ -880,7 +880,7 @@ mod rlimit_bindings {
     }
 }
 #[cfg(unix)]
-use rlimit_bindings::{libc_rlimit, setrlimit as libc_setrlimit};
+use rlimit_bindings::{libc_rlim_t, libc_rlimit, setrlimit as libc_setrlimit};
 
 #[cfg(test)]
 mod tests {
