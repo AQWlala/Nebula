@@ -46,7 +46,7 @@
     "homepage": "https://github.com/AQWlala/nine-snake"
   },
   "plugins": {
-    "autostart": {},
+
     "globalShortcut": {
       "shortcut": "CmdOrCtrl+Shift+H"
     }
