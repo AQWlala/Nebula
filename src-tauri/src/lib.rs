@@ -235,7 +235,7 @@ pub struct AppState {
     pub device_manager: Arc<parking_lot::Mutex<DeviceManager>>,
     /// v1.3: MCP manager (feature-gated).
     #[cfg(feature = "mcp")]
-    pub mcp_manager: crate::mcp::client::McpManager,
+    pub mcp_manager: Arc<crate::mcp::client::McpManager>,
 }
 
 impl AppState {
@@ -481,7 +481,7 @@ impl AppState {
             webchat_service: WebChatService::new(),
             device_manager,
             #[cfg(feature = "mcp")]
-            mcp_manager: crate::mcp::client::McpManager::new(),
+            mcp_manager: Arc::new(crate::mcp::client::McpManager::new()),
         })
     }
 
@@ -634,6 +634,17 @@ pub fn run() {
                             }
                         } else {
                             info!(target: "nine_snake", "gRPC server disabled by config");
+                        }
+
+                        // v1.3: MCP — connect all configured servers and
+                        // register their tools into the ToolRegistry.
+                        #[cfg(feature = "mcp")]
+                        {
+                            state.mcp_manager.connect_all().await;
+                            let mcp_tools = state.mcp_manager.list_all_tools().await;
+                            if !mcp_tools.is_empty() {
+                                info!(target: "nine_snake", count = mcp_tools.len(), "MCP tools discovered");
+                            }
                         }
 
                         handle.manage(state);

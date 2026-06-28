@@ -10,9 +10,9 @@
 ┌────────────────────────────────────────────────────────────┐
 │  Tauri 2.0 进程                                             │
 │                                                             │
-│  ┌──────────────────┐    ┌──────────────────────────────┐ │
-│  │  Tauri commands  │    │  gRPC server (127.0.0.1)     │ │
-│  │  (106 个)        │    │  (22 RPC · trait OK · wire v1.1) │ │
+  │  ┌──────────────────┐    ┌──────────────────────────────┐ │
+  │  │  Tauri commands  │    │  gRPC server (127.0.0.1)     │ │
+  │  │  (106 个)        │    │  (22 RPC · JSON framing shim) │ │
 │  └────────┬─────────┘    └──────────────┬───────────────┘ │
 │           │                              │                  │
 │           └──────────────┬───────────────┘                  │
@@ -89,6 +89,11 @@ NineSnakeAPI.chat({message, conversation_id?})
   │     ├─ 写一条 L1 Episodic（用户）
   │     └─ 写一条 L1 Episodic（助手）
   │
+  │    每条 L1 写入实际走 SpongeEngine::absorb() 3 步管线：
+  │     ├─ Step 1: SensitiveScanner 正则脱敏（API Key / Token / 私钥 / 身份证 / 手机号）
+  │     ├─ Step 2: Embedder 向量化 → LanceDB 写一行向量 + SQLite 写一行元数据
+  │     └─ Step 3: 去重 / 合并判定（余弦相似度 > 阈值则合并旧记忆）
+  │
   ▼
 返回 ChatResponseDto
   │
@@ -157,7 +162,7 @@ ChatPanel 渲染 + 写入 NineSnakeStore
 
 ---
 
-## 5. gRPC 服务（v0.3，可选）
+## 5. gRPC 服务（v1.1 JSON framing shim）
 
 `proto/nine_snake.proto` 定义 22 个 RPC：
 
@@ -170,14 +175,17 @@ ChatPanel 渲染 + 写入 NineSnakeStore
 | ReflectionService | Trigger / ListRecent / Get |
 | Health | Health |
 
-* **transport** — tonic 0.12 over HTTP/2 (h2c in-process, TLS 由前置代理做)。
+* **transport** — hyper HTTP/2 server + 自定义 JSON framing shim（4-byte BE length prefix + JSON payload）。
+* **注意** — 当前实现**不是**完整的 gRPC/HTTP2 协议栈。它使用 serde_json 编解码替代 protobuf，
+  不支持 HPACK 头压缩、varint 编码或 gRPC 标准的 4MB 消息限制。
+  标准 `grpcurl` 或 `protoc-gen-tonic` 客户端**无法直接连接**。
+  调用方需使用兼容此 JSON framing 的自定义客户端。
 * **地址** — `127.0.0.1:50051` 默认（`NINE_SNAKE_GRPC_ADDR`）。
 * **关闭** — `NINE_SNAKE_GRPC=0` 禁用（`--no-default-features` 也可彻底剔除 tonic）。
-* **v1.0 P0#12 状态** — 22 个 RPC 的 **trait 方法体** 在
+* **v1.1 状态** — 22 个 RPC 的 trait 方法体在
   `src/grpc/server.rs::NineSnakeServiceImpl` 中已完整实现；
-  当前版本的 `handle_connection` 是 v0.3 wire-shim 占位
-  （bind + accept OK；HTTP/2 + 帧解码推迟到 v1.1）。守护测试
-  在 `tests/integration/grpc_wire_test.rs`。
+  `handle_connection` 使用 hyper HTTP/2 + JSON framing shim 处理真实连接。
+  完整 protobuf wire 兼容（grpcurl / tonic 客户端可直连）推迟到未来版本。
 
 ---
 

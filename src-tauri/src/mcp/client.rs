@@ -168,9 +168,10 @@ impl McpManager {
     }
 
     pub async fn list_all_tools(&self) -> Vec<McpTool> {
-        let clients = self.clients.lock();
+        let clients: Vec<Arc<tokio::sync::Mutex<McpClient>>> =
+            self.clients.lock().values().cloned().collect();
         let mut all_tools = Vec::new();
-        for client in clients.values() {
+        for client in clients {
             let locked = client.lock().await;
             all_tools.extend(locked.list_tools().iter().cloned());
         }

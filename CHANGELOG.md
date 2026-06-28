@@ -2,7 +2,18 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [1.1.4] - 2026-06-27
+## [1.1.5] - 2026-06-28
+
+🔧 **文档修正 / MCP wiring / 安全修复**。
+
+### Fixed
+
+* 修正 ARCHITECTURE.md §2 数据流描述：补充 L1 写入实际走 SpongeEngine::absorb() 3 步管线（敏感扫描 → embed+LanceDB+SQLite → 去重/合并），而非"写一条 L1"
+* 修正 CHANGELOG v1.1 + ARCHITECTURE.md §5 gRPC 描述：明确当前是 JSON framing shim（4-byte BE length + JSON payload），不是完整 gRPC/HTTP2 协议栈，标准 grpcurl/tonic 客户端无法直连
+* 修正 AppState 中 mcp_manager 字段：改为 `Arc<McpManager>` 包裹，与其他子系统一致，确保线程安全
+* 修正 bootstrap 中 MCP wiring：添加 `mcp_manager.connect_all()` 调用 + 工具发现日志，确保 MCP 功能可实际运行
+* 修正 McpManager::list_all_tools() 中 parking_lot::Mutex 跨 await point 持有问题：先 clone clients 释放锁再遍历
+* 移除 CHANGELOG v1.0 中虚假覆盖率声明"~73%"（无 tarpaulin/grcov 配置，无数据来源）
 
 🔧 **Bug 修复版 — 修复启动崩溃 / IPC 命令注册 / 前后端参数匹配 / 安全守卫恢复**。
 
@@ -43,12 +54,13 @@
   * 格式化为 `<memory_context>` 标签块注入 system prompt
   * Agent 现在具备"知道你之前写过什么"的能力
 
-* **gRPC Wire-Shim 完整实现** (`src-tauri/src/grpc/server.rs`)
+* **gRPC JSON Framing Shim 实现** (`src-tauri/src/grpc/server.rs`)
   * 替换旧的"stub log → return error"实现
-  * 使用 `hyper-util::rt::TokioIo` + `Http2::builder` 处理真实 HTTP/2 连接
+  * 使用 hyper HTTP/2 server + 自定义 JSON framing shim（4-byte BE length + JSON payload）
   * 完整 22 个 RPC 路由（Memory / Swarm / Reflect / LLM / Skills）
-  * gRPC 长度前缀（4-byte BE length + JSON payload）编码
-  * 外部程序现在可以真正调用 nine-snake 记忆后端
+  * **注意**：当前不是完整 gRPC/HTTP2 协议栈，不支持 HPACK / protobuf / varint 编码，
+    标准 grpcurl 或 tonic 客户端无法直接连接，调用方需使用兼容 JSON framing 的自定义客户端
+  * 外部程序可通过 JSON framing 协议调用 nine-snake 记忆后端
 
 * **Shell 白名单 Glob/Regex 支持** (`src-tauri/src/os/shell.rs`)
   * `WhitelistEntry` enum：`Exact`（精确匹配） / `Glob`（前缀通配符匹配）
@@ -183,7 +195,7 @@
   * `src/components/__tests__/Settings.test.tsx` — 6 个 CSS 变量测试
   * `e2e/smoke.spec.ts` — Playwright 烟雾测试
   * `playwright.config.ts`
-  * 整体覆盖率 ~73%
+
 
 * **错误处理 & 日志**
   * `src-tauri/src/error_ui.rs` — 6 类错误卡片
