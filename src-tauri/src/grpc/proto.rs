@@ -481,7 +481,7 @@ pub struct SearchSkillsResponse {
 // slot in cleanly.
 
 /// JSON wrapper used as the on-wire body for every gRPC method.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct JsonBody<T>(pub T);
 
 impl<T> JsonBody<T>

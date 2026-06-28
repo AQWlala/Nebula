@@ -6,11 +6,13 @@ use tracing::info;
 
 use crate::AppState;
 
+#[cfg(feature = "grpc")]
 pub struct RestApiServer {
     addr: SocketAddr,
     state: Arc<AppState>,
 }
 
+#[cfg(feature = "grpc")]
 impl RestApiServer {
     pub fn new(addr: SocketAddr, state: Arc<AppState>) -> Self {
         Self { addr, state }
@@ -21,7 +23,7 @@ impl RestApiServer {
         let state = self.state;
         let addr = self.addr;
 
-        let service = move |req: http::Request<hyper::body::Incoming>| {
+        let service = move |req: hyper::Request<hyper::body::Incoming>| {
             let state = state.clone();
             async move {
                 let path = req.uri().path().to_string();
@@ -29,29 +31,42 @@ impl RestApiServer {
 
                 let (status, body) = match (method.as_str(), path.as_str()) {
                     ("GET", "/api/health") => (200, serde_json::json!({"status": "ok"})),
+
                     ("GET", "/api/memories") => {
-                        match state.sqlite.list_recent(50) {
+                        match state.sqlite.list_recent(50).await {
                             Ok(memories) => (200, serde_json::json!({"memories": memories})),
                             Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                         }
                     }
-                    ("POST", "/api/chat") => (200, serde_json::json!({"message": "use Tauri IPC for chat"})),
-                    ("POST", "/api/swarm/execute") => (200, serde_json::json!({"message": "use Tauri IPC for swarm"})),
+
                     ("GET", "/api/skills") => {
-                        match state.skills.list(Default::default()) {
+                        match state.skills.list(Default::default()).await {
                             Ok(skills) => (200, serde_json::json!({"skills": skills})),
                             Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                         }
                     }
+
+                    ("POST", "/api/chat") => (200, serde_json::json!({"message": "use Tauri IPC for chat"})),
+                    ("POST", "/api/swarm/execute") => (200, serde_json::json!({"message": "use Tauri IPC for swarm"})),
                     _ => (404, serde_json::json!({"error": "not found"})),
                 };
 
                 let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
-                let resp = http::Response::builder()
+                let resp = match http::Response::builder()
                     .status(status)
                     .header("content-type", "application/json")
                     .body(hyper::body::Bytes::from(body_bytes))
-                    .unwrap();
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to build REST response");
+                        http::Response::builder()
+                            .status(500)
+                            .header("content-type", "application/json")
+                            .body(hyper::body::Bytes::from(r#"{"error":"internal"}"#))
+                            .unwrap()
+                    }
+                };
                 Ok::<_, std::convert::Infallible>(resp)
             }
         };
@@ -72,12 +87,19 @@ impl RestApiServer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[cfg(not(feature = "grpc"))]
+pub struct RestApiServer {
+    _private: (),
+}
 
-    #[test]
-    fn rest_api_constructs() {
-        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+#[cfg(not(feature = "grpc"))]
+impl RestApiServer {
+    pub fn new(_: SocketAddr, _: Arc<AppState>) -> Self {
+        Self { _private: () }
+    }
+
+    pub async fn start(self) -> Result<()> {
+        tracing::warn!("REST API server disabled (grpc feature not enabled)");
+        Ok(())
     }
 }

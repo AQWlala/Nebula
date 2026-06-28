@@ -34,14 +34,11 @@
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use anyhow::{anyhow, Context as AnyhowContext, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_core::Stream;
-use http_body::Body as HttpBody;
-use http_body::Frame;
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use hyper::server::conn::http2;
@@ -880,12 +877,22 @@ async fn accept_loop(
 async fn grpc_service(
     req: Request<Incoming>,
     service: Arc<NineSnakeServiceImpl>,
-) -> Result<Response<BoxBody>, hyper::Error> {
+) -> Result<Response<BoxBody>, Infallible> {
     let path = req.uri().path().to_string();
     let method = req.method().clone();
 
     // Collect the request body
-    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let body_bytes = match req.into_body().collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            error!(target: "nine_snake.grpc", error = ?e, "failed to read request body");
+            let resp = Response::builder()
+                .status(hyper::StatusCode::BAD_REQUEST)
+                .body(vec_to_box_body(Vec::new()))
+                .unwrap();
+            return Ok(resp);
+        }
+    };
     let body_vec = body_bytes.to_vec();
 
     // Route to the appropriate handler based on path
@@ -901,7 +908,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/Get" => {
@@ -914,7 +921,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/Search" => {
@@ -927,7 +934,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/ListRecent" => {
@@ -940,7 +947,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/UpdateImportance" => {
@@ -953,7 +960,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/Delete" => {
@@ -966,7 +973,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/GetMany" => {
@@ -979,7 +986,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.MemoryService/GetStats" => {
@@ -992,7 +999,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         // Swarm service RPCs
@@ -1006,7 +1013,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SwarmService/ListAgents" => {
@@ -1019,7 +1026,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SwarmService/GetAgent" => {
@@ -1032,12 +1039,12 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SwarmService/StreamEvents" => {
             // Server-streaming RPC - return unimplemented for now
-            (hyper::StatusCode::UNIMPLEMENTED, b"server-streaming not implemented".to_vec())
+            (hyper::StatusCode::NOT_IMPLEMENTED, b"server-streaming not implemented".to_vec())
         }
         // Reflect service RPCs
         "/nine_snake.v1.ReflectService/ReflectNow" => {
@@ -1050,7 +1057,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.ReflectService/ListReflections" => {
@@ -1063,7 +1070,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.ReflectService/GetReflection" => {
@@ -1076,7 +1083,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         // LLM service RPCs
@@ -1090,7 +1097,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.LLMService/Chat" => {
@@ -1103,7 +1110,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.LLMService/Embed" => {
@@ -1116,7 +1123,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         // Skill service RPCs
@@ -1130,7 +1137,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SkillService/Use" => {
@@ -1143,7 +1150,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SkillService/Rate" => {
@@ -1156,7 +1163,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SkillService/List" => {
@@ -1169,7 +1176,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         "/nine_snake.v1.SkillService/Search" => {
@@ -1182,7 +1189,7 @@ async fn grpc_service(
                         Err(e) => (hyper::StatusCode::INTERNAL_SERVER_ERROR, encode_error(&e)),
                     }
                 }
-                Err(e) => (hyper::StatusCode::INVALID_ARGUMENT, encode_error(&e)),
+                Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
         _ => {
@@ -1201,7 +1208,14 @@ async fn grpc_service(
     }
 
     let body = response_body;
-    Ok(response.body(BoxBody::new(body.into()))?)
+    let resp = response.body(vec_to_box_body(body)).unwrap_or_else(|e| {
+        error!(target: "nine_snake.grpc", error = %e, "failed to build gRPC response");
+        Response::builder()
+            .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
+            .body(vec_to_box_body(Vec::new()))
+            .unwrap()
+    });
+    Ok(resp)
 }
 
 // Helper macro to decode JSON body
@@ -1229,41 +1243,10 @@ fn encode_error(e: &GrpcError) -> Vec<u8> {
 #[cfg(feature = "grpc")]
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, Infallible>;
 
-#[cfg(feature = "grpc")]
-impl http_body::Body for BoxBody {
-    type Data = Bytes;
-    type Error = Infallible;
-
-    fn poll_frame(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
-        Pin::new(&mut self.0).poll_frame(cx)
-    }
-
-    fn boxed(self) -> BoxBody
-    where
-        Self: 'static,
-    {
-        self
-    }
+fn vec_to_box_body(data: Vec<u8>) -> BoxBody {
+    http_body_util::Full::new(Bytes::from(data)).boxed()
 }
 
-#[cfg(feature = "grpc")]
-impl<T> http_body::Body for T
-where
-    T: http_body::Body<Data = Bytes, Error = Infallible> + Unpin,
-{
-    type Data = Bytes;
-    type Error = Infallible;
-
-    fn poll_frame(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
-        Pin::new(self).poll_frame(cx)
-    }
-}
 
 /// Reads HTTP/2 frames, dispatches to the appropriate RPC handler, and writes
 /// the response back. This implementation uses hyper's HTTP/2 server support.
