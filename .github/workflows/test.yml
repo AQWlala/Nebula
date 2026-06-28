@@ -25,7 +25,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev protobuf-compiler
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
+      - name: Install protoc (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: choco install -y --no-progress protoc 2>&1 | tail -n 5
       - name: Test
         working-directory: src-tauri
         run: cargo test --no-default-features --features grpc -- --test-threads=1

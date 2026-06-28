@@ -13,14 +13,14 @@ beforeEach(() => {
 
 describe('NineSnakeStore.checkOllama (P0#07)', () => {
   it('checkOllama_down_sets_signal_to_down', async () => {
-    vi.spyOn(NineSnakeAPI, 'health').mockRejectedValue(new Error('connection refused'));
+    vi.spyOn(NineSnakeAPI, 'healthFull').mockRejectedValue(new Error('connection refused'));
     const result = await NineSnakeStore.checkOllama();
     expect(result).toBe('down');
     expect(NineSnakeStore.ollamaStatus.value).toBe('down');
   });
 
   it('checkOllama ok (ollama: "ok") keeps signal green', async () => {
-    vi.spyOn(NineSnakeAPI, 'health').mockResolvedValue({
+    vi.spyOn(NineSnakeAPI, 'healthFull').mockResolvedValue({
       status: 'ok',
       version: '1.0.0',
       ollama: 'ok',
@@ -31,7 +31,7 @@ describe('NineSnakeStore.checkOllama (P0#07)', () => {
   });
 
   it('checkOllama absent ollama field is treated as down', async () => {
-    vi.spyOn(NineSnakeAPI, 'health').mockResolvedValue({
+    vi.spyOn(NineSnakeAPI, 'healthFull').mockResolvedValue({
       status: 'ok',
       version: '1.0.0',
       ollama: 'down',
