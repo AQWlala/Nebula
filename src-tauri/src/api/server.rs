@@ -1,15 +1,10 @@
 //! Service trait that any transport (Tauri, HTTP, MCP) can implement.
 //!
-//! v0.1 only exposes this trait through Tauri commands. The following
-//! surfaces are intentionally deferred:
-//!
-//! - TODO(v0.5): gRPC / HTTP transport — see design doc §13
-//! - TODO(v0.5): Skill CRUD API (`skills` table is in the schema but
-//!   unused at the command layer)
-//! - TODO(v0.5): Reflection write API (`reflections` table exists but
-//!   has no command)
-//! - TODO(v0.5): Memory branch / import-export / backup API
-//! - TODO(v0.5): Direct L5/L6/L7 write APIs (v0.1 demonstrates L0–L4)
+//! v1.1+ exposes this trait through Tauri commands and gRPC JSON framing.
+//! - Skill CRUD API: implemented (v0.3+)
+//! - Reflection API: implemented (v0.2+)
+//! - Memory export/import: implemented (v1.3+)
+//! - L5–L7 write APIs: implemented (v1.1+, with L7 guard)
 
 use anyhow::Result;
 use async_trait::async_trait;

@@ -8,6 +8,7 @@ use nine_snake_lib::swarm::negotiator::Negotiator;
 use nine_snake_lib::identity::{DidKey, DidDocument};
 use nine_snake_lib::sync::crdt::CrdtEngine;
 use nine_snake_lib::sync::device_manager::DeviceManager;
+use std::sync::Arc;
 use nine_snake_lib::skills::audit;
 use nine_snake_lib::channel::ChannelRouter;
 use nine_snake_lib::channel::router::WebChatAdapter;
@@ -263,7 +264,10 @@ fn test_crdt_lww_newer_wins() {
 
 #[test]
 fn test_device_manager_revoke() {
-    let mut mgr = DeviceManager::default();
+    let conn = Arc::new(parking_lot::Mutex::new(
+        rusqlite::Connection::open_in_memory().unwrap(),
+    ));
+    let mut mgr = DeviceManager::new(conn);
     mgr.register_device("dev-1".to_string(), "pk1".to_string(), 1000);
     let result = mgr.revoke_device("dev-1");
     assert!(result.success);

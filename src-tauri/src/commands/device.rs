@@ -11,8 +11,13 @@ use crate::AppState;
 pub async fn list_devices(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::sync::device_manager::DeviceInfo>, CommandError> {
-    Ok(state.device_manager.lock().list_devices()
-        .map_err(|e| CommandError::internal("list_devices", &e))?)
+    let dm = state.device_manager.clone();
+    tokio::task::spawn_blocking(move || {
+        dm.lock().list_devices()
+            .map_err(|e| CommandError::internal("list_devices", &e))
+    })
+    .await
+    .map_err(|e| CommandError::internal("list_devices", &anyhow::anyhow!("{e}")))?
 }
 
 #[tauri::command]
@@ -21,6 +26,11 @@ pub async fn revoke_device(
     state: State<'_, AppState>,
     device_id: String,
 ) -> Result<bool, CommandError> {
-    let result = state.device_manager.lock().revoke_device(&device_id);
-    Ok(result.success)
+    let dm = state.device_manager.clone();
+    tokio::task::spawn_blocking(move || {
+        let result = dm.lock().revoke_device(&device_id);
+        Ok(result.success)
+    })
+    .await
+    .map_err(|e| CommandError::internal("revoke_device", &anyhow::anyhow!("{e}")))?
 }

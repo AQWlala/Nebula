@@ -63,13 +63,13 @@ impl McpClient {
         if !self.connected {
             return;
         }
-        self.tools = vec![McpTool {
-            name: "placeholder".to_string(),
-            description: "Tool discovery placeholder".to_string(),
-            server_name: self.server_config.name.clone(),
-            input_schema: serde_json::json!({"type": "object"}),
-        }];
-        info!(target: "nine_snake.mcp", server = %self.server_config.name, count = self.tools.len(), "discovered tools");
+        // TODO: implement MCP JSON-RPC tools/list via McpTransport.
+        // The transport layer (stdio/HTTP) currently has no send/receive
+        // capability. Once McpTransport gains request/response methods,
+        // this should send {"jsonrpc":"2.0","method":"tools/list",...}
+        // and parse the response into McpTool structs.
+        self.tools = Vec::new();
+        info!(target: "nine_snake.mcp", server = %self.server_config.name, count = self.tools.len(), "discovered tools (transport not yet implemented)");
     }
 
     pub async fn invoke_tool(&self, tool_name: &str, arguments: serde_json::Value) -> Result<McpToolResult> {

@@ -398,10 +398,10 @@ impl AppState {
         let message_bridge = MessageBridge::new(&bridge_url).map(Arc::new);
         if message_bridge.is_some() {
             info!(target: "nine_snake", bridge_url = %bridge_url, "message bridge initialised");
-
-        // Wire composer to swarm orchestrator.
-        swarm.set_composer(skill_composer.clone());
         }
+
+        // Wire composer to swarm orchestrator (always, regardless of bridge).
+        swarm.set_composer(skill_composer.clone());
 
 
         // 9. v0.5 — writing engine.
@@ -773,6 +773,30 @@ pub fn run() {
             commands::acl_set,
             commands::acl_list,
             commands::acl_remove,
+            // v1.0.1 P0#12: API key (OS keychain).
+            commands::set_api_key,
+            commands::get_api_key,
+            commands::delete_api_key,
+            // v1.2: channel (message bridge).
+            commands::channel_status,
+            commands::channel_send,
+            commands::channel_poll,
+            commands::channel_ping,
+            // v1.1 P1-4: security scan.
+            commands::injection_scan,
+            commands::sandbox_config,
+            // v1.1 P0-2: tool registry.
+            commands::tool_list,
+            commands::tool_invoke,
+            // v1.3 P2-7: skill marketplace.
+            commands::marketplace_search,
+            commands::marketplace_quick_search,
+            commands::marketplace_install,
+            commands::marketplace_check_updates,
+            commands::marketplace_refresh,
+            commands::marketplace_stats,
+            commands::marketplace_tags,
+            commands::marketplace_generate_manifest,
             // v1.3: MCP (feature-gated).
             #[cfg(feature = "mcp")]
             commands::mcp_list_servers,

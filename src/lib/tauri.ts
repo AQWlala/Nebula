@@ -60,6 +60,8 @@ export interface Memory {
   source: string;
   pinned: boolean;
   compressed_from: string | null;
+  compression_gen: number;
+  archived: boolean;
   metadata: Record<string, unknown>;
 }
 
@@ -91,7 +93,7 @@ export interface StoreMemoryResponse {
 
 export interface SearchRequest {
   query: string;
-  limit?: number;
+  k?: number;
   layer?: Layer;
 }
 
@@ -262,7 +264,7 @@ export class NineSnakeAPI {
   }
 
   static memorySearch(req: SearchRequest): Promise<SearchResponse> {
-    return invoke('memory_search', { request: req });
+    return invoke('memory_search', { request: { query: req.query, k: req.k ?? 10, layer: req.layer } });
   }
 
   static memoryListRecent(limit: number): Promise<Memory[]> {

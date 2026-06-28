@@ -137,19 +137,36 @@ pub async fn sync_recv(
     state: State<'_, AppState>,
     request: RecvRequest,
 ) -> Result<RecvResponse, CommandError> {
-    let _ = state;
-    let _ = request;
-    // Implementation note: in v0.5 the actual decryption happens
-    // in the front-end (we hand back the encrypted envelopes
-    // because the local_secret_b64 is a session-only secret and
-    // we don't want to round-trip it through the Tauri command
-    // boundary on every poll).  The server-side helper exists for
-    // future server-side decryption when a service-worker style
-    // background process takes over.
-    Err(CommandError::internal(
-        "sync_recv",
-        &anyhow::anyhow!("sync_recv is implemented in the front-end; use sync_decrypt on each envelope"),
-    ))
+    let transport = state.sync_transport.clone();
+    let inbox_msgs: Vec<sync_ops::InboxMessage> = tokio::task::spawn_blocking(move || {
+        transport.recv()
+            .map_err(|e| CommandError::internal("sync_recv", &e))
+    })
+    .await
+    .map_err(|e| CommandError::internal("sync_recv", &anyhow::anyhow!("{e}")))?
+    .map_err(|e| CommandError::internal("sync_recv", &anyhow::anyhow!("{e}")))?;
+
+    let local = identity_from_secret_b64(&request.local_secret_b64)
+        .map_err(|e| CommandError::validation("sync_recv").with_details(e.to_string()))?;
+    let pair = Pair::new(local, &request.peer_public_b64)
+        .map_err(|e| CommandError::validation("sync_recv").with_details(e.to_string()))?;
+
+    let mut messages = Vec::new();
+    for msg in inbox_msgs {
+        match pair.decrypt(&msg.envelope) {
+            Ok(_pt) => {
+                if request.ack {
+                    let _ = state.sync_transport.ack(&msg.id);
+                }
+                messages.push(msg);
+            }
+            Err(e) => {
+                tracing::warn!(target: "nine_snake.sync", error = %e, id = %msg.id, "failed to decrypt envelope");
+                messages.push(msg);
+            }
+        }
+    }
+    Ok(RecvResponse { messages })
 }
 
 #[tauri::command]

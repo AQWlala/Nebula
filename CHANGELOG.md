@@ -2,6 +2,29 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.6] - 2026-06-28
+
+🔧 **P0/P1/P2 全面修复 — FTS5 迁移 / 命令注册 / DeviceManager 持久化 / 前端 DTO 对齐 / 安全修复**。
+
+### Fixed
+
+* 修复 FTS5 迁移 010_fts5.sql 引用不存在的 `memories.tags` 列：从虚拟表和触发器中移除 tags，避免所有 memories 写操作失败
+* 注册 20 个遗漏的 Tauri 命令：set_api_key / get_api_key / delete_api_key / channel_status / channel_send / channel_poll / channel_ping / injection_scan / sandbox_config / tool_list / tool_invoke / marketplace_search / marketplace_quick_search / marketplace_install / marketplace_check_updates / marketplace_refresh / marketplace_stats / marketplace_tags / marketplace_generate_manifest
+* 实现 sync_recv 命令：从 LocalTransport 拉取加密信封 → 逐个解密 → 返回 InboxMessage 列表，支持自动 ack
+* DeviceManager 持久化：添加 paired_devices 表，register_device / revoke_device 写入 SQLite，new() 从数据库加载已有设备，撤销操作重启后仍有效
+* MCP discover_tools() 移除占位符工具：返回空列表而非假工具，添加 TODO 说明需实现 transport 层
+* 修复 export_memories / import_memories 在 spawn_blocking 内调用 block_on 的死锁风险：改为直接在 async 上下文调用 async 方法
+* 修复 ACL 命令（acl_set / acl_list / acl_remove）同步 SQLite 调用未用 spawn_blocking：全部包裹在 spawn_blocking 中
+* 修复 list_devices / revoke_device 在 async 中持有 parking_lot::Mutex：改用 spawn_blocking
+* 修正 README 命令数 86 → 106，与 ARCHITECTURE.md 一致
+* 修正 CHANGELOG v1.0 updater pubkey 记录与 tauri.conf.json 实际 pubkey 不一致
+* 前端 StoreMemoryRequest 已有 source 字段（确认正确）
+* 前端 SearchRequest.limit 改为 k 字段，与后端 SearchMemoryRequest 匹配
+* 前端 Memory 类型添加 compression_gen / archived 缺失字段
+* 修复 set_composer 逻辑错误：从 message_bridge 条件块中移出，始终执行
+* 修复 NoopPromptMutator.propose() 返回带后缀字符串而非原始 prompt
+* 更新 api/server.rs 过时 TODO 注释
+
 ## [1.1.5] - 2026-06-28
 
 🔧 **文档修正 / MCP wiring / 安全修复**。
@@ -232,7 +255,7 @@
 * **CSP** — 收紧
 * **Skill 沙箱** — `NamedTempFile` + 5s 超时 + 100MB 内存上限 + 语言白名单
 * **Updater 签名** — 真 Ed25519 密钥对
-  (`1F44kpaO8aqD+6pQBCUlNhCBuMJ5hnAFEFCf3GFNKJY=`)
+  (`vl2AY5Eme9dkHDZG0e/4e+cFmuk/41zgGH9LCAmflVc=`)
 
 ### Fixed (发布前 P0 修复)
 

@@ -58,7 +58,7 @@ pub struct NoopPromptMutator;
 
 impl PromptMutator for NoopPromptMutator {
     fn propose(&self, target: &str, _recent: &[Outcome]) -> Result<String> {
-        Ok(format!("{target} (no-op mutator stub)"))
+        Ok(target.to_string())
     }
 }
 
