@@ -287,6 +287,10 @@ export class NineSnakeAPI {
     return invoke('health');
   }
 
+  static healthFull(): Promise<{ status: string; version: string; ollama: string }> {
+    return invoke('health_full');
+  }
+
   /** v0.2: manually trigger a reflection pass. */
   static reflectNow(): Promise<Reflection[]> {
     return invoke('reflect_now');

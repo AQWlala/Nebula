@@ -2,7 +2,7 @@
 
 > A local-first AI assistant that grows with you. 砍掉一个头，长出两个。
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v1.1.6-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v1.1.7-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **九头蛇**是一款本地优先的桌面 AI 助手，用 Rust + Tauri 2.0 + Preact 构建。它拥有 8 层记忆系统、多 Agent 协作、端到端加密同步，所有数据默认存储在本地，你的记忆只属于你。
 
@@ -132,6 +132,13 @@
 ```bash
 curl -fsSL https://nine-snake.app/install.sh | sh
 ```
+
+> **安全提示**：建议先下载脚本并校验 SHA-256 后再执行：
+> ```bash
+> curl -fsSL https://nine-snake.app/install.sh -o install.sh
+> sha256sum install.sh  # 与 Release 页面公布的哈希比对
+> sh install.sh
+> ```
 
 ---
 

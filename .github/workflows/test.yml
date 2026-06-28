@@ -31,7 +31,10 @@ jobs:
         run: cargo test --no-default-features --features grpc -- --test-threads=1
       - name: Lint
         working-directory: src-tauri
-        run: cargo clippy --no-default-features --features grpc -- -D warnings || true
+        run: cargo clippy --no-default-features --features grpc -- -D warnings
+      - name: Format check
+        working-directory: src-tauri
+        run: cargo fmt -- --check
       # v1.0.1 P0#02: audit Rust dependencies against the RustSec
       # advisory database. `--locked` pins cargo-audit's own deps
       # to Cargo.lock so the install is reproducible.

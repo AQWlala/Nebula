@@ -102,7 +102,7 @@ class NineSnakeStoreClass {
       // "down" so v0.5 backends that don't report it still get a
       // honest "we don't know" → banner shown, rather than a
       // silent success.
-      const h = await NineSnakeAPI.health();
+      const h = await NineSnakeAPI.healthFull();
       this.ollamaStatus.value = h?.ollama === 'ok' ? 'ok' : 'down';
     } catch {
       this.ollamaStatus.value = 'down';

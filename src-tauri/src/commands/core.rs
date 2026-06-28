@@ -23,7 +23,16 @@ pub async fn bootstrap() -> Result<(), CommandError> {
 /// v1.0: reports the running version.  The front-end shows it in
 /// the sidebar footer.
 #[tauri::command]
-pub async fn health(state: State<'_, AppState>) -> Result<HealthDto, CommandError> {
+pub async fn health() -> Result<HealthDto, CommandError> {
+    Ok(HealthDto {
+        status: "ok".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        ollama: "unknown".to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn health_full(state: State<'_, AppState>) -> Result<HealthDto, CommandError> {
     let ollama_status = {
         let client = state.llm.ollama_client();
         match tokio::time::timeout(std::time::Duration::from_secs(2), client.ping()).await {

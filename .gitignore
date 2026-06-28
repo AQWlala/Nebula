@@ -27,6 +27,8 @@ src-tauri/gen/schemas/
 # Public key is tracked; private keys are always ignored.
 keys/updater_private.b64
 keys/updater_private_password.b64
+keys/*.pem
+keys/*.key
 
 # CodeArts agent
 .codeartsdoer/

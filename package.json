@@ -1,14 +1,13 @@
 {
   "name": "nine-snake",
-  "version": "1.1.6",
-  "description": "A multi-headed AI agent that grows with you. 砍掉一个，长出两个。",
+  "version": "1.1.7",
+  "description": "A local-first AI assistant that grows with you. 砍掉一个头，长出两个。",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "_build_full": "tsc && vite build",
-    "build": "vite build",
-    "build:check": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

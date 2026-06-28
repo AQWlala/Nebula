@@ -31,7 +31,7 @@ export function MemoryInspector() {
     try {
       // v1.0.1 fix: `memorySearch` returns `SearchResponse` (hits
       // wrapper), not a flat `Memory[]`.  Flatten via `.hits[*].memory`.
-      const resp = await NineSnakeAPI.memorySearch({ query, limit: 30 });
+      const resp = await NineSnakeAPI.memorySearch({ query, k: 30 });
       setResults(resp.hits.map((h) => h.memory));
     } catch (e) {
       console.error(e);

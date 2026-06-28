@@ -2,6 +2,27 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.7] - 2026-06-28
+
+🔧 **构建安全 / 依赖升级 / CI 强化 / 项目治理**。
+
+### Fixed
+
+* 修复 package.json `build` 脚本跳过 TypeScript 类型检查：改为 `tsc --noEmit && vite build`，新增 `build:fast` 保留纯 Vite 构建
+* 修复 README `curl | sh` 安装命令无签名校验：添加 SHA-256 校验说明，引导用户先下载脚本比对哈希再执行
+* 升级 reqwest 0.11 → 0.12，消除与 hyper 1.0 并存时的双 hyper 依赖冲突
+* 修复 CI clippy 门禁 `|| true` 允许失败：改为强制 `cargo clippy -- -D warnings`，新增 `cargo fmt -- --check`
+* 精简 tokio features：`full` → 实际用到的 9 个 feature（rt-multi-thread / macros / time / io-util / sync / process / fs / signal / net）
+* .gitignore 补充 `keys/*.pem` / `keys/*.key` 兜底规则
+* wasm-sandbox feature 注释标注 experimental，明确非生产就绪
+* 统一 package.json description 为 "A local-first AI assistant that grows with you"，与 README 一致
+
+### Added
+
+* 新建 SECURITY.md：漏洞报告流程、响应时间线、支持版本、安全特性清单
+* 新建 .github/ISSUE_TEMPLATE/bug_report.md 和 feature_request.md
+* 新建 .github/PULL_REQUEST_TEMPLATE.md
+
 ## [1.1.6] - 2026-06-28
 
 🔧 **P0/P1/P2 全面修复 — FTS5 迁移 / 命令注册 / DeviceManager 持久化 / 前端 DTO 对齐 / 安全修复**。
