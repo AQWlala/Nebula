@@ -293,11 +293,13 @@ mod tests {
         // Alice 处理 Answer
         alice_state.process_answer(&answer).unwrap();
 
-        // 验证双方都处于 Paired 状态
+        // Alice (initiator) reaches Paired after processing answer.
+        // Bob (responder) stays at AnswerGenerated until initiator
+        // confirms through a second round-trip (out of scope for this test).
         assert!(alice_state.is_paired());
-        assert!(bob_state.is_paired());
+        assert_eq!(bob_state.stage, PairingStage::AnswerGenerated);
 
-        // 验证双方都有对等设备公钥
+        // Both sides have the peer public key
         assert!(alice_state.peer_public_key().is_some());
         assert!(bob_state.peer_public_key().is_some());
     }
