@@ -1,4 +1,4 @@
-//! Swarm end-to-end integration tests.
+﻿//! Swarm end-to-end integration tests.
 //!
 //! Validates the full v2.0 swarm pipeline:
 //! 1. Task creation → agent dispatch → parallel execution → report
@@ -38,12 +38,13 @@ async fn swarm_dispatch_parallel_agents_produces_report() {
 
     // Even with failing agents, the report must be structurally valid.
     assert!(!report.task.description.is_empty());
-    // We dispatched 3 agents (default); all will fail because the mock
-    // LLM points at a dead port, but the report must still exist.
-    assert_eq!(report.success_count + report.failure_count, report.outputs.len() as u32);
-    assert!(report.outputs.len() >= 1, "must have at least one output entry");
-    // approved is false because no agent succeeded with the mock LLM.
-    assert!(!report.approved);
+    
+    // All 3 agents will fail with the mock LLM (pointed at dead port),
+    // so failure_count reflects dispatch count. After negotiation, outputs
+    // is reduced to 1 (the chosen/fallback output).
+    assert_eq!(report.failure_count, 3, "all 3 agents should be dispatched");
+    assert!(!report.outputs.is_empty(), "negotiation produces at least 1 output");
+    assert!(!report.approved, "no agent succeeded with mock LLM");
 }
 
 #[tokio::test]
@@ -51,7 +52,9 @@ async fn swarm_explicit_agent_count_is_respected() {
     let orch = mock_orchestrator();
     let task = SwarmTask::new("Write a haiku about Rust").with_agent_count(4);
     let report = orch.execute(task).await.expect("orchestration should complete");
-    assert_eq!(report.outputs.len(), 4, "should spawn exactly 4 agents");
+    
+    // failure_count = number of agents dispatched (all fail with mock LLM)
+    assert_eq!(report.failure_count, 4, "should dispatch exactly 4 agents");
 }
 
 #[tokio::test]
@@ -60,7 +63,9 @@ async fn swarm_by_kinds_selects_correct_agents() {
     let mut task = SwarmTask::new("Review this: fn add(a,b) -> a+b");
     task.agents = vec!["Coder".into(), "Reviewer".into()];
     let report = orch.execute(task).await.expect("orchestration should complete");
-    assert_eq!(report.outputs.len(), 2, "should spawn exactly 2 agents by kind");
+    
+    // 2 agents dispatched by kind, both fail with mock LLM
+    assert_eq!(report.failure_count, 2, "should dispatch exactly 2 agents");
 }
 
 #[tokio::test]
@@ -74,7 +79,6 @@ async fn swarm_bus_broadcasts_completion_message() {
     let _report = orch.execute(task).await.expect("orchestration should complete");
 
     // After completion, at least one broadcast should be on the bus.
-    // tokio::sync::broadcast drain
     let mut found = false;
     while let Ok(msg) = rx.try_recv() {
         if msg.msg_type == BusMessageType::Notification
