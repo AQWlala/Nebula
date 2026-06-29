@@ -4,7 +4,7 @@
 //! subsystems that communicate through a shared [`AppState`] living inside
 //! the Tauri managed-state container:
 //!
-//! * [`memory`]   — the 8-layer v7.0 memory system
+//! * [`memory`]   — the 5-layer v7.0 memory system (L0-L5)
 //! * [`llm`]      — model gateway (Ollama + optional remote fallback)
 //! * [`swarm`]    — multi-agent orchestration
 //! * [`api`]      — internal Rust-side service trait surface
@@ -17,6 +17,7 @@
 //! downstream crates (and the binary) don't have to memorise module paths.
 
 pub mod api;
+#[cfg(feature = "channels")]
 pub mod channel;
 pub mod commands;
 pub mod editor;
@@ -78,7 +79,9 @@ use crate::skills::importer::SkillImporter;
 use crate::skills::store::SkillStore;
 use crate::swarm::composer::SkillComposer;
 use crate::swarm::orchestrator::SwarmOrchestrator;
+#[cfg(feature = "channels")]
 use crate::channel::bridge::MessageBridge;
+#[cfg(feature = "channels")]
 use crate::channel::webchat::WebChatService;
 use crate::sync::device_manager::DeviceManager;
 use crate::sync::LocalTransport;
@@ -204,6 +207,7 @@ pub struct AppState {
     pub marketplace: Arc<skills::SkillMarketplace>,
     /// v1.3: skill audit logger.
     pub skill_audit_logger: Arc<SkillAuditLogger>,
+    #[cfg(feature = "channels")]
     /// v1.2: multi-channel message bridge (JiWenSwarm delivery fabric).
     pub message_bridge: Option<Arc<MessageBridge>>,
     /// v0.3: handle to the reflection background worker, so the
@@ -229,6 +233,7 @@ pub struct AppState {
     pub startup_timer: StartupTimer,
     /// v1.1 P0-2: tool registry with registered tools (shell, etc.).
     pub tool_registry: Arc<ToolRegistry>,
+    #[cfg(feature = "channels")]
     /// v1.3: WebChat share link service.
     pub webchat_service: WebChatService,
     /// v1.3: device manager for sync pairing.
@@ -245,239 +250,56 @@ impl AppState {
     /// returned `anyhow::Error` carries the full context chain.
     pub async fn bootstrap(config: AppConfig) -> anyhow::Result<Self> {
         info!(target: "nine_snake", "bootstrapping app state");
-
-        // v1.0: startup profiler marks each milestone so the
-        // front-end (and CI) can audit the cold-start budget.
         let startup = StartupTimer::start();
         startup.mark("bootstrap.start");
 
-        // 1. SQLite — apply migrations synchronously on a blocking thread.
-        let db_path = config.db_path.clone();
-        let sqlite = tokio::task::spawn_blocking(move || SqliteStore::open(&db_path))
-            .await
-            .context("spawn_blocking for sqlite open failed")?
-            .context("opening sqlite store")?;
-        let sqlite = Arc::new(sqlite);
-        startup.mark("bootstrap.sqlite");
+        // Phase 1: storage (SQLite + migrations + LanceDB)
+        let (sqlite, lance) = Self::bootstrap_storage(&config, &startup).await?;
 
-        // 1b. v0.2 — run the migration runner (idempotent; 002+).
-        let sqlite_for_migrations = sqlite.clone();
-        let migrations_dir = crate::memory::migration::bundled_migrations_dir().to_path_buf();
-        let applied = tokio::task::spawn_blocking(move || {
-            let conn = sqlite_for_migrations.raw_connection();
-            let conn = conn.lock();
-            crate::memory::migration::run_migrations(&conn, &migrations_dir)
-        })
-        .await
-        .context("spawn_blocking for migrations failed")?
-        .context("running migrations")?;
-        if !applied.is_empty() {
-            info!(
-                target: "nine_snake",
-                count = applied.len(),
-                last = applied.last().map(|m| m.version).unwrap_or(0),
-                "applied v0.2 migrations"
-            );
-        }
-        startup.mark("bootstrap.migrations");
+        // Phase 2: AI core (embedder, LLM, sponge, blackhole)
+        let (embedder, llm, sponge, blackhole) =
+            Self::bootstrap_ai_core(&config, &sqlite, &lance, &startup).await?;
 
-        // 2. LanceDB vector store.
-        let lance = Arc::new(
-            LanceStore::open(&config.lance_path, config.embedding_dim)
-                .await
-                .context("opening lance store")?,
-        );
-        startup.mark("bootstrap.lance");
-
-        // 3. Embedder (Ollama HTTP client).
-        let embedder = Arc::new(Embedder::new(
-            OllamaClient::new(config.ollama_url.clone()),
-            config.embed_model.clone(),
-            config.embedding_dim,
-        ));
-
-        // 4. LLM gateway (chat/generate).
-        let ollama = Arc::new(OllamaClient::new(config.ollama_url.clone()));
-        // v1.1 P0-1: Anthropic fallback is enabled when NINE_SNAKE_ANTHROPIC_KEY is set.
-        let anthropic_key = std::env::var("NINE_SNAKE_ANTHROPIC_KEY").ok();
-        let anthropic_model = std::env::var("NINE_SNAKE_ANTHROPIC_MODEL").ok();
-        let llm = Arc::new(LlmGateway::new(
-            ollama,
-            config.chat_model.clone(),
-            config.remote_fallback_url.clone(),
-            anthropic_key,
-            anthropic_model,
-        ));
-        startup.mark("bootstrap.llm");
-
-        // 5. Sponge (absorption) and Black-hole (compression) engines.
-        let lance_for_sponge = lance.clone();
-        let sqlite_for_sponge = sqlite.clone();
-        let embedder_for_sponge = embedder.clone();
-        let sponge = Arc::new(SpongeEngine::new(
-            sqlite_for_sponge,
-            lance_for_sponge,
-            embedder_for_sponge,
-        ));
-
-        let blackhole = Arc::new(BlackholeEngine::new(
-            sqlite.clone(),
-            lance.clone(),
-            config.blackhole_threshold_days,
-        ));
-
-        // 6. Swarm orchestrator (with RAG support via lance + embedder).
-        let swarm = Arc::new(SwarmOrchestrator::new(
-            llm.clone(),
-            sponge.clone(),
-            lance.clone(),
-            embedder.clone(),
-            sqlite.clone(),
-        ));
-
-        // 7. v0.2 — reflection engine (L5). `llm = Some(...)` keeps the
-        //    LLM path enabled; the engine falls back to a template when
-        //    the gateway returns an error.
-        let reflection_cfg = ReflectConfig {
-            window_days: config.reflect_window_days,
-            min_importance: config.reflect_min_importance,
-            worker_interval_secs: config.reflect_interval_secs,
-            ..ReflectConfig::default()
-        };
-        let reflection = Arc::new(ReflectionEngine::new(
-            sqlite.clone(),
-            Some(llm.clone()),
-            reflection_cfg,
-        ));
-
-        // 8. v0.3 — skill store (shared between engine and extractor).
-        let skill_store = Arc::new(
-            SkillStore::new((*sqlite).clone())
-                .expect("SkillStore::new must succeed when migrations have been run"),
+        // Phase 3: swarm + reflection
+        let (swarm, reflection) = Self::bootstrap_swarm_and_reflection(
+            &config, &sqlite, &lance, &embedder, &llm, &sponge,
         );
 
-        // 8a-audit. v1.3 — skill audit logger (created before engine so it can be wired in).
-        let skill_audit_logger = Arc::new(SkillAuditLogger::new(sqlite.raw_connection()));
-
-        // 8a. v0.3 — skill engine (uses shared store + audit logger).
-        let skill_engine = SkillEngine::from_store(
-            (*skill_store).clone(),
-            llm.clone(),
-        ).with_audit(skill_audit_logger.clone());
-        let skills = Arc::new(skill_engine);
-
-        // 8b. v1.2 — skill auto-extractor for closed-loop learning.
-        let skill_extractor = Arc::new(SkillExtractor::new(
-            llm.clone(),
-            skill_store.clone(),
-            config.db_path
-                .rsplit_once(std::path::MAIN_SEPARATOR)
-                .map(|(d, _)| d)
-                .unwrap_or(".")
-                .to_string()
-                + "/skills_archive",
-        ));
-
-        // 8c. v1.2 — skill composer for orchestration upgrade.
-        let skill_composer = Arc::new(SkillComposer::new(
-            skill_store.clone(),
-            Some(llm.clone()),
-        ));
-
-        // 8d. v1.3 P2-7 — skill marketplace.
-        let skill_importer = Arc::new(SkillImporter::new((*skill_store).clone()));
-        let marketplace = Arc::new(skills::SkillMarketplace::new(
-            skill_store.clone(),
-            skill_importer,
-        ));
-        let _ = marketplace.refresh(); // build initial index
-
-
-        // 9. v1.2 — message bridge (multi-channel through JiuwenSwarm).
-        let bridge_url = std::env::var("NINE_SNAKE_BRIDGE_URL").unwrap_or_default();
-        let message_bridge = MessageBridge::new(&bridge_url).map(Arc::new);
-        if message_bridge.is_some() {
-            info!(target: "nine_snake", bridge_url = %bridge_url, "message bridge initialised");
-        }
-
-        // Wire composer to swarm orchestrator (always, regardless of bridge).
+        // Phase 4: skills ecosystem
+        let (skills, skill_extractor, skill_composer, marketplace, skill_audit_logger) =
+            Self::bootstrap_skills(&config, &sqlite, &llm);
         swarm.set_composer(skill_composer.clone());
 
-
-        // 9. v0.5 — writing engine.
-        let writing = Arc::new(WritingEngine::new(
-            sqlite.clone(),
-            Some(sponge.clone()),
-        ));
-
-        // 10. v0.5 — work engine.
+        // Phase 5: workspace tooling + final assembly
+        #[cfg(feature = "channels")]
+        let message_bridge = Self::bootstrap_message_bridge();
+        let writing = Arc::new(WritingEngine::new(sqlite.clone(), Some(sponge.clone())));
         let work = Arc::new(WorkEngine::new(sqlite.clone()));
-
-        // 11. v0.5 — editor state (file ops / watcher).
-        let editor = EditorState::new(&config.editor_workspace)
-            .unwrap_or_else(|e| {
-                tracing::warn!(target: "nine_snake", error = ?e, workspace = %config.editor_workspace, "editor workspace unavailable; falling back to current dir");
-                EditorState::new(".").expect("current dir is always a directory")
-            });
+        let editor = Self::bootstrap_editor(&config);
         startup.mark("bootstrap.editor");
-
-        // 12. v0.5 — clipboard.
-        let clipboard = ClipboardService::new().unwrap_or_else(|e| {
-            tracing::warn!(target: "nine_snake", error = ?e, "clipboard unavailable; using noop fallback");
-            ClipboardService::noop()
-        });
-
-        // 13. v0.5 — shell executor with the default whitelist.
+        let clipboard = Self::bootstrap_clipboard();
         let shell = Arc::new(ShellExecutor::new());
-
-        // 14. v1.1 P0-2 — tool registry with registered tools.
         let tool_registry = Arc::new(ToolRegistry::new());
         tool_registry.register(Arc::new(ShellTool::new((*shell).clone())));
-
-        // 15. v0.5 — local sync transport.
-        let sync_transport = Arc::new(
-            LocalTransport::new(&config.sync_inbox)
-                .unwrap_or_else(|e| {
-                    tracing::warn!(target: "nine_snake", error = ?e, inbox = %config.sync_inbox, "sync inbox unavailable; using temp dir");
-                    let tmp = std::env::temp_dir().join("nine-snake-sync-inbox");
-                    LocalTransport::new(&tmp).expect("temp dir always works")
-                }),
-        );
+        let sync_transport = Self::bootstrap_sync(&config);
         startup.mark("bootstrap.end");
 
-        let device_manager = Arc::new(parking_lot::Mutex::new(DeviceManager::new(sqlite.raw_connection())));
+        let device_manager =
+            Arc::new(parking_lot::Mutex::new(DeviceManager::new(sqlite.raw_connection())));
 
         Ok(Self {
             config: Arc::new(config),
-            sqlite,
-            lance,
-            embedder,
-            llm,
-            sponge,
-            blackhole,
-            swarm,
-            reflection,
-            skills,
-            writing,
-            work,
-            editor,
-            clipboard,
-            shell,
-            sync_transport,
-            // Worker + gRPC handles are installed at startup time
-            // (in `run`) so that the same `AppState` instance can be
-            // shared between the Tauri runtime and standalone
-            // integration tests without spinning up network servers.
+            sqlite, lance, embedder, llm, sponge, blackhole, swarm, reflection,
+            skills, writing, work, editor, clipboard, shell, sync_transport,
             reflect_worker: Arc::new(Mutex::new(None)),
             #[cfg(feature = "grpc")]
             grpc_server: Arc::new(Mutex::new(None)),
             startup_timer: startup,
-            skill_extractor,
-            skill_composer,
-            marketplace,
-            skill_audit_logger,
+            skill_extractor, skill_composer, marketplace, skill_audit_logger,
+            #[cfg(feature = "channels")]
             message_bridge,
             tool_registry,
+            #[cfg(feature = "channels")]
             webchat_service: WebChatService::new(),
             device_manager,
             #[cfg(feature = "mcp")]
@@ -485,6 +307,145 @@ impl AppState {
         })
     }
 
+    // -- bootstrap phase helpers --
+
+    async fn bootstrap_storage(
+        config: &AppConfig, startup: &StartupTimer,
+    ) -> anyhow::Result<(Arc<SqliteStore>, Arc<LanceStore>)> {
+        let db_path = config.db_path.clone();
+        let sqlite = tokio::task::spawn_blocking(move || SqliteStore::open(&db_path))
+            .await.context("spawn_blocking for sqlite open failed")?
+            .context("opening sqlite store")?;
+        let sqlite = Arc::new(sqlite);
+        startup.mark("bootstrap.sqlite");
+
+        let s = sqlite.clone();
+        let mdir = crate::memory::migration::bundled_migrations_dir().to_path_buf();
+        let applied = tokio::task::spawn_blocking(move || {
+            let conn = s.raw_connection();
+            crate::memory::migration::run_migrations(&conn.lock(), &mdir)
+        }).await.context("spawn_blocking for migrations failed")?
+          .context("running migrations")?;
+        if !applied.is_empty() {
+            info!(target: "nine_snake", count = applied.len(),
+                last = applied.last().map(|m| m.version).unwrap_or(0),
+                "applied migrations");
+        }
+        startup.mark("bootstrap.migrations");
+
+        let lance = Arc::new(
+            LanceStore::open(&config.lance_path, config.embedding_dim)
+                .await.context("opening lance store")?,
+        );
+        startup.mark("bootstrap.lance");
+        Ok((sqlite, lance))
+    }
+
+    async fn bootstrap_ai_core(
+        config: &AppConfig, sqlite: &Arc<SqliteStore>,
+        lance: &Arc<LanceStore>, startup: &StartupTimer,
+    ) -> anyhow::Result<(Arc<Embedder>, Arc<LlmGateway>, Arc<SpongeEngine>, Arc<BlackholeEngine>)> {
+        let embedder = Arc::new(Embedder::new(
+            OllamaClient::new(config.ollama_url.clone()),
+            config.embed_model.clone(), config.embedding_dim,
+        ));
+        let ollama = Arc::new(OllamaClient::new(config.ollama_url.clone()));
+        let ak = std::env::var("NINE_SNAKE_ANTHROPIC_KEY").ok();
+        let am = std::env::var("NINE_SNAKE_ANTHROPIC_MODEL").ok();
+        let llm = Arc::new(LlmGateway::new(
+            ollama, config.chat_model.clone(),
+            config.remote_fallback_url.clone(), ak, am,
+        ));
+        startup.mark("bootstrap.llm");
+        let sponge = Arc::new(SpongeEngine::new(
+            sqlite.clone(), lance.clone(), embedder.clone()));
+        let blackhole = Arc::new(BlackholeEngine::new(
+            sqlite.clone(), lance.clone(), config.blackhole_threshold_days));
+        Ok((embedder, llm, sponge, blackhole))
+    }
+
+    fn bootstrap_swarm_and_reflection(
+        config: &AppConfig, sqlite: &Arc<SqliteStore>,
+        lance: &Arc<LanceStore>, embedder: &Arc<Embedder>,
+        llm: &Arc<LlmGateway>, sponge: &Arc<SpongeEngine>,
+    ) -> (Arc<SwarmOrchestrator>, Arc<ReflectionEngine>) {
+        let swarm = Arc::new(SwarmOrchestrator::new(
+            llm.clone(), sponge.clone(), lance.clone(),
+            embedder.clone(), sqlite.clone()));
+        let cfg = ReflectConfig {
+            window_days: config.reflect_window_days,
+            min_importance: config.reflect_min_importance,
+            worker_interval_secs: config.reflect_interval_secs,
+            ..ReflectConfig::default()
+        };
+        let reflection = Arc::new(ReflectionEngine::new(
+            sqlite.clone(), Some(llm.clone()), cfg));
+        (swarm, reflection)
+    }
+
+    fn bootstrap_skills(
+        config: &AppConfig, sqlite: &Arc<SqliteStore>, llm: &Arc<LlmGateway>,
+    ) -> (Arc<SkillEngine>, Arc<SkillExtractor>, Arc<SkillComposer>,
+         Arc<skills::SkillMarketplace>, Arc<SkillAuditLogger>) {
+        let ss = Arc::new(SkillStore::new(sqlite.as_ref().clone())
+            .expect("SkillStore::new must succeed"));
+        let audit = Arc::new(SkillAuditLogger::new(sqlite.raw_connection()));
+        let skills = Arc::new(
+            SkillEngine::from_store((*ss).clone(), llm.clone())
+                .with_audit(audit.clone()));
+        let adir = config.db_path
+            .rsplit_once(std::path::MAIN_SEPARATOR)
+            .map(|(d,_)| d).unwrap_or(".").to_string() + "/skills_archive";
+        let extr = Arc::new(SkillExtractor::new(llm.clone(), ss.clone(), adir));
+        let comp = Arc::new(SkillComposer::new(ss.clone(), Some(llm.clone())));
+        let imp = Arc::new(SkillImporter::new((*ss).clone()));
+        let mp = Arc::new(skills::SkillMarketplace::new(ss, imp));
+        let _ = mp.refresh();
+        // v2.0: seed built-in demo skills on first run (idempotent).
+        crate::skills::seed_demo_skills(&skills)
+            .unwrap_or_else(|e| {
+                tracing::warn!(target: "nine_snake", error = ?e, "failed to seed demo skills");
+                Vec::new()
+            });
+        (skills, extr, comp, mp, audit)
+    }
+
+    #[cfg(feature = "channels")]
+    fn bootstrap_message_bridge() -> Option<Arc<MessageBridge>> {
+        let url = std::env::var("NINE_SNAKE_BRIDGE_URL").unwrap_or_default();
+        let b = MessageBridge::new(&url).map(Arc::new);
+        if b.is_some() {
+            info!(target: "nine_snake", bridge_url = %url, "message bridge initialised");
+        }
+        b
+    }
+
+    fn bootstrap_editor(config: &AppConfig) -> EditorState {
+        EditorState::new(&config.editor_workspace).unwrap_or_else(|e| {
+            tracing::warn!(target: "nine_snake", error = ?e,
+                workspace = %config.editor_workspace,
+                "editor workspace unavailable; falling back to current dir");
+            EditorState::new(".").expect("current dir is always a directory")
+        })
+    }
+
+    fn bootstrap_clipboard() -> ClipboardService {
+        ClipboardService::new().unwrap_or_else(|e| {
+            tracing::warn!(target: "nine_snake", error = ?e,
+                "clipboard unavailable; using noop fallback");
+            ClipboardService::noop()
+        })
+    }
+
+    fn bootstrap_sync(config: &AppConfig) -> Arc<LocalTransport> {
+        Arc::new(LocalTransport::new(&config.sync_inbox).unwrap_or_else(|e| {
+            tracing::warn!(target: "nine_snake", error = ?e,
+                inbox = %config.sync_inbox,
+                "sync inbox unavailable; using temp dir");
+            let tmp = std::env::temp_dir().join("nine-snake-sync-inbox");
+            LocalTransport::new(&tmp).expect("temp dir always works")
+        }))
+    }
     /// Wakes the background reflection worker, signals the gRPC
     /// server to stop, and awaits both joins with a brief grace
     /// period. Idempotent and safe to call from Tauri shutdown.
@@ -674,11 +635,10 @@ pub fn run() {
             commands::health,
             commands::health_full,
             // v1.0.1 revert: P0#13 commands-by-topic split is
-            // gone, so every entry uses the flat `commands::name`
+
             // path.  `chat` is the only name that historically
             // collided with a `chat` module elsewhere (e.g. the
             // gRPC-generated client) — it now resolves to the
-            // function in `commands::mod`.
             commands::chat,
             commands::memory_store,
             commands::memory_search,
@@ -778,6 +738,7 @@ pub fn run() {
             commands::set_api_key,
             commands::get_api_key,
             commands::delete_api_key,
+            #[cfg(feature = "channels")]
             // v1.2: channel (message bridge).
             commands::channel_status,
             commands::channel_send,

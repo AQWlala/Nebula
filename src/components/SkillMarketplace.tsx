@@ -1,4 +1,4 @@
-// v0.3: Skill Marketplace UI.
+// v0.3: Skill Browser (技能浏览器).
 //
 // The marketplace shows every skill the local engine knows about,
 // grouped by language and tag. Each card exposes three actions:
@@ -114,10 +114,10 @@ export function SkillMarketplace(): JSX.Element {
   }
 
   return (
-    <div class="skill-marketplace">
-      <header class="skill-marketplace__header">
-        <h2>🛒 技能市场 / Skill Marketplace</h2>
-        <div class="skill-marketplace__actions">
+    <div class="skill-browser">
+      <header class="skill-browser__header">
+        <h2>🔍 技能浏览器 / Skill Browser</h2>
+        <div class="skill-browser__actions">
           <input
             type="search"
             placeholder="search skills…"
@@ -133,7 +133,7 @@ export function SkillMarketplace(): JSX.Element {
       {error && <div class="error">⚠ {error}</div>}
       {loading && <div class="muted">loading…</div>}
 
-      <div class="skill-marketplace__filters">
+      <div class="skill-browser__filters">
         <label>
           语言：
           <select value={langFilter} onChange={(e) => setLangFilter((e.target as HTMLSelectElement).value)}>

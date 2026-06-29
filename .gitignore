@@ -42,3 +42,7 @@ tmp-target/
 
 # Debug logs
 cargo-errors*.txt
+
+# Codex/OpenCode agent
+.opencode/
+.agents/

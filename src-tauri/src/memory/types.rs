@@ -58,7 +58,7 @@ impl FromStr for MemoryType {
     }
 }
 
-/// 8-layer hierarchy from ephemeral cache (L0) to the immutable singularity (L7).
+/// Memory layer hierarchy (L0-L5 active, L6-L7 reserved for v1.5+).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum MemoryLayer {
     /// Temporary cache (single conversation turn).

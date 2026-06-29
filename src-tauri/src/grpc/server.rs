@@ -44,13 +44,14 @@ use hyper::body::Incoming;
 use hyper::server::conn::http2;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
-use hyper_util::rt::TokioIo;
+use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use std::convert::Infallible;
+
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 
 use super::proto::*;
-use crate::api::server::NineSnakeService;
+use crate::api::server::NineSnakeService as ApiNineSnakeService;
 use crate::skills::types as skill_types;
 use crate::AppState;
 
@@ -68,7 +69,7 @@ macro_rules! decode_and_dispatch {
 pub struct GrpcHandle {
     addr: SocketAddr,
     shutdown_tx: Option<oneshot::Sender<()>>,
-    join: tokio::task::JoinHandle<()>,
+    join: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl GrpcHandle {
@@ -82,9 +83,11 @@ impl GrpcHandle {
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(());
         }
-        match self.join.await {
-            Ok(_) => info!(target: "nine_snake.grpc", addr = %self.addr, "gRPC server stopped"),
-            Err(e) => warn!(target: "nine_snake.grpc", error = ?e, "gRPC server join error"),
+        if let Some(join) = self.join.take() {
+            match join.await {
+                Ok(_) => info!(target: "nine_snake.grpc", addr = %self.addr, "gRPC server stopped"),
+                Err(e) => warn!(target: "nine_snake.grpc", error = ?e, "gRPC server join error"),
+            }
         }
     }
 }
@@ -125,7 +128,7 @@ pub async fn start_server(bind_addr: String, state: AppState) -> Result<GrpcHand
     Ok(GrpcHandle {
         addr: bound,
         shutdown_tx: Some(shutdown_tx),
-        join,
+        join: Some(join),
     })
 }
 
@@ -889,7 +892,7 @@ async fn grpc_service(
     service: Arc<NineSnakeServiceImpl>,
 ) -> Result<Response<BoxBody>, Infallible> {
     let path = req.uri().path().to_string();
-    let method = req.method().clone();
+
 
     // Collect the request body
     let body_bytes = match req.into_body().collect().await {
@@ -1272,9 +1275,9 @@ async fn handle_connection(
         async move { grpc_service(req, svc).await }
     });
 
-    let mut builder = http2::Builder::new();
+    let mut builder = http2::Builder::new(TokioExecutor::new());
     // Disable fancy HTTP/2 features that require ALPN or prior knowledge
-    builder = builder.timer(tokio::time::sleep);
+    let builder = builder.timer(TokioTimer::new());
 
     let conn = builder.serve_connection(io, service_fn);
 

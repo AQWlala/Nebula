@@ -23,7 +23,7 @@
 │              │  │  subsystems  │  │                         │
 │              │  │  ┌─────────┐ │  │                         │
 │              │  │  │ memory  │ │  │                         │
-│              │  │  │  L0–L7  │ │  │                         │
+│              │  │  │  L0–L5  │ │  │                         │
 │              │  │  └─────────┘ │  │                         │
 │              │  │  ┌─────────┐ │  │                         │
 │              │  │  │   llm   │ │  │                         │
@@ -103,46 +103,46 @@ ChatPanel 渲染 + 写入 NineSnakeStore
 
 ---
 
-## 3. 8 层记忆子系统
+## 3. 5 层记忆子系统 (L0-L5, v7.0 设计)
 
 ```
                   ┌─────────────┐
-   user input ──▶ │ L0 raw facts│ (bytes / strings)
+   user input ──▶ │ L0 cache     │  (LRU 64MB, 当前会话)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L1 episodic │  (一次对话 / 一次操作)
+                  │ L1 messages  │  (对话/操作, 7天保留)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L2 semantic │  (命名实体、概念)
+                  │ L2 experience│  (命名实体+概念, 30天)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L3 procedural│  (步骤、流程)
+                  │ L3 facts     │  (结构化知识+技能, 90天)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L4 emotional│  (用户偏好、情绪)
+                  │ L4 knowledge │  (跨任务抽象+偏好, 1年)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L5 meta-cog │  (Reflection: 反思)
+                  │ L5 lessons   │  (元认知反思, v0假意识)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L6 abstract │  (跨任务抽象)
+                  │ L6 principles│  (深层模式)  →  📋 v1.5
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L7 autobio  │  (长期主线)
+                  │ L7 singularity│ (核心身份) →  📋 v1.5
                   └─────────────┘
 ```
 
 * **写入**：`SpongeEngine::absorb(memory)` — 去重、合并、embed、落库 (SQLite + LanceDB)。
 * **读取**：`LanceStore::search(query_emb, k)` → 拉 SQLite 元数据 → 过滤 layer。
-* **反思**：`ReflectionEngine` 后台 worker 每 N 秒跑一次，把 L2–L4 浓缩成 L5。
-* **压缩**：`BlackholeEngine` 在 N 天未访问时把 L0–L1 合并到 L2。
+* **反思**：`ReflectionEngine` 后台 worker 每 N 秒跑一次，把 L2–L3 浓缩成 L5 教训。
+* **压缩**：`BlackholeEngine` 在 N 天未访问时自动归档低重要性记忆。
 
 ---
 
@@ -186,6 +186,10 @@ ChatPanel 渲染 + 写入 NineSnakeStore
   `src/grpc/server.rs::NineSnakeServiceImpl` 中已完整实现；
   `handle_connection` 使用 hyper HTTP/2 + JSON framing shim 处理真实连接。
   完整 protobuf wire 兼容（grpcurl / tonic 客户端可直连）推迟到未来版本。
+
+> **架构决策 (ADR)**：v1.x 阶段永久采用 JSON framing shim，不追求完整 protobuf wire 兼容。
+> 理由：nine-snake 是本地优先应用，Tauri IPC 已是主要通信通道；gRPC 仅作为可选的外部集成接口。
+> 完整 protobuf（grpcurl/tonic 直连）推迟到有明确需求时再评估。
 
 ---
 

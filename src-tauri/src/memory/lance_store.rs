@@ -40,6 +40,7 @@ use arrow_array::{
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 #[cfg(feature = "vector-store")]
 use lancedb::{connect, Connection, Table};
+#[cfg(feature = "vector-store")]
 use lancedb::query::{ExecutableQuery, QueryBase};
 
 /// Type alias for the on-disk table handle. With the `vector-store`

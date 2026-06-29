@@ -47,6 +47,9 @@ mod grpc_wire_test;
 #[path = "integration/swarm_test.rs"]
 mod swarm_test;
 
+#[path = "integration/swarm_e2e_test.rs"]
+mod swarm_e2e_test;
+
 #[path = "integration/reflect_test.rs"]
 mod reflect_test;
 

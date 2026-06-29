@@ -1,25 +1,22 @@
 /**
- * Tauri Command 封装
+ * Tauri Command 封装 + 类型定义
  *
- * v0.2 新增 4 个命令：
- * - reflect_now: 手动触发一次反思
- * - list_reflections: 列出最近的反思
- * - metrics: 读取进程级指标
- * - migration_status: 读取 schema 迁移状态
+ * v0.3 新增 5 个 Skill CRUD 命令
+ * v0.5 新增三模式 + 编辑器 + OS + 同步
  *
- * v0.3 新增 Skill CRUD + DTO 修复：
- * - 所有 Tauri command 的命名参数统一为 `req: T`（Tauri 会把
- *   Rust 端的 `request: T` 自动序列化为 JS 端的 `req`）。
- * - 之前的 `memory_store({content, layer, memoryType})` 与
- *   Rust 签名不匹配，已修正为 `{req: StoreMemoryRequest}`。
- * - 新增 5 个 Skill 命令：create / use / rate / list / search。
+ * FUTURE: 此文件 24KB 已偏大，建议按领域拆分为
+ *   api/chat.ts     — Chat, StreamToken
+ *   api/memory.ts   — Memory, Search, Store, Reflection
+ *   api/skill.ts    — Skill, SkillResult, SkillAudit
+ *   api/swarm.ts    — SwarmTask, SwarmAgentResult
+ *   api/work.ts     — WorkTask, MeetingMinutes
+ *   api/writing.ts  — WritingTemplate, Document
+ *   api/editor.ts   — FileEntry, GitStatus
+ *   api/sync.ts     — Encrypt/Decrypt envelopes
+ *   api/os.ts       — ShellExec, Clipboard
+ *   types.ts        — 共享类型 (ErrorCode, Layer, MemoryType 等)
  *
- * v0.5 新增三模式 + 编辑器 + OS + 同步：
- * - 写作模式：templates / documents / export。
- * - 工作模式：kanban + 时间追踪 + 会议纪要。
- * - 编辑器：read / write / list / git status / log / diff / commit。
- * - OS：clipboard / shell exec / notify。
- * - 同步：E2EE 加密 / 解密 / inbox。
+ * 拆分时用 barrel export (index.ts) 保持 import 路径不变。
  */
 import { invoke } from '@tauri-apps/api/core';
 
@@ -39,6 +36,7 @@ export async function invokeTauri<T = unknown>(
   }
 }
 
+// L0-L5 are active in v1.x; L6-L7 reserved for v1.5+
 export type Layer = 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7';
 export type MemoryType =
   | 'Semantic'
@@ -111,7 +109,7 @@ export interface SwarmTask {
  *  return stdout / stderr / elapsed_ms / status for each agent
  *  so the UI can show expandable failure details and a
  *  per-agent retry button.  All optional fields default to
- *  "unknown" — older backends only fill `agent` + `content`. */
+ *  "unknown" 鈥?older backends only fill `agent` + `content`. */
 export interface SwarmAgentResult {
   agent: string;
   content: string;
@@ -256,7 +254,7 @@ export class NineSnakeAPI {
    * v0.3 fix: the Rust command signature is
    * `memory_store(state, request: StoreMemoryRequest)`. Tauri maps
    * the snake-case parameter `request` to the JS key `request` (not
-   * `req`), so we must send `{ request: ... }` — sending the raw
+   * `req`), so we must send `{ request: ... }` 鈥?sending the raw
    * fields was the v0.1 / v0.2 bug.
    */
   static memoryStore(req: StoreMemoryRequest): Promise<StoreMemoryResponse> {

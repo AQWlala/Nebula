@@ -1,4 +1,4 @@
-﻿/**
+/**
  * nine-snake · 九头蛇 主应用
  *
  * v1.0.1 layout additions:
@@ -208,7 +208,7 @@ function Sidebar() {
     { id: 'swarm', icon: '🐝', label: t('nav.swarm') },
     { id: 'memory', icon: '🧠', label: t('nav.memory') },
     { id: 'code', icon: '💻', label: t('nav.code') },
-    { id: 'skills', icon: '🛒', label: t('nav.skills') },
+    { id: 'skills', icon: '🔍', label: t('nav.skills') },
   ];
 
   return (

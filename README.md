@@ -4,7 +4,7 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v1.1.7-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**九头蛇**是一款本地优先的桌面 AI 助手，用 Rust + Tauri 2.0 + Preact 构建。它拥有 8 层记忆系统、多 Agent 协作、端到端加密同步，所有数据默认存储在本地，你的记忆只属于你。
+**九头蛇**是一款本地优先的桌面 AI 助手，用 Rust + Tauri 2.0 + Preact 构建。它拥有 5 层记忆系统（L0-L4 完整 + L5 元认知预览）、多 Agent 协作，所有数据默认存储在本地，你的记忆只属于你。
 
 ---
 
@@ -12,12 +12,11 @@
 
 | 特性 | 说明 |
 |------|------|
-| 🧠 8 层记忆 | 从 L0 原始感知到 L7 奇点核心，自动压缩、反思、层级提升 |
+| 🧠 5 层记忆 | L0 缓存 → L4 知识，自动压缩与层级提升，L5 元认知预览 |
 | 🐝 蜂群协作 | 6 种 Agent（Coder/Writer/Reviewer/Researcher/Planner/Generic）协同工作 |
-| 🔐 隐私优先 | 数据默认本地存储，E2EE 同步（X25519 + AES-256-GCM），DID 去中心化身份 |
+| 🔐 隐私优先 | 数据默认本地存储，E2EE 同步（X25519 + AES-256-GCM） |
 | ⚡ 本地推理 | 通过 Ollama 运行本地模型，也可降级到 Anthropic Claude |
-| 🌐 多渠道 | WebChat / Telegram / Discord 适配器，一个大脑多个出口 |
-| 🔧 可扩展 | 技能系统 + WASM 沙箱 + MCP 协议，自定义 AI 能力 |
+| 🔧 可扩展 | 技能系统，自定义 AI 能力（WASM/MCP/多渠道 实验性） |
 | 🌍 国际化 | 中文 / 英文界面，开箱即用 |
 
 ---
@@ -30,14 +29,14 @@
 │                                                          │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐  │
 │  │  Memory   │ │   LLM    │ │  Swarm   │ │   Sync     │  │
-│  │  L0 – L7  │ │  Ollama  │ │  6 Agents│ │   E2EE     │  │
+│  │  L0 – L5  │ │  Ollama  │ │  6 Agents│ │   E2EE     │  │
 │  │ SQLite +  │ │  Claude  │ │  Bus +   │ │  X25519 +  │  │
 │  │  LanceDB  │ │  Gateway │ │Negotiator│ │  AES-GCM   │  │
 │  └─────┬─────┘ └────┬─────┘ └────┬─────┘ └────────────┘  │
 │        └─────────────┴────────────┘                       │
 │                       ▲                                   │
 │              ┌────────┴────────┐                          │
-│              │    AppState     │  Security · ACL · DID    │
+│              │    AppState     │  Security · ACL    │
 │              └────────┬────────┘                          │
 └───────────────────────┼──────────────────────────────────┘
                         │ 106 Tauri Commands + gRPC + REST
@@ -45,7 +44,7 @@
 │              Preact Front-end  ▼                          │
 │                                                          │
 │   Chat · Swarm · Memory · Code · Skills · Settings      │
-│   Streaming Chat · DID Identity · Device Management     │
+│   Streaming Chat · Device Management     │
 │   Command Palette (⌘K) · i18n · Dark Mode               │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -56,18 +55,18 @@
 
 ### 🧠 记忆系统
 
-8 层记忆架构，模拟人类记忆的层级递进：
+5 层记忆架构（基于 v7.0 设计），模拟人类记忆的层级递进，L6/L7 推迟到 v1.5：
 
-| 层级 | 名称 | 说明 |
-|------|------|------|
-| L0 | 感官 | 原始输入，自动吸收 |
-| L1 | 事实 | 结构化知识条目 |
-| L2 | 情景 | 时间线关联的事件记忆 |
-| L3 | 语义 | 概念与关系（支持图搜索） |
-| L4 | 程序 | 技能与操作模式 |
-| L5 | 反思 | 自动生成的元认知洞察 |
-| L6 | 直觉 | 压缩后的模式识别 |
-| L7 | 奇点 | 核心身份与价值观 |
+| 层级 | 名称 | 说明 | 状态 |
+|------|------|------|------|
+| L0 | 缓存 | 最近访问 + 会话上下文（LRU, 64MB） | ✅ |
+| L1 | 消息 | 对话/操作原始记录（7天保留） | ✅ |
+| L2 | 经验 | 命名实体、概念关联 | ✅ |
+| L3 | 事实 | 结构化知识 + 技能库 | ✅ |
+| L4 | 知识 | 跨任务抽象 + 用户偏好 | ✅ |
+| L5 | 教训 | 元认知反思（v0 假意识） | ⚠️ 预览 |
+| L6 | 原理 | 跨任务深层模式 | 📋 v1.5 |
+| L7 | 奇点 | 核心身份与价值观 | 📋 v1.5 |
 
 - **自动压缩**：低重要性记忆自动归档，保持系统轻盈
 - **向量搜索**：LanceDB 驱动的语义检索 + SQLite 全文搜索
@@ -92,7 +91,6 @@
 - **注入检测**：扫描 Prompt 注入和凭证泄露
 - **Shell 白名单**：仅允许预授权命令执行
 - **E2EE 同步**：X25519 密钥交换 + AES-256-GCM 加密
-- **DID 身份**：W3C DID Core 标准的去中心化身份
 - **设备管理**：配对设备注册与撤销
 - **KeyVault**：OS Keychain 优先 + AES-256-GCM 文件降级
 
@@ -103,16 +101,7 @@
 - **WASM 沙箱**：Feature-gated，安全隔离执行
 - **审计日志**：完整的技能使用追踪
 - **MCP 协议**：Model Context Protocol 集成（Feature-gated）
-- **技能市场**：导入/导出/分享技能
-
-### 🌐 多渠道
-
-- **WebChat**：内置 Web 聊天服务
-- **Telegram**：Bot 适配器
-- **Discord**：Webhook 适配器
-- **ChannelRouter**：统一路由分发
-
----
+- **技能市场** [实验性]：导入/导出/分享技能（v2.0 完整版）
 
 ## 安装
 
@@ -207,7 +196,7 @@ npm run test:e2e
 | 前端 | Preact · TypeScript · Vite · Tailwind CSS · Monaco Editor · xterm.js |
 | 安全 | X25519 · AES-256-GCM · Ed25519 · HKDF-SHA256 |
 | AI | Ollama · Anthropic Claude · 自定义 LLM Gateway |
-| 同步 | E2EE · CRDT (LWW) · DID |
+| 同步 | E2EE · CRDT (LWW) |
 
 ---
 

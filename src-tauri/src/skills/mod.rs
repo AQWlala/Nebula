@@ -24,6 +24,7 @@ pub mod extractor;
 pub mod hub_client;
 pub mod importer;
 pub mod marketplace;
+pub mod seeder;
 pub mod sandbox;
 pub mod store;
 pub mod types;
@@ -32,6 +33,7 @@ pub use audit::{redact_if_sensitive, truncate_summary, SkillAuditEntry, SkillAud
 pub use engine::SkillEngine;
 pub use extractor::{ExtractionReport, SkillExtractor};
 pub use importer::{ImportResult, SkillImporter, SkillSource};
+pub use seeder::seed_demo_skills;
 pub use marketplace::{
     MarketplaceQuery, MarketplaceResponse, MarketplaceStats, PublishManifest, SearchHit,
     SkillEntry, SkillMarketplace, SortBy, UpdateInfo,

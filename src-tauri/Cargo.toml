@@ -194,7 +194,7 @@ crdt-sync = []
 [profile.release]
 # v1.0: minimum-size release build.
 opt-level = "z"
-lto = "fat"
+lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = true

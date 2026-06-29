@@ -23,7 +23,7 @@ interface ModeMeta {
 
 const MODES: ModeMeta[] = [
   { id: 'writing', icon: '✍️', label: 'Writing', subtitle: '长文 / 模板 / 导出', accent: '#39d98a' },
-  { id: 'work',    icon: '📋', label: 'Work',    subtitle: '看板 / 时间 / 会议', accent: '#ffb86b' },
+  { id: 'work',    icon: '📋', label: 'Work [实验性]',    subtitle: '看板 / 时间 / 会议', accent: '#ffb86b' },
   { id: 'code',    icon: '💻', label: 'Code',    subtitle: '文件 / 编辑 / 终端', accent: '#5fa8ff' },
 ];
 

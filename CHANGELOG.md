@@ -2,6 +2,39 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.8] - 2026-06-28
+
+🔧 **Bug 修复版 — 修复编译错误 / CI/CD 部署问题**。
+
+### Fixed
+
+* 修复 gRPC trait 名称冲突 (E0255)：将 `use crate::api::server::NineSnakeService` 改为 `use crate::api::server::NineSnakeService as ApiNineSnakeService`
+* 修复 GrpcHandle::shutdown 移动语义错误 (E0509)：将 `join` 字段改为 `Option<tokio::task::JoinHandle<()>>`，使用 `take()` 避免移动
+* 修复 hyper http2::Builder API 不匹配 (E0061/E0277/E0308)：使用 `TokioExecutor::new()` 和 `TokioTimer::new()` 适配 hyper 1.10+ API
+* 修复 lancedb 未门控导入 (E0433)：在 `use lancedb::query::{ExecutableQuery, QueryBase}` 前添加 `#[cfg(feature = "vector-store")]`
+* 移除未使用的 `method` 变量警告
+* 修复 package.json 重复的 postcss devDependency
+* 修复 tauri.conf.json devUrl 在 Windows 上无法编译（移除 bash `${TAURI_DEV_PORT:-5173}` 默认值语法）
+* 修复 .gitignore 遗漏 .opencode/ 目录
+
+### Docs
+
+* 修正 README 记忆层数描述：8 层 → 5 层（L0-L4 完整 + L5 预览），L6/L7 标注 v1.5
+* 修正 README 特性表：移除未实现的多渠道、DID 身份声明
+* 重写 README 记忆层表格：名称对齐 v7.0 设计文档，增加实现状态列
+* 修正 ARCHITECTURE.md 记忆子系统图表：层名称对齐设计文档
+* 修正 lib.rs 注释：8-layer → 5-layer
+* Work 模式 UI 添加 [实验性] 标记（ModeSwitcher）
+* Channel 模块（Telegram/Discord/WebChat）添加 feature gate channels，默认关闭
+* Skill Marketplace 重命名为 Skill Browser（技能浏览器），图标 🛒→🔍
+* ARCHITECTURE.md 添加 ADR：gRPC JSON shim 作为 v1.x 永久方案
+* 新增蜂群 E2E 集成测试：并行分发、Negotiator 协商、AgentBus 广播、Agent 内省
+* 新增内置 Demo 技能（hello-world / file-summary / code-review），首次启动自动种子
+* 确认 Telegram 适配器完全独立，直连 Telegram Bot API 无需 JiuwenSwarm
+* 注册 swarm_e2e_test 到集成测试 runner（之前遗漏）
+* 修正 MemoryLayer 注释 + tauri.ts Layer 类型：标注 L6/L7 为 v1.5+ 保留
+* 清理 lib.rs 命令注册处的残留 refactor 注释
+
 ## [1.1.7] - 2026-06-28
 
 🔧 **构建安全 / 依赖升级 / CI 强化 / 项目治理**。
