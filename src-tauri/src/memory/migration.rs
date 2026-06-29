@@ -204,13 +204,25 @@ fn split_sql(sql: &str) -> Vec<String> {
     let mut buf = String::new();
     let mut chars = sql.chars().peekable();
     let mut inside_string: Option<char> = None;
+    // Track BEGIN/END block depth so semicolons inside trigger
+    // bodies do not cause splits. SQLite treats CREATE TRIGGER
+    // ... BEGIN ... END; as a single compound statement.
+    let mut begin_depth: u32 = 0;
+    let mut word_buf: String = String::new();
+
+    fn flush_word(word: &mut String, depth: &mut u32) {
+        match word.as_str() {
+            "BEGIN" => *depth += 1,
+            "END" => *depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        word.clear();
+    }
+
     while let Some(c) = chars.next() {
         match (c, inside_string) {
-            // Toggle string-literal state. We do *not* handle SQL
-            // doubled-quote escaping inside identifiers (not used by
-            // our migration files) but the toggle is enough for the
-            // single-quote strings we emit (PRAGMAs, INSERT VALUES).
             ('\'', None) | ('"', None) => {
+                flush_word(&mut word_buf, &mut begin_depth);
                 buf.push(c);
                 inside_string = Some(c);
             }
@@ -218,10 +230,10 @@ fn split_sql(sql: &str) -> Vec<String> {
                 buf.push(c2);
                 inside_string = None;
             }
-            // Line comment: consume to EOL.
             ('-', None) if chars.peek() == Some(&'-') => {
+                flush_word(&mut word_buf, &mut begin_depth);
                 buf.push('-');
-buf.push(chars.next().unwrap()); // push second '-'
+                buf.push(chars.next().unwrap()); // push second '-'
                 for nc in chars.by_ref() {
                     buf.push(nc);
                     if nc == '\n' {
@@ -229,8 +241,8 @@ buf.push(chars.next().unwrap()); // push second '-'
                     }
                 }
             }
-            // Block comment: consume to `*/`.
             ('/', None) if chars.peek() == Some(&'*') => {
+                flush_word(&mut word_buf, &mut begin_depth);
                 buf.push('/');
                 chars.next();
                 buf.push('*');
@@ -243,17 +255,30 @@ buf.push(chars.next().unwrap()); // push second '-'
                 }
             }
             (';', None) => {
-                out.push(std::mem::take(&mut buf));
+                flush_word(&mut word_buf, &mut begin_depth);
+                if begin_depth == 0 {
+                    out.push(std::mem::take(&mut buf));
+                } else {
+                    buf.push(c);
+                }
+            }
+            (other, None) => {
+                buf.push(other);
+                if other.is_alphabetic() {
+                    word_buf.push(other.to_ascii_uppercase());
+                } else {
+                    flush_word(&mut word_buf, &mut begin_depth);
+                }
             }
             (other, _) => buf.push(other),
         }
     }
+    flush_word(&mut word_buf, &mut begin_depth);
     if !buf.trim().is_empty() {
         out.push(buf);
     }
     out
 }
-
 fn is_idempotent_error(msg: &str) -> bool {
     let m = msg.to_ascii_lowercase();
     m.contains("duplicate column name") || m.contains("already exists")
@@ -439,6 +464,26 @@ mod tests {
         let parts = split_sql(sql);
         assert_eq!(parts.len(), 2);
     }
+    #[test]
+    fn split_sql_handles_trigger_body_semicolons() {
+        let sql = "CREATE TRIGGER t AFTER INSERT ON x BEGIN INSERT INTO y VALUES(1); INSERT INTO y VALUES(2); END; SELECT 3;";
+        let parts = split_sql(sql);
+        assert_eq!(parts.len(), 2, "expected 2 statements, got {parts:?}");
+        assert!(parts[0].contains("CREATE TRIGGER"));
+        assert!(parts[0].contains("INSERT INTO y VALUES(1)"));
+        assert!(parts[0].contains("INSERT INTO y VALUES(2)"));
+        assert!(parts[1].contains("SELECT 3"));
+    }
+
+    #[test]
+    fn split_sql_handles_multiple_triggers() {
+        let sql = "CREATE TRIGGER t1 AFTER INSERT ON x BEGIN INSERT INTO y VALUES(1); END; CREATE TRIGGER t2 AFTER INSERT ON x BEGIN INSERT INTO z VALUES(2); END;";
+        let parts = split_sql(sql);
+        assert_eq!(parts.len(), 2, "expected 2 triggers, got {parts:?}");
+        assert!(parts[0].contains("t1"));
+        assert!(parts[1].contains("t2"));
+    }
+
 
     #[test]
     fn run_migrations_applies_pending_only() {
