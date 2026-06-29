@@ -28,16 +28,12 @@ pub const PAIRING_VERSION: u8 = 1;
 /// 包含用于响应设备验证的短暂公钥和加密的静态公钥。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PairingOffer {
-    /// 配对协议版本
+    /// Pairing protocol version
     pub version: u8,
-    /// 临时椭圆曲线公钥（base64 编码）
+    /// Temporary elliptic curve public key (base64 encoded)
     pub ephemeral_pubkey: String,
-    /// 用临时共享密钥加密的静态公钥（base64 编码）
-    pub encrypted_static_pubkey: String,
-    /// 加密时使用的盐（base64 编码）
-    pub salt: String,
-    /// 加密时使用的随机数（base64 编码）
-    pub nonce: String,
+    /// Local static public key (base64 encoded)
+    pub static_pubkey: String,
 }
 
 /// 配对 Answer（由响应设备生成）。
@@ -110,32 +106,18 @@ impl PairingState {
             return Err(anyhow!("invalid stage for generating offer: {:?}", self.stage));
         }
 
-        // 生成临时密钥对
+        // Generate ephemeral key pair
         let mut ephemeral_bytes = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut ephemeral_bytes);
         let ephemeral_secret = x25519_dalek::StaticSecret::from(ephemeral_bytes);
         let ephemeral_public = x25519_dalek::PublicKey::from(&ephemeral_secret);
-
-        // 用临时密钥和本地静态密钥派生共享密钥
-        let shared_secret = ephemeral_secret.diffie_hellman(&self.local_identity.public);
-        let mut salt = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut salt);
-
-        // HKDF 派生对称密钥
-        let symmetric_key = derive_symmetric_key(shared_secret.as_bytes(), &salt);
-
-        // 用对称密钥加密本地静态公钥
-        let static_pubkey_bytes = self.local_identity.public.as_bytes().to_vec();
-        let encrypted = encrypt_with_key(&symmetric_key, &static_pubkey_bytes)?;
 
         self.stage = PairingStage::OfferGenerated;
 
         Ok(PairingOffer {
             version: PAIRING_VERSION,
             ephemeral_pubkey: B64.encode(ephemeral_public.as_bytes()),
-            encrypted_static_pubkey: B64.encode(&encrypted.ciphertext),
-            salt: B64.encode(&encrypted.salt),
-            nonce: B64.encode(&encrypted.nonce),
+            static_pubkey: self.local_identity.public_key_b64(),
         })
     }
 
@@ -151,42 +133,30 @@ impl PairingState {
             return Err(anyhow!("invalid stage for processing offer: {:?}", self.stage));
         }
 
-        // 解码短暂公钥
+        // Decode ephemeral public key
         let ephemeral_bytes = B64.decode(&offer.ephemeral_pubkey)
             .context("decoding ephemeral pubkey")?;
         if ephemeral_bytes.len() != 32 {
             return Err(anyhow!("ephemeral pubkey must be 32 bytes"));
         }
-        let ephemeral_public = x25519_dalek::PublicKey::from(
-            TryInto::<[u8; 32]>::try_into(ephemeral_bytes).unwrap()
-        );
 
-        // 用本地静态密钥和对方的短暂公钥派生共享密钥
-        let shared_secret = self.local_identity.secret.diffie_hellman(&ephemeral_public);
-        let salt = B64.decode(&offer.salt).context("decoding salt")?;
-        let nonce = B64.decode(&offer.nonce).context("decoding nonce")?;
-        let encrypted_ct = B64.decode(&offer.encrypted_static_pubkey)
-            .context("decoding encrypted static pubkey")?;
+        // Decode peer static public key from plaintext
+        let peer_static_pubkey = B64.decode(&offer.static_pubkey)
+            .context("decoding peer static pubkey")?;
+        if peer_static_pubkey.len() != 32 {
+            return Err(anyhow!("peer static pubkey must be 32 bytes"));
+        }
 
-        let symmetric_key = derive_symmetric_key(shared_secret.as_bytes(), &salt);
-
-        // 解密对方的静态公钥
-        let peer_static_pubkey = decrypt_with_key(
-            &symmetric_key,
-            &encrypted_ct,
-            &nonce,
-        ).context("decrypting peer's static pubkey")?;
-
-        // 保存对等设备公钥
+        // Store peer device public key
         self.peer_public = Some(peer_static_pubkey.clone());
 
-        // 派生会话密钥（用于加密确认信息）
+        // Derive session key from static keys (ECDH)
         let peer_public_key = x25519_dalek::PublicKey::from(
             TryInto::<[u8; 32]>::try_into(peer_static_pubkey).unwrap()
         );
         let session = self.local_identity.derive_session_key(&peer_public_key);
 
-        // 生成确认信息
+        // Generate encrypted confirmation
         let confirmation_payload = b"PAIRING_CONFIRMED";
         let confirmation_env = session.encrypt(confirmation_payload)
             .context("encrypting confirmation")?;
@@ -272,57 +242,13 @@ impl Default for PairingState {
 // 加密辅助函数（Encryption Helpers）
 // ============================================================================
 
-use hkdf::Hkdf;
-use sha2::Sha256;
-use aes_gcm::aead::{Aead, KeyInit};
-use aes_gcm::{Aes256Gcm, Key, Nonce};
-
 /// HKDF info string for pairing
-const PAIRING_HKDF_INFO: &[u8] = b"nine-snake/v1.1/pairing";
-
-/// 从共享密钥和盐派生对称密钥
-fn derive_symmetric_key(shared_secret: &[u8; 32], salt: &[u8]) -> [u8; 32] {
-    let hk = Hkdf::<Sha256>::new(Some(salt), shared_secret);
-    let mut okm = [0u8; 32];
-    hk.expand(PAIRING_HKDF_INFO, &mut okm)
-        .expect("32 bytes is a valid HKDF output length");
-    okm
-}
 
 /// 加密结果
-struct Encrypted {
-    ciphertext: Vec<u8>,
-    salt: Vec<u8>,
-    nonce: Vec<u8>,
-}
 
 /// 使用 AES-256-GCM 和给定密钥加密数据
-fn encrypt_with_key(key: &[u8; 32], plaintext: &[u8]) -> Result<Encrypted> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
-
-    let ciphertext = cipher
-        .encrypt(nonce, plaintext)
-        .map_err(|e| anyhow!("AES-GCM encrypt failed: {e}"))?;
-
-    Ok(Encrypted {
-        ciphertext,
-        salt: key.to_vec(), // 使用派生的密钥作为盐（简化处理）
-        nonce: nonce_bytes.to_vec(),
-    })
-}
 
 /// 使用 AES-256-GCM 和给定密钥解密数据
-fn decrypt_with_key(key: &[u8; 32], ciphertext: &[u8], nonce_bytes: &[u8]) -> Result<Vec<u8>> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let nonce = Nonce::from_slice(nonce_bytes);
-
-    cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|e| anyhow!("AES-GCM decrypt failed: {e}"))
-}
 
 /// 将 PairingOffer 序列化为 QR 码字符串
 pub fn offer_to_qr_string(offer: &PairingOffer) -> Result<String> {

@@ -221,7 +221,7 @@ fn split_sql(sql: &str) -> Vec<String> {
             // Line comment: consume to EOL.
             ('-', None) if chars.peek() == Some(&'-') => {
                 buf.push('-');
-                chars.next();
+buf.push(chars.next().unwrap()); // push second '-'
                 for nc in chars.by_ref() {
                     buf.push(nc);
                     if nc == '\n' {
