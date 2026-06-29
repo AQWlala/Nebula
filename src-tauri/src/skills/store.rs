@@ -75,6 +75,16 @@ impl SkillStore {
         let platform_json = s.platform.as_ref()
             .map(|p| serde_json::to_string(p).unwrap_or_default());
         let g = self.conn.lock();
+        // FK integrity: skills.memory_id REFERENCES memories(id).
+        // When source_memory_id is None, create a minimal placeholder
+        // memory so the FK constraint is satisfied.
+        let memory_id = s.source_memory_id.clone().unwrap_or_else(|| s.id.clone());
+        if s.source_memory_id.is_none() {
+            g.execute(
+                "INSERT OR IGNORE INTO memories (id, memory_type, layer, content, last_access, created_at) VALUES (?1, 'Procedural', 'L3', '', ?2, ?2)",
+                params![memory_id, now],
+            )?;
+        }
         g.execute(
             "INSERT INTO skills
                 (id, memory_id, name, description, steps, trigger,
@@ -88,7 +98,7 @@ impl SkillStore {
                      ?16, ?17, ?18, ?19, ?20, ?21)",
             params![
                 s.id,
-                s.source_memory_id.clone().unwrap_or_else(|| s.id.clone()),
+                memory_id,
                 s.name,
                 s.description,
                 "[]",
