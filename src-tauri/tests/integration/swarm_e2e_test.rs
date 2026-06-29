@@ -12,7 +12,7 @@
 
 use nine_snake_lib::llm::{LlmGateway, OllamaClient};
 use nine_snake_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
-use nine_snake_lib::swarm::bus::{AgentBus, BusMessageType};
+use nine_snake_lib::swarm::bus::BusMessageType;
 use nine_snake_lib::swarm::negotiator::{Negotiator, NegotiationMethod};
 use nine_snake_lib::swarm::agents::{AgentOutput, AgentKind};
 use std::sync::Arc;
@@ -73,7 +73,7 @@ async fn swarm_bus_broadcasts_completion_message() {
     let orch = mock_orchestrator();
     // Subscribe to the bus before executing
     let bus = orch.bus().clone();
-    let rx = bus.subscribe();
+    let mut rx = bus.subscribe();
 
     let task = SwarmTask::new("Test bus broadcast");
     let _report = orch.execute(task).await.expect("orchestration should complete");
@@ -121,7 +121,7 @@ fn negotiator_picks_highest_confidence_when_no_conflict() {
     let result = neg.negotiate(outputs);
     assert_eq!(result.chosen.author, "agent-1");
     assert!(!result.conflict_detected);
-    assert_eq!(result.method, NegotiationMethod::ConfidenceVote);
+    assert_eq!(result.method, NegotiationMethod::HighConfidence);
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn negotiator_detects_conflict_on_divergent_outputs() {
     assert!(result.conflict_detected);
     // Should still pick the higher-confidence one.
     assert_eq!(result.chosen.author, "agent-1");
-    assert_eq!(result.method, NegotiationMethod::ConfidenceVote);
+    assert_eq!(result.method, NegotiationMethod::HighConfidence);
 }
 
 #[test]

@@ -137,8 +137,7 @@ async fn service_implements_all_rpcs() {
     // list below is a belt-and-braces assertion that the count
     // never drifts.
     use nine_snake_lib::grpc::proto as p;
-    use nine_snake_lib::grpc::server::NineSnakeService as _;
-    use nine_snake_lib::grpc::server::NineSnakeServiceImpl;
+        use nine_snake_lib::grpc::server::NineSnakeServiceImpl;
 
     // RPC manifest. Anything past this list would be a
     // v0.4 addition and must bump EXPECTED_RPC_METHODS explicitly.

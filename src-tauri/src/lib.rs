@@ -323,7 +323,7 @@ impl AppState {
         let mdir = crate::memory::migration::bundled_migrations_dir().to_path_buf();
         let applied = tokio::task::spawn_blocking(move || {
             let conn = s.raw_connection();
-            crate::memory::migration::run_migrations(&conn.lock(), &mdir)
+            let g = conn.lock(); crate::memory::migration::run_migrations(&g, &mdir)
         }).await.context("spawn_blocking for migrations failed")?
           .context("running migrations")?;
         if !applied.is_empty() {

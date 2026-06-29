@@ -5,7 +5,6 @@
 //! simple — they serve as examples users can inspect, modify, or
 //! use as templates for their own skills.
 
-use std::sync::Arc;
 
 use tracing::info;
 
