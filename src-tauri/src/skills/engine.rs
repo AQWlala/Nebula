@@ -167,8 +167,37 @@ const SANDBOX_PREAMBLE: &str = r#"
 # This preamble is prepended to every user script by the
 # skill engine.  It must not be modified by the user.
 import sys as _nine_snake_sys
+
+# Phase 1 — import all modules that *depend* on socket BEFORE
+# patching.  `ssl.py` defines `class SSLSocket(socket.socket)`,
+# `http.client` imports `ssl`, `urllib.request` imports
+# `http.client`.  If we patch `socket.socket` first, those
+# class definitions blow up with
+#   TypeError: function() argument "code" must be code, not str
+# So import the whole chain first, then patch the high-level
+# entry points.
 try:
     import socket as _nine_snake_socket
+except ImportError:
+    _nine_snake_socket = None
+try:
+    import urllib.request as _nine_snake_urllib
+except ImportError:
+    _nine_snake_urllib = None
+try:
+    import http.client as _nine_snake_http
+except ImportError:
+    _nine_snake_http = None
+try:
+    import ssl as _nine_snake_ssl
+except ImportError:
+    _nine_snake_ssl = None
+
+# Phase 2 — patch network entry points.  Already-imported
+# modules have captured the real `socket.socket` class in
+# their class definitions, so patching the attribute now is
+# safe and only affects *new* `socket.socket(...)` calls.
+if _nine_snake_socket is not None:
     def _nine_snake_block(*_a, **_kw):
         raise PermissionError(
             "network access disabled by nine-snake sandbox (v1.0.1 P0#11)"
@@ -177,47 +206,23 @@ try:
     _nine_snake_socket.create_connection = _nine_snake_block
     _nine_snake_socket.socketpair = _nine_snake_block
     _nine_snake_socket.fromfd = _nine_snake_block
-    # urllib
-    try:
-        import urllib.request as _nine_snake_urllib
+    if _nine_snake_urllib is not None:
         _nine_snake_urllib.urlopen = _nine_snake_block
         _nine_snake_urllib.Request = _nine_snake_block
-    except ImportError:
-        pass
-    # http.client
-    try:
-        import http.client as _nine_snake_http
+    if _nine_snake_http is not None:
         _nine_snake_http.HTTPConnection = _nine_snake_block
         _nine_snake_http.HTTPSConnection = _nine_snake_block
         _nine_snake_http.HTTP = _nine_snake_block
-    except ImportError:
-        pass
-    # ssl (used by http.client under the hood)
-    try:
-        import ssl as _nine_snake_ssl
+    if _nine_snake_ssl is not None:
         _nine_snake_ssl.create_default_context = _nine_snake_block
-    except ImportError:
-        pass
     del _nine_snake_block
-    del _nine_snake_socket
-    try:
-        del _nine_snake_urllib
-    except NameError:
-        pass
-    try:
-        del _nine_snake_http
-    except NameError:
-        pass
-    try:
-        del _nine_snake_ssl
-    except NameError:
-        pass
-except ImportError:
-    # No socket module?  Then nothing to patch and the user
-    # code will fail anyway.  Don't block the interpreter.
-    pass
 
-# v1.1 — block dangerous modules via import hook.
+# Phase 3 — import hook to block dangerous modules for user
+# code that tries `import ssl` etc. after the preamble.
+# NOTE: `load_module` raising `ImportError` does NOT block —
+# Python's import system catches it and falls through to the
+# next finder.  We raise `PermissionError` instead, which is
+# not an `ImportError` subclass and therefore propagates.
 class _SandboxImport:
     _BLOCKED = frozenset([
         "ctypes", "subprocess", "_socket", "ssl",
@@ -229,13 +234,20 @@ class _SandboxImport:
             return self
         return None
     def load_module(self, fullname):
-        raise ImportError(
+        raise PermissionError(
             f"module '{fullname}' is blocked by nine-snake sandbox for security"
         )
 
 _nine_snake_sys.meta_path.insert(0, _SandboxImport())
 
-del _nine_snake_sys
+# cleanup temp names (modules stay in sys.modules)
+for _ns_name in ('_nine_snake_socket', '_nine_snake_urllib',
+                 '_nine_snake_http', '_nine_snake_ssl'):
+    try:
+        del globals()[_ns_name]
+    except KeyError:
+        pass
+del _nine_snake_sys, _SandboxImport, _ns_name
 "#;
 
 /// Bundles the store + LLM gateway so the rest of the system can call
