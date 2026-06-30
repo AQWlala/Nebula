@@ -21,14 +21,19 @@ jobs:
           toolchain: stable
           components: clippy,rustfmt
       - name: Cache cargo
-        # Pin to v2.7.7 so `save-always` is honoured.  The moving `@v2`
-        # tag resolved to a version that skipped the post-step on
-        # timeout (see run #82), leaving no cache behind and causing
-        # an infinite cold-compile loop.
+        # Pin to v2.7.7 — the moving `@v2` tag resolved to a version
+        # that skipped the post-step on timeout (see run #82), leaving
+        # no cache behind and causing an infinite cold-compile loop.
+        # v2.7.7 does NOT support `save-always` (that was added in a
+        # later major); the correct option here is `cache-on-failure`.
+        # `prefix-key: v2-` invalidates the old (possibly partial)
+        # caches from runs #81–#85 that were saved without the test
+        # binaries — this is the "clean cache" step.
         uses: Swatinem/rust-cache@v2.7.7
         with:
           workspaces: src-tauri -> target
-          save-always: true
+          cache-on-failure: true
+          prefix-key: v2-
       - name: Install Linux deps
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -59,15 +64,29 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - name: Verify cargo-nextest
+        # Debug step: run #85's Test step failed in 0.0 min (immediate
+        # failure, not a timeout).  Print the nextest version and PATH
+        # so the log shows whether the binary is actually callable
+        # before we rely on it.
+        working-directory: src-tauri
+        run: |
+          which cargo-nextest || where cargo-nextest || true
+          cargo nextest --version
       - name: Test
         # nextest runs each test in its own process with a 2-min
         # timeout.  Hanging tests are killed and reported as failures
-        # instead of blocking the suite indefinitely.
+        # instead of blocking the suite indefinitely.  Use
+        # `--test-threads 1` (not `-j 1`) because `-j` collides with
+        # cargo's own `--jobs` flag and may be mis-parsed.
+        # Keep CARGO_PROFILE_DEV_DEBUG=0 to match the build step —
+        # otherwise nextest would rebuild with full debug info.
         working-directory: src-tauri
         timeout-minutes: 90
         env:
           RUST_BACKTRACE: 1
-        run: cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --timeout 120s -j 1
+          CARGO_PROFILE_DEV_DEBUG: "0"
+        run: cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --timeout 120s --test-threads 1
       - name: Lint
         working-directory: src-tauri
         run: cargo clippy --features grpc,channels,did-identity,crdt-sync -- -D warnings
