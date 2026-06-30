@@ -123,7 +123,7 @@ static PROMPT_INJECTION_PATTERNS: Lazy<Vec<(&str, Regex, InjectionSeverity)>> = 
         // 直接 System Prompt 覆盖
         (
             "system_prompt_override",
-            Regex::new(r"(?i)(ignore|forget|disregard|override)\s+(all\s+)?(previous|above|prior|earlier|system)\s+(instructions?|prompts?|messages?|context)")
+            Regex::new(r"(?i)(ignore|forget|disregard|override)\s+(all\s+)?(previous|above|prior|earlier|system)?\s*(instructions?|prompts?|messages?|context)")
                 .unwrap(),
             InjectionSeverity::Critical,
         ),
@@ -158,7 +158,7 @@ static PROMPT_INJECTION_PATTERNS: Lazy<Vec<(&str, Regex, InjectionSeverity)>> = 
         // 中文 Prompt 注入模式
         (
             "cn_ignore_previous",
-            Regex::new(r"(忽略|忘记|无视|覆盖)\s*(所有|之前|上面|一切)\s*(的\s*)?(指令|提示|规则|要求|对话|内容)")
+            Regex::new(r"(忽略|忘记|无视|覆盖)\s*(所有\s*)?(之前|上面|一切|所有)\s*(的\s*)?(指令|提示|规则|要求|对话|内容)")
                 .unwrap(),
             InjectionSeverity::Critical,
         ),

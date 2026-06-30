@@ -79,6 +79,16 @@ impl SqliteStore {
         conn.execute_batch(SCHEMA)
             .context("applying initial migration")?;
 
+        // v1.1: apply all pending migrations (002..016) so that
+        // columns like `archived` (migration 014) exist.  The
+        // migration runner is idempotent — it stamps
+        // `PRAGMA user_version = 1` via `bootstrap_v0_1_baseline`
+        // (since 001_initial.sql already inserted the
+        // `schema_version` row) and then applies every migration
+        // whose version is strictly greater than 1.
+        super::migration::run_migrations(&conn, super::migration::bundled_migrations_dir())
+            .context("applying pending migrations")?;
+
         info!(target: "nine_snake.memory", path = %path.display(), "sqlite store ready");
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),

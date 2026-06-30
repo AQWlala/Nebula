@@ -100,7 +100,11 @@ impl WhitelistEntry {
                 if let Some(prefix) = pattern.strip_suffix(" *") {
                     bin == prefix || bin.starts_with(&format!("{prefix} "))
                 } else if let Some(prefix) = pattern.strip_suffix(".*") {
-                    bin == prefix || bin.starts_with(&format!("{prefix}."))
+                    // `.*` acts as a regex wildcard: matches the prefix
+                    // followed by any characters (including none).
+                    // e.g. "node.*" matches "node", "nodejs", "node_modules"
+                    // but NOT "notebook" (different prefix).
+                    bin == prefix || bin.starts_with(prefix)
                 } else {
                     bin == pattern
                 }
@@ -452,7 +456,9 @@ mod tests {
             return exec_timeout_with_python().await;
         }
 
-        let ex = ShellExecutor::new().with_timeout(Duration::from_millis(200));
+        let ex = ShellExecutor::new()
+            .allow("sleep")
+            .with_timeout(Duration::from_millis(200));
         let argv: Vec<String> = vec!["sleep".into(), "60".into()];
         let out = ex.exec(argv.clone(), None).await.expect("exec returned");
         assert!(out.timed_out, "expected timed_out=true, got {out:?}");
