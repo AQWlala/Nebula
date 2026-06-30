@@ -165,7 +165,10 @@ mod tests {
             correlation_id: None,
         };
         bus.send(msg).await.unwrap();
-        let received = rx.recv().await.unwrap();
+        let received = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("recv timed out — message never arrived")
+            .expect("channel closed");
         assert_eq!(received.content, "hello");
     }
 
@@ -197,8 +200,16 @@ mod tests {
             correlation_id: None,
         };
         bus.broadcast(msg);
-        assert_eq!(sub1.recv().await.unwrap().content, "broadcast!");
-        assert_eq!(sub2.recv().await.unwrap().content, "broadcast!");
+        let s1 = tokio::time::timeout(std::time::Duration::from_secs(5), sub1.recv())
+            .await
+            .expect("sub1 recv timed out")
+            .expect("sub1 channel closed");
+        let s2 = tokio::time::timeout(std::time::Duration::from_secs(5), sub2.recv())
+            .await
+            .expect("sub2 recv timed out")
+            .expect("sub2 channel closed");
+        assert_eq!(s1.content, "broadcast!");
+        assert_eq!(s2.content, "broadcast!");
     }
 
     #[tokio::test]
@@ -209,7 +220,10 @@ mod tests {
         let bus_clone = Arc::new(bus);
         let bus_for_task = bus_clone.clone();
         let handle = tokio::spawn(async move {
-            let msg = rx.recv().await.unwrap();
+            let msg = tokio::time::timeout(std::time::Duration::from_secs(10), rx.recv())
+                .await
+                .expect("responder recv timed out — request never arrived")
+                .expect("responder channel closed");
             assert_eq!(msg.msg_type, BusMessageType::Request);
             bus_for_task.reply(&msg, "pong".to_string()).await.unwrap();
         });
@@ -224,6 +238,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.content, "pong");
-        handle.await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+            .await
+            .expect("responder task join timed out")
+            .expect("responder task panicked");
     }
 }

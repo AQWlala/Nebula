@@ -58,9 +58,11 @@ jobs:
         run: cargo build --tests --features grpc,channels,did-identity,crdt-sync
       - name: Test
         # Tests run against already-compiled binaries from the Build
-        # step above, so this should finish in a few minutes.
+        # step above.  With --test-threads=1 and hundreds of tests
+        # (some spawning Python subprocesses, shell commands, or temp
+        # DBs), the full suite can take 30-50 min serially.
         working-directory: src-tauri
-        timeout-minutes: 30
+        timeout-minutes: 60
         env:
           RUST_BACKTRACE: 1
         run: cargo test --features grpc,channels,did-identity,crdt-sync -- --test-threads=1 --nocapture

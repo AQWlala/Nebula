@@ -129,8 +129,12 @@ mod tests {
             .unwrap()
             .expect("at least one event");
         assert!(first.paths.len() >= 1);
-        // The next call should hit `None` after the drain.
-        let second = debounced.recv().await;
+        // The next call should hit `None` after the drain.  Wrap in a
+        // timeout so the test fails fast instead of hanging for 30 min
+        // if the debounce task doesn't exit when the input channel closes.
+        let second = tokio::time::timeout(Duration::from_secs(2), debounced.recv())
+            .await
+            .expect("second recv timed out — debounce task may not have exited");
         assert!(second.is_none());
     }
 }
