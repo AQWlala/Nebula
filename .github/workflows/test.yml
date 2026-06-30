@@ -21,14 +21,13 @@ jobs:
           toolchain: stable
           components: clippy,rustfmt
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        # Pin to v2.7.7 so `save-always` is honoured.  The moving `@v2`
+        # tag resolved to a version that skipped the post-step on
+        # timeout (see run #82), leaving no cache behind and causing
+        # an infinite cold-compile loop.
+        uses: Swatinem/rust-cache@v2.7.7
         with:
           workspaces: src-tauri -> target
-          # Save the cache even when the Test step times out or fails.
-          # Without this, a cold compile that hits the timeout never
-          # persists its artifacts, so every subsequent run also cold
-          # compiles (infinite loop).  `save-always` (v2.7+) breaks
-          # that cycle by saving partial build artifacts.
           save-always: true
       - name: Install Linux deps
         if: matrix.os == 'ubuntu-latest'
@@ -42,14 +41,26 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: choco install -y --no-progress protoc 2>&1 | tail -n 5
-      - name: Test
+      - name: Build tests
+        # Split compile from test execution so that the cache post-step
+        # can persist compiled artifacts even if a later step fails.
+        # Previously `cargo test` combined compile+test in one step;
+        # when the cold compile (>120 min for LanceDB/datafusion) hit
+        # the step timeout, the job was cancelled, the Post Cache step
+        # was skipped, and no cache was ever saved (infinite loop).
         working-directory: src-tauri
-        # Cold compile of LanceDB/datafusion/arrow takes 60-90 min on
-        # Windows/macOS.  60 min was too tight and caused a timeout
-        # loop (see run #81).  120 min gives headroom for the first
-        # cold compile; subsequent runs hit the cache and finish in
-        # a few minutes.
-        timeout-minutes: 120
+        timeout-minutes: 180
+        env:
+          RUST_BACKTRACE: 1
+          # Less debug info => faster compile.  We only need line tables
+          # for backtraces, not full variable inspection.
+          CARGO_PROFILE_DEV_DEBUG: "0"
+        run: cargo build --tests --features grpc,channels,did-identity,crdt-sync
+      - name: Test
+        # Tests run against already-compiled binaries from the Build
+        # step above, so this should finish in a few minutes.
+        working-directory: src-tauri
+        timeout-minutes: 30
         env:
           RUST_BACKTRACE: 1
         run: cargo test --features grpc,channels,did-identity,crdt-sync -- --test-threads=1 --nocapture
