@@ -1,0 +1,12 @@
+## cargo-nextest configuration.
+##
+## Run #85 and #86 failed with exit code 2 because the `--timeout` CLI
+## flag does NOT exist in cargo-nextest v0.9.x.  Per-test timeouts must
+## be configured here, in a profile.
+##
+## `slow-timeout` with `terminate-after` is the correct mechanism:
+## after `period` (60s) the test is marked SLOW, and after
+## `terminate-after` periods (2 × 60s = 120s) it is killed.
+
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 2 }

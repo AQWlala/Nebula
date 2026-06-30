@@ -74,11 +74,13 @@ jobs:
           which cargo-nextest || where cargo-nextest || true
           cargo nextest --version
       - name: Test
-        # nextest runs each test in its own process with a 2-min
-        # timeout.  Hanging tests are killed and reported as failures
-        # instead of blocking the suite indefinitely.  Use
-        # `--test-threads 1` (not `-j 1`) because `-j` collides with
-        # cargo's own `--jobs` flag and may be mis-parsed.
+        # nextest runs each test in its own process.  Per-test timeouts
+        # are configured via `slow-timeout` in .config/nextest.toml
+        # (the `--timeout` CLI flag does NOT exist in v0.9.x — using
+        # it causes exit code 2, which is why runs #85 and #86 failed
+        # in 0.0 min).  Hanging tests are killed after 120s (2 × 60s
+        # periods) and reported as failures instead of blocking the
+        # suite indefinitely.
         # Keep CARGO_PROFILE_DEV_DEBUG=0 to match the build step —
         # otherwise nextest would rebuild with full debug info.
         working-directory: src-tauri
@@ -86,7 +88,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           CARGO_PROFILE_DEV_DEBUG: "0"
-        run: cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --timeout 120s --test-threads 1
+        run: cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --test-threads 1
       - name: Lint
         working-directory: src-tauri
         run: cargo clippy --features grpc,channels,did-identity,crdt-sync -- -D warnings
