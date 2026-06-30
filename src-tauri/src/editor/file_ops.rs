@@ -219,7 +219,7 @@ impl EditorState {
             .max_depth(depth)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|e| !should_skip(e.path()))
+            .filter_entry(|e| e.depth() == 0 || !should_skip(e.path()))
         {
             let entry = match entry {
                 Ok(e) => e,

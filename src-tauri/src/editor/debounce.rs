@@ -107,7 +107,12 @@ mod tests {
     #[tokio::test]
     async fn debounces_burst_into_one_event() {
         let (tx, rx) = mpsc::channel::<FileEvent>(32);
-        let mut debounced = spawn_debounced(rx, Duration::from_millis(30));
+        // Use a generous window so that all 5 sends complete within
+        // a single debounce window even on slow CI runners.  With a
+        // tiny window (e.g. 30 ms) the deadline can fire mid-burst on
+        // a loaded machine, producing two coalesced events instead of
+        // one.
+        let mut debounced = spawn_debounced(rx, Duration::from_millis(200));
 
         for i in 0..5 {
             tx.send(FileEvent {
@@ -119,7 +124,7 @@ mod tests {
         }
         drop(tx);
 
-        let first = tokio::time::timeout(Duration::from_millis(200), debounced.recv())
+        let first = tokio::time::timeout(Duration::from_secs(2), debounced.recv())
             .await
             .unwrap()
             .expect("at least one event");

@@ -162,9 +162,17 @@ pub fn commit(repo: &Path, message: &str) -> Result<String> {
 }
 
 /// `git init` in the given directory.  Idempotent.
+///
+/// Also sets a default local `user.email` / `user.name` so that commits
+/// work in environments without a global git identity (CI runners,
+/// fresh containers).  Users can override with
+/// `git config user.email ...` afterwards.
 #[instrument(skip(repo))]
 pub fn init(repo: &Path) -> Result<()> {
     run_git(repo, &["init"])?;
+    // Set a default local identity; ignore errors if already set.
+    let _ = run_git(repo, &["config", "user.email", "nine-snake@localhost"]);
+    let _ = run_git(repo, &["config", "user.name", "nine-snake"]);
     Ok(())
 }
 
