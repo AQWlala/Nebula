@@ -145,9 +145,14 @@ impl WritingEngine {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp();
         let word_count = count_words(&content);
+        // Migration 006_documents_fk.sql defines `metadata TEXT NOT NULL DEFAULT '{}'`.
+        // An explicit NULL insert violates the NOT NULL constraint (the DEFAULT
+        // only applies when the column is OMITTED, not when NULL is bound), so
+        // we fall back to "{}" when the caller passes no metadata.
         let meta_json = metadata
             .as_ref()
-            .map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".into()));
+            .map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".into()))
+            .unwrap_or_else(|| "{}".into());
 
         let conn = self.sqlite.raw_connection();
         let conn = conn.lock();

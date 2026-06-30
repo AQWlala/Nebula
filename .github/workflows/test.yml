@@ -102,16 +102,14 @@ jobs:
         # the check-runs annotations API (no auth needed).
         #
         # IMPORTANT: GitHub Actions' default bash shell runs with
-        # `set -e -o pipefail`.  When grep finds no matches it exits 1,
-        # and with pipefail the pipeline `grep | while` fails, which
-        # with `set -e` aborts the script BEFORE we reach the tail/echo
-        # lines.  That is why Run #88's "Report failed tests" step
-        # exited with code 1 and emitted zero annotations.  We disable
-        # both flags here so the script always runs to completion.
+        # `set -e -o pipefail`.  We disable both with `set +e +o pipefail`
+        # so the script always runs to completion even when grep finds
+        # no matches (grep returns exit code 1 on no match).
         #
-        # Also: nextest prints "        FAIL [   0.123s] module::test"
-        # INDENTED for column alignment, so ^FAIL never matches.
-        # We match "FAIL [" anywhere in the line instead.
+        # We grep for multiple patterns to catch ALL failures:
+        #   * "panicked at" — Rust panic messages (file:line + message)
+        #   * "FAIL"        — nextest's FAIL result lines (any format)
+        #   * "TEST RESULT" — nextest's summary line (pass/fail counts)
         if: always()
         working-directory: src-tauri
         shell: bash
@@ -120,21 +118,35 @@ jobs:
           echo "=== Test result summary ==="
           if [ -f nextest-output.txt ]; then
             echo "File size: $(wc -c < nextest-output.txt) bytes, $(wc -l < nextest-output.txt) lines"
-            fails=$(grep -E "FAIL \[" nextest-output.txt)
+            echo "--- Panics ---"
+            panics=$(grep -E "panicked at" nextest-output.txt)
+            if [ -n "$panics" ]; then
+              echo "$panics" | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            fi
+            echo "--- FAIL lines ---"
+            fails=$(grep -E "FAIL" nextest-output.txt)
             if [ -n "$fails" ]; then
               echo "$fails" | while IFS= read -r line; do
                 echo "::error::$line"
               done
-            else
-              # No "FAIL [" lines — print last 50 lines as annotations
-              # so we can see what format nextest used and what failed.
-              echo "::error::No 'FAIL [' lines found. Last 50 lines of nextest output:"
-              tail -n 50 nextest-output.txt | while IFS= read -r line; do
+            fi
+            echo "--- TEST RESULT summary ---"
+            summary=$(grep -E "TEST RESULT" nextest-output.txt)
+            if [ -n "$summary" ]; then
+              echo "$summary" | while IFS= read -r line; do
                 echo "::error::$line"
               done
             fi
-            echo "=== Last 50 lines of output ==="
-            tail -n 50 nextest-output.txt
+            if [ -z "$panics" ] && [ -z "$fails" ]; then
+              echo "::error::No 'panicked at' or 'FAIL' lines found. Last 60 lines:"
+              tail -n 60 nextest-output.txt | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            fi
+            echo "=== Last 60 lines of output ==="
+            tail -n 60 nextest-output.txt
           else
             echo "::error::nextest-output.txt not found — Test step may not have run"
           fi
