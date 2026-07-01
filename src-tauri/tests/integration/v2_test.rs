@@ -212,7 +212,7 @@ fn test_forgetting_engine_marks_low_importance() {
             mem.last_access,
             mem.pinned,
         )],
-        0,
+        2 * 86400, // now = 2 days; age = 2 days > L1 TTL of 1 day
     );
     assert!(!candidates.is_empty());
 }

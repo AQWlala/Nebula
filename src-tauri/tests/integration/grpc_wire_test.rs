@@ -108,22 +108,18 @@ async fn server_binds_and_accepts_tcp_connection() {
         tokio::time::timeout(Duration::from_secs(5), tokio::net::TcpStream::connect(addr)).await;
     let mut stream = connect.expect("connect timed out").expect("connect failed");
 
-    // The server uses hyper's HTTP/2 serve_connection which waits
-    // for the client to send an HTTP/2 preface.  Since we don't
-    // send one, the server will eventually time out and close the
-    // connection.  We just verify the TCP connection was accepted
-    // (no immediate reset) and that we can attempt a read.
-    let mut buf = [0u8; 1];
+    // The server uses hyper's HTTP/2 serve_connection.  Per RFC 7540
+    // §3.4, the server sends its connection preface (a SETTINGS
+    // frame) immediately after the TCP connection is established.
+    // So we may read some bytes (the SETTINGS frame), get EOF, or
+    // time out — all three prove the server accepted the connection.
+    let mut buf = [0u8; 256];
     let read = tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buf)).await;
-    // Acceptable outcomes:
-    // - EOF (server closed): Ok(Ok(0))
-    // - Timeout (server waiting for preface): Err(timeout)
-    // Both prove the server accepted the connection and is running.
     match read {
-        Ok(Ok(0)) => {} // EOF — the stub closed the socket
-        Ok(Ok(n)) => panic!("server sent {n} bytes; stub should close immediately"),
+        Ok(Ok(0)) => {}    // EOF — server closed
+        Ok(Ok(_)) => {}    // Server sent SETTINGS frame — connection accepted
         Ok(Err(e)) => panic!("read error: {e}"),
-        Err(_) => {} // Timeout — server is waiting for HTTP/2 preface, which is fine
+        Err(_) => {}       // Timeout — server waiting for client preface
     }
 }
 

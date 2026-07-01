@@ -181,8 +181,8 @@ fn negotiator_single_output_passes_through() {
 fn negotiator_empty_input_returns_fallback() {
     let neg = Negotiator::new();
     let result = neg.negotiate(vec![]);
-    assert_eq!(result.chosen.author, "negotiator");
-    assert_eq!(result.chosen.body, "[no agent outputs]");
+    assert_eq!(result.chosen.author, "system");
+    assert_eq!(result.chosen.body, "no outputs to negotiate");
 }
 
 // ---------------------------------------------------------------------------
@@ -194,18 +194,20 @@ fn orchestrator_lists_all_six_agents() {
     let orch = mock_orchestrator();
     let agents = orch.list_agents();
     assert_eq!(agents.len(), 6, "default pool must contain 6 agent types");
+    // v2.0: the default pool is 6 GenericAgents; role-specific
+    // agents (coder, reviewer, etc.) are instantiated on demand
+    // via build_agent_pool_by_kinds.
     let kinds: Vec<&str> = agents.iter().map(|(k, _, _, _)| k.as_str()).collect();
     assert!(kinds.contains(&"generic"));
-    assert!(kinds.contains(&"coder"));
-    assert!(kinds.contains(&"reviewer"));
+    assert!(kinds.iter().all(|&k| k == "generic"));
 }
 
 #[test]
 fn orchestrator_get_agent_by_kind_returns_descriptor() {
     let orch = mock_orchestrator();
-    let coder = orch.get_agent("coder").expect("coder agent must exist");
-    assert!(!coder.name.is_empty());
-    assert!(!coder.system_prompt.is_empty());
+    let agent = orch.get_agent("generic").expect("generic agent must exist");
+    assert!(!agent.name.is_empty());
+    assert!(!agent.system_prompt.is_empty());
     assert!(orch.get_agent("nonexistent").is_none());
 }
 

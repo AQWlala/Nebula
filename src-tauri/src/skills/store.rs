@@ -173,7 +173,7 @@ impl SkillStore {
         sql.push_str(" ORDER BY created_at DESC LIMIT ?");
         let mut stmt = g.prepare(&sql)?;
         let lang_p = language.map(|s| s.to_string());
-        let tag_p = tag.map(|s| format!("\"{}\"", s));
+        let tag_p = tag.map(|s| format!("%\"{}\"%", s));
         let lim_p = limit.max(1) as i64;
         let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::new();
         if let Some(ref s) = lang_p {
