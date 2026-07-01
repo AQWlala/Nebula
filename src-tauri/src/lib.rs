@@ -71,6 +71,7 @@ pub mod evolution;
 #[cfg(feature = "grpc")]
 pub mod grpc;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -359,11 +360,12 @@ impl AppState {
         startup.mark("bootstrap.sqlite");
 
         let s = sqlite.clone();
-        let mdir = crate::memory::migration::bundled_migrations_dir().to_path_buf();
         let applied = tokio::task::spawn_blocking(move || {
             let conn = s.raw_connection();
             let g = conn.lock();
-            crate::memory::migration::run_migrations(&g, &mdir)
+            // 用内嵌的 migration 数据,不依赖 CARGO_MANIFEST_DIR 路径
+            // (打包后该路径在用户机器上不存在)。
+            crate::memory::migration::run_bundled_migrations(&g)
         })
         .await
         .context("spawn_blocking for migrations failed")?
@@ -565,6 +567,9 @@ impl AppState {
 /// v1.0: when `NINE_SNAKE_LOG_DIR` is set we also write a
 /// daily-rotated JSON log file via `tracing_appender`.  This is
 /// what the user-facing "Open logs folder" menu points at.
+///
+/// v1.1.9: 默认日志目录。即使未设置 `NINE_SNAKE_LOG_DIR`,也写入
+/// 平台默认的 app data 目录,以便用户在遇到启动崩溃时能找到日志。
 pub fn init_tracing() {
     static INIT: once_cell::sync::OnceCell<()> = once_cell::sync::OnceCell::new();
     INIT.get_or_init(|| {
@@ -573,10 +578,30 @@ pub fn init_tracing() {
         let use_json = std::env::var("NINE_SNAKE_LOG_FORMAT")
             .map(|v| v.eq_ignore_ascii_case("json"))
             .unwrap_or(false);
-        if let Ok(dir) = std::env::var("NINE_SNAKE_LOG_DIR") {
-            // v1.0: also append to a daily-rotated file.  We use
-            // a non-blocking guard so a slow disk cannot stall the
-            // Tauri command loop.
+
+        // 日志目录:优先用 NINE_SNAKE_LOG_DIR,否则用平台默认目录。
+        let log_dir = std::env::var("NINE_SNAKE_LOG_DIR").ok().map(PathBuf::from);
+        let log_dir = log_dir.or_else(default_log_dir);
+        if let Some(dir) = log_dir {
+            // 确保日志目录存在。
+            let _ = std::fs::create_dir_all(&dir);
+            // 安装 panic hook:将 panic 信息写入日志文件,避免
+            // `windows_subsystem = "windows"` 下 panic 被静默吞掉。
+            let panic_dir = dir.clone();
+            std::panic::set_hook(Box::new(move |info| {
+                let panic_file = panic_dir.join("nine-snake-panic.log");
+                let msg = format!(
+                    "[{}] PANIC: {}\n",
+                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    info
+                );
+                let _ = std::fs::OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(&panic_file)
+                    .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+                eprintln!("{msg}");
+            }));
             let appender = tracing_appender::rolling::daily(&dir, "nine-snake.log");
             let (nb, _guard) = tracing_appender::non_blocking(appender);
             let _ = Box::leak(Box::new(_guard));
@@ -598,6 +623,30 @@ pub fn init_tracing() {
             let _ = fmt().with_env_filter(filter).try_init();
         }
     });
+}
+
+/// 返回平台默认的日志目录。
+fn default_log_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|d| PathBuf::from(d).join("nine-snake").join("logs"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(|d| PathBuf::from(d).join("Library/Logs/nine-snake"))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(|d| PathBuf::from(d).join(".local/share/nine-snake/logs"))
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    None
 }
 
 /// Tauri application entry — builds the runtime, wires commands, runs the app.
@@ -629,6 +678,22 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(move |app| {
             let handle = app.handle().clone();
+            // 将相对路径的 db_path / lance_path 解析到 app data dir,
+            // 避免从快捷方式启动时工作目录为 System32 导致 DB 文件
+            // 创建失败或落到错误位置。
+            let mut config = config.clone();
+            if let Ok(data_dir) = app.path().app_data_dir() {
+                std::fs::create_dir_all(&data_dir).ok();
+                if !std::path::Path::new(&config.db_path).is_absolute() {
+                    config.db_path = data_dir.join(&config.db_path)
+                        .to_string_lossy().to_string();
+                }
+                if !std::path::Path::new(&config.lance_path).is_absolute() {
+                    config.lance_path = data_dir.join(&config.lance_path)
+                        .to_string_lossy().to_string();
+                }
+                info!(target: "nine_snake", data_dir = ?data_dir, db_path = ?config.db_path, "resolved data paths");
+            }
             // Bootstrap state asynchronously so we don't block Tauri's main thread.
             //
             // v0.3 fix: when bootstrap fails, surface a user-facing

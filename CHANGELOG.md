@@ -2,6 +2,17 @@
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.9] - 2026-07-01
+
+🔧 **启动修复版 — 修复打包后无法启动的问题**。
+
+### Fixed
+
+* 修复 migrations 路径问题：`bundled_migrations_dir()` 使用编译时 `CARGO_MANIFEST_DIR` 路径,打包后在用户机器上不存在。改用 `include_str!` 将所有 SQL 文件内嵌到二进制中,新增 `run_bundled_migrations()` 和 `bundled_migration_status()` 函数
+* 修复 DB 相对路径问题：`db_path` 和 `lance_path` 默认为相对路径,从快捷方式启动时工作目录为 System32 导致 DB 创建失败。现在在 setup 中将相对路径解析到 app data dir
+* 修复日志默认不写文件：`init_tracing()` 仅在 `NINE_SNAKE_LOG_DIR` 设置时写文件,用户无法诊断启动崩溃。现在默认写入平台 app data 目录(Windows: `%LOCALAPPDATA%\nine-snake\logs`)
+* 添加 panic hook：`windows_subsystem = "windows"` 下 panic 被静默吞掉,用户看到"完全无反应"。现在 panic 信息写入 `nine-snake-panic.log` 文件
+
 ## [1.1.8] - 2026-07-01
 
 🔧 **Bug 修复版 — 修复编译错误 / CI/CD 部署问题 / CI 测试死锁**。

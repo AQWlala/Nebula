@@ -59,10 +59,7 @@ impl SkillStore {
         let conn = sqlite.raw_connection();
         {
             let g = conn.lock();
-            crate::memory::migration::run_migrations(
-                &g,
-                crate::memory::migration::bundled_migrations_dir(),
-            )?;
+            crate::memory::migration::run_bundled_migrations(&g)?;
         }
         Self::new(sqlite)
     }

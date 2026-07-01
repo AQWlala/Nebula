@@ -146,6 +146,23 @@ pub fn migration_status(conn: &Connection, migrations_dir: &Path) -> Result<Migr
     })
 }
 
+/// 从内嵌的 migration 数据获取 migration 状态,不依赖文件系统路径。
+pub fn bundled_migration_status(conn: &Connection) -> Result<MigrationStatus> {
+    let current = current_version(conn)?;
+    let applied = bundled_migrations()
+        .iter()
+        .map(|(v, name, _)| MigrationState {
+            version: *v,
+            name: (*name).to_string(),
+            applied: *v <= current,
+        })
+        .collect();
+    Ok(MigrationStatus {
+        current_version: current,
+        applied,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -399,6 +416,136 @@ fn parse_filename(fname: &str) -> Option<(u32, String)> {
 pub fn bundled_migrations_dir() -> &'static Path {
     // The path is relative to CARGO_MANIFEST_DIR at compile time.
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"))
+}
+
+/// 内嵌的 migration 列表 (version, name, sql)。
+///
+/// 用 `include_str!` 在编译时将所有 `.sql` 文件内嵌到二进制中,
+/// 这样打包发布后不依赖 `CARGO_MANIFEST_DIR` 路径(该路径在用户
+/// 机器上不存在)。新增 migration 时只需在此列表追加一行。
+pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
+    &[
+        (
+            1,
+            "initial",
+            include_str!("../../migrations/001_initial.sql"),
+        ),
+        (
+            2,
+            "reflections",
+            include_str!("../../migrations/002_reflections.sql"),
+        ),
+        (3, "skills", include_str!("../../migrations/003_skills.sql")),
+        (4, "v05", include_str!("../../migrations/004_v05.sql")),
+        (5, "v10", include_str!("../../migrations/005_v10.sql")),
+        (
+            6,
+            "documents_fk",
+            include_str!("../../migrations/006_documents_fk.sql"),
+        ),
+        (
+            7,
+            "sensitive_mask",
+            include_str!("../../migrations/007_sensitive_mask.sql"),
+        ),
+        (
+            8,
+            "evolution",
+            include_str!("../../migrations/008_evolution.sql"),
+        ),
+        (
+            9,
+            "skill_archive",
+            include_str!("../../migrations/009_skill_archive.sql"),
+        ),
+        (10, "fts5", include_str!("../../migrations/010_fts5.sql")),
+        (
+            11,
+            "relation_evidence",
+            include_str!("../../migrations/011_relation_evidence.sql"),
+        ),
+        (
+            12,
+            "skill_audit_log",
+            include_str!("../../migrations/012_skill_audit_log.sql"),
+        ),
+        (
+            13,
+            "memory_acl",
+            include_str!("../../migrations/013_memory_acl.sql"),
+        ),
+        (
+            14,
+            "memories_archived",
+            include_str!("../../migrations/014_memories_archived.sql"),
+        ),
+        (
+            15,
+            "skill_meta_extensions",
+            include_str!("../../migrations/015_skill_meta_extensions.sql"),
+        ),
+        (
+            16,
+            "memory_versions",
+            include_str!("../../migrations/016_memory_versions.sql"),
+        ),
+        (
+            17,
+            "document_exports",
+            include_str!("../../migrations/017_document_exports.sql"),
+        ),
+        (
+            18,
+            "fix_skill_ratings_pk",
+            include_str!("../../migrations/018_fix_skill_ratings_pk.sql"),
+        ),
+    ]
+}
+
+/// 从内嵌的 migration 数据运行迁移,不依赖文件系统路径。
+///
+/// 打包发布后 `bundled_migrations_dir()` 返回的路径在用户机器上
+/// 不存在,用此函数替代 `run_migrations(conn, bundled_migrations_dir())`。
+pub fn run_bundled_migrations(conn: &Connection) -> Result<Vec<Migration>> {
+    bootstrap_v0_1_baseline(conn)?;
+
+    let bundled = bundled_migrations();
+    if bundled.is_empty() {
+        debug!(target: "nine_snake.migration", "no bundled migrations");
+        return Ok(Vec::new());
+    }
+
+    let current = current_version(conn)?;
+    let mut pending: Vec<Migration> = bundled
+        .iter()
+        .filter(|(v, _, _)| *v > current)
+        .map(|(v, name, sql)| Migration {
+            version: *v,
+            name: (*name).to_string(),
+            sql: (*sql).to_string(),
+        })
+        .collect();
+
+    if pending.is_empty() {
+        debug!(target: "nine_snake.migration", current, "no pending migrations");
+        return Ok(Vec::new());
+    }
+
+    pending.sort_by_key(|m| m.version);
+    info!(
+        target: "nine_snake.migration",
+        from = current,
+        to = pending.last().map(|m| m.version).unwrap_or(current),
+        count = pending.len(),
+        "applying bundled migrations"
+    );
+
+    let mut applied: Vec<Migration> = Vec::new();
+    for m in &pending {
+        apply_one(conn, m).with_context(|| format!("applying migration {}", m.name))?;
+        applied.push(m.clone());
+    }
+    Ok(applied)
 }
 
 #[cfg(test)]

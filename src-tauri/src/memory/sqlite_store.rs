@@ -86,8 +86,7 @@ impl SqliteStore {
         // (since 001_initial.sql already inserted the
         // `schema_version` row) and then applies every migration
         // whose version is strictly greater than 1.
-        super::migration::run_migrations(&conn, super::migration::bundled_migrations_dir())
-            .context("applying pending migrations")?;
+        super::migration::run_bundled_migrations(&conn).context("applying pending migrations")?;
 
         info!(target: "nine_snake.memory", path = %path.display(), "sqlite store ready");
         Ok(Self {

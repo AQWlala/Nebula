@@ -87,11 +87,10 @@ pub async fn metrics(state: State<'_, AppState>) -> Result<MetricsSnapshot, Comm
 #[instrument(skip(state), fields(otel.kind = "migration_status"))]
 pub async fn migration_status(state: State<'_, AppState>) -> Result<MigrationStatus, CommandError> {
     let sqlite = state.sqlite.clone();
-    let dir = crate::memory::migration::bundled_migrations_dir().to_path_buf();
     tokio::task::spawn_blocking(move || {
         let conn = sqlite.raw_connection();
         let conn = conn.lock();
-        crate::memory::migration::migration_status(&conn, &dir)
+        crate::memory::migration::bundled_migration_status(&conn)
     })
     .await
     .map_err(|e| CommandError::internal("migration_status", &anyhow::anyhow!("{e}")))?
