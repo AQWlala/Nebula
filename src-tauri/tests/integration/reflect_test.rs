@@ -43,24 +43,28 @@ async fn reflection_round_trip_through_database() {
     assert_eq!(r.source_memories.len(), 3);
 
     // Persistence: the reflection + join rows must be readable.
-    let conn = tmp.store.raw_connection();
-    let conn = conn.lock();
-    let n: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM reflections WHERE id = ?1",
-            rusqlite::params![r.id],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(n, 1);
-    let joins: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM memory_reflections WHERE reflection_id = ?1",
-            rusqlite::params![r.id],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(joins, 3);
+    {
+        let conn = tmp.store.raw_connection();
+        let conn = conn.lock();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM reflections WHERE id = ?1",
+                rusqlite::params![r.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+        let joins: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM memory_reflections WHERE reflection_id = ?1",
+                rusqlite::params![r.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(joins, 3);
+    } // conn 释放 — 必须在 list_recent 之前释放,否则
+      // parking_lot::Mutex 非重入 → list_recent 内部再次
+      // lock() 同一个 Mutex 导致死锁 (CI 60s 超时的根因)。
 
     // List path: round-trip via the engine.
     let listed = engine.list_recent(10).unwrap();
