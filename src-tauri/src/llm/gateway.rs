@@ -925,7 +925,10 @@ mod tests {
     #[test]
     fn lookup_cache_returns_fresh_entries() {
         let gw = LlmGateway::new(
-            Arc::new(OllamaClient::new("http://127.0.0.1:1")),
+            Arc::new(OllamaClient::new_with_timeout(
+                "http://127.0.0.1:1",
+                std::time::Duration::from_secs(2),
+            )),
             "m",
             None,
             None,

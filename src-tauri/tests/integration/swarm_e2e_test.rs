@@ -16,9 +16,15 @@ use nine_snake_lib::swarm::bus::BusMessageType;
 use nine_snake_lib::swarm::negotiator::{NegotiationMethod, Negotiator};
 use nine_snake_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
 use std::sync::Arc;
+use std::time::Duration;
 
 fn mock_gateway() -> Arc<LlmGateway> {
-    let client = Arc::new(OllamaClient::new("http://127.0.0.1:1"));
+    // Use a 2-second timeout so tests don't wait 120 s on the
+    // dead port before failing fast.
+    let client = Arc::new(OllamaClient::new_with_timeout(
+        "http://127.0.0.1:1",
+        Duration::from_secs(2),
+    ));
     Arc::new(LlmGateway::new(client, "mock-model", None, None, None))
 }
 

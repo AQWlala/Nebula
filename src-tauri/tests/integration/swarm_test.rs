@@ -7,13 +7,21 @@
 
 use nine_snake_lib::llm::LlmGateway;
 use nine_snake_lib::llm::OllamaClient;
-
 use nine_snake_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
+use std::sync::Arc;
+use std::time::Duration;
+
+fn mock_gateway() -> Arc<LlmGateway> {
+    let client = Arc::new(OllamaClient::new_with_timeout(
+        "http://127.0.0.1:1",
+        Duration::from_secs(2),
+    ));
+    Arc::new(LlmGateway::new(client, "m", None, None, None))
+}
 
 #[tokio::test]
 async fn swarm_single_agent_by_kind_executes() {
-    let client = std::sync::Arc::new(OllamaClient::new("http://127.0.0.1:1"));
-    let gw = std::sync::Arc::new(LlmGateway::new(client, "m", None, None, None));
+    let gw = mock_gateway();
     let orch = SwarmOrchestrator::new_without_memory(gw);
     let mut task = SwarmTask::new("hi");
     task.agents = vec!["Coder".to_string()];
@@ -27,8 +35,7 @@ async fn swarm_single_agent_by_kind_executes() {
 
 #[tokio::test]
 async fn swarm_empty_agents_falls_back_to_default_pool() {
-    let client = std::sync::Arc::new(OllamaClient::new("http://127.0.0.1:1"));
-    let gw = std::sync::Arc::new(LlmGateway::new(client, "m", None, None, None));
+    let gw = mock_gateway();
     let orch = SwarmOrchestrator::new_without_memory(gw);
     let mut task = SwarmTask::new("hi");
     task.agents = vec![];
@@ -44,9 +51,7 @@ async fn swarm_empty_agents_falls_back_to_default_pool() {
 async fn swarm_canonical_pipeline_is_well_formed() {
     // We do not exercise the network: this test asserts that the
     // canonical task is constructed correctly.
-    let client = std::sync::Arc::new(OllamaClient::new("http://127.0.0.1:1"));
-    let gw = std::sync::Arc::new(LlmGateway::new(client, "m", None, None, None));
-    let orch = SwarmOrchestrator::new_without_memory(gw);
+    let gw = mock_gateway();
     let task = SwarmTask::new("design a snake");
     assert!(task.agents.is_empty());
     assert_eq!(task.max_retries, 1);

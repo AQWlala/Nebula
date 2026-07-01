@@ -98,7 +98,14 @@ async fn start_test_server() -> SocketAddr {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn server_binds_and_accepts_tcp_connection() {
-    let addr = start_test_server().await;
+    // Wrap the server start in a 30-second timeout to avoid
+    // hanging indefinitely if AppState::bootstrap is slow on CI.
+    let addr = tokio::time::timeout(
+        Duration::from_secs(30),
+        start_test_server(),
+    )
+    .await
+    .expect("server start timed out (30s)");
 
     // Open a plain TCP connection. We don't send a gRPC preface
     // (the wire shim is a stub anyway); we just want to confirm

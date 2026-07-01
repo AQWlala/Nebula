@@ -115,6 +115,20 @@ impl OllamaClient {
         }
     }
 
+    /// Creates a new client with a custom HTTP timeout.  Tests use
+    /// this to avoid waiting 120 s on a dead port before the
+    /// request fails.
+    pub fn new_with_timeout(base_url: impl Into<String>, timeout: Duration) -> Self {
+        let http = Client::builder()
+            .timeout(timeout)
+            .build()
+            .expect("reqwest client should build");
+        Self {
+            base_url: base_url.into(),
+            http,
+        }
+    }
+
     /// Returns the configured base URL.
     pub fn base_url(&self) -> &str {
         &self.base_url

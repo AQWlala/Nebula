@@ -449,7 +449,10 @@ mod tests {
     async fn empty_pool_refuses_to_run() {
         // We cannot test full execution without a running LLM, but we
         // can confirm that the orchestrator correctly clamps agent_count.
-        let client = std::sync::Arc::new(crate::llm::OllamaClient::new("http://127.0.0.1:1"));
+        let client = std::sync::Arc::new(crate::llm::OllamaClient::new_with_timeout(
+            "http://127.0.0.1:1",
+            std::time::Duration::from_secs(2),
+        ));
         let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(client, "m", None, None, None));
         let orch = SwarmOrchestrator::new_without_memory(gw);
         // agent_pool is pre-built with 6 agents — verify.

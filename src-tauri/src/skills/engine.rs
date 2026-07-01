@@ -938,7 +938,10 @@ mod tests {
     }
 
     fn llm() -> Arc<LlmGateway> {
-        let client = Arc::new(OllamaClient::new("http://127.0.0.1:1"));
+        let client = Arc::new(OllamaClient::new_with_timeout(
+            "http://127.0.0.1:1",
+            std::time::Duration::from_secs(2),
+        ));
         Arc::new(LlmGateway::new(client, "m", None, None, None))
     }
 
