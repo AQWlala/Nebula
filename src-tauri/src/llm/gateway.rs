@@ -204,6 +204,11 @@ struct CacheEntry {
 
 /// The LLM gateway.
 ///
+/// v1.2: 默认主路径改为 DeepSeek (OpenAI 兼容 API)。
+/// 调用优先级:`deepseek` (primary) → `ollama` (local fallback) →
+/// `anthropic` (third fallback) → `remote` (generic OpenAI-compat)。
+/// 通过 `llm_provider` 配置决定主路径;未配置 API key 时自动降级到 Ollama。
+///
 /// v1.0 P0#7 fix: the prompt cache is now a true
 /// [`lru::LruCache`].  v0.3 used a `Vec<(u64, CacheEntry)>` with
 /// `g.remove(0)` on overflow, which is **FIFO**, not LRU.  That
@@ -213,14 +218,27 @@ struct CacheEntry {
 /// matching `cache.get(key)` in [`LlmGateway::lookup_cache`]
 /// (which also marks the entry as most-recently-used).
 pub struct LlmGateway {
+    /// Ollama 客户端 (用于 embedding + 本地 chat fallback)。
     primary: Arc<OllamaClient>,
     default_model: String,
+    /// v1.2: DeepSeek 主路径 (OpenAI 兼容 /v1/chat/completions)。
+    deepseek: Option<DeepSeekPrimary>,
+    /// 可选的通用远程 fallback (OpenAI 兼容,如 Azure / 自建)。
     remote: Option<RemoteFallback>,
-    /// v1.1 P0-1: Anthropic Claude fallback chain.
+    /// v1.1 P0-1: Anthropic Claude fallback chain。
     anthropic: Option<AnthropicFallback>,
+    /// v1.2: 主 provider 名 (deepseek / ollama / openai-compat / anthropic)。
+    provider: String,
     cache: Mutex<LruCache<u64, CacheEntry>>,
     /// v1.0.1 P0#4: circuit breaker around the upstream call.
     breaker: CircuitBreaker,
+}
+
+/// v1.2: DeepSeek 主路径客户端 (OpenAI 兼容 API)。
+struct DeepSeekPrimary {
+    base_url: String,
+    api_key: String,
+    http: Client,
 }
 
 /// Optional remote fallback (OpenAI-compatible /v1/chat/completions).
@@ -272,14 +290,33 @@ impl LlmGateway {
     }
 
     /// Creates a new gateway.
+    ///
+    /// v1.2: 新增 `provider` / `deepseek_api_url` / `deepseek_api_key` 参数。
+    /// 当 provider = "deepseek" 且 api_key 存在时,DeepSeek 成为主路径。
     /// `anthropic_api_key` enables the v1.1 P0-1 Anthropic Claude fallback.
     pub fn new(
         primary: Arc<OllamaClient>,
         default_model: impl Into<String>,
+        provider: impl Into<String>,
+        deepseek_api_url: Option<String>,
+        deepseek_api_key: Option<String>,
         remote_url: Option<String>,
         anthropic_api_key: Option<String>,
         anthropic_model: Option<String>,
     ) -> Self {
+        // v1.2: DeepSeek 主路径,仅在 api_key 存在时启用。
+        let deepseek = match (deepseek_api_url, deepseek_api_key) {
+            (Some(url), Some(key)) if !key.is_empty() => Some(DeepSeekPrimary {
+                base_url: url,
+                api_key: key,
+                http: Client::builder()
+                    .timeout(Duration::from_secs(120))
+                    .build()
+                    .expect("reqwest client should build"),
+            }),
+            _ => None,
+        };
+
         let remote = remote_url.map(|u| RemoteFallback {
             base_url: u,
             api_key: std::env::var("NINE_SNAKE_REMOTE_KEY").ok(),
@@ -304,8 +341,10 @@ impl LlmGateway {
         Self {
             primary,
             default_model: default_model.into(),
+            deepseek,
             remote,
             anthropic,
+            provider: provider.into(),
             cache: Mutex::new(LruCache::new(cap)),
             breaker: CircuitBreaker::default(),
         }
@@ -314,7 +353,7 @@ impl LlmGateway {
     #[cfg(test)]
     pub fn new_test() -> Self {
         let ollama = Arc::new(OllamaClient::new("http://127.0.0.1:11434".to_string()));
-        Self::new(ollama, "test-model", None, None, None)
+        Self::new(ollama, "test-model", "ollama", None, None, None, None, None)
     }
 
     /// Returns the default chat model name.
@@ -346,6 +385,24 @@ impl LlmGateway {
         // v1.0.1 P0#4: gate the upstream call on the breaker.
         self.breaker.check()?;
 
+        // v1.2: 根据 provider 配置决定调用顺序。
+        // 主路径:DeepSeek (若配置) → Ollama (本地) → Anthropic → Remote。
+        if self.provider == "deepseek" {
+            if let Some(ds) = &self.deepseek {
+                match self.call_deepseek(ds, &self.default_model, &messages).await {
+                    Ok(resp) => {
+                        self.breaker.record_success();
+                        self.store_cache(key, resp.clone());
+                        return Ok(resp);
+                    }
+                    Err(e) => {
+                        warn!(target: "nine_snake.llm", error = ?e, "DeepSeek failed, falling back to Ollama");
+                    }
+                }
+            }
+        }
+
+        // Fallback 1: Ollama 本地
         match self.primary.chat(&self.default_model, &messages).await {
             Ok(resp) => {
                 self.breaker.record_success();
@@ -353,66 +410,102 @@ impl LlmGateway {
                 Ok(resp)
             }
             Err(e) => {
-                // v1.0.1 P0#4: every failure counts; the breaker
-                // will trip Closed→Open after `failure_threshold`
-                // consecutive failures.  Note: we still try the
-                // remote fallback before counting the failure, so
-                // a healthy remote keeps the breaker Closed even
-                // if Ollama is dead.
-                //
-                // v1.1 P0-1: Anthropic Claude is the third fallback
-                // after Ollama → Remote.
+                // Fallback 2: Anthropic Claude
+                if let Some(anthropic) = &self.anthropic {
+                    match self.call_anthropic(anthropic, &messages).await {
+                        Ok(text) => {
+                            self.breaker.record_success();
+                            let resp = ChatResponse {
+                                model: anthropic.client.model.clone(),
+                                message: ChatMessage {
+                                    role: "assistant".to_string(),
+                                    content: text,
+                                },
+                                done: true,
+                                total_duration: None,
+                                eval_count: None,
+                            };
+                            self.store_cache(key, resp.clone());
+                            return Ok(resp);
+                        }
+                        Err(anthropic_err) => {
+                            warn!(target: "nine_snake.llm", error = ?anthropic_err, "Anthropic fallback also failed");
+                        }
+                    }
+                }
+                // Fallback 3: 通用 Remote (OpenAI 兼容)
                 if let Some(remote) = &self.remote {
-                    match self
-                        .call_remote(remote, &self.default_model, &messages)
-                        .await
-                    {
+                    match self.call_remote(remote, &self.default_model, &messages).await {
                         Ok(resp) => {
                             self.breaker.record_success();
                             self.store_cache(key, resp.clone());
                             return Ok(resp);
                         }
                         Err(remote_err) => {
-                            // Try Anthropic before recording failure
-                            if let Some(anthropic) = &self.anthropic {
-                                match self.call_anthropic(anthropic, &messages).await {
-                                    Ok(text) => {
-                                        self.breaker.record_success();
-                                        let resp = ChatResponse {
-                                            model: anthropic.client.model.clone(),
-                                            message: ChatMessage {
-                                                role: "assistant".to_string(),
-                                                content: text,
-                                            },
-                                            done: true,
-                                            total_duration: None,
-                                            eval_count: None,
-                                        };
-                                        self.store_cache(key, resp.clone());
-                                        return Ok(resp);
-                                    }
-                                    Err(anthropic_err) => {
-                                        warn!(
-                                            target: "nine_snake.llm",
-                                            error = ?anthropic_err,
-                                            "Anthropic fallback also failed"
-                                        );
-                                        self.breaker.record_failure();
-                                        return Err(anthropic_err)
-                                            .context("ollama, remote, and anthropic all failed");
-                                    }
-                                }
-                            }
                             self.breaker.record_failure();
-                            return Err(remote_err)
-                                .context("local ollama and remote fallback both failed");
+                            return Err(remote_err).context(
+                                "deepseek/ollama/anthropic/remote all failed",
+                            );
                         }
                     }
                 }
                 self.breaker.record_failure();
-                Err(e).context("local ollama chat failed and no remote fallback configured")
+                Err(e).context("all LLM providers failed (deepseek/ollama), no remote configured")
             }
         }
+    }
+
+    /// v1.2: 调用 DeepSeek API (OpenAI 兼容 /v1/chat/completions)。
+    async fn call_deepseek(
+        &self,
+        ds: &DeepSeekPrimary,
+        model: &str,
+        messages: &[ChatMessage],
+    ) -> anyhow::Result<ChatResponse> {
+        let url = format!("{}/chat/completions", ds.base_url.trim_end_matches('/'));
+        let req_body = serde_json::json!({
+            "model": model,
+            "messages": messages.iter().map(|m| {
+                serde_json::json!({
+                    "role": m.role,
+                    "content": m.content,
+                })
+            }).collect::<Vec<_>>(),
+            "stream": false,
+        });
+        let resp = ds
+            .http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", ds.api_key))
+            .header("Content-Type", "application/json")
+            .json(&req_body)
+            .send()
+            .await
+            .map_err(|e| anyhow!("DeepSeek request failed: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("DeepSeek API error: {status} - {body}"));
+        }
+        let resp_json: RemoteChatResponse = resp
+            .json()
+            .await
+            .map_err(|e| anyhow!("DeepSeek response parse failed: {e}"))?;
+        let content = resp_json
+            .choices
+            .first()
+            .map(|c| c.message.content.clone())
+            .unwrap_or_default();
+        Ok(ChatResponse {
+            model: model.to_string(),
+            message: ChatMessage {
+                role: "assistant".to_string(),
+                content,
+            },
+            done: true,
+            total_duration: None,
+            eval_count: None,
+        })
     }
 
     /// Chat with an explicit model override (skips the cache).
@@ -930,6 +1023,9 @@ mod tests {
                 std::time::Duration::from_secs(2),
             )),
             "m",
+            "ollama",
+            None,
+            None,
             None,
             None,
             None,

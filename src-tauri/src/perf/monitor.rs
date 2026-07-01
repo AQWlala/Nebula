@@ -92,17 +92,21 @@ impl PerfMonitor {
     }
 
     /// Spawn a background sampler.  Returns a handle whose
-    /// `Drop` cancels the loop.
-    pub fn start(period: Duration) -> MonitorHandle {
+    /// `Drop` cancels the loop, plus a cloneable `PerfMonitor`
+    /// reader that can be polled for `latest()`.
+    pub fn start(period: Duration) -> (MonitorHandle, PerfMonitor) {
         let monitor = PerfMonitor::new();
         let abort = monitor.inner.abort.clone();
         let handle = MonitorHandle {
             abort: abort.clone(),
         };
-        tokio::spawn(async move {
-            run_loop(monitor, period, abort).await;
+        tokio::spawn({
+            let m = monitor.clone();
+            async move {
+                run_loop(m, period, abort).await;
+            }
         });
-        handle
+        (handle, monitor)
     }
 
     /// Update the stored sample (used by the background task).

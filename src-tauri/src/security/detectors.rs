@@ -59,6 +59,7 @@ static CHINA_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d{17}[\dXx]\b"
 static CHINA_PHONE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b1[3-9]\d{9}\b").unwrap());
 
 /// 检测器注册表 — 扫描内容对所有注册模式进行检测。
+#[derive(Debug, Clone)]
 pub struct SensitiveScanner {
     detectors: Vec<SensitiveDetector>,
 }

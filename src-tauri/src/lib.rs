@@ -61,6 +61,12 @@ pub mod work;
 pub mod writing;
 // v1.1 P0-2: Tool abstraction layer.
 pub mod tools;
+// v1.3: Plan 模式 + 准奏环节（L4 价值层配套）。
+pub mod plan;
+// v1.8: observability layer (OpenTelemetry tracing export, gated).
+pub mod observability;
+// v2.0: Sidecar 进程拆分 — 多进程架构（Memory/LLM/Swarm 独立进程）。
+pub mod sidecar;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with
@@ -80,7 +86,7 @@ use parking_lot::Mutex;
 use tauri::Manager;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt as _, registry, util::SubscriberInitExt as _, EnvFilter};
 
 #[cfg(feature = "channels")]
 use crate::channel::bridge::MessageBridge;
@@ -90,11 +96,16 @@ use crate::editor::EditorState;
 use crate::llm::gateway::LlmGateway;
 use crate::llm::ollama::OllamaClient;
 use crate::memory::blackhole::BlackholeEngine;
+use crate::memory::causal_graph::CausalGraphEngine;
 use crate::memory::embedder::Embedder;
+use crate::memory::l0_cache::L0Cache;
 use crate::memory::lance_store::LanceStore;
+use crate::memory::orchestrator::MemoryOrchestrator;
 use crate::memory::reflect::{ReflectConfig, ReflectionEngine};
 use crate::memory::sponge::SpongeEngine;
 use crate::memory::sqlite_store::SqliteStore;
+use crate::memory::summarizer::SummaryEngine;
+use crate::memory::version_control::MemoryVersionControl;
 use crate::os::ClipboardService;
 use crate::os::ShellExecutor;
 use crate::perf::StartupTimer;
@@ -118,13 +129,22 @@ pub struct AppConfig {
     pub db_path: String,
     /// Path to the LanceDB vector store directory.
     pub lance_path: String,
-    /// Base URL of the Ollama HTTP server.
+    /// Base URL of the Ollama HTTP server. 仍用于 embedding (bge-small-zh)。
+    /// 若要禁用本地 Ollama,设为空字符串。
     pub ollama_url: String,
-    /// Default chat model name served by Ollama.
+    /// 默认 chat 模型名。v1.2 起默认 `deepseek-chat`。
+    /// 可选值:deepseek-chat / deepseek-reasoner / qwen2.5:3b / claude-3-5-haiku 等。
     pub chat_model: String,
-    /// Default embedding model name served by Ollama.
+    /// 默认 embedding 模型名 (仍走 Ollama)。
     pub embed_model: String,
-    /// Optional remote fallback URL (e.g. OpenAI-compatible endpoint).
+    /// 主 LLM provider (deepseek / ollama / openai-compat / anthropic)。
+    /// v1.2 起默认 `deepseek`。决定 chat 请求优先走哪条路径。
+    pub llm_provider: String,
+    /// DeepSeek API base URL (主路径)。
+    pub deepseek_api_url: String,
+    /// DeepSeek API key (从 DEEPSEEK_API_KEY 读取)。
+    pub deepseek_api_key: Option<String>,
+    /// 可选的远程 fallback URL (OpenAI 兼容,如 Azure OpenAI / 自建端点)。
     pub remote_fallback_url: Option<String>,
     /// Number of days of inactivity before the black-hole engine may compress.
     pub blackhole_threshold_days: u32,
@@ -163,9 +183,15 @@ impl AppConfig {
             ollama_url: std::env::var("OLLAMA_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string()),
             chat_model: std::env::var("NINE_SNAKE_CHAT_MODEL")
-                .unwrap_or_else(|_| "qwen2.5:3b".to_string()),
+                .unwrap_or_else(|_| "deepseek-chat".to_string()),
             embed_model: std::env::var("NINE_SNAKE_EMBED_MODEL")
                 .unwrap_or_else(|_| "BAAI/bge-small-zh-v1.5".to_string()),
+            // v1.2: 默认走 DeepSeek;设 NINE_SNAKE_LLM_PROVIDER=ollama 可回退本地。
+            llm_provider: std::env::var("NINE_SNAKE_LLM_PROVIDER")
+                .unwrap_or_else(|_| "deepseek".to_string()),
+            deepseek_api_url: std::env::var("DEEPSEEK_API_URL")
+                .unwrap_or_else(|_| "https://api.deepseek.com/v1".to_string()),
+            deepseek_api_key: std::env::var("DEEPSEEK_API_KEY").ok(),
             remote_fallback_url: std::env::var("NINE_SNAKE_REMOTE_URL").ok(),
             blackhole_threshold_days: std::env::var("NINE_SNAKE_BH_DAYS")
                 .ok()
@@ -252,6 +278,8 @@ pub struct AppState {
     pub sync_transport: Arc<LocalTransport>,
     /// v1.0: startup profiler (milestones + final report).
     pub startup_timer: StartupTimer,
+    /// v1.8: 性能监控器（后台 1Hz 采样 RSS/CPU，前端通过 perf_sample 命令轮询）。
+    pub perf_monitor: crate::perf::monitor::PerfMonitor,
     /// v1.1 P0-2: tool registry with registered tools (shell, etc.).
     pub tool_registry: Arc<ToolRegistry>,
     #[cfg(feature = "channels")]
@@ -262,6 +290,25 @@ pub struct AppState {
     /// v1.3: MCP manager (feature-gated).
     #[cfg(feature = "mcp")]
     pub mcp_manager: Arc<crate::mcp::client::McpManager>,
+    /// v1.4: L0 缓存层（LRU 热记忆 + 会话上下文窗口 + 预取队列）。
+    /// 设计文档 v7.0 §2.1 L0 Cache Layer 的实现。
+    pub l0: Arc<L0Cache>,
+    /// v1.4: Memory Orchestrator（L2 认知层协调器）。
+    /// 设计文档 v7.0 §4.3 上下文组装策略：5 类记忆协调 + ≤3 类组合 + ≤3000 token。
+    pub orchestrator: Arc<MemoryOrchestrator>,
+    /// v1.5: LLM 驱动的多粒度摘要引擎（50/150/500/2000 字符四级）。
+    pub summary_engine: Arc<SummaryEngine>,
+    /// v1.5: 因果图谱推理引擎（根因追溯 + 效果链 + 解释路径）。
+    pub causal_graph: Arc<CausalGraphEngine>,
+    /// v1.6: Git 风格记忆版本控制（branch/commit/log/diff/revert/merge）。
+    /// 设计文档 v7.0 §3.4 L3 应用层 — 记忆版本控制。
+    pub version_control: Arc<MemoryVersionControl>,
+    /// v2.0: Sidecar 进程管理器（Memory/LLM/Swarm 独立进程管理）。
+    /// 设计文档 v7.0 §14 Sidecar Architecture。
+    pub sidecar_manager: crate::sidecar::SidecarManager,
+    /// v2.0: 真正的 Self-Reflection 引擎（L5 元认知层升级）。
+    /// 设计文档 v7.0 §2.1 L5 Metacognitive Layer。
+    pub self_reflection: Arc<crate::memory::self_reflection::SelfReflectionEngine>,
 }
 
 impl AppState {
@@ -286,10 +333,49 @@ impl AppState {
             &config, &sqlite, &lance, &embedder, &llm, &sponge,
         );
 
+        // v2.0: 真正的 Self-Reflection 引擎（L5 元认知层升级）。
+        let self_reflection = Arc::new(
+            crate::memory::self_reflection::SelfReflectionEngine::new(
+                sqlite.clone(),
+                swarm.values_layer().clone(),
+                reflection.config().clone(),
+            ),
+        );
+        startup.mark("bootstrap.self_reflection");
+
         // Phase 4: skills ecosystem
         let (skills, skill_extractor, skill_composer, marketplace, skill_audit_logger) =
             Self::bootstrap_skills(&config, &sqlite, &llm);
         swarm.set_composer(skill_composer.clone());
+
+        // v1.4: L0 缓存层 + Memory Orchestrator。
+        // L0Cache 是纯内存结构,不依赖外部资源;MemoryOrchestrator 依赖
+        // sqlite/lance/embedder/l0,所以在这里组装。
+        let l0 = Arc::new(L0Cache::new());
+        let orchestrator = Arc::new(MemoryOrchestrator::new(
+            sqlite.clone(),
+            lance.clone(),
+            embedder.clone(),
+            l0.clone(),
+        ));
+        startup.mark("bootstrap.memory_orchestrator");
+
+        // v1.5: 多粒度摘要引擎 + 因果图谱引擎。
+        let summary_engine = Arc::new(SummaryEngine::new(llm.clone()));
+        let causal_graph = Arc::new(CausalGraphEngine::new((*sqlite).clone()));
+        startup.mark("bootstrap.causal_graph");
+
+        // v1.6: Git 风格记忆版本控制引擎。
+        let version_control = Arc::new(MemoryVersionControl::new(sqlite.clone()));
+        startup.mark("bootstrap.version_control");
+
+        // v2.0: Sidecar 进程管理器（默认进程内模式，sidecar 二进制存在时自动切换）。
+        let data_dir = std::path::Path::new(&config.db_path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        let sidecar_manager = crate::sidecar::SidecarManager::new(data_dir);
+        startup.mark("bootstrap.sidecar_manager");
 
         // Phase 5: workspace tooling + final assembly
         #[cfg(feature = "channels")]
@@ -304,6 +390,13 @@ impl AppState {
         tool_registry.register(Arc::new(ShellTool::new((*shell).clone())));
         let sync_transport = Self::bootstrap_sync(&config);
         startup.mark("bootstrap.end");
+
+        // v1.8: 启动性能监控器（后台 1Hz 采样 RSS/CPU）。
+        // MonitorHandle 被 _perf_handle 持有，drop 时停止采样。
+        let (_perf_handle, perf_monitor) =
+            crate::perf::monitor::PerfMonitor::start(std::time::Duration::from_secs(1));
+        std::mem::forget(_perf_handle); // 保持运行直到进程退出
+        info!(target: "nine_snake", "perf monitor started");
 
         let device_manager = Arc::new(parking_lot::Mutex::new(DeviceManager::new(
             sqlite.raw_connection(),
@@ -330,6 +423,7 @@ impl AppState {
             #[cfg(feature = "grpc")]
             grpc_server: Arc::new(Mutex::new(None)),
             startup_timer: startup,
+            perf_monitor,
             skill_extractor,
             skill_composer,
             marketplace,
@@ -342,6 +436,13 @@ impl AppState {
             device_manager,
             #[cfg(feature = "mcp")]
             mcp_manager: Arc::new(crate::mcp::client::McpManager::new()),
+            l0,
+            orchestrator,
+            summary_engine,
+            causal_graph,
+            version_control,
+            sidecar_manager,
+            self_reflection,
         })
     }
 
@@ -408,6 +509,9 @@ impl AppState {
         let llm = Arc::new(LlmGateway::new(
             ollama,
             config.chat_model.clone(),
+            config.llm_provider.clone(),
+            Some(config.deepseek_api_url.clone()),
+            config.deepseek_api_key.clone(),
             config.remote_fallback_url.clone(),
             ak,
             am,
@@ -579,12 +683,20 @@ pub fn init_tracing() {
             .map(|v| v.eq_ignore_ascii_case("json"))
             .unwrap_or(false);
 
+        // v1.8: 尝试构建 OpenTelemetry OTLP 层。
+        // 由 NINE_SNAKE_OTLP_ENDPOINT 环境变量控制；未设置则返回 None。
+        let otel_endpoint = crate::observability::otel::otlp_endpoint_from_env();
+        let otel_service = crate::observability::otel::otlp_service_name_from_env();
+        let otel_layer = otel_endpoint
+            .as_ref()
+            .and_then(|ep| crate::observability::otel::try_build_layer(ep, &otel_service));
+
         // 日志目录:优先用 NINE_SNAKE_LOG_DIR,否则用平台默认目录。
         let log_dir = std::env::var("NINE_SNAKE_LOG_DIR").ok().map(PathBuf::from);
         let log_dir = log_dir.or_else(default_log_dir);
-        if let Some(dir) = log_dir {
-            // 确保日志目录存在。
-            let _ = std::fs::create_dir_all(&dir);
+
+        let nb_writer: Option<tracing_appender::non_blocking::NonBlocking> = if let Some(dir) = &log_dir {
+            let _ = std::fs::create_dir_all(dir);
             // 安装 panic hook:将 panic 信息写入日志文件,避免
             // `windows_subsystem = "windows"` 下 panic 被静默吞掉。
             let panic_dir = dir.clone();
@@ -602,25 +714,64 @@ pub fn init_tracing() {
                     .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
                 eprintln!("{msg}");
             }));
-            let appender = tracing_appender::rolling::daily(&dir, "nine-snake.log");
+            let appender = tracing_appender::rolling::daily(dir, "nine-snake.log");
             let (nb, _guard) = tracing_appender::non_blocking(appender);
             let _ = Box::leak(Box::new(_guard));
-            if use_json {
-                let _ = fmt()
-                    .with_env_filter(filter.clone())
-                    .json()
-                    .with_writer(nb)
-                    .try_init();
-            } else {
-                let _ = fmt()
-                    .with_env_filter(filter.clone())
-                    .with_writer(nb)
+            Some(nb)
+        } else {
+            None
+        };
+
+        // 用 match 方式分别构建 subscriber 再 try_init。
+        // OTel 层必须先加到 bare Registry 上
+        // (它实现 Layer<Registry> 而非 Layer<Layered<...>>)。
+        match (otel_layer, nb_writer, use_json) {
+            (Some(otel), Some(nb), true) => {
+                let _ = registry()
+                    .with(otel)
+                    .with(filter)
+                    .with(fmt::layer().with_writer(nb).json())
                     .try_init();
             }
-        } else if use_json {
-            let _ = fmt().with_env_filter(filter).json().try_init();
-        } else {
-            let _ = fmt().with_env_filter(filter).try_init();
+            (Some(otel), Some(nb), false) => {
+                let _ = registry()
+                    .with(otel)
+                    .with(filter)
+                    .with(fmt::layer().with_writer(nb))
+                    .try_init();
+            }
+            (Some(otel), None, true) => {
+                let _ = registry()
+                    .with(otel)
+                    .with(filter)
+                    .with(fmt::layer().json())
+                    .try_init();
+            }
+            (Some(otel), None, false) => {
+                let _ = registry()
+                    .with(otel)
+                    .with(filter)
+                    .with(fmt::layer())
+                    .try_init();
+            }
+            (None, Some(nb), true) => {
+                let _ = registry()
+                    .with(filter)
+                    .with(fmt::layer().with_writer(nb).json())
+                    .try_init();
+            }
+            (None, Some(nb), false) => {
+                let _ = registry()
+                    .with(filter)
+                    .with(fmt::layer().with_writer(nb))
+                    .try_init();
+            }
+            (None, None, true) => {
+                let _ = registry().with(filter).with(fmt::layer().json()).try_init();
+            }
+            (None, None, false) => {
+                let _ = registry().with(filter).with(fmt::layer()).try_init();
+            }
         }
     });
 }
@@ -676,6 +827,29 @@ pub fn run() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // v1.7: "关闭窗口 = 最小化到托盘"。
+        // 用户点关闭按钮时隐藏窗口而非退出，退出只能通过托盘菜单或 Cmd+Q。
+        // 若托盘未初始化成功，则保持原有"关闭=退出"行为。
+        .on_window_event(move |window, event| {
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let app = window.app_handle();
+                    // 只有当托盘存在时才阻止关闭并隐藏。
+                    if app.tray_by_id("nine-snake-tray").is_some() {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                }
+                // v1.7: OS 文件拖入窗口。
+                tauri::WindowEvent::DragDrop(drag_drop) => {
+                    if let tauri::DragDropEvent::Drop { paths, .. } = drag_drop {
+                        let app = window.app_handle();
+                        crate::os::file_handler::emit_drag_drop(app, paths);
+                    }
+                }
+                _ => {}
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             // 将相对路径的 db_path / lance_path 解析到 app data dir,
@@ -694,6 +868,14 @@ pub fn run() {
                 }
                 info!(target: "nine_snake", data_dir = ?data_dir, db_path = ?config.db_path, "resolved data paths");
             }
+
+            // v1.7: 系统托盘 + 全局快捷键接线。
+            // 失败时仅记录日志，不阻断启动（托盘/快捷键是锦上添花）。
+            crate::os::tray::setup(app.handle());
+            crate::os::shortcut::setup(app.handle());
+
+            // v1.7: 处理通过 argv 传入的文件路径（双击文件打开）。
+            crate::os::file_handler::handle_argv_files(app.handle());
             // Bootstrap state asynchronously so we don't block Tauri's main thread.
             //
             // v0.3 fix: when bootstrap fails, surface a user-facing
@@ -740,6 +922,22 @@ pub fn run() {
                             }
                         } else {
                             info!(target: "nine_snake", "gRPC server disabled by config");
+                        }
+
+                        // v1.8: 可选 Prometheus /metrics 端点（env
+                        // `NINE_SNAKE_METRICS_ADDR` 控制，默认关闭）。
+                        // JoinHandle 用 mem::forget 保持运行直到进程退出。
+                        if let Some(addr) = crate::metrics::exporter::bind_addr_from_env() {
+                            let h = crate::metrics::exporter::start(
+                                addr.clone(),
+                                state.perf_monitor.clone(),
+                            );
+                            std::mem::forget(h);
+                            info!(
+                                target: "nine_snake.metrics",
+                                addr = %addr,
+                                "prometheus exporter started"
+                            );
                         }
 
                         // v1.3: MCP — connect all configured servers and
@@ -793,6 +991,21 @@ pub fn run() {
             commands::memory_delete,
             commands::memory_get_many,
             commands::memory_stats,
+            // v1.5: 因果图谱 + 多粒度摘要命令。
+            commands::causal_trace_root_causes,
+            commands::causal_find_effects,
+            commands::causal_explain,
+            commands::summary_generate,
+            // v1.6: Git 风格记忆版本控制命令。
+            commands::memory_branch_list,
+            commands::memory_branch_create,
+            commands::memory_branch_checkout,
+            commands::memory_branch_delete,
+            commands::memory_commit,
+            commands::memory_log,
+            commands::memory_diff,
+            commands::memory_revert,
+            commands::memory_merge,
             commands::swarm_execute,
             commands::swarm_list_agents,
             commands::swarm_get_agent,
@@ -802,6 +1015,8 @@ pub fn run() {
             commands::reflect_now,
             commands::list_reflections,
             commands::get_reflection,
+            // v2.0: 真正的 Self-Reflection。
+            commands::self_reflect_now,
             commands::metrics,
             commands::migration_status,
             // v1.0: perf + settings commands.
@@ -852,6 +1067,10 @@ pub fn run() {
             commands::os_clipboard_write,
             commands::os_shell_exec,
             commands::os_notify,
+            // v1.7: 自启动控制。
+            commands::os_autostart_enable,
+            commands::os_autostart_disable,
+            commands::os_autostart_is_enabled,
             // v0.5: sync.
             commands::sync_encrypt,
             commands::sync_decrypt,
@@ -917,6 +1136,20 @@ pub fn run() {
             commands::mcp_remove_server,
             #[cfg(feature = "mcp")]
             commands::mcp_list_tools,
+            // v1.3: Plan + 准奏 + L4 价值层。
+            commands::plan_pre_check,
+            commands::plan_approve_confirmation,
+            commands::plan_deny_confirmation,
+            commands::plan_approve_plan,
+            commands::plan_reject_plan,
+            commands::plan_get_plan,
+            commands::plan_get_confirmation,
+            commands::values_redact,
+            // v2.0: Sidecar 管理命令。
+            commands::sidecar_list_status,
+            commands::sidecar_start,
+            commands::sidecar_stop,
+            commands::sidecar_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

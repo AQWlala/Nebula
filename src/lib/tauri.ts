@@ -141,6 +141,39 @@ export interface Reflection {
   created_at: number;
 }
 
+/** v0.2: process-wide perf monitor sample. */
+export interface PerfSample {
+  rss_bytes?: number | null;
+  virt_bytes?: number | null;
+  cpu_pct?: number | null;
+  over_budget?: boolean;
+  ts_ms?: number;
+}
+
+/** v2.0: Sidecar 状态信息 */
+export interface SidecarStatusInfo {
+  kind: string;
+  status: string;
+  running: boolean;
+  pid?: number | null;
+  listenAddr?: string | null;
+}
+
+/** v2.0: Self-Reflection 类型 */
+export type ReflectionKind = 'value_alignment' | 'outcome_review' | 'self_improvement';
+
+/** v2.0: 自我反思结果 */
+export interface SelfReflection {
+  kind: ReflectionKind;
+  title: string;
+  content: string;
+  insights: string[];
+  actionItems: string[];
+  confidence: number;
+  severity: number;
+  relatedMemoryIds: string[];
+}
+
 /** v0.2: process-wide metrics snapshot. */
 export interface MetricsSnapshot {
   embedding_cache_hits: number;
@@ -151,6 +184,11 @@ export interface MetricsSnapshot {
   reflections_generated_total: number;
   swarm_executions_total: number;
   chat_total: number;
+  // v1.8: 延迟累加器（微秒）+ 采样次数，前端可计算平均值。
+  memory_search_latency_us_total: number;
+  memory_search_latency_count: number;
+  llm_chat_latency_us_total: number;
+  llm_chat_latency_count: number;
 }
 
 /** v0.2: migration status snapshot. */
@@ -297,6 +335,31 @@ export class NineSnakeAPI {
   /** v0.2: list recent reflections, newest first. */
   static listReflections(limit = 20): Promise<Reflection[]> {
     return invoke('list_reflections', { limit });
+  }
+
+  /** v2.0: 执行一次真正的 Self-Reflection（价值对齐 + 结局复盘 + 自我改进） */
+  static selfReflectNow(): Promise<SelfReflection[]> {
+    return invoke('self_reflect_now');
+  }
+
+  /** v2.0: 获取所有 sidecar 的状态 */
+  static sidecarListStatus(): Promise<SidecarStatusInfo[]> {
+    return invoke('sidecar_list_status');
+  }
+
+  /** v2.0: 启动指定 sidecar */
+  static sidecarStart(kind: string): Promise<boolean> {
+    return invoke('sidecar_start', { kind });
+  }
+
+  /** v2.0: 停止指定 sidecar */
+  static sidecarStop(kind: string): Promise<boolean> {
+    return invoke('sidecar_stop', { kind });
+  }
+
+  /** v2.0: 重启指定 sidecar */
+  static sidecarRestart(kind: string): Promise<boolean> {
+    return invoke('sidecar_restart', { kind });
   }
 
   /** v0.2: snapshot the process-wide metrics. */

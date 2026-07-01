@@ -3,7 +3,8 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
+use tauri_plugin_notification::NotificationExt;
 use tracing::instrument;
 
 use crate::commands::error::CommandError;
@@ -83,6 +84,7 @@ pub struct NotifyRequest {
 #[instrument(skip(state, request), fields(otel.kind = "os_notify"))]
 pub async fn os_notify(
     state: State<'_, AppState>,
+    app: AppHandle,
     request: NotifyRequest,
 ) -> Result<(), CommandError> {
     let _ = state;
@@ -97,5 +99,54 @@ pub async fn os_notify(
         body: request.body,
         level,
     };
-    os::send_notification(&n).map_err(|e| CommandError::internal("os_notify", &e))
+    // v1.7: 先记录到 in-process 日志（保持向后兼容），再通过
+    // tauri-plugin-notification 真正发送 OS 通知。
+    os::send_notification(&n)?;
+    app.notification()
+        .builder()
+        .title(&n.title)
+        .body(&n.body)
+        .show()
+        .map_err(|e| CommandError::internal("os_notify", &anyhow::anyhow!("{e}")))?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// v1.7: 自启动控制命令（前端 Settings 页面 toggle 用）。
+// ---------------------------------------------------------------------------
+
+/// Tauri 命令：启用开机自启动。
+#[tauri::command]
+#[instrument(skip(app), fields(otel.kind = "os_autostart_enable"))]
+pub async fn os_autostart_enable(app: AppHandle) -> Result<(), CommandError> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .enable()
+        .map_err(|e| CommandError::internal("os_autostart_enable", &anyhow::anyhow!("{e}")))?;
+    tracing::info!(target: "nine_snake.os", "autostart enabled");
+    Ok(())
+}
+
+/// Tauri 命令：禁用开机自启动。
+#[tauri::command]
+#[instrument(skip(app), fields(otel.kind = "os_autostart_disable"))]
+pub async fn os_autostart_disable(app: AppHandle) -> Result<(), CommandError> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .disable()
+        .map_err(|e| CommandError::internal("os_autostart_disable", &anyhow::anyhow!("{e}")))?;
+    tracing::info!(target: "nine_snake.os", "autostart disabled");
+    Ok(())
+}
+
+/// Tauri 命令：查询当前自启动状态。
+#[tauri::command]
+#[instrument(skip(app), fields(otel.kind = "os_autostart_is_enabled"))]
+pub async fn os_autostart_is_enabled(app: AppHandle) -> Result<bool, CommandError> {
+    use tauri_plugin_autostart::ManagerExt;
+    let enabled = app
+        .autolaunch()
+        .is_enabled()
+        .map_err(|e| CommandError::internal("os_autostart_is_enabled", &anyhow::anyhow!("{e}")))?;
+    Ok(enabled)
 }

@@ -43,7 +43,13 @@
     "shortDescription": "九头蛇 — 多头 AI 助手",
     "longDescription": "A multi-headed AI agent that grows with you. 写作 / 工作 / 代码 一体。",
     "publisher": "AQWlala",
-    "homepage": "https://github.com/AQWlala/nine-snake"
+    "homepage": "https://github.com/AQWlala/nine-snake",
+    "fileAssociations": [
+      { "ext": ["md"], "name": "Markdown", "description": "Markdown 文档" },
+      { "ext": ["txt"], "name": "Plain Text", "description": "纯文本文件" },
+      { "ext": ["hermes"], "name": "Hermes Project", "description": "九头蛇项目文件" },
+      { "ext": ["hmemory"], "name": "Hermes Memory Export", "description": "九头蛇记忆导出" }
+    ]
   },
   "plugins": {
     "globalShortcut": {

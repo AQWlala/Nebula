@@ -25,7 +25,7 @@ use super::entity_extractor::EntityExtractor;
 use super::graph_search::{GraphSearchConfig, GraphSearchEngine};
 use super::lance_store::LanceStore;
 use super::sqlite_store::SqliteStore;
-use super::types::{Memory, MemoryRelation, MultiGranularity, RelationKind, SourceKind};
+use super::types::{Memory, MemoryRelation, MemoryType, MultiGranularity, RelationKind, SourceKind};
 use crate::llm::LlmGateway;
 use crate::security::SensitiveScanner;
 
@@ -40,6 +40,9 @@ pub enum SpongeResult {
     /// The new memory was a perfect duplicate; the existing record was
     /// just touched.
     Duplicate { id: String },
+    /// v1.5: 记忆因关键词未激活而被降级吸收（importance 衰减）。
+    /// 仍然入库，但 importance 被乘以衰减因子，使黑洞引擎更可能压缩它。
+    Deactivated { id: String },
 }
 
 impl SpongeResult {
@@ -47,7 +50,99 @@ impl SpongeResult {
         match self {
             SpongeResult::Inserted { id }
             | SpongeResult::Merged { id, .. }
-            | SpongeResult::Duplicate { id } => id,
+            | SpongeResult::Duplicate { id }
+            | SpongeResult::Deactivated { id } => id,
+        }
+    }
+}
+
+/// v1.5: 关键词激活器。
+///
+/// 设计文档 v7.0 §3.1 海绵多腔体 — 关键词激活：只有内容命中
+/// 激活关键词的记忆才会被全量吸收；未命中的记忆 importance 衰减
+/// （但不丢弃，避免信息丢失）。
+///
+/// 默认激活关键词集覆盖中英文常见的重要信号词。
+#[derive(Debug, Clone)]
+pub struct KeywordActivator {
+    /// 激活关键词集合（小写匹配）。
+    keywords: Vec<String>,
+    /// 未命中时 importance 的衰减因子。
+    decay_factor: f32,
+}
+
+impl Default for KeywordActivator {
+    fn default() -> Self {
+        Self::with_keywords(default_activation_keywords(), 0.3)
+    }
+}
+
+impl KeywordActivator {
+    /// 用指定的关键词集创建激活器。
+    pub fn with_keywords(keywords: Vec<String>, decay_factor: f32) -> Self {
+        Self {
+            keywords,
+            decay_factor,
+        }
+    }
+
+    /// 检查内容是否命中任一激活关键词。
+    pub fn activate(&self, content: &str) -> bool {
+        if self.keywords.is_empty() {
+            return true; // 无关键词 → 总是激活
+        }
+        let lower = content.to_lowercase();
+        self.keywords.iter().any(|kw| lower.contains(kw))
+    }
+
+    /// 返回衰减因子。
+    pub fn decay_factor(&self) -> f32 {
+        self.decay_factor
+    }
+
+    /// 添加自定义激活关键词。
+    pub fn add_keyword(&mut self, keyword: impl Into<String>) {
+        let k = keyword.into().to_lowercase();
+        if !k.is_empty() && !self.keywords.contains(&k) {
+            self.keywords.push(k);
+        }
+    }
+}
+
+/// 默认激活关键词集（中英文）。
+fn default_activation_keywords() -> Vec<String> {
+    [
+        // 中文重要信号词
+        "重要", "记住", "注意", "关键", "必须", "不要忘记", "切记", "重点",
+        "紧急", "优先", "核心", "结论", "决定", "发现", "问题", "错误",
+        "教训", "经验", "规则", "约定", "偏好", "目标", "计划",
+        // 英文重要信号词
+        "important", "remember", "note", "key", "must", "critical",
+        "warning", "error", "bug", "fix", "todo", "decision", "conclusion",
+        "lesson", "rule", "preference", "goal", "plan",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// v1.5: 多腔体配置。
+///
+/// 设计文档 v7.0 §3.1 海绵多腔体 — 按记忆类型分腔，去重时只在
+/// 同类型记忆之间进行。每种记忆类型是一个独立的"腔体"。
+#[derive(Debug, Clone)]
+pub struct ChamberConfig {
+    /// 启用多腔体（按 memory_type 隔离去重）。
+    pub enabled: bool,
+    /// 搜索候选时额外获取的倍数（如 3x 表示多取 3 倍结果用于类型过滤）。
+    pub search_multiplier: usize,
+}
+
+impl Default for ChamberConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            search_multiplier: 3,
         }
     }
 }
@@ -59,6 +154,10 @@ pub struct SpongeEngine {
     embedder: Arc<Embedder>,
     sensitive_scanner: SensitiveScanner,
     entity_extractor: Option<EntityExtractor>,
+    /// v1.5: 关键词激活器。
+    keyword_activator: KeywordActivator,
+    /// v1.5: 多腔体配置。
+    chamber_config: ChamberConfig,
 }
 
 impl SpongeEngine {
@@ -69,12 +168,36 @@ impl SpongeEngine {
             embedder,
             sensitive_scanner: SensitiveScanner::new(),
             entity_extractor: None,
+            keyword_activator: KeywordActivator::default(),
+            chamber_config: ChamberConfig::default(),
         }
     }
 
     pub fn with_llm(mut self, llm: LlmGateway) -> Self {
         self.entity_extractor = Some(EntityExtractor::new(llm));
         self
+    }
+
+    /// v1.5: 设置自定义关键词激活器。
+    pub fn with_keyword_activator(mut self, activator: KeywordActivator) -> Self {
+        self.keyword_activator = activator;
+        self
+    }
+
+    /// v1.5: 设置多腔体配置。
+    pub fn with_chamber_config(mut self, config: ChamberConfig) -> Self {
+        self.chamber_config = config;
+        self
+    }
+
+    /// v1.5: 访问关键词激活器（用于运行时添加关键词）。
+    pub fn keyword_activator(&self) -> &KeywordActivator {
+        &self.keyword_activator
+    }
+
+    /// v1.5: 访问关键词激活器（可变引用）。
+    pub fn keyword_activator_mut(&mut self) -> &mut KeywordActivator {
+        &mut self.keyword_activator
     }
 
     /// Absorbs a freshly created memory into the system.
@@ -97,7 +220,7 @@ impl SpongeEngine {
         mem.content = normalise(&mem.content);
         mem.summary = derive_summaries(&mem.content);
 
-        // v1.1 P1-4: 鍦ㄥ惛鏀跺墠鎵弿鏁忔劅鏁版嵁
+        // v1.1 P1-4: 鍦ㄥ惛鏀跺墠鎵弿鏁忔劅鏁版嵁
         let (redacted_content, sensitive_categories) = self.sensitive_scanner.scan(&mem.content);
         if !sensitive_categories.is_empty() {
             tracing::warn!(
@@ -106,6 +229,15 @@ impl SpongeEngine {
                 "sensitive data detected in memory; redacted before storage"
             );
             mem.content = redacted_content;
+        }
+
+        // v1.5: 关键词激活检查。
+        // 未命中激活关键词的记忆 importance 衰减，但仍入库（不丢弃信息）。
+        let activated = self.keyword_activator.activate(&mem.content);
+        if !activated {
+            let decay = self.keyword_activator.decay_factor();
+            debug!(target: "nine_sponge", decay, "keyword not activated; importance decayed");
+            mem.importance *= decay;
         }
 
         // 2. Embed.
@@ -118,7 +250,15 @@ impl SpongeEngine {
         }
 
         // 3. De-duplicate via the vector store.
-        let top = self.lance.search(&mem.embedding, 3).await?;
+        // v1.5: 多腔体 — 扩展搜索范围，按 memory_type 过滤候选。
+        let top = if self.chamber_config.enabled {
+            let expanded_k = 3 * self.chamber_config.search_multiplier.max(1);
+            let raw = self.lance.search(&mem.embedding, expanded_k).await?;
+            // 按 memory_type 过滤候选（多腔体隔离）。
+            self.filter_by_chamber(raw, mem.memory_type).await?
+        } else {
+            self.lance.search(&mem.embedding, 3).await?
+        };
         if let Some((existing_id, sim)) = top.first().cloned() {
             if sim >= SPONGE_MERGE_THRESHOLD {
                 if sim > 0.99 {
@@ -275,6 +415,39 @@ impl SpongeEngine {
 
         debug!(target: "nine_sponge", id = %mem.id, "absorbed new memory");
         Ok(SpongeResult::Inserted { id: mem.id })
+    }
+
+    /// v1.5: 多腔体过滤 — 按记忆类型过滤向量搜索候选。
+    ///
+    /// 批量获取候选记忆的类型，只保留与目标类型相同的候选。
+    /// 如果批量获取失败或所有候选类型不匹配，返回空列表
+    /// （此时 sponge 会走插入路径，不会误合并到不同类型的记忆）。
+    async fn filter_by_chamber(
+        &self,
+        raw: Vec<(String, f32)>,
+        target_type: MemoryType,
+    ) -> Result<Vec<(String, f32)>> {
+        if raw.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids: Vec<String> = raw.iter().map(|(id, _)| id.clone()).collect();
+        let memories = self.sqlite.get_many(&ids).await.unwrap_or_default();
+
+        // 构建 id → memory_type 映射
+        let type_map: std::collections::HashMap<&str, MemoryType> = memories
+            .iter()
+            .map(|m| (m.id.as_str(), m.memory_type))
+            .collect();
+
+        // 过滤：只保留同类型候选
+        let filtered: Vec<(String, f32)> = raw
+            .into_iter()
+            .filter(|(id, _)| {
+                type_map.get(id.as_str()).map_or(false, |t| *t == target_type)
+            })
+            .collect();
+
+        Ok(filtered)
     }
 
     /// Convenience: build a fresh [`Memory`] from raw inputs and absorb
@@ -472,5 +645,67 @@ mod tests {
         // affects the persisted summaries, not the in-memory
         // record (the latter is for the engine's own use).
         assert!(m.content.contains("sk-abc"));
+    }
+
+    // ---- v1.5: 关键词激活 + 多腔体测试 ----
+
+    #[test]
+    fn keyword_activator_default_activates_on_known_words() {
+        let ka = KeywordActivator::default();
+        assert!(ka.activate("这是一个重要的决定"));
+        assert!(ka.activate("remember this bug"));
+        assert!(ka.activate("Please note this critical rule"));
+    }
+
+    #[test]
+    fn keyword_activator_default_does_not_activate_on_noise() {
+        let ka = KeywordActivator::default();
+        assert!(!ka.activate("今天天气不错"));
+        assert!(!ka.activate("the quick brown fox jumps"));
+    }
+
+    #[test]
+    fn keyword_activator_empty_keywords_always_activates() {
+        let ka = KeywordActivator::with_keywords(Vec::new(), 0.5);
+        assert!(ka.activate("任意内容"));
+        assert!(ka.activate("anything at all"));
+    }
+
+    #[test]
+    fn keyword_activator_add_keyword_works() {
+        let mut ka = KeywordActivator::with_keywords(Vec::new(), 0.5);
+        assert!(!ka.activate("特殊内容"));
+        ka.add_keyword("特殊");
+        assert!(ka.activate("这是一段特殊内容"));
+    }
+
+    #[test]
+    fn keyword_activator_case_insensitive() {
+        let ka = KeywordActivator::with_keywords(vec!["important".to_string()], 0.5);
+        assert!(ka.activate("This is IMPORTANT"));
+        assert!(ka.activate("this is important"));
+    }
+
+    #[test]
+    fn keyword_activator_decay_factor() {
+        let ka = KeywordActivator::with_keywords(vec!["key".to_string()], 0.25);
+        assert_eq!(ka.decay_factor(), 0.25);
+        let default = KeywordActivator::default();
+        assert_eq!(default.decay_factor(), 0.3);
+    }
+
+    #[test]
+    fn chamber_config_default_values() {
+        let cfg = ChamberConfig::default();
+        assert!(cfg.enabled);
+        assert_eq!(cfg.search_multiplier, 3);
+    }
+
+    #[test]
+    fn default_activation_keywords_not_empty() {
+        let kws = default_activation_keywords();
+        assert!(!kws.is_empty());
+        assert!(kws.contains(&"重要".to_string()));
+        assert!(kws.contains(&"important".to_string()));
     }
 }

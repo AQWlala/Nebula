@@ -32,7 +32,7 @@ fn ollama_enabled() -> bool {
 
 fn make_gateway() -> LlmGateway {
     let client = std::sync::Arc::new(OllamaClient::new(OLLAMA_URL));
-    LlmGateway::new(client, CHAT_MODEL, None, None, None)
+    LlmGateway::new(client, CHAT_MODEL, "ollama", None, None, None, None, None)
 }
 
 #[tokio::test]

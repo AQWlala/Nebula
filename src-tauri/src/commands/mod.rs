@@ -52,6 +52,10 @@ pub mod security;
 // v1.3: WebChat share — feature-gated behind `channels`.
 pub mod acl;
 pub mod tool;
+// v1.3: Plan + 准奏 + L4 价值层命令。
+pub mod plan;
+// v2.0: Sidecar 管理命令。
+pub mod sidecar;
 #[cfg(feature = "channels")]
 pub mod webchat;
 
@@ -91,6 +95,8 @@ pub use skill::*;
 pub use swarm::*;
 pub use sync::*;
 pub use tool::*;
+pub use plan::*;
+pub use sidecar::*;
 #[cfg(feature = "channels")]
 pub use webchat::*;
 pub use work::*;
@@ -144,6 +150,12 @@ impl NineSnakeService for AppState {
                 id,
                 merged: true,
                 similarity: Some(1.0),
+            }),
+            // v1.5: 关键词未激活的降级吸收 — 仍算插入，但标记为未合并。
+            SpongeResult::Deactivated { id } => Ok(StoreMemoryResponse {
+                id,
+                merged: false,
+                similarity: None,
             }),
         }
     }

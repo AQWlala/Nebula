@@ -119,6 +119,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
   // a field on `AppSettings`) so it's never persisted to
   // `localStorage`.
   const [keyConfigured, setKeyConfigured] = useState(false);
+  // v1.7: 开机自启动开关状态。
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
 
   useEffect(() => {
     // P0#4: apply font size + accent to CSS variables on mount
@@ -155,6 +157,34 @@ export function Settings({ onClose }: { onClose: () => void }) {
       cancelled = true;
     };
   }, []);
+
+  // v1.7: 查询当前开机自启动状态。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const enabled = await invokeTauri<boolean>('os_autostart_is_enabled');
+        if (cancelled) return;
+        setAutostartEnabled(enabled === true);
+      } catch {
+        // Tauri runtime not available; keep default false.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggleAutostart(next: boolean) {
+    setAutostartEnabled(next);
+    try {
+      await invokeTauri(next ? 'os_autostart_enable' : 'os_autostart_disable');
+    } catch (e) {
+      // 回滚状态并提示。
+      setAutostartEnabled(!next);
+      console.error('autostart toggle failed', e);
+    }
+  }
 
   function update<K extends keyof AppSettings>(k: K, v: AppSettings[K]) {
     setS((prev) => ({ ...prev, [k]: v }));
@@ -318,6 +348,20 @@ export function Settings({ onClose }: { onClose: () => void }) {
           <div id="device-list" style="color: var(--text-secondary); font-size: 13px;">
             {t('settings.devicesHint') || '设备管理需通过同步功能配置'}
           </div>
+        </div>
+
+        {/* v1.7: OS 集成（开机自启动） */}
+        <div class="card" style="margin-top: 16px;">
+          <h3 style="margin-bottom: 8px;">{t('settings.os') || '系统集成'}</h3>
+          <label class="row" style="display: flex; align-items: center; justify-content: space-between;">
+            <span>{t('settings.autostart') || '开机自启动'}</span>
+            <input
+              type="checkbox"
+              checked={autostartEnabled}
+              onChange={(e) => toggleAutostart(e.currentTarget.checked)}
+              style={{ width: 'auto' }}
+            />
+          </label>
         </div>
 
         {/* v1.3: DID Identity */}

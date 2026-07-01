@@ -768,7 +768,7 @@ fn truncate_chars(s: &str, max: usize) -> String {
 /// `embedding` placeholder (we don't load the real vector here — that
 /// lives in LanceDB). For reflection selection, the embedding is not
 /// needed.
-fn row_to_memory_full(row: &rusqlite::Row<'_>) -> rusqlite::Result<Memory> {
+pub(crate) fn row_to_memory_full(row: &rusqlite::Row<'_>) -> rusqlite::Result<Memory> {
     use std::str::FromStr;
     let memory_type_s: String = row.get("memory_type")?;
     let layer_s: String = row.get("layer")?;

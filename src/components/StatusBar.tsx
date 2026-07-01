@@ -1,17 +1,18 @@
 /**
  * v1.0: status bar.
- *
- * Polls the existing `metrics` command every 2 s and shows:
+ * v1.8: 真正轮询 `perf_sample` + `metrics` 命令，展示：
  *   - current mode
  *   - memory count (from `nineSnakeStore.recentMemories`)
  *   - RSS budget meter (only when `perf-telemetry` is on)
  *   - LLM online/offline (best-effort: 1 quick HEAD to the
  *     configured Ollama URL)
+ *   - v1.8: 缓存命中率 + 检索/对话平均延迟
  */
 import { useEffect, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { NineSnakeStore } from '../stores/nineSnakeStore';
 import { t } from '../i18n';
+import { invokeTauri, type MetricsSnapshot } from '../lib/tauri';
 
 interface PerfSample {
   rss_bytes?: number | null;
@@ -32,8 +33,26 @@ function fmtBytes(n: number | null | undefined): string {
   return `${mb.toFixed(0)} MB`;
 }
 
+function fmtMs(us: number | null | undefined, count: number | null | undefined): string {
+  if (!count || count === 0) return '–';
+  const avgMs = (us ?? 0) / count / 1000;
+  if (avgMs < 1) return `${(avgMs * 1000).toFixed(0)}µs`;
+  if (avgMs < 1000) return `${avgMs.toFixed(0)}ms`;
+  return `${(avgMs / 1000).toFixed(2)}s`;
+}
+
+function fmtRatio(hits: number | null | undefined, misses: number | null | undefined): string {
+  const h = hits ?? 0;
+  const m = misses ?? 0;
+  const total = h + m;
+  if (total === 0) return '–';
+  const r = (h / total) * 100;
+  return `${r.toFixed(0)}%`;
+}
+
 export function StatusBar() {
   const [perf, setPerf] = useState<PerfSample | null>(null);
+  const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const memCount = NineSnakeStore.recentMemories.value.length;
   const mode = NineSnakeStore.mode.value;
   const online = llmOnline.value;
@@ -43,11 +62,15 @@ export function StatusBar() {
     let cancelled = false;
     async function tick() {
       try {
-        // Reuse the existing metrics command; the perf module
-        // will also inject RSS into a separate (future) command
-        // — for now we use whatever the Rust side exposes via
-        // the global counter.  A poll-only placeholder is fine.
-        if (!cancelled) setPerf({ ts_ms: Date.now() });
+        // v1.8: 真正调用后端 perf_sample（RSS）+ metrics（计数器/延迟）。
+        const [perfSample, metricsSnap] = await Promise.all([
+          invokeTauri<PerfSample>('perf_sample'),
+          invokeTauri<MetricsSnapshot>('metrics'),
+        ]);
+        if (!cancelled) {
+          if (perfSample) setPerf(perfSample);
+          if (metricsSnap) setMetrics(metricsSnap);
+        }
       } catch {
         /* ignore */
       }
@@ -89,6 +112,24 @@ export function StatusBar() {
           <span class="sb-val">{(startupMs.value / 1000).toFixed(1)}s</span>
         </span>
       )}
+      <span class="sb-item">
+        <span class="sb-key">{t('statusbar.cache')}</span>
+        <span class="sb-val">
+          {fmtRatio(metrics?.embedding_cache_hits, metrics?.embedding_cache_misses)}
+        </span>
+      </span>
+      <span class="sb-item">
+        <span class="sb-key">{t('statusbar.search')}</span>
+        <span class="sb-val">
+          {fmtMs(metrics?.memory_search_latency_us_total, metrics?.memory_search_latency_count)}
+        </span>
+      </span>
+      <span class="sb-item">
+        <span class="sb-key">{t('statusbar.chat')}</span>
+        <span class="sb-val">
+          {fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count)}
+        </span>
+      </span>
     </footer>
   );
 }

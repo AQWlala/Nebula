@@ -499,6 +499,12 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
             "fix_skill_ratings_pk",
             include_str!("../../migrations/018_fix_skill_ratings_pk.sql"),
         ),
+        // v1.6: Git 风格记忆版本控制 — 分支管理。
+        (
+            19,
+            "memory_branches",
+            include_str!("../../migrations/019_memory_branches.sql"),
+        ),
     ]
 }
 

@@ -37,6 +37,8 @@ class NineSnakeStoreClass {
   mode = signal<'writing' | 'work' | 'code'>('writing');
   /** v1.0.1 (P0#07): Ollama reachability. */
   ollamaStatus = signal<HealthStatus>('unknown');
+  /** v1.7: 外部打开的文件路径（双击 .md/.txt 或拖入文件时设置）。 */
+  externalFilePath = signal<string | null>(null);
 
   async bootstrap(): Promise<void> {
     await NineSnakeAPI.bootstrap();
@@ -139,6 +141,14 @@ class NineSnakeStoreClass {
    */
   async runSwarmSingle(description: string, agent: string) {
     return this.runSwarm(description, [agent]);
+  }
+
+  /**
+   * v1.7: 打开外部文件（双击 .md/.txt 或拖入窗口时调用）。
+   * 设置 externalFilePath signal，CodeMode/WritingMode 监听后读取。
+   */
+  openExternalFile(path: string) {
+    this.externalFilePath.value = path;
   }
 }
 

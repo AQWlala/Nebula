@@ -28,11 +28,12 @@ import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, buildDefaultCommands, buildMemoryItems, useCommandPaletteShortcut } from './components/CommandPalette';
 import { Toasts, toast } from './components/Toast';
+import { Dashboard } from './components/Dashboard';
 import { NineSnakeStore } from './stores/nineSnakeStore';
 import { t, currentLocale } from './i18n';
 import { loadTheme, applyTheme } from './theme';
 
-type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills';
+type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard';
 
 // 全局状态：当前模式 + 当前 view
 const currentMode = signal<View>('code');
@@ -91,6 +92,49 @@ export function App() {
     return () => window.clearInterval(poll);
   }, []);
 
+  // v1.7: 监听全局快捷键触发的 view 切换事件（由 Rust 端 emit）。
+  useEffect(() => {
+    let unlistens: (() => void)[] = [];
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        // view 切换
+        const u1 = await listen<string>('nine-snake://switch-view', (event) => {
+          const view = event.payload;
+          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard') {
+            currentMode.value = view;
+          }
+        });
+        unlistens.push(u1);
+
+        // 文件打开（双击 .md/.txt 等）→ 切到 code 视图并通知 NineSnakeStore
+        const u2 = await listen<string>('nine-snake://open-file', (event) => {
+          const path = event.payload;
+          if (path) {
+            currentMode.value = 'code';
+            NineSnakeStore.openExternalFile(path);
+          }
+        });
+        unlistens.push(u2);
+
+        // 文件拖入窗口
+        const u3 = await listen<string[]>('nine-snake://drag-drop', (event) => {
+          const paths = event.payload;
+          if (paths && paths.length > 0) {
+            currentMode.value = 'code';
+            NineSnakeStore.openExternalFile(paths[0]);
+          }
+        });
+        unlistens.push(u3);
+      } catch {
+        // Tauri runtime not available; ignore.
+      }
+    })();
+    return () => {
+      unlistens.forEach((u) => u());
+    };
+  }, []);
+
   useCommandPaletteShortcut(() => { paletteOpen.value = true; });
 
   if (error) {
@@ -129,7 +173,7 @@ export function App() {
         <Sidebar />
         <main class="main">
           {currentMode.value === 'code' ? (
-            <CodeRouter />
+            <Workspace />
           ) : (
             <>
               {currentMode.value === 'chat' && <ChatPanel />}
@@ -155,6 +199,7 @@ export function App() {
                 </div>
               )}
               {currentMode.value === 'skills' && <SkillPanel />}
+              {currentMode.value === 'dashboard' && <Dashboard />}
             </>
           )}
         </main>
@@ -187,8 +232,9 @@ export function App() {
   );
 }
 
-/** v0.5: Code 视图内挂载 ModeSwitcher + 三模式视图。 */
-function CodeRouter() {
+/** v0.5: Code 视图内挂载 ModeSwitcher + 三模式视图。
+ *  v1.7: 重命名为 Workspace，语义为"统一工作台的三视角"。 */
+function Workspace() {
   const mode = NineSnakeStore.mode.value;
   return (
     <div class="code-router">
@@ -209,6 +255,7 @@ function Sidebar() {
     { id: 'memory', icon: '🧠', label: t('nav.memory') },
     { id: 'code', icon: '💻', label: t('nav.code') },
     { id: 'skills', icon: '🔍', label: t('nav.skills') },
+    { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
   ];
 
   return (

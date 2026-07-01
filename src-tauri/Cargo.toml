@@ -24,7 +24,7 @@ tauri-build = { version = "2.0", features = [] }
 tonic-build = { version = "0.12", features = [], optional = true }
 
 [dependencies]
-tauri = { version = "2.0", features = [] }
+tauri = { version = "2.0", features = ["tray-icon"] }
 tauri-plugin-shell = "2.0"
 tauri-plugin-fs = "2.0"
 tauri-plugin-dialog = "2.0"
@@ -38,7 +38,7 @@ tauri-plugin-global-shortcut = "2.0"
 tauri-plugin-updater = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "time", "io-util", "sync", "process", "fs", "signal"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "time", "io-util", "sync", "process", "fs", "signal", "net"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 # v0.1-v1.0: LanceDB dense vector store. Heavy (pulls Apache Arrow in).
 # The `vector-store` feature (on by default) enables the real LanceDB
@@ -134,6 +134,15 @@ getrandom = "0.2"
 bytes = { version = "1.6", optional = true }
 http-body = { version = "1.0", optional = true }
 http-body-util = { version = "0.1", optional = true }
+
+# v1.8: Prometheus metrics + OpenTelemetry tracing (observability).
+# Standard crates, not hand-rolled — per v7.0 design spec.
+prometheus = "0.13"
+axum = "0.7"
+opentelemetry = { version = "0.24", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.24", default-features = false, features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.17", default-features = false, features = ["trace", "grpc-tonic"] }
+tracing-opentelemetry = { version = "0.25", default-features = false }
 
 # Target-specific keychain backends.  Each platform enables only
 # the backend it can actually link against.

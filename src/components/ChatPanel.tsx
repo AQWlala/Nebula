@@ -15,6 +15,7 @@ import { OllamaStatusBanner } from './OllamaStatusBanner';
 import { toast } from './Toast';
 import { t } from '../i18n';
 import { listen } from '@tauri-apps/api/event';
+import { routeMode } from '../lib/modeRouter';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -69,6 +70,11 @@ export function ChatPanel() {
 
   async function send() {
     if (!input.trim() || loading) return;
+    // v1.7: 三视角无感切换 — 关键词启发式自动判模式。
+    const routed = routeMode(input);
+    if (routed) {
+      NineSnakeStore.mode.value = routed;
+    }
     const userMsg: Message = { role: 'user', content: input, timestamp: Date.now() };
     setMessages((m) => [...m, userMsg]);
     const text = userMsg.content;

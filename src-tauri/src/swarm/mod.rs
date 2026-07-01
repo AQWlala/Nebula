@@ -25,4 +25,4 @@ pub use bus::{AgentBus, BusMessage, BusMessageType};
 pub use composer::{SkillComposer, SkillContext, SkillMatch};
 pub use context::{ContextEntry, TeamContext};
 pub use negotiator::{NegotiationMethod, NegotiationResult, Negotiator};
-pub use orchestrator::{AgentDescriptor, OrchestrationReport, SwarmOrchestrator, SwarmTask};
+pub use orchestrator::{AgentDescriptor, OrchestrationReport, PreCheckResult, SwarmOrchestrator, SwarmTask};

@@ -10,6 +10,10 @@
 //! not exposed. Snapshotting reads with `Ordering::Relaxed` is
 //! safe because the counters are independent.
 
+// v1.8: Prometheus text-exposition HTTP endpoint (gated by env var
+// `NINE_SNAKE_METRICS_ADDR`). Lives in `metrics/exporter.rs`.
+pub mod exporter;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
@@ -34,6 +38,15 @@ pub struct Metrics {
     pub swarm_executions_total: AtomicU64,
     /// Number of `chat` invocations.
     pub chat_total: AtomicU64,
+    // v1.8: 延迟累加器（微秒），配合 count 可算平均延迟。
+    /// 向量检索总耗时（微秒）。
+    pub memory_search_latency_us_total: AtomicU64,
+    /// 向量检索调用次数（含延迟记录的）。
+    pub memory_search_latency_count: AtomicU64,
+    /// LLM chat 总耗时（微秒）。
+    pub llm_chat_latency_us_total: AtomicU64,
+    /// LLM chat 调用次数（含延迟记录的）。
+    pub llm_chat_latency_count: AtomicU64,
 }
 
 impl Metrics {
@@ -49,6 +62,10 @@ impl Metrics {
             reflections_generated_total: AtomicU64::new(0),
             swarm_executions_total: AtomicU64::new(0),
             chat_total: AtomicU64::new(0),
+            memory_search_latency_us_total: AtomicU64::new(0),
+            memory_search_latency_count: AtomicU64::new(0),
+            llm_chat_latency_us_total: AtomicU64::new(0),
+            llm_chat_latency_count: AtomicU64::new(0),
         }
     }
 
@@ -86,6 +103,20 @@ impl Metrics {
     pub fn record_chat(&self) {
         self.chat_total.fetch_add(1, Ordering::Relaxed);
     }
+    /// v1.8: 记录一次向量检索延迟（微秒）。
+    pub fn record_search_latency(&self, us: u64) {
+        self.memory_search_latency_us_total
+            .fetch_add(us, Ordering::Relaxed);
+        self.memory_search_latency_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+    /// v1.8: 记录一次 LLM chat 延迟（微秒）。
+    pub fn record_chat_latency(&self, us: u64) {
+        self.llm_chat_latency_us_total
+            .fetch_add(us, Ordering::Relaxed);
+        self.llm_chat_latency_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
 
     /// Atomically snapshots all counters into a transport-friendly
     /// struct.
@@ -99,6 +130,10 @@ impl Metrics {
             reflections_generated_total: self.reflections_generated_total.load(Ordering::Relaxed),
             swarm_executions_total: self.swarm_executions_total.load(Ordering::Relaxed),
             chat_total: self.chat_total.load(Ordering::Relaxed),
+            memory_search_latency_us_total: self.memory_search_latency_us_total.load(Ordering::Relaxed),
+            memory_search_latency_count: self.memory_search_latency_count.load(Ordering::Relaxed),
+            llm_chat_latency_us_total: self.llm_chat_latency_us_total.load(Ordering::Relaxed),
+            llm_chat_latency_count: self.llm_chat_latency_count.load(Ordering::Relaxed),
         }
     }
 }
@@ -122,6 +157,33 @@ pub struct MetricsSnapshot {
     pub swarm_executions_total: u64,
     /// Chat turns at snapshot time.
     pub chat_total: u64,
+    /// v1.8: 向量检索累计耗时（微秒）。
+    pub memory_search_latency_us_total: u64,
+    /// v1.8: 向量检索延迟采样次数。
+    pub memory_search_latency_count: u64,
+    /// v1.8: LLM chat 累计耗时（微秒）。
+    pub llm_chat_latency_us_total: u64,
+    /// v1.8: LLM chat 延迟采样次数。
+    pub llm_chat_latency_count: u64,
+}
+
+impl MetricsSnapshot {
+    /// 向量检索平均延迟（毫秒），无数据返回 0.0。
+    pub fn memory_search_avg_latency_ms(&self) -> f64 {
+        if self.memory_search_latency_count == 0 {
+            0.0
+        } else {
+            (self.memory_search_latency_us_total as f64) / (self.memory_search_latency_count as f64) / 1000.0
+        }
+    }
+    /// LLM chat 平均延迟（毫秒），无数据返回 0.0。
+    pub fn llm_chat_avg_latency_ms(&self) -> f64 {
+        if self.llm_chat_latency_count == 0 {
+            0.0
+        } else {
+            (self.llm_chat_latency_us_total as f64) / (self.llm_chat_latency_count as f64) / 1000.0
+        }
+    }
 }
 
 impl MetricsSnapshot {
@@ -175,6 +237,8 @@ mod tests {
         m.record_reflection();
         m.record_swarm();
         m.record_chat();
+        m.record_search_latency(1500);
+        m.record_chat_latency(800_000);
         let s = m.snapshot();
         assert_eq!(s.embedding_cache_hits, 2);
         assert_eq!(s.embedding_cache_misses, 1);
@@ -184,6 +248,10 @@ mod tests {
         assert_eq!(s.reflections_generated_total, 1);
         assert_eq!(s.swarm_executions_total, 1);
         assert_eq!(s.chat_total, 1);
+        assert_eq!(s.memory_search_latency_us_total, 1500);
+        assert_eq!(s.memory_search_latency_count, 1);
+        assert_eq!(s.llm_chat_latency_us_total, 800_000);
+        assert_eq!(s.llm_chat_latency_count, 1);
     }
 
     #[test]

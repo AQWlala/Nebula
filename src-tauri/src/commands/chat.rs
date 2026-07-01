@@ -41,10 +41,13 @@ pub async fn chat(
         }
     }
 
+    let start = std::time::Instant::now();
     let resp = state
         .chat(request.clone())
         .await
         .map_err(|e| CommandError::llm("chat", &e))?;
+    // v1.8: 记录 LLM chat 延迟（微秒）。
+    crate::metrics::global().record_chat_latency(start.elapsed().as_micros() as u64);
     crate::metrics::global().record_chat();
     info!(target: "nine_snake.cmd", model = %resp.model, "chat ok");
 

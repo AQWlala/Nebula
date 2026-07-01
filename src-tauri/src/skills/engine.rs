@@ -942,7 +942,7 @@ mod tests {
             "http://127.0.0.1:1",
             std::time::Duration::from_secs(2),
         ));
-        Arc::new(LlmGateway::new(client, "m", None, None, None))
+        Arc::new(LlmGateway::new(client, "m", "ollama", None, None, None, None, None))
     }
 
     fn cleanup(p: &Path) {

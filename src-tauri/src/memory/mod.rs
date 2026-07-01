@@ -22,35 +22,55 @@
 
 pub mod acl;
 pub mod blackhole;
+// v1.5: 因果图谱推理引擎。
+pub mod causal_graph;
 pub mod embedder;
 pub mod entity_extractor;
 pub mod export;
 pub mod forgetting;
 pub mod graph_search;
 pub mod importance;
+// v1.4: L0 缓存层（LRU + Session Context + Pre-fetch）。
+pub mod l0_cache;
 pub mod lance_store;
+// v1.4: Memory Orchestrator（5 类记忆协调 + 上下文组装）。
+pub mod orchestrator;
 pub mod layers;
 pub mod migration;
 pub mod reflect;
 pub mod sponge;
+// v2.0: 真正的 Self-Reflection — L5 元认知层升级。
+pub mod self_reflection;
 pub mod sqlite_store;
+// v1.5: LLM 驱动的多粒度摘要生成。
+pub mod summarizer;
 pub mod types;
+// v1.6: Git 风格记忆版本控制（branch/commit/log/diff/revert/merge）。
+pub mod version_control;
+// v1.3: L4 价值层（Constitutional AI + Risk Assessor + Privacy Guard + Value Predictor）。
+pub mod values;
 
 pub use acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
 pub use blackhole::BlackholeEngine;
+pub use causal_graph::{CausalChain, CausalGraphConfig, CausalGraphEngine, CausalNode};
 pub use embedder::Embedder;
 pub use entity_extractor::{EntityExtractor, ExtractedRelation};
 pub use export::{DataExporter, ExportManifest, ImportResult};
 pub use forgetting::{ForgettingCandidate, ForgettingConfig, ForgettingEngine};
 pub use graph_search::{GraphSearchConfig, GraphSearchEngine, GraphSearchResult};
 pub use importance::ImportanceScorer;
+pub use l0_cache::{L0Cache, L0Stats};
 pub use lance_store::LanceStore;
 pub use layers::LayerPolicy;
+pub use orchestrator::{ContextBundle, MemoryOrchestrator, TaskHint};
 pub use migration::{Migration, MigrationState, MigrationStatus};
 pub use reflect::{ReflectConfig, Reflection, ReflectionEngine};
 pub use sponge::SpongeEngine;
 pub use sqlite_store::SqliteStore;
+pub use summarizer::SummaryEngine;
 pub use types::{Memory, MemoryLayer, MemoryType, MultiGranularity, RelationKind, SourceKind};
+pub use values::{ValuesLayer, Verdict};
+pub use version_control::{CommitDiff, CommitRecord, MemoryBranch, MemoryVersionControl};
 
 /// Constants shared across the memory subsystem.
 pub mod constants {

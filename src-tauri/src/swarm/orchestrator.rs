@@ -29,6 +29,9 @@ use crate::memory::embedder::Embedder;
 use crate::memory::lance_store::LanceStore;
 use crate::memory::sponge::SpongeEngine;
 use crate::memory::sqlite_store::SqliteStore;
+// v1.3: L4 价值层 + Plan 模式
+use crate::memory::values::{ActionKind, ValuesLayer, Verdict};
+use crate::plan::{PendingGate, PlanEngine};
 
 use super::agents::{build_agent_pool, build_agent_pool_by_kinds, Agent, AgentKind, AgentOutput};
 use super::bus::AgentBus;
@@ -99,6 +102,48 @@ pub struct OrchestrationReport {
     pub approved: bool,
 }
 
+/// v1.3: L4 门禁预检结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum PreCheckResult {
+    /// 放行，可直接执行。
+    Allow,
+    /// 禁止（附理由）。
+    Deny(String),
+    /// 需要用户介入（准奏或 Plan 审批）。
+    Gate(PendingGate),
+}
+
+/// 从任务描述推断动作分类（供 L4 价值层评估用）。
+///
+/// v1.3 使用关键词启发式；后续可由前端/命令层显式传入更准确的分类。
+fn infer_action_kind(description: &str) -> ActionKind {
+    let lower = description.to_lowercase();
+    if lower.contains("删除") || lower.contains("delete") || lower.contains("remove") {
+        if lower.contains("批量") || lower.contains("全部") || lower.contains("所有") || lower.contains("all") {
+            ActionKind::BulkDelete
+        } else {
+            ActionKind::Delete
+        }
+    } else if lower.contains("发送") || lower.contains("邮件") || lower.contains("send") || lower.contains("邮件") {
+        ActionKind::Send
+    } else if lower.contains("转账") || lower.contains("支付") || lower.contains("付款") || lower.contains("transfer") || lower.contains("pay") {
+        ActionKind::Transfer
+    } else if lower.contains("执行") || lower.contains("shell") || lower.contains("bash") || lower.contains("cmd") || lower.contains("脚本") {
+        ActionKind::Execute
+    } else if lower.contains("curl") || lower.contains("wget") || lower.contains("http") || lower.contains("api") {
+        ActionKind::Network
+    } else if lower.contains("读取") || lower.contains("查询") || lower.contains("read") || lower.contains("search") || lower.contains("查看") {
+        ActionKind::Read
+    } else if lower.contains("修改") || lower.contains("更新") || lower.contains("编辑") || lower.contains("update") || lower.contains("modify") {
+        ActionKind::Modify
+    } else if lower.contains("写入") || lower.contains("创建") || lower.contains("write") || lower.contains("create") {
+        ActionKind::Write
+    } else {
+        ActionKind::Generic
+    }
+}
+
 /// v0.3 legacy: public description of a single agent.  Kept for gRPC
 /// backward compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,6 +174,10 @@ pub struct SwarmOrchestrator {
     agent_pool: Vec<Arc<dyn Agent>>,
     composer: parking_lot::Mutex<Option<Arc<SkillComposer>>>,
     bus: Arc<AgentBus>,
+    /// v1.3: L4 价值层（Constitutional AI + Risk + Privacy + Value）。
+    values: ValuesLayer,
+    /// v1.3: Plan 模式 + 准奏引擎。
+    plan_engine: Arc<PlanEngine>,
 }
 
 impl SwarmOrchestrator {
@@ -150,6 +199,8 @@ impl SwarmOrchestrator {
             agent_pool,
             composer: parking_lot::Mutex::new(None),
             bus: Arc::new(AgentBus::new()),
+            values: ValuesLayer::with_defaults(),
+            plan_engine: Arc::new(PlanEngine::new()),
         }
     }
 
@@ -164,6 +215,8 @@ impl SwarmOrchestrator {
             agent_pool,
             composer: parking_lot::Mutex::new(None),
             bus: Arc::new(AgentBus::new()),
+            values: ValuesLayer::with_defaults(),
+            plan_engine: Arc::new(PlanEngine::new()),
         }
     }
 
@@ -182,6 +235,44 @@ impl SwarmOrchestrator {
 
     pub fn bus(&self) -> &Arc<AgentBus> {
         &self.bus
+    }
+
+    /// v1.3: Plan + 准奏引擎句柄（供 Tauri 命令层批准/拒绝门禁）。
+    pub fn plan_engine(&self) -> &Arc<PlanEngine> {
+        &self.plan_engine
+    }
+
+    /// v1.3: L4 价值层句柄（供命令层调用脱敏等能力）。
+    pub fn values_layer(&self) -> &ValuesLayer {
+        &self.values
+    }
+
+    // ------------------------------------------------------------------
+    // v1.3: L4 价值层门禁（任务执行前检查）
+    // ------------------------------------------------------------------
+
+    /// 任务执行前的 L4 门禁检查。
+    ///
+    /// **必须在 [`execute`](Self::execute) 之前调用**。
+    /// - `Allow` → 可直接调用 `execute`
+    /// - `Deny` → 拒绝执行（展示理由）
+    /// - `Gate` → 需要用户准奏或 Plan 审批（展示 [`PendingGate`]）
+    ///
+    /// `execute` 本身不做门禁检查，以保持"已审批后直接执行"的语义清晰。
+    pub fn pre_check(&self, task: &SwarmTask) -> PreCheckResult {
+        let kind = infer_action_kind(&task.description);
+        let verdict = self.values.evaluate(&task.description, kind);
+        match &verdict {
+            Verdict::Allow => PreCheckResult::Allow,
+            Verdict::Deny { reason } => PreCheckResult::Deny(reason.clone()),
+            Verdict::Confirm { .. } | Verdict::Plan { .. } => {
+                let gate = self
+                    .plan_engine
+                    .create_gate(&verdict, &task.description, kind)
+                    .expect("create_gate returns Some for Confirm/Plan verdicts");
+                PreCheckResult::Gate(gate)
+            }
+        }
     }
 
     // Agent introspection (kept for gRPC / front-end compatibility)
@@ -453,7 +544,7 @@ mod tests {
             "http://127.0.0.1:1",
             std::time::Duration::from_secs(2),
         ));
-        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(client, "m", None, None, None));
+        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(client, "m", "ollama", None, None, None, None, None));
         let orch = SwarmOrchestrator::new_without_memory(gw);
         // agent_pool is pre-built with 6 agents — verify.
         assert_eq!(orch.agent_pool.len(), 6);

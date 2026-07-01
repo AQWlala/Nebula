@@ -45,10 +45,13 @@ pub async fn memory_search(
     state: State<'_, AppState>,
     request: SearchMemoryRequest,
 ) -> Result<Vec<SearchMemoryHit>, CommandError> {
+    let start = std::time::Instant::now();
     let resp = state
         .memory_search(request)
         .await
         .map_err(|e| CommandError::lance("memory_search", &e))?;
+    // v1.8: 记录检索延迟（微秒）。
+    crate::metrics::global().record_search_latency(start.elapsed().as_micros() as u64);
     crate::metrics::global().record_search();
     Ok(resp)
 }
@@ -180,4 +183,209 @@ pub async fn memory_stats(state: State<'_, AppState>) -> Result<MemoryStats, Com
         total,
         by_layer: rows,
     })
+}
+
+// ---- v1.5: 因果图谱 + 多粒度摘要命令 ----
+
+/// v1.5: 追溯一个记忆的根本原因链。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "causal_trace_root_causes"))]
+pub async fn causal_trace_root_causes(
+    state: State<'_, AppState>,
+    memory_id: String,
+    max_depth: Option<u32>,
+) -> Result<Vec<crate::memory::causal_graph::CausalChain>, CommandError> {
+    let config = crate::memory::causal_graph::CausalGraphConfig {
+        max_depth: max_depth.unwrap_or(5),
+        ..Default::default()
+    };
+    let engine = state.causal_graph.clone();
+    let result = tokio::task::spawn_blocking(move || engine.trace_root_causes(&memory_id, &config))
+        .await
+        .map_err(|e| CommandError::internal("causal_trace_root_causes", &anyhow::anyhow!("{e}")))?;
+    Ok(result)
+}
+
+/// v1.5: 查找一个记忆的所有下游效果。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "causal_find_effects"))]
+pub async fn causal_find_effects(
+    state: State<'_, AppState>,
+    memory_id: String,
+    max_depth: Option<u32>,
+) -> Result<Vec<crate::memory::causal_graph::CausalChain>, CommandError> {
+    let config = crate::memory::causal_graph::CausalGraphConfig {
+        max_depth: max_depth.unwrap_or(5),
+        ..Default::default()
+    };
+    let engine = state.causal_graph.clone();
+    let result = tokio::task::spawn_blocking(move || engine.find_effects(&memory_id, &config))
+        .await
+        .map_err(|e| CommandError::internal("causal_find_effects", &anyhow::anyhow!("{e}")))?;
+    Ok(result)
+}
+
+/// v1.5: 生成一条最可能的因果解释路径。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "causal_explain"))]
+pub async fn causal_explain(
+    state: State<'_, AppState>,
+    memory_id: String,
+) -> Result<Option<crate::memory::causal_graph::CausalChain>, CommandError> {
+    let engine = state.causal_graph.clone();
+    let result = tokio::task::spawn_blocking(move || engine.explain(&memory_id))
+        .await
+        .map_err(|e| CommandError::internal("causal_explain", &anyhow::anyhow!("{e}")))?;
+    Ok(result)
+}
+
+/// v1.5: 为一段内容生成多粒度摘要（50/150/500/2000 字符）。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "summary_generate"))]
+pub async fn summary_generate(
+    state: State<'_, AppState>,
+    content: String,
+) -> Result<crate::memory::types::MultiGranularity, CommandError> {
+    let engine = state.summary_engine.clone();
+    let mg = engine
+        .generate(&content)
+        .await;
+    Ok(mg)
+}
+
+// ---------------------------------------------------------------------------
+// v1.6: Git 风格记忆版本控制命令（branch / commit / log / diff / revert / merge）
+// ---------------------------------------------------------------------------
+
+/// Tauri 命令：列出所有记忆分支。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_branch_list"))]
+pub async fn memory_branch_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::memory::version_control::MemoryBranch>, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.list_branches())
+        .await
+        .map_err(|e| CommandError::internal("memory_branch_list", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_branch_list", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：创建新分支。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_branch_create"))]
+pub async fn memory_branch_create(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<crate::memory::version_control::MemoryBranch, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.create_branch(&name))
+        .await
+        .map_err(|e| CommandError::internal("memory_branch_create", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_branch_create", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：切换活跃分支。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_branch_checkout"))]
+pub async fn memory_branch_checkout(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.checkout(&name))
+        .await
+        .map_err(|e| CommandError::internal("memory_branch_checkout", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_branch_checkout", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：删除分支。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_branch_delete"))]
+pub async fn memory_branch_delete(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.delete_branch(&name))
+        .await
+        .map_err(|e| CommandError::internal("memory_branch_delete", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_branch_delete", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：在当前分支上创建 commit。
+#[tauri::command]
+#[instrument(skip(state, payload), fields(otel.kind = "memory_commit"))]
+pub async fn memory_commit(
+    state: State<'_, AppState>,
+    action: String,
+    target_id: String,
+    payload: serde_json::Value,
+    author: String,
+    message: String,
+) -> Result<String, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.commit(&action, &target_id, &payload, &author, &message))
+        .await
+        .map_err(|e| CommandError::internal("memory_commit", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_commit", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：查看当前分支提交历史。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_log"))]
+pub async fn memory_log(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<crate::memory::version_control::CommitRecord>, CommandError> {
+    let vc = state.version_control.clone();
+    let limit = limit.unwrap_or(50);
+    tokio::task::spawn_blocking(move || vc.log(limit))
+        .await
+        .map_err(|e| CommandError::internal("memory_log", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_log", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：比较两个 commit 之间的差异。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_diff"))]
+pub async fn memory_diff(
+    state: State<'_, AppState>,
+    from_commit: String,
+    to_commit: String,
+) -> Result<crate::memory::version_control::CommitDiff, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.diff(&from_commit, &to_commit))
+        .await
+        .map_err(|e| CommandError::internal("memory_diff", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_diff", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：回滚到某个 commit（生成 revert commit，不删除历史）。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_revert"))]
+pub async fn memory_revert(
+    state: State<'_, AppState>,
+    target_commit_id: String,
+    author: String,
+    message: String,
+) -> Result<String, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.revert(&target_commit_id, &author, &message))
+        .await
+        .map_err(|e| CommandError::internal("memory_revert", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_revert", &anyhow::anyhow!("{e}")))
+}
+
+/// Tauri 命令：合并分支（将 source_branch 的 commit 追加到当前活跃分支）。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_merge"))]
+pub async fn memory_merge(
+    state: State<'_, AppState>,
+    source_branch: String,
+) -> Result<Vec<String>, CommandError> {
+    let vc = state.version_control.clone();
+    tokio::task::spawn_blocking(move || vc.merge(&source_branch))
+        .await
+        .map_err(|e| CommandError::internal("memory_merge", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::internal("memory_merge", &anyhow::anyhow!("{e}")))
 }

@@ -68,10 +68,13 @@ pub async fn startup_report(
 /// v1.0: live process sample.  Returns an empty struct when the
 /// `perf-telemetry` feature is off; the front-end handles the
 /// "no data" case in `StatusBar`.
+/// v1.8: 现在真正从 `AppState.perf_monitor` 读取最新采样。
 #[tauri::command]
-#[instrument(fields(otel.kind = "perf_sample"))]
-pub async fn perf_sample() -> Result<crate::perf::monitor::PerfSample, CommandError> {
-    Ok(crate::perf::monitor::PerfSample::empty())
+#[instrument(skip(state), fields(otel.kind = "perf_sample"))]
+pub async fn perf_sample(
+    state: State<'_, AppState>,
+) -> Result<crate::perf::monitor::PerfSample, CommandError> {
+    Ok(state.perf_monitor.latest())
 }
 
 /// v0.2: Tauri command — snapshot the process-wide metrics.

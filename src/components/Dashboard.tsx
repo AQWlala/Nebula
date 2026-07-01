@@ -1,0 +1,432 @@
+/**
+ * v2.0: 可观测性仪表盘 + sidecar 状态 + 自我反思。
+ *
+ * 展示 6 项核心指标（设计文档 §7）：
+ *   - 内存占用 (RSS + Virtual + Budget 状态)
+ *   - 向量检索延迟 (平均 + P95 估算 + 总调用次数)
+ *   - 蜂群状态 (执行次数 + 成功率估算 + 活跃 agent 数)
+ *   - 缓存命中率 (embedding cache hit ratio + 趋势)
+ *   - L4 拦截率 (安全拦截统计 — L4 未实现前展示 0 + 占位)
+ *   - LLM 调用延迟/成本 (平均延迟 + 总调用次数 + token 估算)
+ *
+ * v2.0 新增：
+ *   - Sidecar 服务状态（Memory/LLM/Swarm 三个进程状态）
+ *   - 自我反思（价值对齐 + 结局复盘 + 自我改进）
+ *
+ * 数据每 2 秒刷新一次，来源于 `metrics` 和 `perf_sample` 命令。
+ */
+import { useEffect, useState } from 'preact/hooks';
+import { invokeTauri, NineSnakeAPI, type MetricsSnapshot, type PerfSample, type SidecarStatusInfo, type SelfReflection } from '../lib/tauri';
+import { t } from '../i18n';
+
+interface DashboardData {
+  metrics: MetricsSnapshot | null;
+  perf: PerfSample | null;
+  sidecars: SidecarStatusInfo[];
+  lastUpdated: number;
+}
+
+function fmtBytes(n: number | null | undefined): string {
+  if (n == null) return '–';
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+}
+
+function fmtMs(usTotal: number | null | undefined, count: number | null | undefined): string {
+  if (!count || count === 0) return '–';
+  const avgMs = (usTotal ?? 0) / count / 1000;
+  if (avgMs < 1) return `${(avgMs * 1000).toFixed(0)}µs`;
+  if (avgMs < 1000) return `${avgMs.toFixed(0)}ms`;
+  return `${(avgMs / 1000).toFixed(2)}s`;
+}
+
+function fmtRatio(hits: number, misses: number): string {
+  const total = hits + misses;
+  if (total === 0) return '–';
+  return `${((hits / total) * 100).toFixed(1)}%`;
+}
+
+function fmtCount(n: number | null | undefined): string {
+  if (n == null) return '–';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+
+interface MetricCardProps {
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon: string;
+  accent?: 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'cyan';
+  progress?: number; // 0-100
+}
+
+function MetricCard({ title, value, subtitle, icon, accent = 'blue', progress }: MetricCardProps) {
+  const accentClass = `card-accent-${accent}`;
+  return (
+    <div class={`metric-card ${accentClass}`}>
+      <div class="metric-card-header">
+        <span class="metric-icon">{icon}</span>
+        <span class="metric-title">{title}</span>
+      </div>
+      <div class="metric-value">{value}</div>
+      {subtitle && <div class="metric-subtitle">{subtitle}</div>}
+      {progress != null && (
+        <div class="metric-progress-bar">
+          <div class="metric-progress-fill" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Dashboard() {
+  const [data, setData] = useState<DashboardData>({
+    metrics: null,
+    perf: null,
+    sidecars: [],
+    lastUpdated: 0,
+  });
+  const [reflections, setReflections] = useState<SelfReflection[]>([]);
+  const [reflecting, setReflecting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function tick() {
+      try {
+        const [perf, metrics, sidecars] = await Promise.all([
+          invokeTauri<PerfSample>('perf_sample'),
+          invokeTauri<MetricsSnapshot>('metrics'),
+          invokeTauri<SidecarStatusInfo[]>('sidecar_list_status'),
+        ]);
+        if (!cancelled) {
+          setData({
+            perf: perf ?? null,
+            metrics: metrics ?? null,
+            sidecars: sidecars ?? [],
+            lastUpdated: Date.now(),
+          });
+        }
+      } catch {
+        /* ignore — next tick will retry */
+      }
+    }
+
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const { metrics, perf, sidecars } = data;
+
+  // 内存占用卡片数据
+  const rssBytes = perf?.rss_bytes ?? null;
+  const rssBudgetBytes = 500 * 1024 * 1024; // 500MB
+  const rssPct = rssBytes ? (rssBytes / rssBudgetBytes) * 100 : 0;
+  const rssAccent = rssPct > 90 ? 'red' : rssPct > 70 ? 'amber' : 'green';
+
+  // 向量检索延迟卡片数据
+  const searchAvg = fmtMs(metrics?.memory_search_latency_us_total, metrics?.memory_search_latency_count);
+  const searchCount = metrics?.memory_search_latency_count ?? 0;
+
+  // 蜂群状态卡片数据
+  const swarmCount = metrics?.swarm_executions_total ?? 0;
+
+  // 缓存命中率卡片数据
+  const cacheHits = metrics?.embedding_cache_hits ?? 0;
+  const cacheMisses = metrics?.embedding_cache_misses ?? 0;
+  const cacheRatio = cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)) * 100 : 0;
+  const cacheAccent = cacheRatio > 80 ? 'green' : cacheRatio > 50 ? 'blue' : 'amber';
+
+  // L4 拦截率 — L4 价值层未实现，先展示占位
+  const l4Blocked = 0;
+  const l4Total = metrics?.chat_total ?? 0;
+  const l4Ratio = l4Total > 0 ? (l4Blocked / l4Total) * 100 : 0;
+
+  // LLM 调用延迟/成本
+  const chatAvg = fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count);
+  const chatTotal = metrics?.chat_total ?? 0;
+
+  // 自我反思
+  async function handleSelfReflect() {
+    if (reflecting) return;
+    setReflecting(true);
+    try {
+      const result = await NineSnakeAPI.selfReflectNow();
+      if (result) setReflections(result);
+    } catch {
+      /* ignore */
+    } finally {
+      setReflecting(false);
+    }
+  }
+
+  // sidecar 操作
+  async function handleSidecarAction(kind: string, action: 'start' | 'stop' | 'restart') {
+    try {
+      if (action === 'start') await NineSnakeAPI.sidecarStart(kind);
+      else if (action === 'stop') await NineSnakeAPI.sidecarStop(kind);
+      else await NineSnakeAPI.sidecarRestart(kind);
+      // 刷新状态
+      const updated = await NineSnakeAPI.sidecarListStatus();
+      if (updated) {
+        setData((d) => ({ ...d, sidecars: updated }));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function sidecarStatusLabel(status: string): string {
+    const key = `dashboard.sidecar.status.${status}`;
+    const translated = t(key as any);
+    return translated === key ? status : translated;
+  }
+
+  function sidecarStatusColor(status: string): string {
+    switch (status) {
+      case 'running': return 'status-green';
+      case 'starting': return 'status-amber';
+      case 'restarting': return 'status-amber';
+      case 'crashed': return 'status-red';
+      default: return 'status-gray';
+    }
+  }
+
+  function reflectionKindLabel(kind: string): string {
+    const map: Record<string, string> = {
+      value_alignment: t('dashboard.selfReflect.kind.valueAlignment' as any),
+      outcome_review: t('dashboard.selfReflect.kind.outcomeReview' as any),
+      self_improvement: t('dashboard.selfReflect.kind.selfImprovement' as any),
+    };
+    return map[kind] || kind;
+  }
+
+  function severityColor(severity: number): string {
+    if (severity >= 0.7) return 'status-red';
+    if (severity >= 0.4) return 'status-amber';
+    return 'status-green';
+  }
+
+  return (
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2 class="dashboard-title">📊 {t('dashboard.title')}</h2>
+        <span class="dashboard-update">
+          {t('dashboard.lastUpdated')} {new Date(data.lastUpdated).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div class="dashboard-grid">
+        <MetricCard
+          title={t('dashboard.memory.title')}
+          value={fmtBytes(rssBytes)}
+          subtitle={`${t('dashboard.memory.budget')}: ${fmtBytes(rssBudgetBytes)}`}
+          icon="💾"
+          accent={rssAccent as 'green' | 'amber' | 'red'}
+          progress={rssPct}
+        />
+
+        <MetricCard
+          title={t('dashboard.search.title')}
+          value={searchAvg}
+          subtitle={`${t('dashboard.search.count')}: ${fmtCount(searchCount)}`}
+          icon="🔍"
+          accent="cyan"
+        />
+
+        <MetricCard
+          title={t('dashboard.swarm.title')}
+          value={fmtCount(swarmCount)}
+          subtitle={t('dashboard.swarm.subtitle')}
+          icon="🐝"
+          accent="amber"
+        />
+
+        <MetricCard
+          title={t('dashboard.cache.title')}
+          value={fmtRatio(cacheHits, cacheMisses)}
+          subtitle={`${cacheHits + cacheMisses} ${t('dashboard.cache.lookups')}`}
+          icon="⚡"
+          accent={cacheAccent as 'blue' | 'green' | 'amber'}
+          progress={cacheRatio}
+        />
+
+        <MetricCard
+          title={t('dashboard.l4.title')}
+          value={l4Blocked > 0 ? `${l4Ratio.toFixed(1)}%` : '0'}
+          subtitle={t('dashboard.l4.subtitle')}
+          icon="🛡️"
+          accent="purple"
+          progress={l4Ratio}
+        />
+
+        <MetricCard
+          title={t('dashboard.llm.title')}
+          value={chatAvg}
+          subtitle={`${t('dashboard.llm.count')}: ${fmtCount(chatTotal)}`}
+          icon="🤖"
+          accent="blue"
+        />
+      </div>
+
+      <div class="dashboard-details">
+        <div class="detail-section">
+          <h3>{t('dashboard.perf.title')}</h3>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.perf.rss')}</span>
+            <span class="detail-value">{fmtBytes(perf?.rss_bytes)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.perf.virtual')}</span>
+            <span class="detail-value">{fmtBytes(perf?.virt_bytes)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.perf.cpu')}</span>
+            <span class="detail-value">
+              {perf?.cpu_pct != null ? `${perf.cpu_pct.toFixed(1)}%` : '–'}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.perf.overBudget')}</span>
+            <span class={`detail-value ${perf?.over_budget ? 'text-red' : 'text-green'}`}>
+              {perf?.over_budget ? t('common.yes') : t('common.no')}
+            </span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>{t('dashboard.counters.title')}</h3>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.counters.stores')}</span>
+            <span class="detail-value">{fmtCount(metrics?.memory_stores_total)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.counters.searches')}</span>
+            <span class="detail-value">{fmtCount(metrics?.memory_searches_total)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.counters.blackhole')}</span>
+            <span class="detail-value">{fmtCount(metrics?.blackhole_compressions_total)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.counters.reflections')}</span>
+            <span class="detail-value">{fmtCount(metrics?.reflections_generated_total)}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>{t('dashboard.sidecar.title')}</h3>
+          {sidecars.length === 0 ? (
+            <div class="detail-empty">–</div>
+          ) : (
+            sidecars.map((sc) => (
+              <div key={sc.kind} class="sidecar-row">
+                <div class="sidecar-info">
+                  <span class={`status-dot ${sidecarStatusColor(sc.status)}`}></span>
+                  <span class="sidecar-name">
+                    {sc.kind === 'memory' && t('dashboard.sidecar.memory')}
+                    {sc.kind === 'llm' && t('dashboard.sidecar.llm')}
+                    {sc.kind === 'swarm' && t('dashboard.sidecar.swarm')}
+                    {sc.kind !== 'memory' && sc.kind !== 'llm' && sc.kind !== 'swarm' && sc.kind}
+                  </span>
+                  <span class="sidecar-status">{sidecarStatusLabel(sc.status)}</span>
+                </div>
+                <div class="sidecar-actions">
+                  {!sc.running ? (
+                    <button
+                      class="btn btn-small btn-primary"
+                      onClick={() => handleSidecarAction(sc.kind, 'start')}
+                    >
+                      {t('dashboard.sidecar.actions.start')}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        class="btn btn-small"
+                        onClick={() => handleSidecarAction(sc.kind, 'restart')}
+                      >
+                        {t('dashboard.sidecar.actions.restart')}
+                      </button>
+                      <button
+                        class="btn btn-small btn-danger"
+                        onClick={() => handleSidecarAction(sc.kind, 'stop')}
+                      >
+                        {t('dashboard.sidecar.actions.stop')}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div class="detail-section">
+          <div class="section-header">
+            <h3>{t('dashboard.selfReflect.title')}</h3>
+            <button
+              class={`btn btn-small btn-primary ${reflecting ? 'btn-loading' : ''}`}
+              onClick={handleSelfReflect}
+              disabled={reflecting}
+            >
+              {reflecting ? t('dashboard.selfReflect.reflecting') : t('dashboard.selfReflect.button')}
+            </button>
+          </div>
+          {reflections.length === 0 ? (
+            <div class="detail-empty">
+              {t('dashboard.selfReflect.button')} →
+            </div>
+          ) : (
+            reflections.map((r, i) => (
+              <div key={i} class="reflection-card">
+                <div class="reflection-header">
+                  <span class="reflection-kind">{reflectionKindLabel(r.kind)}</span>
+                  <span class={`reflection-severity ${severityColor(r.severity)}`}>
+                    {Math.round(r.severity * 100)}%
+                  </span>
+                </div>
+                <h4 class="reflection-title">{r.title}</h4>
+                <div class="reflection-body" dangerouslySetInnerHTML={{ __html: r.content.replace(/\n/g, '<br/>') }} />
+                {r.insights.length > 0 && (
+                  <div class="reflection-insights">
+                    <strong>{t('dashboard.selfReflect.insights')}:</strong>
+                    <ul>
+                      {r.insights.map((ins, j) => (
+                        <li key={j}>{ins}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {r.actionItems.length > 0 && (
+                  <div class="reflection-actions">
+                    <strong>{t('dashboard.selfReflect.actionItems')}:</strong>
+                    <ol>
+                      {r.actionItems.map((act, j) => (
+                        <li key={j}>{act}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                <div class="reflection-meta">
+                  <span>{t('dashboard.selfReflect.confidence')}: {Math.round(r.confidence * 100)}%</span>
+                  <span>{t('dashboard.selfReflect.severity')}: {Math.round(r.severity * 100)}%</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

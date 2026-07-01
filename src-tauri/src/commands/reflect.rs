@@ -5,6 +5,7 @@ use tracing::instrument;
 
 use crate::commands::error::CommandError;
 use crate::memory::reflect::Reflection;
+use crate::memory::self_reflection::SelfReflection;
 use crate::AppState;
 
 /// v0.2: Tauri command — trigger a single reflection pass manually.
@@ -45,4 +46,19 @@ pub async fn get_reflection(
         .await
         .map_err(|e| CommandError::internal("get_reflection", &anyhow::anyhow!("{e}")))?
         .map_err(|e| CommandError::memory("get_reflection", &e))
+}
+
+/// v2.0: 执行一次真正的 Self-Reflection（L5 元认知升级）。
+///
+/// 包含三种反思：价值对齐、任务结局复盘、自我改进建议。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "self_reflect_now"))]
+pub async fn self_reflect_now(
+    state: State<'_, AppState>,
+) -> Result<Vec<SelfReflection>, CommandError> {
+    let engine = state.self_reflection.clone();
+    engine
+        .reflect_all()
+        .await
+        .map_err(|e| CommandError::memory("self_reflect_now", &e))
 }
