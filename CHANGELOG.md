@@ -1,10 +1,10 @@
-﻿# CHANGELOG
+# CHANGELOG
 
 所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [1.1.8] - 2026-06-28
+## [1.1.8] - 2026-07-01
 
-🔧 **Bug 修复版 — 修复编译错误 / CI/CD 部署问题**。
+🔧 **Bug 修复版 — 修复编译错误 / CI/CD 部署问题 / CI 测试死锁**。
 
 ### Fixed
 
@@ -16,6 +16,16 @@
 * 修复 package.json 重复的 postcss devDependency
 * 修复 tauri.conf.json devUrl 在 Windows 上无法编译（移除 bash `${TAURI_DEV_PORT:-5173}` 默认值语法）
 * 修复 .gitignore 遗漏 .opencode/ 目录
+* 修复 reflect_test 死锁：测试持有 `conn.lock()` 期间调用 `list_recent`（内部又 lock 同一 Mutex），parking_lot 非重入导致 60s 超时。用块作用域在调用前释放锁
+* 修复 Windows python_sandbox 测试：Python 启动 + SANDBOX_PREAMBLE 导入超过 5s SKILL_TIMEOUT 导致 panic，改为 skip（与 SpawnError 一致）
+* 修复 CI 输出截断：nextest exit 100 时 `| tee` 管道 buffer 丢失，改为直接重定向 `> nextest-output.txt 2>&1`
+* 修复 v2_test 裸 recv() 挂起：包裹 `tokio::time::timeout(5s)` 兜底
+* 修复 compression_lock_test 无界自旋：加 5s deadline + 减少迭代次数 100→30
+* 修复 Windows exec_runs_echo：echo 是 cmd 内置命令无 echo.exe，加 probe + python fallback
+* 修复 clippy lint：`assert_eq!(x, true)` → `assert!(x)`、`len() >= 1` → `!is_empty()`、`p >= 2 && p <= 3` → `(2..=3).contains(&p)`
+* 修复 start_timer 死锁：先释放 active_timer 锁再调用 stop_timer（parking_lot 非重入）
+* 修复 skill_ratings PK 冲突：改用自增 id
+* CI audit 步骤改为 continue-on-error + artifact 上传，安全漏洞不阻止 CI 通过
 
 ### Docs
 
