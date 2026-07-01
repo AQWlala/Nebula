@@ -52,6 +52,7 @@ async fn swarm_canonical_pipeline_is_well_formed() {
     // We do not exercise the network: this test asserts that the
     // canonical task is constructed correctly.
     let gw = mock_gateway();
+    let orch = SwarmOrchestrator::new_without_memory(gw);
     let task = SwarmTask::new("design a snake");
     assert!(task.agents.is_empty());
     assert_eq!(task.max_retries, 1);
