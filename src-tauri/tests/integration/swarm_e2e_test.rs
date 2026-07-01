@@ -152,7 +152,7 @@ fn negotiator_detects_conflict_on_divergent_outputs() {
         AgentOutput {
             kind: AgentKind::Generic,
             author: "agent-2".into(),
-            body: "The answer is RIGHT.".into(),
+            body: "Use the RIGHT configuration file.".into(),
             confidence: 0.80,
         },
     ];

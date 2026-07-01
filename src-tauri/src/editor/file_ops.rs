@@ -130,7 +130,8 @@ impl EditorState {
     }
 
     /// Resolves a path that may not yet exist (for `editor_write`).
-    /// We require the parent to exist and live inside the workspace.
+    /// Creates parent directories if they don't exist, then
+    /// verifies the path stays inside the workspace.
     fn resolve_for_write(&self, path: &str) -> Result<PathBuf> {
         let candidate = if Path::new(path).is_absolute() {
             PathBuf::from(path)
@@ -140,12 +141,14 @@ impl EditorState {
         let parent = candidate
             .parent()
             .ok_or_else(|| anyhow!("path has no parent: {}", candidate.display()))?;
-        let parent_canonical = if parent.exists() {
-            std::fs::canonicalize(parent)
-                .with_context(|| format!("parent does not exist: {}", parent.display()))?
-        } else {
-            return Err(anyhow!("parent does not exist: {}", parent.display()));
-        };
+        // Create parent directories if they don't exist so that
+        // canonicalize works and the subsequent write can proceed.
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create_dir_all failed: {}", parent.display()))?;
+        }
+        let parent_canonical = std::fs::canonicalize(parent)
+            .with_context(|| format!("canonicalize parent failed: {}", parent.display()))?;
         if !parent_canonical.starts_with(&self.inner.workspace_root) {
             return Err(anyhow!(
                 "path escapes workspace root: {}",

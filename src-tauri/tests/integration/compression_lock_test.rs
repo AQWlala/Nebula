@@ -26,6 +26,7 @@ const PARTIAL_MAGIC: &str = "PARTIAL_MAGIC_SENTINEL_v1_0_1_P0_10";
 
 #[test]
 fn compression_lock_is_mutually_exclusive() {
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
 
     let tmp = std::env::temp_dir().join(format!(
@@ -40,31 +41,42 @@ fn compression_lock_is_mutually_exclusive() {
     let store = Arc::new(SqliteStore::open(&tmp).expect("open"));
     let store2 = store.clone();
 
-    // While the main thread holds the lock, a flag is set;
-    // the background thread asserts the flag is true at the
-    // moment it finally acquires the lock.
-    let held = Arc::new(parking_lot::Mutex::new(false));
-    let h2 = held.clone();
+    let main_held = Arc::new(AtomicBool::new(false));
+    let mh2 = main_held.clone();
+    let bg_ready = Arc::new(AtomicBool::new(false));
+    let br2 = bg_ready.clone();
+
+    // Main thread takes the lock FIRST so the background thread
+    // is guaranteed to find it contended.
+    let guard = store.compression_lock();
 
     let bg = thread::spawn(move || {
+        br2.store(true, Ordering::Release);
         let start = std::time::Instant::now();
         let _g = store2.compression_lock();
         let waited = start.elapsed();
-        assert!(*h2.lock(), "background saw lock free while main held it");
+        assert!(
+            mh2.load(Ordering::Acquire),
+            "background acquired lock without seeing main hold it"
+        );
         waited
     });
 
-    thread::sleep(Duration::from_millis(20));
-    let _g = store.compression_lock();
-    *held.lock() = true;
-    thread::sleep(Duration::from_millis(100));
-    *held.lock() = false;
-    drop(_g);
+    // Spin until background has started.
+    while !bg_ready.load(Ordering::Acquire) {
+        thread::yield_now();
+    }
+    // Give the background thread time to enter the lock
+    // acquisition path.
+    thread::sleep(Duration::from_millis(50));
+
+    main_held.store(true, Ordering::Release);
+    drop(guard);
 
     let waited = bg.join().expect("bg thread");
     assert!(
-        waited >= Duration::from_millis(50),
-        "background waited only {waited:?} (expected >= 50 ms)"
+        waited >= Duration::from_millis(20),
+        "background waited only {waited:?} (expected >= 20 ms)"
     );
 
     let _ = std::fs::remove_file(&tmp);
@@ -72,7 +84,7 @@ fn compression_lock_is_mutually_exclusive() {
     let _ = std::fs::remove_file(tmp.with_extension("db-shm"));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn blackhole_and_sponge_concurrent_no_partial_read() {
     // This is the canonical regression test: a sponge absorb
     // and a blackhole-style pass interleave; the only way the
@@ -115,9 +127,11 @@ async fn blackhole_and_sponge_concurrent_no_partial_read() {
     store.insert(&seed).await.expect("insert seed");
 
     // Two writer threads + a compress-simulator thread.
+    let handle = tokio::runtime::Handle::current();
     let mut handles = Vec::new();
     for tid in 0..2 {
         let s = store.clone();
+        let h = handle.clone();
         handles.push(std::thread::spawn(move || {
             for i in 0..100 {
                 let mut m = Memory::new(
@@ -136,8 +150,7 @@ async fn blackhole_and_sponge_concurrent_no_partial_read() {
                 // the compression lock.
                 {
                     let _g = s.compression_lock();
-                    tokio::runtime::Handle::current()
-                        .block_on(s.insert(&m))
+                    h.block_on(s.insert(&m))
                         .expect("insert");
                 }
             }

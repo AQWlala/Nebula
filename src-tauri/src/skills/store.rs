@@ -373,6 +373,7 @@ mod tests {
         s.insert(&sample()).unwrap();
         let mut b = sample();
         b.id = "sk-2".to_string();
+        b.name = "math_utils".to_string();
         b.language = "python".to_string();
         b.tags = vec!["math".to_string()];
         s.insert(&b).unwrap();

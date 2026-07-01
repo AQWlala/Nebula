@@ -72,6 +72,10 @@ mod tests {
 
     #[test]
     fn client_constructs_with_valid_url() {
-        let _client = TeamSkillsHubClient::new("https://hub.example.com");
+        // Use a TEST-NET-3 address (RFC 5737) to avoid DNS
+        // resolution in CI environments.  The address is public
+        // (not loopback / private / link-local) so it passes
+        // SSRF validation.
+        let _client = TeamSkillsHubClient::new("https://203.0.113.1");
     }
 }
