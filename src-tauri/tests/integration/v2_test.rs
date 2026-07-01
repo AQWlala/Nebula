@@ -68,7 +68,12 @@ fn test_agent_bus_point_to_point() {
         })
         .await
         .unwrap();
-        let msg = rx.recv().await.unwrap();
+        // 包裹 timeout 防止裸 recv 永久挂起导致 nextest 60s 超时。
+        // 理论上 send 完成后 recv 立即返回,但加 5s 兜底。
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("recv timed out — message never arrived")
+            .expect("channel closed");
         assert_eq!(msg.content, "ping");
     });
 }

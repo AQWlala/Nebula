@@ -191,7 +191,7 @@ mod tests {
         let m = PerfMonitor::new();
         let s = m.latest();
         assert!(s.rss_bytes.is_none());
-        assert_eq!(s.ts_ms > 0, true);
+        assert!(s.ts_ms > 0);
     }
 
     #[test]

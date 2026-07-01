@@ -144,7 +144,7 @@ mod tests {
             .await
             .unwrap()
             .expect("at least one event");
-        assert!(first.paths.len() >= 1);
+        assert!(!first.paths.is_empty());
         // The next call should hit `None` after the drain.  Wrap in a
         // timeout so the test fails fast instead of hanging for 30 min
         // if the debounce task doesn't exit when the input channel closes.

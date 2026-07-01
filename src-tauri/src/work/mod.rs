@@ -435,7 +435,7 @@ mod tests {
     fn recommend_priority_clamps_to_three() {
         let due = Utc::now().timestamp() + 3600;
         let p = recommend_priority("紧急: 修复 bug!!!", Some(due));
-        assert!(p >= 2 && p <= 3, "expected >=2, got {p}");
+        assert!((2..=3).contains(&p), "expected >=2, got {p}");
     }
 
     #[test]

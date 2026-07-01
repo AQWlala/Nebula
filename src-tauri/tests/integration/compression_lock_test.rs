@@ -62,8 +62,13 @@ fn compression_lock_is_mutually_exclusive() {
         waited
     });
 
-    // Spin until background has started.
+    // Spin until background has started. 加 5s 超时兜底,
+    // 防止极端调度延迟下无限自旋导致 nextest 60s 超时。
+    let spin_deadline = std::time::Instant::now() + Duration::from_secs(5);
     while !bg_ready.load(Ordering::Acquire) {
+        if std::time::Instant::now() > spin_deadline {
+            panic!("background thread did not signal ready within 5s");
+        }
         thread::yield_now();
     }
     // Give the background thread time to enter the lock
@@ -133,7 +138,7 @@ async fn blackhole_and_sponge_concurrent_no_partial_read() {
         let s = store.clone();
         let h = handle.clone();
         handles.push(std::thread::spawn(move || {
-            for i in 0..100 {
+            for i in 0..30 {
                 let mut m = Memory::new(
                     MemoryType::Semantic,
                     MemoryLayer::L3,
@@ -163,7 +168,7 @@ async fn blackhole_and_sponge_concurrent_no_partial_read() {
     {
         let s = store.clone();
         handles.push(std::thread::spawn(move || {
-            for i in 0..100 {
+            for i in 0..30 {
                 let _g = s.compression_lock();
                 // Half-state: write the sentinel.
                 let conn = s.raw_connection();

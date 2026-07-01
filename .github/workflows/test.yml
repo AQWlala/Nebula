@@ -88,14 +88,12 @@ jobs:
         # (the logs API returns 403, so we need annotations to see
         # which tests failed).
         #
-        # CRITICAL: GitHub Actions' default bash shell runs with
-        # `set -e -o pipefail`.  When nextest exits with code 100
-        # (test failure), `set -e` kills the shell IMMEDIATELY —
-        # which kills `tee` mid-write, leaving nextest-output.txt
-        # truncated (Run #98 artifact was 9KB instead of ~42KB for
-        # 426 tests, and the failure lines at the end were lost).
-        # The fix: disable `set -e` around the pipeline, let `tee`
-        # finish writing, then explicitly exit with nextest's code.
+        # CRITICAL: Run #100 showed that `| tee` still produces a
+        # truncated file (9KB instead of ~42KB for 426 tests) even
+        # with `set +e`.  The pipe buffer between nextest and tee
+        # appears to be lost when nextest exits with code 100.
+        # The fix: redirect DIRECTLY to the file (no pipe, no tee),
+        # then cat the file afterwards to print it to the log.
         working-directory: src-tauri
         timeout-minutes: 90
         shell: bash
@@ -104,10 +102,12 @@ jobs:
           CARGO_PROFILE_DEV_DEBUG: "0"
         run: |
           set +e
-          cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --test-threads 1 2>&1 | tee nextest-output.txt
+          cargo nextest run --features grpc,channels,did-identity,crdt-sync --no-fail-fast --test-threads 1 > nextest-output.txt 2>&1
           nextest_exit=$?
           set -e
           echo "nextest exited with code $nextest_exit"
+          echo "output file size: $(wc -c < nextest-output.txt) bytes, $(wc -l < nextest-output.txt) lines"
+          cat nextest-output.txt
           exit $nextest_exit
       - name: Report failed tests
         # Extract failed test names from nextest output and print them
@@ -122,17 +122,18 @@ jobs:
         # GitHub limits annotations to 10 per step, so we print the
         # most important lines first (failures > summary > tail).
         #
-        # We grep (case-INSENSITIVE) for multiple patterns to catch ALL
-        # nextest failure types.  Run #99 showed that case-sensitive grep
-        # missed lowercase "error:" / "failed" lines — nextest and cargo
-        # use lowercase for setup errors and summary text.
-        #   * "panicked at"  — Rust panic messages (file:line + message)
-        #   * "fail"         — nextest's FAIL result + "test failed" summary
-        #   * "cancel"       — nextest's timeout/cancelled test lines
-        #   * "terminat"     — nextest's slow-timeout kill message
-        #   * "error"        — nextest's binary setup error + cargo errors
-        #   * "abort"        — nextest's aborted test lines
-        #   * "signal"       — test binary killed by OS signal (SIGSEGV etc.)
+        # We grep for nextest result markers at the START of lines
+        # (after optional whitespace) to avoid matching test names
+        # that contain words like "error" or "fail".
+        #   * "  FAIL "     — nextest's FAIL result lines
+        #   * "  CANCEL "   — nextest's timeout/cancelled test lines
+        #   * "  ERROR "    — nextest's binary setup error lines
+        #   * "  ABORT "    — nextest's aborted test lines
+        #   * "panicked at" — Rust panic messages
+        #   * "Terminating" — nextest's slow-timeout kill message
+        #   * "error:"      — cargo/nextest setup errors (lowercase)
+        #   * "test result" — cargo test summary line
+        #   * "Summary"     — nextest summary header
         if: always()
         working-directory: src-tauri
         shell: bash
@@ -141,11 +142,9 @@ jobs:
           echo "=== Test result summary ==="
           if [ -f nextest-output.txt ]; then
             echo "File size: $(wc -c < nextest-output.txt) bytes, $(wc -l < nextest-output.txt) lines"
-            # Case-insensitive grep for all failure-related patterns.
-            # Filter OUT pure PASS lines (they contain "pass" which would
-            # match "pass" in "passed" — but we only grep for "fail",
-            # "cancel", "error", "abort", "signal", "panic", "terminat").
-            failures=$(grep -iE "panicked|fail|cancel|terminat|error|abort|signal" nextest-output.txt | grep -iv "PASS \[" | head -n 10)
+            # Grep for failure markers.  Use ^\s* to match lines
+            # starting with optional whitespace then the marker.
+            failures=$(grep -E "^\s+(FAIL|CANCEL|ERROR|ABORT)\b|panicked at|Terminating|^error:|test result|Tests:" nextest-output.txt | head -n 10)
             if [ -n "$failures" ]; then
               echo "--- Failures (as annotations) ---"
               echo "$failures" | while IFS= read -r line; do
@@ -153,21 +152,16 @@ jobs:
               done
             else
               echo "--- No failure lines found, showing tail of output ---"
-              # Print the last 10 non-empty lines as annotations so we
-              # can see what's at the end of the file (summary section).
               grep -v '^[[:space:]]*$' nextest-output.txt | tail -n 10 | while IFS= read -r line; do
                 echo "::error::$line"
               done
             fi
-            # nextest summary line (case-insensitive — nextest uses
-            # "Summary" header but cargo uses "test result:")
-            summary=$(grep -iE "summary|tests?:|test result|tests? run|passed|failed" nextest-output.txt | head -n 5)
+            # Summary lines
+            summary=$(grep -E "Summary|Tests:|test result|passed|failed" nextest-output.txt | head -n 5)
             if [ -n "$summary" ]; then
               echo "--- Summary ---"
               echo "$summary"
             fi
-            # Always print the full output to the log (not as annotations)
-            # so we can debug even when annotations are truncated.
             echo "=== Full nextest output ==="
             cat nextest-output.txt
           else

@@ -52,11 +52,27 @@ async fn exec_rejects_disallowed_binary() {
 
 #[tokio::test]
 async fn exec_runs_echo() {
+    // Windows 没有 echo.exe (echo 是 cmd 内置命令),probe 后用 python fallback。
+    let probe = tokio::process::Command::new("echo")
+        .arg("ping")
+        .output()
+        .await;
     let ex = ShellExecutor::new();
-    let out = ex.exec(vec!["echo", "hi"], None).await.expect("exec");
-    assert!(out.stdout.contains("hi"));
-    assert_eq!(out.exit_code, 0);
-    assert!(!out.timed_out);
+    if probe.is_ok() {
+        let out = ex.exec(vec!["echo", "hi"], None).await.expect("exec");
+        assert!(out.stdout.contains("hi"));
+        assert_eq!(out.exit_code, 0);
+        assert!(!out.timed_out);
+    } else {
+        let ex = ex.allow("python").allow("python3");
+        let out = ex
+            .exec(vec!["python", "-c", "print('hi')"], None)
+            .await
+            .expect("exec");
+        assert!(out.stdout.contains("hi"));
+        assert_eq!(out.exit_code, 0);
+        assert!(!out.timed_out);
+    }
 }
 
 #[tokio::test]
