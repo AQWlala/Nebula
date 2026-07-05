@@ -2,9 +2,9 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in nine-snake, please report it responsibly:
+If you discover a security vulnerability in Nebula, please report it responsibly:
 
-- **Email**: security@nine-snake.app
+- **Email**: security@nebula-ai.app
 - **PGP Key**: Available on request
 
 Please do **not** file public GitHub issues for security vulnerabilities.
@@ -21,8 +21,8 @@ Please do **not** file public GitHub issues for security vulnerabilities.
 
 | Version | Supported |
 |---------|-----------|
+| 2.0.x | Yes |
 | 1.1.x | Yes |
-| 1.0.x | Yes |
 | < 1.0 | No |
 
 ## Security Features

@@ -1,4 +1,4 @@
-//! Tauri command handlers — the entry points invoked from the
+﻿//! Tauri command handlers — the entry points invoked from the
 //! front-end. Each command is a thin shim that translates a JSON DTO
 //! into a call on the shared [`AppState`].
 //!
@@ -31,6 +31,8 @@ pub mod error;
 
 // Submodules — each groups related commands and DTOs.
 pub mod chat;
+// T-E-C-14: 剪贴板监听命令(watch_start / stop / status)。
+pub mod clipboard;
 pub mod core;
 pub mod editor;
 pub mod llm;
@@ -42,6 +44,8 @@ pub mod swarm;
 pub mod sync;
 pub mod work;
 pub mod writing;
+// T-E-S-28: 对话标注命令(upsert / list / stats / export)。
+pub mod annotations;
 // v1.2: channel commands — feature-gated behind `channels`.
 #[cfg(feature = "channels")]
 pub mod channel;
@@ -56,15 +60,72 @@ pub mod tool;
 pub mod plan;
 // v2.0: Sidecar 管理命令。
 pub mod sidecar;
+// T-S5-B-01: 浮动窗 / 画中画命令。
+pub mod window;
+// T-E-S-30: MCP Tauri 命令（工具发现 + 调用）— feature-gated。
+#[cfg(feature = "mcp")]
+pub mod mcp;
 #[cfg(feature = "channels")]
 pub mod webchat;
+// T-E-S-50: 自主度滑块 L0-L5 命令。
+pub mod autonomy;
+// T-E-S-51: Level 0 内联补全命令。
+pub mod inline_completion;
+// T-E-S-59: 统一收件箱命令 — feature-gated behind `channels`。
+#[cfg(feature = "channels")]
+pub mod inbox;
+// T-E-A-07: Credits Dashboard 命令。
+pub mod credits;
+// T-E-A-08: 费用报告命令。
+pub mod cost;
+// T-E-S-52: Level 1 定向编辑命令。
+pub mod directed_edit;
+// T-E-B-09: 文件夹监控索引命令。
+pub mod watch;
+// T-E-S-41: models.json 动态配置命令。
+pub mod models_config;
+// T-E-S-27: Trusted Diagnostics Channels 命令。
+pub mod diagnostics;
+// T-E-S-24: 文件快照回滚命令。
+pub mod snapshot;
+// T-E-S-54: 事件触发器命令(文件/消息/Webhook 三种触发器统一调度)。
+pub mod triggers;
+// T-E-C-13: 工作场景模板库命令(scenario_list / scenario_get / scenario_instantiate)。
+pub mod scenarios;
+// T-E-C-17: IM 扫码绑定命令(6 个 im_* 命令)。
+pub mod im;
+// T-E-A-11: Smart Prefetch 命令(打开文件时预取历史对话预热 SemanticCache)。
+pub mod prefetch;
+// T-E-B-01: LLM Wiki 编译引擎命令(compile/list/read/search/delete)。
+pub mod wiki;
+// T-E-S-29: Observability 命令(otel_status,内部 cfg 分支)。
+pub mod observability;
+// T-E-A-14: Arena A/B 测试命令(create_match / vote / leaderboard)。
+pub mod arena;
+// T-E-S-33: OpenAPI 工具服务器命令 — feature-gated behind `openapi`。
+#[cfg(feature = "openapi")]
+pub mod openapi;
+// Extracted: NebulaService trait impl on AppState (chat / memory_store /
+// memory_search / swarm_execute / llm_complete)。
+pub mod service;
+// T-E-S-39: SOUL.md / AGENTS.md / TOOLS.md persona 命令(reload / get / set_file)。
+pub mod persona;
+// M6 #82: Master 编排 + L4 审批命令(master_run / master_confirm / master_confirmation_status / master_pending_confirmations)。
+pub mod master;
+// M6 #78: 进化日志 + 回滚命令(evolution_log_list / evolution_log_get / evolution_rollback /
+// evolution_enabled / evolution_set_enabled)。前 3 个 evolution-engine feature 门控,
+// 后 2 个运行时开关始终编译。
+pub mod evolution;
+// M7b #97: Soul 系统运行时开关命令(soul_system_enabled / soul_system_set_enabled)。
+// 由 soul-system feature 门控,对齐 evolution_enabled / evolution_set_enabled 模式。
+pub mod soul;
 
 // Re-export the API DTOs so other modules (gRPC, tests) can reach them
 // through the `commands` namespace without depending on the internal
 // `api::server` module path.
 pub mod api {
     pub use crate::api::server::{
-        ChatRequestDto, NineSnakeService, SearchMemoryHit, SearchMemoryRequest, StoreMemoryRequest,
+        ChatRequestDto, NebulaService, SearchMemoryHit, SearchMemoryRequest, StoreMemoryRequest,
         StoreMemoryResponse,
     };
     pub use crate::skills::types::{
@@ -78,9 +139,13 @@ pub mod api {
 // `commands::chat`, `commands::memory_store`, etc. still resolve
 // for `generate_handler!` in `lib.rs`.
 pub use acl::*;
+// T-E-S-28: 对话标注命令 re-export。
+pub use annotations::*;
 #[cfg(feature = "channels")]
 pub use channel::*;
 pub use chat::*;
+// T-E-C-14: 剪贴板监听命令 re-export。
+pub use clipboard::*;
 pub use core::*;
 pub use device::*;
 pub use editor::*;
@@ -88,6 +153,8 @@ pub use export::*;
 pub use identity::*;
 pub use llm::*;
 pub use memory::*;
+#[cfg(feature = "mcp")]
+pub use mcp::*;
 pub use os::*;
 pub use reflect::*;
 pub use security::*;
@@ -97,249 +164,57 @@ pub use sync::*;
 pub use tool::*;
 pub use plan::*;
 pub use sidecar::*;
+pub use window::*;
 #[cfg(feature = "channels")]
 pub use webchat::*;
 pub use work::*;
 pub use writing::*;
+// T-E-S-50 / T-E-S-51 / T-E-S-59: 新增命令 re-export。
+pub use autonomy::*;
+pub use inline_completion::*;
+#[cfg(feature = "channels")]
+pub use inbox::*;
+// T-E-A-07 / T-E-S-52: 新增命令 re-export。
+pub use credits::*;
+// T-E-A-08: 费用报告命令 re-export。
+pub use cost::*;
+pub use directed_edit::*;
+// T-E-B-09: 文件夹监控 re-export。
+pub use watch::*;
+// T-E-S-41: models.json 动态配置命令 re-export。
+pub use models_config::*;
+// T-E-S-27: Trusted Diagnostics 命令 re-export。
+pub use diagnostics::*;
+// T-E-S-24: 文件快照回滚命令 re-export。
+pub use snapshot::*;
+// T-E-S-54: 事件触发器命令 re-export。
+pub use triggers::*;
+// T-E-C-13: 工作场景模板库命令 re-export。
+pub use scenarios::*;
+// T-E-C-17: IM 扫码绑定命令 re-export。
+pub use im::*;
+// T-E-A-11: Smart Prefetch 命令 re-export。
+pub use prefetch::*;
+// T-E-B-01: Wiki 命令 re-export。
+pub use wiki::*;
+// T-E-S-29: Observability 命令 re-export。
+pub use observability::*;
+// T-E-A-14: Arena A/B 测试命令 re-export。
+pub use arena::*;
+// T-E-S-33: OpenAPI 工具服务器命令 re-export(feature-gated)。
+#[cfg(feature = "openapi")]
+pub use openapi::*;
+
+// Extracted submodules re-export。
+pub use service::*;
+pub use persona::*;
+// M6 #82: master 命令 re-export。
+pub use master::*;
+// M6 #78: evolution 命令 re-export(无 feature 门控的命令仍 re-export,
+// feature-gated 命令仅在对应 feature 开启时导出)。
+pub use evolution::*;
+
+#[cfg(feature = "soul-system")]
+pub use soul::*;
 
 pub use error::{CommandError, ErrorCode};
-
-// ---------------------------------------------------------------------------
-// Implementation of the service trait on `AppState`.
-// ---------------------------------------------------------------------------
-
-use crate::api::server::{
-    ChatRequestDto, NineSnakeService, SearchMemoryHit, SearchMemoryRequest, StoreMemoryRequest,
-    StoreMemoryResponse,
-};
-use crate::llm::ChatMessage;
-use crate::memory::sponge::SpongeResult;
-use crate::memory::types::Memory;
-use crate::swarm::{OrchestrationReport, SwarmTask};
-use crate::AppState;
-
-#[async_trait::async_trait]
-impl NineSnakeService for AppState {
-    async fn chat(&self, req: ChatRequestDto) -> anyhow::Result<crate::llm::ChatResponse> {
-        let mut msgs: Vec<ChatMessage> = Vec::new();
-        if let Some(sys) = req.system.as_deref() {
-            msgs.push(ChatMessage::system(sys));
-        }
-        msgs.push(ChatMessage::user(req.user_message));
-        let resp = self.llm.chat(msgs).await?;
-        Ok(resp)
-    }
-
-    async fn memory_store(&self, req: StoreMemoryRequest) -> anyhow::Result<StoreMemoryResponse> {
-        let mut mem = Memory::new(req.memory_type, req.layer, req.content, req.source);
-        if let Some(meta) = req.metadata {
-            mem.metadata = meta;
-        }
-        match self.sponge.absorb(mem).await? {
-            SpongeResult::Inserted { id } => Ok(StoreMemoryResponse {
-                id,
-                merged: false,
-                similarity: None,
-            }),
-            SpongeResult::Merged { id, similarity } => Ok(StoreMemoryResponse {
-                id,
-                merged: true,
-                similarity: Some(similarity),
-            }),
-            SpongeResult::Duplicate { id } => Ok(StoreMemoryResponse {
-                id,
-                merged: true,
-                similarity: Some(1.0),
-            }),
-            // v1.5: 关键词未激活的降级吸收 — 仍算插入，但标记为未合并。
-            SpongeResult::Deactivated { id } => Ok(StoreMemoryResponse {
-                id,
-                merged: false,
-                similarity: None,
-            }),
-        }
-    }
-
-    async fn memory_search(
-        &self,
-        req: SearchMemoryRequest,
-    ) -> anyhow::Result<Vec<SearchMemoryHit>> {
-        let k = req.k.max(1);
-        let query_emb = self.embedder.embed(&req.query).await?;
-        let hits = self.lance.search(&query_emb, k).await?;
-        if hits.is_empty() {
-            return Ok(Vec::new());
-        }
-        let ids: Vec<String> = hits.iter().map(|(id, _)| id.clone()).collect();
-        let memories = self
-            .sqlite
-            .get_many(&ids)
-            .await
-            .map_err(|e| anyhow::anyhow!("get_many error: {e}"))?;
-
-        let score_by_id: std::collections::HashMap<&str, f32> =
-            hits.iter().map(|(id, s)| (id.as_str(), *s)).collect();
-        let mut ordered: Vec<(Memory, f32)> = memories
-            .into_iter()
-            .filter_map(|m| score_by_id.get(m.id.as_str()).map(|s| (m, *s)))
-            .collect();
-        ordered.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        let out = ordered
-            .into_iter()
-            .filter_map(|(m, s)| {
-                if let Some(layer) = req.layer {
-                    if m.layer != layer {
-                        return None;
-                    }
-                }
-                Some(SearchMemoryHit {
-                    memory: m,
-                    score: s,
-                })
-            })
-            .collect();
-        Ok(out)
-    }
-
-    async fn swarm_execute(&self, task: SwarmTask) -> anyhow::Result<OrchestrationReport> {
-        self.swarm.execute(task).await
-    }
-
-    async fn llm_complete(&self, prompt: String) -> anyhow::Result<String> {
-        self.llm.generate(&prompt).await
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MCP commands (feature-gated) — kept in mod.rs because they are
-// few and feature-gated; splitting them into a separate file would
-// require the same `#[cfg(feature = "mcp")]` on the `pub mod mcp;`
-// declaration, which is supported but adds complexity for only 4
-// commands.
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "mcp")]
-use crate::AppState;
-#[cfg(feature = "mcp")]
-use tauri::State;
-#[cfg(feature = "mcp")]
-use tracing::instrument;
-
-#[cfg(feature = "mcp")]
-#[tauri::command]
-#[instrument(skip(state), fields(otel.kind = "mcp_list_servers"))]
-pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
-    Ok(state.mcp_manager.list_servers())
-}
-
-#[cfg(feature = "mcp")]
-#[tauri::command]
-#[instrument(skip(state), fields(otel.kind = "mcp_add_server"))]
-pub async fn mcp_add_server(
-    state: State<'_, AppState>,
-    config: crate::mcp::config::McpServerConfig,
-) -> Result<bool, CommandError> {
-    state.mcp_manager.add_server(config);
-    Ok(true)
-}
-
-#[cfg(feature = "mcp")]
-#[tauri::command]
-#[instrument(skip(state), fields(otel.kind = "mcp_remove_server"))]
-pub async fn mcp_remove_server(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<bool, CommandError> {
-    state.mcp_manager.remove_server(&name);
-    Ok(true)
-}
-
-#[cfg(feature = "mcp")]
-#[tauri::command]
-#[instrument(skip(state), fields(otel.kind = "mcp_list_tools"))]
-pub async fn mcp_list_tools(
-    state: State<'_, AppState>,
-) -> Result<Vec<crate::mcp::client::McpTool>, CommandError> {
-    Ok(state.mcp_manager.list_all_tools().await)
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn command_error_validation_includes_code_and_safe_message() {
-        let e = CommandError::validation("empty user_message");
-        assert_eq!(e.code, ErrorCode::Validation);
-        assert!(e.message.contains("empty user_message"));
-        assert!(format!("{e}").contains("validation"));
-    }
-
-    #[test]
-    fn command_error_internal_hides_internal_details() {
-        let internal = anyhow::anyhow!("DB at /home/alice/.nine_snake/secret.db blew up");
-        let e = CommandError::internal("memory_store", &internal);
-        assert!(!e.message.contains("/home/alice"));
-        assert!(!e.message.contains("secret"));
-        assert_eq!(e.code, ErrorCode::Internal);
-    }
-
-    #[test]
-    fn command_error_from_anyhow_is_internal() {
-        let e: CommandError = anyhow::anyhow!("boom").into();
-        assert_eq!(e.code, ErrorCode::Internal);
-    }
-
-    #[test]
-    fn command_error_not_found() {
-        let e = CommandError::not_found("memory");
-        assert_eq!(e.code, ErrorCode::NotFound);
-        assert!(e.message.contains("memory"));
-    }
-
-    #[test]
-    fn command_error_memory_uses_memory_code() {
-        let e = CommandError::memory("sponge", &anyhow::anyhow!("x"));
-        assert_eq!(e.code, ErrorCode::Memory);
-    }
-
-    #[test]
-    fn command_error_llm_uses_llm_code() {
-        let e = CommandError::llm("chat", &anyhow::anyhow!("x"));
-        assert_eq!(e.code, ErrorCode::Llm);
-    }
-
-    #[test]
-    fn command_error_lance_uses_lance_code() {
-        let e = CommandError::lance("search", &anyhow::anyhow!("x"));
-        assert_eq!(e.code, ErrorCode::Lance);
-    }
-
-    #[test]
-    fn command_error_db_uses_db_code() {
-        let e = CommandError::db("open", &anyhow::anyhow!("x"));
-        assert_eq!(e.code, ErrorCode::Db);
-    }
-
-    #[test]
-    fn command_error_swarm_uses_swarm_code() {
-        let e = CommandError::swarm("orchestrate", &anyhow::anyhow!("x"));
-        assert_eq!(e.code, ErrorCode::Swarm);
-    }
-
-    #[test]
-    fn swarm_agent_kind_parses_known_values() {
-        use crate::swarm::agents::AgentKind;
-        assert_eq!("coder".parse::<AgentKind>().unwrap(), AgentKind::Coder);
-        assert_eq!("writer".parse::<AgentKind>().unwrap(), AgentKind::Writer);
-        assert_eq!(
-            "reviewer".parse::<AgentKind>().unwrap(),
-            AgentKind::Reviewer
-        );
-        assert!("unknown".parse::<AgentKind>().is_err());
-    }
-}

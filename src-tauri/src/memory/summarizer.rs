@@ -1,4 +1,4 @@
-//! LLM 驱动的多粒度摘要生成引擎。
+﻿//! LLM 驱动的多粒度摘要生成引擎。
 //!
 //! 设计文档 v7.0 §3.3 多粒度摘要：每条记忆在写入时生成 50/150/500/2000
 //! 字符的四级摘要。短摘要用于列表预览和快速检索，长摘要用于深度阅读。
@@ -82,11 +82,11 @@ impl SummaryEngine {
         if let Some(ref llm) = self.llm {
             match self.generate_with_llm(llm, content).await {
                 Ok(mg) => {
-                    debug!(target: "nine_snake.summary", "LLM summaries generated");
+                    debug!(target: "nebula.summary", "LLM summaries generated");
                     return mg;
                 }
                 Err(e) => {
-                    warn!(target: "nine_snake.summary", error = %e, "LLM summary failed, falling back to truncate");
+                    warn!(target: "nebula.summary", error = %e, "LLM summary failed, falling back to truncate");
                 }
             }
         }
@@ -172,7 +172,7 @@ fn parse_llm_response(response: &str, original_content: &str) -> MultiGranularit
     }
 
     // 解析失败 → 回退到截断式
-    warn!(target: "nine_snake.summary", "LLM response not in expected format, falling back to truncate");
+    warn!(target: "nebula.summary", "LLM response not in expected format, falling back to truncate");
     truncate_summaries(original_content)
 }
 

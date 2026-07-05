@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+﻿use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -137,7 +137,7 @@ impl DeviceManager {
                         "UPDATE paired_devices SET revoked = 1, revoked_at = ?1 WHERE device_id = ?2",
                         rusqlite::params![now, device_id],
                     ).ok();
-                    info!(target: "nine_snake.device_manager", device_id, "device revoked");
+                    info!(target: "nebula.device_manager", device_id, "device revoked");
                     DeviceRevokeResult {
                         device_id: device_id.to_string(),
                         success: true,
@@ -171,7 +171,7 @@ impl DeviceManager {
 
     pub fn validate_device(&self, device_id: &str) -> Result<(), String> {
         if self.is_device_revoked(device_id) {
-            warn!(target: "nine_snake.device_manager", device_id, "revoked device attempted communication");
+            warn!(target: "nebula.device_manager", device_id, "revoked device attempted communication");
             Err("device has been revoked".to_string())
         } else if !self.devices.contains_key(device_id) {
             Err("device not found".to_string())

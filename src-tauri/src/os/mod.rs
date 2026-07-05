@@ -6,9 +6,17 @@
 //! aware.
 
 pub mod clipboard;
+// T-E-C-14: 剪贴板智能监听 — 后台轮询 + 内容检测 + sponge 吸收。
+pub mod clipboard_watcher;
+// T-S6-A-01a: OS-Controller — Windows 窗口管理 / 菜单操作 / 输入模拟。
+pub mod controller;
+// T-E-D-06: Windows 右键菜单 "问Nebula" 注册表读写(HKCU)。
+pub mod context_menu;
 // v1.7: 文件关联 + OS 文件拖入处理。
 pub mod file_handler;
 pub mod notifications;
+// T-S6-A-02: 电源管理 — 监听系统睡眠/唤醒,暂停/恢复 LLM 与蜂群任务。
+pub mod power;
 pub mod shell;
 // v1.7: 全局快捷键接线（需要 AppHandle）。
 pub mod shortcut;
@@ -16,5 +24,9 @@ pub mod shortcut;
 pub mod tray;
 
 pub use clipboard::ClipboardService;
+// T-E-C-14: 剪贴板监听引擎 re-export。
+pub use clipboard_watcher::{ClipboardEvent, ClipboardKind, ClipboardWatcherEngine};
+pub use controller::{OsControllerService, WindowInfo};
 pub use notifications::{send as send_notification, Notification, NotificationLevel};
+pub use power::{PowerManager, PowerState};
 pub use shell::{parse_argv, ShellExecutor, ShellOutput, DEFAULT_TIMEOUT};

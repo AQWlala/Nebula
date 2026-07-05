@@ -1,4 +1,4 @@
-//! v0.5: Git integration.
+﻿//! v0.5: Git integration.
 //!
 //! A small wrapper around the `git` CLI (v0.5 deliberately avoids
 //! `git2`'s libgit2 native dependency).  All commands run inside the
@@ -171,8 +171,8 @@ pub fn commit(repo: &Path, message: &str) -> Result<String> {
 pub fn init(repo: &Path) -> Result<()> {
     run_git(repo, &["init"])?;
     // Set a default local identity; ignore errors if already set.
-    let _ = run_git(repo, &["config", "user.email", "nine-snake@localhost"]);
-    let _ = run_git(repo, &["config", "user.name", "nine-snake"]);
+    let _ = run_git(repo, &["config", "user.email", "nebula@localhost"]);
+    let _ = run_git(repo, &["config", "user.name", "nebula"]);
     Ok(())
 }
 

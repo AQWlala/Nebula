@@ -1,4 +1,4 @@
-//! Skill composer — v1.2 P1 orchestration upgrade
+﻿//! Skill composer — v1.2 P1 orchestration upgrade
 //!
 //! Moves the swarm from *manual skill assignment* to *semantic auto-composition*.
 //! When a task is submitted, the composer analyses its description (with LLM
@@ -101,7 +101,7 @@ impl SkillComposer {
             match self.llm_rank(llm, task_description, &fast).await {
                 Ok(ranked) => return self.build_context(ranked, true),
                 Err(e) => {
-                    warn!(target: "nine_snake.composer", error = %e, "LLM ranking failed, falling back to fast path");
+                    warn!(target: "nebula.composer", error = %e, "LLM ranking failed, falling back to fast path");
                 }
             }
         }
@@ -124,10 +124,10 @@ impl SkillComposer {
         let mut scored: Vec<SkillMatch> = Vec::new();
 
         // Load all skills from the store.
-        let skills = match self.store.list(None, None, 100) {
+        let skills = match self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 100) {
             Ok(s) => s,
             Err(e) => {
-                warn!(target: "nine_snake.composer", error = %e, "failed to list skills");
+                warn!(target: "nebula.composer", error = %e, "failed to list skills");
                 return Vec::new();
             }
         };
@@ -186,7 +186,7 @@ impl SkillComposer {
     ) -> anyhow::Result<Vec<SkillMatch>> {
         // Build a prompt that lists all available skills and asks the LLM
         // to select the most relevant ones.
-        let all_skills = match self.store.list(None, None, 100) {
+        let all_skills = match self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 100) {
             Ok(s) => s,
             Err(e) => anyhow::bail!("failed to list skills: {e}"),
         };
@@ -239,7 +239,7 @@ impl SkillComposer {
 
                 if !ranked.is_empty() {
                     info!(
-                        target: "nine_snake.composer",
+                        target: "nebula.composer",
                         count = ranked.len(),
                         names = ?ranked.iter().map(|m| &m.skill.name).collect::<Vec<_>>(),
                         "LLM selected skills"
@@ -250,7 +250,7 @@ impl SkillComposer {
             }
             Err(e) => {
                 // Fall back to fast-path candidates.
-                warn!(target: "nine_snake.composer", error = %e, "LLM call failed");
+                warn!(target: "nebula.composer", error = %e, "LLM call failed");
                 Ok(fast_candidates.to_vec())
             }
         }
@@ -284,7 +284,7 @@ impl SkillComposer {
         };
 
         debug!(
-            target: "nine_snake.composer",
+            target: "nebula.composer",
             match_count = matches.len(),
             llm_assisted,
             "skill context built"

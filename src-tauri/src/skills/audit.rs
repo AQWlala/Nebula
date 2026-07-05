@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -49,7 +49,7 @@ impl SkillAuditLogger {
                 entry.success,
             ],
         )?;
-        debug!(target: "nine_snake.audit", skill_id = %entry.skill_id, success = entry.success, "audit log recorded");
+        debug!(target: "nebula.audit", skill_id = %entry.skill_id, success = entry.success, "audit log recorded");
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: Work 模式
  *
  * 三栏看板：Todo / Doing / Done
@@ -9,12 +9,13 @@
  * 时间追踪：单任务计时器，跨页面仍运行（后端保留状态）。
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { NineSnakeAPI, type WorkTask, type WorkTaskStatus } from '../lib/tauri';
+import { nebulaAPI, type WorkTask, type WorkTaskStatus } from '../lib/tauri';
+import { t } from '../i18n';
 
-const COLUMNS: { id: WorkTaskStatus; label: string; accent: string }[] = [
-  { id: 'todo',  label: '待办', accent: '#7a8a9a' },
-  { id: 'doing', label: '进行中', accent: '#ffb86b' },
-  { id: 'done',  label: '已完成', accent: '#39d98a' },
+const COLUMNS: { id: WorkTaskStatus; labelKey: string; accent: string }[] = [
+  { id: 'todo',  labelKey: 'workMode.todo', accent: '#7a8a9a' },
+  { id: 'doing', labelKey: 'workMode.doing', accent: '#ffb86b' },
+  { id: 'done',  labelKey: 'workMode.done', accent: '#39d98a' },
 ];
 
 export function WorkMode() {
@@ -32,12 +33,12 @@ export function WorkMode() {
 
   useEffect(() => {
     refresh();
-    NineSnakeAPI.workActiveTimer().then(setActiveTimer).catch(() => undefined);
+    nebulaAPI.workActiveTimer().then(setActiveTimer).catch(() => undefined);
   }, []);
 
   const refresh = async () => {
     try {
-      const all = await NineSnakeAPI.workListTasks(undefined, 200);
+      const all = await nebulaAPI.workListTasks(undefined, 200);
       setTasks(all);
     } catch (e) {
       setError(String(e));
@@ -63,9 +64,9 @@ export function WorkMode() {
     try {
       const dueAt = newDue ? Math.floor(new Date(newDue).getTime() / 1000) : null;
       // AI 推荐优先级
-      const aiPri = await NineSnakeAPI.workRecommendPriority(newTitle, dueAt);
+      const aiPri = await nebulaAPI.workRecommendPriority(newTitle, dueAt);
       const finalPri = Math.max(newPriority, aiPri);
-      await NineSnakeAPI.workCreateTask({
+      await nebulaAPI.workCreateTask({
         title: newTitle.trim(),
         description: newDesc.trim(),
         priority: finalPri,
@@ -84,7 +85,7 @@ export function WorkMode() {
   const onMove = async (task: WorkTask, status: WorkTaskStatus) => {
     if (task.status === status) return;
     try {
-      await NineSnakeAPI.workSetStatus(task.id, status);
+      await nebulaAPI.workSetStatus(task.id, status);
       await refresh();
     } catch (e) {
       setError(String(e));
@@ -99,14 +100,14 @@ export function WorkMode() {
         if (prev) {
           // 我们不知道上一个 start 的精确时刻，所以这里保守地使用
           // 简单的 "stop → start" 调用链。
-          await NineSnakeAPI.workStopTimer();
+          await nebulaAPI.workStopTimer();
         }
       }
-      await NineSnakeAPI.workStartTimer(task.id);
+      await nebulaAPI.workStartTimer(task.id);
       setActiveTimer(task.id);
       // 移动到 doing
       if (task.status !== 'doing') {
-        await NineSnakeAPI.workSetStatus(task.id, 'doing');
+        await nebulaAPI.workSetStatus(task.id, 'doing');
       }
       await refresh();
     } catch (e) {
@@ -118,9 +119,9 @@ export function WorkMode() {
     try {
       const elapsed = Date.now() - tickStart;
       if (elapsed > 0) {
-        await NineSnakeAPI.workAddTime(task.id, elapsed);
+        await nebulaAPI.workAddTime(task.id, elapsed);
       }
-      await NineSnakeAPI.workStopTimer();
+      await nebulaAPI.workStopTimer();
       setActiveTimer(null);
       await refresh();
     } catch (e) {
@@ -129,9 +130,9 @@ export function WorkMode() {
   };
 
   const onDelete = async (task: WorkTask) => {
-    if (!confirm(`确认删除任务「${task.title}」？`)) return;
+    if (!confirm(t('workMode.confirmDelete', { title: task.title }))) return;
     try {
-      await NineSnakeAPI.workDeleteTask(task.id);
+      await nebulaAPI.workDeleteTask(task.id);
       if (activeTimer === task.id) setActiveTimer(null);
       await refresh();
     } catch (e) {
@@ -141,7 +142,7 @@ export function WorkMode() {
 
   const onSummarise = async () => {
     try {
-      const out = await NineSnakeAPI.workSummariseMeeting(transcript);
+      const out = await nebulaAPI.workSummariseMeeting(transcript);
       setMeetingOut(out);
     } catch (e) {
       setError(String(e));
@@ -153,14 +154,14 @@ export function WorkMode() {
       <header class="work-toolbar">
         <input
           class="work-new-title"
-          placeholder="+ 新任务标题"
+          placeholder={t('workMode.newTaskPlaceholder')}
           value={newTitle}
           onInput={(e) => setNewTitle((e.target as HTMLInputElement).value)}
           onKeyDown={(e) => { if (e.key === 'Enter') onCreate(); }}
         />
         <input
           class="work-new-desc"
-          placeholder="（可选）描述"
+          placeholder={t('workMode.descPlaceholder')}
           value={newDesc}
           onInput={(e) => setNewDesc((e.target as HTMLInputElement).value)}
         />
@@ -168,7 +169,7 @@ export function WorkMode() {
           class="work-new-priority"
           value={newPriority}
           onChange={(e) => setNewPriority(parseInt((e.target as HTMLSelectElement).value, 10))}
-          title="最低优先级；AI 会自动上调"
+          title={t('workMode.priorityTitle')}
         >
           <option value={0}>P0</option>
           <option value={1}>P1</option>
@@ -180,44 +181,44 @@ export function WorkMode() {
           type="datetime-local"
           value={newDue}
           onInput={(e) => setNewDue((e.target as HTMLInputElement).value)}
-          title="截止时间"
+          title={t('workMode.dueTitle')}
         />
-        <button class="primary" onClick={onCreate}>添加</button>
+        <button class="primary" onClick={onCreate}>{t('workMode.add')}</button>
         <div class="spacer" />
         <button class="ghost" onClick={() => setShowMeeting((v) => !v)}>
-          {showMeeting ? '收起' : '展开'}会议纪要
+          {t('workMode.toggleMeeting', { state: showMeeting ? t('workMode.collapse') : t('workMode.expand') })}
         </button>
       </header>
 
       {showMeeting && (
         <section class="work-meeting">
           <textarea
-            placeholder="粘贴会议转写文本（每行一句；- 开头的行视为 action item）"
+            placeholder={t('workMode.meetingPlaceholder')}
             value={transcript}
             onInput={(e) => setTranscript((e.target as HTMLTextAreaElement).value)}
             rows={6}
           />
           <div class="row">
-            <button onClick={onSummarise} class="primary">生成纪要</button>
+            <button onClick={onSummarise} class="primary">{t('workMode.generateSummary')}</button>
             {meetingOut && (
               <>
-                <span class="meeting-stat">决议 {meetingOut.decisions.length}</span>
-                <span class="meeting-stat">行动 {meetingOut.actions.length}</span>
+                <span class="meeting-stat">{t('workMode.decisionCount', { count: meetingOut.decisions.length })}</span>
+                <span class="meeting-stat">{t('workMode.actionCount', { count: meetingOut.actions.length })}</span>
               </>
             )}
           </div>
           {meetingOut && (
             <div class="meeting-result">
               <div>
-                <h4>决议</h4>
+                <h4>{t('workMode.decisions')}</h4>
                 <ol>
-                  {meetingOut.decisions.map((d, i) => (<li key={i}>{d}</li>))}
+                  {meetingOut.decisions.map((d) => (<li key={d}>{d}</li>))}
                 </ol>
               </div>
               <div>
-                <h4>行动项</h4>
+                <h4>{t('workMode.actionItems')}</h4>
                 <ul>
-                  {meetingOut.actions.map((a, i) => (<li key={i}>{a}</li>))}
+                  {meetingOut.actions.map((a) => (<li key={a}>{a}</li>))}
                 </ul>
               </div>
             </div>
@@ -236,44 +237,44 @@ export function WorkMode() {
             onDrop={(e) => {
               e.preventDefault();
               const id = e.dataTransfer?.getData('text/plain');
-              const t = tasks.find((x) => x.id === id);
-              if (t) onMove(t, col.id);
+              const task = tasks.find((x) => x.id === id);
+              if (task) onMove(task, col.id);
             }}
           >
             <header class="col-header" style={{ borderTop: `2px solid ${col.accent}` }}>
-              <span>{col.label}</span>
+              <span>{t(col.labelKey as any)}</span>
               <span class="col-count">{grouped[col.id].length}</span>
             </header>
             <div class="col-body">
               {grouped[col.id].length === 0 ? (
-                <p class="empty">—</p>
+                <p class="empty">{t('workMode.emptyColumn')}</p>
               ) : (
-                grouped[col.id].map((t) => (
+                grouped[col.id].map((task) => (
                   <article
-                    key={t.id}
-                    class={`task-card priority-${t.priority} ${activeTimer === t.id ? 'is-timed' : ''}`}
+                    key={task.id}
+                    class={`task-card priority-${task.priority} ${activeTimer === task.id ? 'is-timed' : ''}`}
                     draggable
-                    onDragStart={(e) => e.dataTransfer?.setData('text/plain', t.id)}
+                    onDragStart={(e) => e.dataTransfer?.setData('text/plain', task.id)}
                   >
                     <div class="task-head">
-                      <span class={`prio prio-${t.priority}`}>P{t.priority}</span>
-                      <h4 class="task-title">{t.title}</h4>
-                      <button class="task-del" onClick={() => onDelete(t)}>×</button>
+                      <span class={`prio prio-${task.priority}`}>P{task.priority}</span>
+                      <h4 class="task-title">{task.title}</h4>
+                      <button class="task-del" onClick={() => onDelete(task)}>×</button>
                     </div>
-                    {t.description && <p class="task-desc">{t.description}</p>}
+                    {task.description && <p class="task-desc">{task.description}</p>}
                     <div class="task-foot">
-                      {t.due_at && (
-                        <span class="task-due">📅 {formatTime(t.due_at)}</span>
+                      {task.due_at && (
+                        <span class="task-due">📅 {formatTime(task.due_at)}</span>
                       )}
-                      <span class="task-time">⏱ {formatDuration(t.time_spent_ms)}</span>
+                      <span class="task-time">⏱ {formatDuration(task.time_spent_ms)}</span>
                       <div class="spacer" />
-                      {activeTimer === t.id ? (
-                        <button class="timer-btn running" onClick={() => onStopTimer(t)}>
-                          ⏹ 停止 ({formatDuration(Date.now() - tickStart)})
+                      {activeTimer === task.id ? (
+                        <button class="timer-btn running" onClick={() => onStopTimer(task)}>
+                          {t('workMode.stopTimer', { duration: formatDuration(Date.now() - tickStart) })}
                         </button>
                       ) : (
-                        <button class="timer-btn" onClick={() => onStartTimer(t)}>
-                          ▶ 开始
+                        <button class="timer-btn" onClick={() => onStartTimer(task)}>
+                          {t('workMode.startTimer')}
                         </button>
                       )}
                     </div>

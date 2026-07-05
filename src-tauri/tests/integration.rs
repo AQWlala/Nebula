@@ -83,6 +83,29 @@ mod compression_lock_test;
 #[path = "e2e/security.rs"]
 mod security;
 
+// M7b #92: ADR-003 端到端测试场景(4 个)。
+// 覆盖 Memory domain 隔离 + ACL 跨域 + Swarm 派发 + Negotiator 冲突检测。
+#[path = "e2e/adr003.rs"]
+mod adr003;
+
 // v1.3: V2 integration tests.
 #[path = "integration/v2_test.rs"]
 mod v2_test;
+
+// v2.1 Stage 1 (T-S1-A-01): L0Cache 命中率统计集成测试。
+// 对应 ROADMAP_v2.1.md §4.4 测试策略要求。
+#[path = "integration/l0_cache_stats_test.rs"]
+mod l0_cache_stats_test;
+
+// v2.1 Stage 1 (T-S1-A-04): MemoryAcl 接入 sponge search 集成测试。
+// 对应 ROADMAP_v2.1.md §4.4 测试策略要求。
+#[path = "integration/acl_sponge_test.rs"]
+mod acl_sponge_test;
+
+// v2.1 Stage 1 (T-S1-B-01c): chat_stream 流式集成测试。
+// 覆盖 Ollama NDJSON / DeepSeek SSE / 取消流 / 回退 / 死端口 / incomplete。
+#[path = "integration/chat_stream_test.rs"]
+mod chat_stream_test;
+
+// M5 #75-76: L4 审批门禁 + CostPolicy + CostTracker work_type 集成测试。
+// 作为独立测试二进制运行（tests/m5_test.rs），避免受其他集成测试模块的预存在编译错误影响。

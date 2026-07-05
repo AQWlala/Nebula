@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: 文件树
  *
  * 渲染后端 editor::list_tree 返回的 FileEntry 列表。
@@ -10,7 +10,7 @@
  * - 点击目录 → 展开 / 收起
  */
 import { useMemo, useState } from 'preact/hooks';
-import { NineSnakeAPI, type FileEntry } from '../../lib/tauri';
+import { nebulaAPI, type FileEntry } from '../../lib/tauri';
 
 interface FileTreeProps {
   entries: FileEntry[];
@@ -129,7 +129,7 @@ function Node({ node, depth, expanded, currentPath, onOpen, toggle }: NodeProps)
 /** 重新加载文件树的 helper。 */
 export async function refreshFileTree(setEntries: (e: FileEntry[]) => void, depth = 8) {
   try {
-    const list = await NineSnakeAPI.editorList(depth);
+    const list = await nebulaAPI.editorList(depth);
     setEntries(list);
   } catch (e) {
     console.error('refreshFileTree failed:', e);

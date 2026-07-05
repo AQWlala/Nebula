@@ -1,6 +1,6 @@
 //! v1.7: 系统托盘（最简版）。
 //!
-//! 设计文档 v7.0 §6 OS 集成 — 托盘常驻九头蛇 logo。
+//! 设计文档 v7.0 §6 OS 集成 — 托盘常驻Nebula logo。
 //!
 //! v1.7 实现范围（最简版）：
 //! * 静态图标（不动态旋转/闪烁，动态效果放 v1.5+）
@@ -32,7 +32,7 @@ const MENU_QUIT: &str = "tray_quit";
 pub fn setup(app: &AppHandle) {
     if let Err(e) = try_setup(app) {
         tracing::warn!(
-            target: "nine_snake.os.tray",
+            target: "nebula.os.tray",
             error = %e,
             "system tray setup failed; continuing without tray"
         );
@@ -42,11 +42,11 @@ pub fn setup(app: &AppHandle) {
 fn try_setup(app: &AppHandle) -> anyhow::Result<()> {
     let show_item = MenuItem::with_id(app, MENU_SHOW, "显示主窗口", true, None::<&str>)?;
     let hide_item = MenuItem::with_id(app, MENU_HIDE, "隐藏到托盘", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, MENU_QUIT, "退出九头蛇", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, MENU_QUIT, "退出Nebula", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &hide_item, &quit_item])?;
 
-    TrayIconBuilder::with_id("nine-snake-tray")
-        .tooltip("九头蛇 · nine-snake")
+    TrayIconBuilder::with_id("nebula-tray")
+        .tooltip("Nebula · nebula")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -62,7 +62,7 @@ fn try_setup(app: &AppHandle) -> anyhow::Result<()> {
                 }
             }
             MENU_QUIT => {
-                tracing::info!(target: "nine_snake.os.tray", "user clicked quit; exiting");
+                tracing::info!(target: "nebula.os.tray", "user clicked quit; exiting");
                 app.exit(0);
             }
             _ => {}
@@ -88,7 +88,7 @@ fn try_setup(app: &AppHandle) -> anyhow::Result<()> {
         })
         .build(app)?;
 
-    tracing::info!(target: "nine_snake.os.tray", "system tray initialized");
+    tracing::info!(target: "nebula.os.tray", "system tray initialized");
     Ok(())
 }
 

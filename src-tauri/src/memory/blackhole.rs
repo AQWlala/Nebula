@@ -21,11 +21,12 @@ use tracing::{debug, info};
 
 use super::constants::BLACKHOLE_IMPORTANCE_FLOOR;
 use super::importance::{rescore, ImportanceScorer};
-use super::lance_store::LanceStore;
 use super::sqlite_store::SqliteStore;
 use super::types::{
     Memory, MemoryLayer, MemoryRelation, MultiGranularity, RelationKind, SourceKind,
 };
+// T-E-S-42: BlackholeEngine 面向 VectorStore trait 编程,可接受任意后端。
+use super::vector_store::VectorStore;
 
 /// Result of a single compression pass.
 #[derive(Debug, Clone, Default)]
@@ -52,13 +53,13 @@ impl CompressionReport {
 /// The black-hole engine.
 pub struct BlackholeEngine {
     sqlite: Arc<SqliteStore>,
-    lance: Arc<LanceStore>,
+    lance: Arc<dyn VectorStore>,
     threshold_days: u32,
     scorer: ImportanceScorer,
 }
 
 impl BlackholeEngine {
-    pub fn new(sqlite: Arc<SqliteStore>, lance: Arc<LanceStore>, threshold_days: u32) -> Self {
+    pub fn new(sqlite: Arc<SqliteStore>, lance: Arc<dyn VectorStore>, threshold_days: u32) -> Self {
         Self {
             sqlite,
             lance,
@@ -112,18 +113,87 @@ impl BlackholeEngine {
                     report.skipped += group.len();
                 }
                 Err(e) => {
-                    tracing::warn!(target: "nine_snake.blackhole", error = ?e, "compress_group failed");
+                    tracing::warn!(target: "nebula.blackhole", error = ?e, "compress_group failed");
                     report.skipped += group.len();
                 }
             }
         }
 
         info!(
-            target: "nine_snake.blackhole",
+            target: "nebula.blackhole",
             scanned = report.scanned,
             compressed = report.compressed,
             skipped = report.skipped,
             "compression pass done"
+        );
+        crate::metrics::global().record_blackhole(report.compressed as u64);
+        Ok(report)
+    }
+
+    /// T-S1-A-03b: 仅压缩已归档(`archived = 1`)的记忆。
+    ///
+    /// 与 [`run_pass`](Self::run_pass) 的区别:
+    /// - 扫描 `SqliteStore::list_archived_for_compression()` 而非
+    ///   `candidates_for_compression()`,候选集只含 `archived = 1` 的行。
+    /// - 不加 `importance` / `last_access` 过滤(归档时已通过 TTL 策略)。
+    /// - 复用 [`compress_group`](Self::compress_group) 的密度保持压缩算法,
+    ///   持久化路径与 `run_pass` 完全一致(insert summary + update_compressed_from
+    ///   + add_relation + lance.upsert)。
+    /// - 同样持 `compression_lock` 与 sponge::absorb 互斥。
+    ///
+    /// 调用关系:`ForgettingEngine::tick()` 在 `archive_memories()` 成功后
+    /// 调用本方法,形成"归档 → 压缩"闭环。
+    pub async fn run_pass_archived(&self, batch_size: usize) -> Result<CompressionReport> {
+        let _compression_guard = self.sqlite.compression_lock();
+        let candidates = self
+            .sqlite
+            .list_archived_for_compression(batch_size)
+            .await?;
+
+        let mut report = CompressionReport {
+            scanned: candidates.len(),
+            ..Default::default()
+        };
+        if candidates.is_empty() {
+            return Ok(report);
+        }
+
+        debug!(
+            target: "nebula.blackhole",
+            count = candidates.len(),
+            "run_pass_archived: scanning archived memories"
+        );
+
+        let groups = group_candidates(candidates);
+        for ((layer, mtype), group) in groups {
+            if group.is_empty() {
+                continue;
+            }
+            match self.compress_group(layer, mtype, &group).await {
+                Ok(true) => {
+                    report.compressed += group.len();
+                    report.summaries_created += 1;
+                }
+                Ok(false) => {
+                    report.skipped += group.len();
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "nebula.blackhole",
+                        error = ?e,
+                        "compress_group failed in run_pass_archived"
+                    );
+                    report.skipped += group.len();
+                }
+            }
+        }
+
+        info!(
+            target: "nebula.blackhole",
+            scanned = report.scanned,
+            compressed = report.compressed,
+            skipped = report.skipped,
+            "archived compression pass done"
         );
         crate::metrics::global().record_blackhole(report.compressed as u64);
         Ok(report)
@@ -201,7 +271,7 @@ impl BlackholeEngine {
 
         self.sqlite.insert(&summary_mem).await?;
         debug!(
-            target: "nine_snake.blackhole",
+            target: "nebula.blackhole",
             summary_id = %summary_mem.id,
             sources = group.len(),
             "created black-hole summary"
@@ -225,7 +295,7 @@ impl BlackholeEngine {
                 .update_compressed_from(&m.id, &summary_mem.id)
                 .await
             {
-                tracing::warn!(target: "nine_snake.blackhole", src = %m.id, error = ?e, "failed to mark source as compressed");
+                tracing::warn!(target: "nebula.blackhole", src = %m.id, error = ?e, "failed to mark source as compressed");
             }
         }
 
@@ -366,7 +436,7 @@ mod tests {
         use std::time::Duration;
 
         let tmp =
-            std::env::temp_dir().join(format!("nine_snake_lock_test_{}.db", std::process::id()));
+            std::env::temp_dir().join(format!("nebula_lock_test_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         let store = Arc::new(SqliteStore::open(&tmp).unwrap());
         let store2 = store.clone();

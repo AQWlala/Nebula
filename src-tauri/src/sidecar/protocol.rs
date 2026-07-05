@@ -3,7 +3,7 @@
 //! 主进程启动 sidecar 时通过命令行参数 + 环境变量传递配置：
 //! - `--listen-addr` — gRPC 监听地址（默认 `127.0.0.1:0` 表示自动选端口）
 //! - `--data-dir` — 数据目录
-//! - `NINE_SNAKE_SIDECAR_TOKEN` — 认证 token（双向校验）
+//! - `NEBULA_SIDECAR_TOKEN` — 认证 token（双向校验）
 //!
 //! 启动后主进程通过 HealthCheck 确认 sidecar 就绪。
 

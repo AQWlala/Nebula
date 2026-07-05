@@ -1,4 +1,4 @@
-// nine-snake v0.3 gRPC service definitions.
+// nebula v0.3 gRPC service definitions.
 //
 // 22 RPCs across 5 services (see design doc §13):
 //   * MemoryService   — 8 RPCs (Store, Get, Search, ListRecent,
@@ -10,7 +10,7 @@
 
 syntax = "proto3";
 
-package nine_snake.v1;
+package nebula.v1;
 
 // ---------------------------------------------------------------------------
 // Common types

@@ -1,27 +1,27 @@
-//! Integration tests for the v0.3 skills subsystem.
+﻿//! Integration tests for the v0.3 skills subsystem.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use nine_snake_lib::llm::{LlmGateway, OllamaClient};
-use nine_snake_lib::memory::sqlite_store::SqliteStore;
-use nine_snake_lib::skills::engine::SkillEngine;
-use nine_snake_lib::skills::store::SkillStore;
-use nine_snake_lib::skills::types as skill_types;
+use nebula_lib::llm::{LlmGateway, OllamaClient};
+use nebula_lib::memory::sqlite_store::SqliteStore;
+use nebula_lib::skills::engine::SkillEngine;
+use nebula_lib::skills::store::SkillStore;
+use nebula_lib::skills::types as skill_types;
 
 fn temp_sqlite() -> (std::path::PathBuf, Arc<SqliteStore>) {
     let mut p = std::env::temp_dir();
     p.push(format!(
-        "nine_snake_skills_test_{}.db",
+        "nebula_skills_test_{}.db",
         uuid::Uuid::new_v4()
     ));
     let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
     {
         let conn = sqlite.raw_connection();
         let g = conn.lock();
-        nine_snake_lib::memory::migration::run_migrations(
+        nebula_lib::memory::migration::run_migrations(
             &g,
-            nine_snake_lib::memory::migration::bundled_migrations_dir(),
+            nebula_lib::memory::migration::bundled_migrations_dir(),
         )
         .unwrap();
     }
@@ -67,6 +67,7 @@ fn create_skill_round_trips_through_engine() {
             language: Some("python".to_string()),
             tag: None,
             limit: 10,
+            ..Default::default()
         })
         .unwrap();
     assert_eq!(listed.len(), 1);
@@ -107,6 +108,7 @@ fn rate_skill_accumulates_with_weighted_average() {
             language: None,
             tag: None,
             limit: 10,
+            ..Default::default()
         })
         .unwrap()
         .into_iter()
@@ -215,6 +217,10 @@ fn skill_store_count_increments_with_inserts() {
             activation_condition: None,
             platform: None,
             min_confidence: None,
+            // M7b #91: Skill 新增字段(T-S3-A-01)。
+            trust_level: 0,
+            permissions: vec![],
+            capabilities: nebula_lib::skills::sandbox::CapabilitySet::new(),
         };
         s.code = "x".to_string();
         store.insert(&s).unwrap();

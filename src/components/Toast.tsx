@@ -51,12 +51,12 @@ export function Toasts() {
   // signal lifecycle (helps tests).
   useEffect(() => { /* */ }, [list]);
   return (
-    <div class="toast-stack" role="region" aria-label="Notifications">
+    <div class="toast-stack" role="region" aria-label={t('toast.region')}>
       {list.map((tt) => (
         <div key={tt.id} class={`toast toast-${tt.level}`} role="alert">
           <div class="toast-title">{tt.title}</div>
           {tt.body && <div class="toast-body">{tt.body}</div>}
-          <button class="toast-close" onClick={() => dismissToast(tt.id)} aria-label="Dismiss">×</button>
+          <button class="toast-close" onClick={() => dismissToast(tt.id)} aria-label={t('toast.dismiss')}>×</button>
         </div>
       ))}
     </div>

@@ -1,4 +1,4 @@
-//! v0.5: end-to-end encryption (real, not pseudo).
+﻿//! v0.5: end-to-end encryption (real, not pseudo).
 //!
 //! ## Cryptographic design
 //!
@@ -7,7 +7,7 @@
 //!   the QR-code pairing flow; the private key never leaves the
 //!   device.
 //! * **Key derivation**: HKDF-SHA256 over the 32-byte shared
-//!   secret, with the info string `b"nine-snake/v0.5/e2ee"` and
+//!   secret, with the info string `b"nebula/v0.5/e2ee"` and
 //!   a per-message random salt.  The derived 32-byte key is the
 //!   AES-256 session key.
 //! * **AEAD**: AES-256-GCM.  Each message is encrypted with a fresh
@@ -66,7 +66,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 /// HKDF info string.  Bumping this invalidates all derived keys,
 /// so changing it is a wire-protocol break.
-const HKDF_INFO: &[u8] = b"nine-snake/v0.5/e2ee";
+const HKDF_INFO: &[u8] = b"nebula/v0.5/e2ee";
 
 /// Current envelope version.  Bump on incompatible format changes.
 pub const ENVELOPE_VERSION: u8 = 1;

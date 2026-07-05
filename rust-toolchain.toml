@@ -1,0 +1,22 @@
+# rust-toolchain.toml
+# Nebula (nebula) Rust 工具链固定配置
+#
+# v2.1 修复 (EXPERT_REVIEW EA-5): 本地开发机若装了 MinGW 工具链,
+# 会导致 cargo test 链接器冲突。本文件强制使用 MSVC 工具链,
+# 与 CI (test.yml 使用 windows-latest + x86_64-pc-windows-msvc) 保持一致。
+#
+# Windows 开发者需先安装 "Build Tools for Visual Studio"
+# (https://visualstudio.microsoft.com/visual-cpp-build-tools/),
+# 勾选 "Desktop development with C++" 工作负载。
+
+[toolchain]
+# 显式指定 MSVC channel，避免在 GNU 默认主机上被解析为 stable-x86_64-pc-windows-gnu。
+# `channel = "stable"` 在 GNU 默认主机的开发机上会激活 MinGW 工具链，
+# 触发链接器 `export ordinal too large: 187548` 错误（见 EXPERT_REVIEW EA-5）。
+# Windows 主开发机 + CI 均使用 MSVC，此处固定 MSVC channel。
+# Linux/macOS 开发者：请使用 `rustup override unset` 忽略本文件，或本地删除此文件。
+channel = "stable-x86_64-pc-windows-msvc"
+# 额外预装 Linux/macOS target，便于跨平台编译检查
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin"]
+profile = "default"
+components = ["rustfmt", "clippy"]

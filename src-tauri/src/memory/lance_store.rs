@@ -128,7 +128,7 @@ impl LanceStore {
         #[cfg(not(feature = "vector-store"))]
         {
             info!(
-                target: "nine_snake.memory",
+                target: "nebula.memory",
                 path = %path_str,
                 dim,
                 "lance store opened (in-memory only, vector-store feature disabled)"
@@ -155,7 +155,7 @@ impl LanceStore {
             // an empty one with our schema.
             let table = match conn.open_table(TABLE_NAME).execute().await {
                 Ok(t) => {
-                    info!(target: "nine_snake.memory", path = %path_str, dim, "lance store opened (existing table)");
+                    info!(target: "nebula.memory", path = %path_str, dim, "lance store opened (existing table)");
                     Some(t)
                 }
                 Err(_) => {
@@ -166,11 +166,11 @@ impl LanceStore {
                         .await
                     {
                         Ok(t) => {
-                            info!(target: "nine_snake.memory", path = %path_str, dim, "lance store opened (created empty table)");
+                            info!(target: "nebula.memory", path = %path_str, dim, "lance store opened (created empty table)");
                             Some(t)
                         }
                         Err(e) => {
-                            warn!(target: "nine_snake.memory", error = ?e, "could not create lance table; running in fallback mode");
+                            warn!(target: "nebula.memory", error = ?e, "could not create lance table; running in fallback mode");
                             None
                         }
                     }
@@ -223,7 +223,7 @@ impl LanceStore {
                     g.remove(0);
                 }
                 if g.len() >= FALLBACK_WARNING_THRESHOLD {
-                    warn!(target: "nine_snake.memory", len = g.len(), "fallback mirror approaching capacity");
+                    warn!(target: "nebula.memory", len = g.len(), "fallback mirror approaching capacity");
                 }
                 g.push((id.to_string(), vector.to_vec()));
             }
@@ -255,7 +255,7 @@ impl LanceStore {
                     .await
                     .with_context(|| format!("lance add for {id}"))?;
             } else {
-                warn!(target: "nine_snake.memory", id, "lance table unavailable; mirror updated only");
+                warn!(target: "nebula.memory", id, "lance table unavailable; mirror updated only");
             }
             Ok(())
         }
@@ -283,7 +283,7 @@ impl LanceStore {
             if let Some(table) = self.ensure_table().await? {
                 let predicate = format!("{ID_COL} = '{}'", id.replace('\'', "''"));
                 table.delete(&predicate).await.unwrap_or_else(|e| {
-                    warn!(target: "nine_snake.memory", error = %e, "lance delete failed");
+                    warn!(target: "nebula.memory", error = %e, "lance delete failed");
                 });
             }
             Ok(removed)
@@ -314,7 +314,7 @@ impl LanceStore {
                 match self.search_table(&table, query, k).await {
                     Ok(hits) => return Ok(hits),
                     Err(e) => {
-                        warn!(target: "nine_snake.memory", error = ?e, "lance search failed; falling back to in-memory mirror");
+                        warn!(target: "nebula.memory", error = ?e, "lance search failed; falling back to in-memory mirror");
                     }
                 }
             }
@@ -423,7 +423,7 @@ impl LanceStore {
             {
                 Ok(t) => Some(t),
                 Err(e) => {
-                    warn!(target: "nine_snake.memory", error = ?e, "could not (re)open lance table");
+                    warn!(target: "nebula.memory", error = ?e, "could not (re)open lance table");
                     None
                 }
             },
@@ -498,7 +498,7 @@ mod tests {
 
     fn temp_lance_path() -> std::path::PathBuf {
         let mut p = env::temp_dir();
-        p.push(format!("nine_snake_lance_{}", uuid::Uuid::new_v4()));
+        p.push(format!("nebula_lance_{}", uuid::Uuid::new_v4()));
         p
     }
 
@@ -564,7 +564,7 @@ mod tests_minimal {
 
     fn temp_lance_path() -> std::path::PathBuf {
         let mut p = env::temp_dir();
-        p.push(format!("nine_snake_lance_{}", uuid::Uuid::new_v4()));
+        p.push(format!("nebula_lance_{}", uuid::Uuid::new_v4()));
         p
     }
 

@@ -1,23 +1,23 @@
-/**
+﻿/**
  * v1.0.1 (P0#08): SwarmView failure panel + per-agent retry tests.
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, act } from '@testing-library/preact';
 import { SwarmView } from '../SwarmView';
-import { NineSnakeStore } from '../../stores/nineSnakeStore';
+import { nebulaStore } from '../../stores/nebulaStore';
 import type { SwarmAgentResult } from '../../lib/tauri';
 
 beforeEach(() => {
   cleanup();
-  NineSnakeStore.currentTask.value = null;
-  NineSnakeStore.swarmOutputs.value = [];
+  nebulaStore.currentTask.value = null;
+  nebulaStore.swarmOutputs.value = [];
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  NineSnakeStore.currentTask.value = null;
-  NineSnakeStore.swarmOutputs.value = [];
+  nebulaStore.currentTask.value = null;
+  nebulaStore.swarmOutputs.value = [];
 });
 
 function makeOutputs(): SwarmAgentResult[] {
@@ -49,8 +49,8 @@ function makeOutputs(): SwarmAgentResult[] {
 
 describe('SwarmView (P0#08)', () => {
   it('expanding_failure_card_shows_stderr', () => {
-    NineSnakeStore.currentTask.value = { id: 'task-1', status: 'failed' };
-    NineSnakeStore.swarmOutputs.value = makeOutputs();
+    nebulaStore.currentTask.value = { id: 'task-1', status: 'failed' };
+    nebulaStore.swarmOutputs.value = makeOutputs();
 
     const { getByTestId, queryByTestId } = render(<SwarmView />);
     const card = getByTestId('swarm-output-reviewer');
@@ -69,11 +69,11 @@ describe('SwarmView (P0#08)', () => {
   });
 
   it('retry_button_calls_swarm_run_with_single_agent', async () => {
-    NineSnakeStore.currentTask.value = { id: 'task-1', status: 'failed' };
-    NineSnakeStore.swarmOutputs.value = makeOutputs();
+    nebulaStore.currentTask.value = { id: 'task-1', status: 'failed' };
+    nebulaStore.swarmOutputs.value = makeOutputs();
 
     const runSwarmSingle = vi
-      .spyOn(NineSnakeStore, 'runSwarmSingle')
+      .spyOn(nebulaStore, 'runSwarmSingle')
       .mockResolvedValue();
 
     const { getByTestId, getByPlaceholderText } = render(<SwarmView />);

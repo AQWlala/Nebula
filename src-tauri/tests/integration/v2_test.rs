@@ -1,17 +1,22 @@
-use nine_snake_lib::channel::router::WebChatAdapter;
-use nine_snake_lib::channel::ChannelRouter;
-use nine_snake_lib::channel::WebChatService;
-use nine_snake_lib::identity::{DidDocument, DidKey};
-use nine_snake_lib::memory::acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
-use nine_snake_lib::memory::forgetting::{ForgettingConfig, ForgettingEngine};
-use nine_snake_lib::memory::layers::check_auto_promote;
-use nine_snake_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
-use nine_snake_lib::security::ssrf_guard::SsrfGuard;
-use nine_snake_lib::skills::audit;
-use nine_snake_lib::swarm::bus::AgentBus;
-use nine_snake_lib::swarm::negotiator::Negotiator;
-use nine_snake_lib::sync::crdt::CrdtEngine;
-use nine_snake_lib::sync::device_manager::DeviceManager;
+﻿// M7b #91: channel 模块受 `channels` feature 门控(默认关闭)。
+// 用 cfg gate 包裹导入与对应测试,避免默认构建下编译失败。
+#[cfg(feature = "channels")]
+use nebula_lib::channel::router::WebChatAdapter;
+#[cfg(feature = "channels")]
+use nebula_lib::channel::ChannelRouter;
+#[cfg(feature = "channels")]
+use nebula_lib::channel::WebChatService;
+use nebula_lib::identity::{DidDocument, DidKey};
+use nebula_lib::memory::acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
+use nebula_lib::memory::forgetting::{ForgettingConfig, ForgettingEngine};
+use nebula_lib::memory::layers::check_auto_promote;
+use nebula_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
+use nebula_lib::security::ssrf_guard::SsrfGuard;
+use nebula_lib::skills::audit;
+use nebula_lib::swarm::bus::AgentBus;
+use nebula_lib::swarm::negotiator::Negotiator;
+use nebula_lib::sync::crdt::CrdtEngine;
+use nebula_lib::sync::device_manager::DeviceManager;
 use std::sync::Arc;
 
 #[test]
@@ -40,12 +45,12 @@ fn test_ssrf_guard_allows_public() {
 fn test_agent_bus_broadcast() {
     let bus = AgentBus::new();
     let mut sub = bus.subscribe();
-    bus.broadcast(nine_snake_lib::swarm::bus::BusMessage {
+    bus.broadcast(nebula_lib::swarm::bus::BusMessage {
         from: "test".to_string(),
         to: None,
         content: "hello".to_string(),
         timestamp: 0,
-        msg_type: nine_snake_lib::swarm::bus::BusMessageType::Notification,
+        msg_type: nebula_lib::swarm::bus::BusMessageType::Notification,
         correlation_id: None,
     });
     let msg = sub.try_recv().unwrap();
@@ -58,12 +63,12 @@ fn test_agent_bus_point_to_point() {
     rt.block_on(async {
         let bus = AgentBus::new();
         let mut rx = bus.register("agent-1").await;
-        bus.send(nine_snake_lib::swarm::bus::BusMessage {
+        bus.send(nebula_lib::swarm::bus::BusMessage {
             from: "agent-2".to_string(),
             to: Some("agent-1".to_string()),
             content: "ping".to_string(),
             timestamp: 0,
-            msg_type: nine_snake_lib::swarm::bus::BusMessageType::Request,
+            msg_type: nebula_lib::swarm::bus::BusMessageType::Request,
             correlation_id: None,
         })
         .await
@@ -82,17 +87,24 @@ fn test_agent_bus_point_to_point() {
 fn test_negotiator_high_confidence() {
     let negotiator = Negotiator::new();
     let outputs = vec![
-        nine_snake_lib::swarm::agents::AgentOutput {
-            kind: nine_snake_lib::swarm::agents::AgentKind::Coder,
+        nebula_lib::swarm::agents::AgentOutput {
+            kind: nebula_lib::swarm::agents::AgentKind::Coder,
             author: "coder".to_string(),
             body: "solution A".to_string(),
             confidence: 0.9,
+            // M7b #91: AgentOutput 新增字段(T-E-B-17/18/S-02)。
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
-        nine_snake_lib::swarm::agents::AgentOutput {
-            kind: nine_snake_lib::swarm::agents::AgentKind::Writer,
+        nebula_lib::swarm::agents::AgentOutput {
+            kind: nebula_lib::swarm::agents::AgentKind::Writer,
             author: "writer".to_string(),
             body: "solution B".to_string(),
             confidence: 0.5,
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
     ];
     let result = negotiator.negotiate(outputs);
@@ -101,8 +113,10 @@ fn test_negotiator_high_confidence() {
 
 #[test]
 fn test_memory_acl_default_allow() {
+    // M7b #91: M2b ACL 重写后默认策略为 deny-all(可信主体 system/owner/local
+    // 放行 + 其他拒绝)。user1 非可信主体 → 默认 deny。
     let acl = MemoryAcl::new();
-    assert!(acl.check("user1", "mem1", AclPermission::Read));
+    assert!(!acl.check("user1", "mem1", AclPermission::Read));
 }
 
 #[test]
@@ -136,6 +150,9 @@ fn test_auto_promote_l3_to_l4() {
         pinned: false,
         archived: false,
         embedding: vec![],
+        // M7b #91: Memory 新增字段(M2a #28 domain + T-E-A-09 ingest_cost)。
+        domain: "shared".to_string(),
+        ingest_cost: None,
     };
     let result = check_auto_promote(mem.layer, mem.access_count, mem.importance, mem.pinned);
     assert!(result.is_some());
@@ -161,6 +178,9 @@ fn test_auto_promote_pinned_no_promote() {
         pinned: true,
         archived: false,
         embedding: vec![],
+        // M7b #91: Memory 新增字段(M2a #28 domain + T-E-A-09 ingest_cost)。
+        domain: "shared".to_string(),
+        ingest_cost: None,
     };
     assert!(check_auto_promote(mem.layer, mem.access_count, mem.importance, mem.pinned).is_none());
 }
@@ -184,6 +204,9 @@ fn test_auto_promote_l7_no_promote() {
         pinned: false,
         archived: false,
         embedding: vec![],
+        // M7b #91: Memory 新增字段(M2a #28 domain + T-E-A-09 ingest_cost)。
+        domain: "shared".to_string(),
+        ingest_cost: None,
     };
     assert!(check_auto_promote(mem.layer, mem.access_count, mem.importance, mem.pinned).is_none());
 }
@@ -208,6 +231,9 @@ fn test_forgetting_engine_marks_low_importance() {
         pinned: false,
         archived: false,
         embedding: vec![],
+        // M7b #91: Memory 新增字段(M2a #28 domain + T-E-A-09 ingest_cost)。
+        domain: "shared".to_string(),
+        ingest_cost: None,
     };
     let candidates = engine.scan_for_archive(
         vec![(
@@ -242,6 +268,9 @@ fn test_forgetting_engine_pinned_never() {
         pinned: true,
         archived: false,
         embedding: vec![],
+        // M7b #91: Memory 新增字段(M2a #28 domain + T-E-A-09 ingest_cost)。
+        domain: "shared".to_string(),
+        ingest_cost: None,
     };
     let candidates = engine.scan_for_archive(
         vec![(
@@ -276,14 +305,14 @@ fn test_did_document_from_did_key() {
 #[test]
 fn test_crdt_lww_newer_wins() {
     let engine = CrdtEngine::new();
-    let local = nine_snake_lib::sync::crdt::CrdtVersion {
+    let local = nebula_lib::sync::crdt::CrdtVersion {
         memory_id: "m1".to_string(),
         version: 1,
         device_id: "dev-1".to_string(),
         timestamp: 1000,
         field_changes: vec![],
     };
-    let remote = nine_snake_lib::sync::crdt::CrdtVersion {
+    let remote = nebula_lib::sync::crdt::CrdtVersion {
         memory_id: "m1".to_string(),
         version: 2,
         device_id: "dev-2".to_string(),
@@ -312,6 +341,7 @@ fn test_skill_audit_redaction() {
     assert!(!redacted.contains("sk-abc123"));
 }
 
+#[cfg(feature = "channels")]
 #[test]
 fn test_channel_router_register() {
     let router = ChannelRouter::new();
@@ -320,6 +350,7 @@ fn test_channel_router_register() {
     assert_eq!(channels.len(), 1);
 }
 
+#[cfg(feature = "channels")]
 #[test]
 fn test_webchat_service_session() {
     let svc = WebChatService::new();

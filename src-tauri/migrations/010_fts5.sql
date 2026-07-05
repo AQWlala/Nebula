@@ -1,4 +1,4 @@
--- nine-snake v7.0 memory system: FTS5 full-text search fallback
+﻿-- nebula v7.0 memory system: FTS5 full-text search fallback
 --
 -- Per the detailed design document (v7.0 详细设计 v1.0), SQLite FTS5
 -- serves as the primary fallback when LanceDB vector search is

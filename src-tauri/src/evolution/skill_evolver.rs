@@ -1,4 +1,4 @@
-//! SkillAutoEvolver + Skill Archive = "uselessness decay" loop.
+﻿//! SkillAutoEvolver + Skill Archive = "uselessness decay" loop.
 //!
 //! Behaviour:
 //!   * A skill becomes an *archive candidate* when its
@@ -78,7 +78,7 @@ impl SqliteSkillAutoEvolver {
         )?;
         if n > 0 {
             tracing::info!(
-                target: "nine_snake.evolution.skill_evolver",
+                target: "nebula.evolution.skill_evolver",
                 skill_id,
                 reason,
                 "skill restored from archive"
@@ -93,10 +93,10 @@ impl SqliteSkillAutoEvolver {
 impl SkillAutoEvolver for SqliteSkillAutoEvolver {
     fn run_once(&self) -> Result<Vec<ArchiveDecision>> {
         // Pull every active skill via the existing store.
-        // NB: SkillStore::list takes raw (language, tag, limit) — the
-        // ListSkillsRequest DTO is the wire form for the Tauri/gRPC
-        // layer only.  Reuse the store's typed signature here.
-        let skills = self.skills.list(None, None, 1000)?;
+        // NB: SkillStore::list takes raw (language, single_tag, tags, tag_match,
+        // limit) — the ListSkillsRequest DTO is the wire form for the
+        // Tauri/gRPC layer only.  Reuse the store's typed signature here.
+        let skills = self.skills.list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
         let now = chrono::Utc::now().timestamp();
         let mut decisions = Vec::new();
 

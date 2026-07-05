@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0: top-level error boundary.
  *
  * Preact 10 has no built-in componentDidCatch, so we wrap the
@@ -8,6 +8,7 @@
  * failed subtree by bumping a key on `<App />`.
  */
 import { Component, type ComponentChildren } from 'preact';
+import { t } from '../i18n';
 
 interface State {
   err: Error | null;
@@ -20,7 +21,7 @@ interface Props {
   onReload?: () => void;
 }
 
-const STORE_KEY = 'nine-snake.crashlog';
+const STORE_KEY = 'nebula.crashlog';
 
 interface CrashEntry {
   ts: number;
@@ -79,21 +80,62 @@ export class ErrorBoundary extends Component<Props, State> {
     else location.reload();
   };
 
+  exportLog = () => {
+    const err = this.state.err;
+    if (!err) return;
+    const ts = new Date().toISOString();
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
+    const platform = typeof navigator !== 'undefined' ? navigator.platform : 'unknown';
+    const url = typeof location !== 'undefined' ? location.href : 'unknown';
+    const logContent = [
+      '# nebula crash log',
+      '',
+      '## Timestamp',
+      ts,
+      '',
+      '## Error',
+      `Name: ${err.name}`,
+      `Message: ${err.message}`,
+      '',
+      '## Error Stack',
+      err.stack || '(no stack)',
+      '',
+      '## Component Stack',
+      this.state.info || '(no component stack)',
+      '',
+      '## Environment',
+      `User Agent: ${userAgent}`,
+      `Platform: ${platform}`,
+      `URL: ${url}`,
+      '',
+    ].join('\n');
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `nebula-crash-${Date.now()}.log`;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  };
+
   render() {
     if (!this.state.err) return this.props.children;
     return (
       <div class="error-boundary" role="alert">
-        <h1>🐍 Something went sideways</h1>
-        <p>The UI crashed. The full error has been saved to your local crash log.</p>
+        <h1>{t('errorBoundary.title')}</h1>
+        <p>{t('errorBoundary.crash')}</p>
         <pre class="error-message">{this.state.err.message}</pre>
         {this.state.fingerprint && (
-          <p class="error-fingerprint">fingerprint: <code>{this.state.fingerprint}</code></p>
+          <p class="error-fingerprint">{t('errorBoundary.fingerprint')} <code>{this.state.fingerprint}</code></p>
         )}
         <details class="error-details">
-          <summary>Stack</summary>
-          <pre>{this.state.err.stack || '(no stack)'}</pre>
+          <summary>{t('errorBoundary.stack')}</summary>
+          <pre>{this.state.err.stack || t('errorBoundary.noStack')}</pre>
         </details>
-        <button class="primary" onClick={this.reload}>Reload</button>
+        <div class="error-actions">
+          <button class="primary" onClick={this.reload}>{t('errorBoundary.reload')}</button>
+          <button class="secondary" onClick={this.exportLog}>{t('errorBoundary.exportLog')}</button>
+        </div>
       </div>
     );
   }

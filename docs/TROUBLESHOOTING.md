@@ -1,4 +1,4 @@
-﻿# 九头蛇 · 故障排查 (Troubleshooting)
+# Nebula · 故障排查 (Troubleshooting)
 
 > v1.0. 按问题类别组织。
 
@@ -6,10 +6,10 @@
 
 ## 1. 安装
 
-### 1.1 macOS: "九头蛇.app 已损坏，无法打开"
+### 1.1 macOS: "Nebula.app 已损坏，无法打开"
 
 * **原因** — 没有 Apple Developer ID 签名。
-* **解决** — `xattr -dr com.apple.quarantine /Applications/九头蛇.app`。
+* **解决** — `xattr -dr com.apple.quarantine /Applications/Nebula.app`。
   或者右键 → *打开* → *打开*。
 * **长期** — v1.1 我们会上 Apple Developer 账号签名 + notarization。
 
@@ -21,8 +21,8 @@
 ### 1.3 Linux: AppImage 无法执行
 
 ```bash
-chmod +x nine-snake-v1.0.0-x86_64.AppImage
-./nine-snake-v1.0.0-x86_64.AppImage
+chmod +x nebula-v1.0.0-x86_64.AppImage
+./nebula-v1.0.0-x86_64.AppImage
 ```
 
 缺少 fuse：
@@ -38,18 +38,18 @@ sudo apt install libfuse2
 ### 2.1 启动崩溃 / 白屏
 
 1. 看终端 / 控制台：
-   * macOS / Linux: `tail -F ~/Library/Logs/nine-snake/*.log` 或 `~/.local/share/nine-snake/logs/`
+   * macOS / Linux: `tail -F ~/Library/Logs/nebula/*.log` 或 `~/.local/share/nebula/logs/`
    * Windows: 事件查看器 → Applications
-2. 启用 JSON 日志：`NINE_SNAKE_LOG_FORMAT=json NINE_SNAKE_LOG_DIR=./logs ./nine-snake`。
+2. 启用 JSON 日志：`NEBULA_LOG_FORMAT=json NEBULA_LOG_DIR=./logs ./nebula`。
 3. 提交 GitHub issue，附上日志。
 
 ### 2.2 启动慢
 
 * **首次** — 跑迁移 + 写 schema，正常。
-* **后续** — 检查杀毒软件是否在扫描 `nine-snake.exe`。
-* **建议** — 把 `NINE_SNAKE_DB` 放到 SSD。
+* **后续** — 检查杀毒软件是否在扫描 `nebula.exe`。
+* **建议** — 把 `NEBULA_DB` 放到 SSD。
 
-### 2.3 "九头蛇启动失败" 对话框
+### 2.3 "Nebula启动失败" 对话框
 
 * 看对话框里的错误码 + 消息。
 * 常见：
@@ -71,7 +71,7 @@ curl http://127.0.0.1:11434/api/tags
 
 * 报错 `connection refused` → `ollama serve` 没跑。
 * 报错 `timeout` → 防火墙 / VPN / Ollama 端口被改。
-* 远程 URL 需要 token → 在 `NINE_SNAKE_REMOTE_URL` 设置 Bearer。
+* 远程 URL 需要 token → 在 `NEBULA_REMOTE_URL` 设置 Bearer。
 
 ### 3.2 模型下载慢
 
@@ -88,13 +88,13 @@ Ollama 镜像在 `~/.ollama/models/`。改 `OLLAMA_MODELS` 环境变量。
 
 ### 4.1 搜索结果为空
 
-* 确认 LanceDB 路径存在：`ls -la ~/.local/share/nine-snake/lance/`。
+* 确认 LanceDB 路径存在：`ls -la ~/.local/share/nebula/lance/`。
 * 检查嵌入模型是否一致 — 换模型后旧向量会失效。
 
 ### 4.2 内存增长失控
 
-* L0 太多没被压缩 — 调小 `NINE_SNAKE_BH_DAYS`（默认 30）。
-* 反思频率过低 — 调小 `NINE_SNAKE_REFLECT_INTERVAL`（默认 600s）。
+* L0 太多没被压缩 — 调小 `NEBULA_BH_DAYS`（默认 30）。
+* 反思频率过低 — 调小 `NEBULA_REFLECT_INTERVAL`（默认 600s）。
 
 ### 4.3 SQLite locked
 
@@ -102,7 +102,7 @@ Ollama 镜像在 `~/.ollama/models/`。改 `OLLAMA_MODELS` 环境变量。
 
 ```bash
 # macOS / Linux
-fuser nine_snake.db
+fuser nebula.db
 ```
 
 ---
@@ -180,7 +180,7 @@ fuser nine_snake.db
 
 ### 8.3 反思太频繁
 
-调高 `NINE_SNAKE_REFLECT_INTERVAL`。
+调高 `NEBULA_REFLECT_INTERVAL`。
 
 ---
 
@@ -207,11 +207,11 @@ fuser nine_snake.db
 提交 issue 时附：
 
 1. 操作系统 + 版本
-2. 九头蛇版本 (`health` command)
+2. Nebula版本 (`health` command)
 3. `startup_report` 输出
 4. `metrics` 输出
 5. 复现步骤
-6. 日志 (`NINE_SNAKE_LOG_DIR` 下)
+6. 日志 (`NEBULA_LOG_DIR` 下)
 
 ---
 

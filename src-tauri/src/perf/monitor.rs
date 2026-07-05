@@ -1,4 +1,4 @@
-//! v1.0: live performance monitor.
+﻿//! v1.0: live performance monitor.
 //!
 //! [`PerfMonitor`] samples process memory + CPU on a background
 //! tokio task (default 1 Hz).  The latest sample is stored in a
@@ -18,9 +18,6 @@ use std::time::Duration;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
-
-#[cfg(feature = "perf-telemetry")]
-use sysinfo::System;
 
 /// A single point-in-time performance sample.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,53 +119,57 @@ impl Default for PerfMonitor {
 }
 
 async fn run_loop(monitor: PerfMonitor, period: Duration, abort: Arc<Mutex<bool>>) {
-    #[cfg(feature = "perf-telemetry")]
-    let mut sys = System::new_all();
-    #[cfg(feature = "perf-telemetry")]
-    let pid = sysinfo::get_current_pid().ok();
-
     loop {
         if *abort.lock() {
-            debug!(target: "nine_snake.perf", "monitor loop exiting");
+            debug!(target: "nebula.perf", "monitor loop exiting");
             return;
         }
 
-        let sample = take_sample(
-            &monitor,
-            #[cfg(feature = "perf-telemetry")]
-            &mut sys,
-            #[cfg(feature = "perf-telemetry")]
-            pid,
-        );
+        let sample = take_sample(&monitor);
         monitor.record(sample);
 
         tokio::time::sleep(period).await;
     }
 }
 
-#[cfg(feature = "perf-telemetry")]
-fn take_sample(_monitor: &PerfMonitor, sys: &mut System, pid: Option<sysinfo::Pid>) -> PerfSample {
-    if let Some(pid) = pid {
-        sys.refresh_process(pid);
-        if let Some(proc_) = sys.process(pid) {
-            let rss = proc_.memory() * 1024; // sysinfo reports KiB
-            let virt = proc_.virtual_memory() * 1024;
-            let cpu = proc_.cpu_usage();
+/// Windows: use `GetProcessMemoryInfo` (psapi.dll) directly via
+/// `windows-sys` FFI. Avoids pulling in `sysinfo` (which transitively
+/// imports a conflicting `windows` crate version). CPU usage is left
+/// as `None` — acquiring it without sysinfo requires two-sample
+/// `GetProcessTimes` differencing which is overkill for a budget guard.
+#[cfg(all(feature = "perf-telemetry", target_os = "windows"))]
+fn take_sample(_monitor: &PerfMonitor) -> PerfSample {
+    use crate::perf::RSS_BUDGET_BYTES;
+    use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    // SAFETY: `GetCurrentProcess()` 返回一个常量伪句柄(始终有效,无需 close)。
+    // `counters` 是栈上 `mem::zeroed()` 的 `PROCESS_MEMORY_COUNTERS`,其指针与
+    // `cb`(结构体字节数)在调用期间保持有效。`GetProcessMemoryInfo` 仅通过
+    // 提供的指针写入结构体,不读取未初始化内存。返回 0 时表示调用失败,
+    // 我们不读 `counters` 字段直接回退到 `PerfSample::empty()`。
+    unsafe {
+        let mut counters: PROCESS_MEMORY_COUNTERS = std::mem::zeroed();
+        let cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+        if GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, cb) != 0 {
+            let rss = counters.WorkingSetSize as u64;
+            let virt = counters.PagefileUsage as u64;
             return PerfSample {
                 ts_ms: chrono::Utc::now().timestamp_millis(),
                 rss_bytes: Some(rss),
                 virt_bytes: Some(virt),
-                cpu_pct: Some(cpu),
+                cpu_pct: None,
                 over_budget: rss > RSS_BUDGET_BYTES,
             };
         } else {
-            warn!(target: "nine_snake.perf", "sysinfo could not find current process");
+            warn!(target: "nebula.perf", "GetProcessMemoryInfo failed");
         }
     }
     PerfSample::empty()
 }
 
-#[cfg(not(feature = "perf-telemetry"))]
+/// Non-Windows / non-telemetry: return an empty sample.
+#[cfg(not(all(feature = "perf-telemetry", target_os = "windows")))]
 fn take_sample(_monitor: &PerfMonitor) -> PerfSample {
     PerfSample::empty()
 }

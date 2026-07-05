@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in nine-snake
+about: Report a bug in nebula
 title: "[Bug] "
 labels: bug
 ---
@@ -18,7 +18,7 @@ What you expected to happen.
 
 **Environment**
 - OS: [e.g. Windows 11, macOS 14, Ubuntu 24.04]
-- nine-snake version: [e.g. 1.1.7]
+- nebula version: [e.g. 1.1.7]
 - Ollama version (if applicable):
 
 **Logs**

@@ -1,4 +1,4 @@
--- nine-snake v1.3 migration 009 — skill_archive.
+﻿-- nebula v1.3 migration 009 — skill_archive.
 --
 -- `skill_evolver::SqliteSkillAutoEvolver` writes here when a skill
 -- crosses the archive threshold.  Original rows in `skills` are

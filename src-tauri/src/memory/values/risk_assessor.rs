@@ -34,6 +34,18 @@ pub enum ActionKind {
     Execute,
     /// 访问外部网络。
     Network,
+    /// AI 自我修改（写 SOUL.md / EvolutionEngine 写入 L2/L3/L5）。
+    ///
+    /// M5 #69 新增：用于 L4 审批门禁强制 High 风险分级（不可逆、
+    /// 影响系统人格），需用户 diff 确认。`WorkerRiskMap` 强制映射为
+    /// `RiskTier::High`，`RiskAssessor` 兜底返回 `NeedsPlan`。
+    AiSelfModify,
+    /// 远端 LLM 调度（用户输入将发送到远端 provider）。
+    ///
+    /// M5 #71 / P1-15 新增：用于 MasterDecompose（现 MasterTask）
+    /// 隐私提示。`WorkerRiskMap` 强制映射为 `RiskTier::High`，
+    /// 不受 autonomy_level 影响（隐私是硬约束，L5 也要提示）。
+    RemoteLlmDispatch,
     /// 通用/未分类。
     Generic,
 }
@@ -147,6 +159,20 @@ impl RiskAssessor {
                 level: RiskLevel::NeedsConfirm,
                 reason: "访问外部网络，需确认".to_string(),
                 score: 0.45,
+            },
+            // M5 #69: AI 自我修改 — 强制 NeedsPlan + 0.9 分（高风险）
+            // WorkerRiskMap 会基于 0.9 分强制映射为 RiskTier::High
+            AiSelfModify => RiskVerdict {
+                level: RiskLevel::NeedsPlan,
+                reason: "AI 自我修改（SOUL/进化），必须 L4 审批 + 用户 diff 确认".to_string(),
+                score: 0.9,
+            },
+            // M5 #71 / P1-15: 远端 LLM 调度 — 强制 NeedsPlan + 0.85 分（高隐私风险）
+            // WorkerRiskMap 会强制映射为 RiskTier::High（不受 autonomy 影响）
+            RemoteLlmDispatch => RiskVerdict {
+                level: RiskLevel::NeedsPlan,
+                reason: "用户输入将发送到远端 LLM provider，需隐私确认".to_string(),
+                score: 0.85,
             },
         }
     }

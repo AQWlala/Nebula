@@ -1,2 +1,6 @@
-﻿[target.x86_64-pc-windows-msvc]
-linker = "rust-lld"
+# 之前使用 `linker = "rust-lld"` 会导致测试二进制启动时
+# STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139):rust-lld 对 windows
+# crate 的 import library 处理与 MSVC link.exe 不一致,部分
+# DLL 导出符号解析失败。改用默认 MSVC link.exe 解决。
+# [target.x86_64-pc-windows-msvc]
+# linker = "rust-lld"

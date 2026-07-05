@@ -138,7 +138,7 @@ impl MemoryVersionControl {
         )
         .map_err(|e| anyhow!("create_branch insert error: {e}"))?;
 
-        debug!(target: "nine_snake.vc", branch = name, "branch created");
+        debug!(target: "nebula.vc", branch = name, "branch created");
         Ok(MemoryBranch {
             name: name.to_string(),
             head_commit_id: head,
@@ -163,7 +163,7 @@ impl MemoryVersionControl {
         if affected == 0 {
             anyhow::bail!("branch not found: {}", branch_name);
         }
-        debug!(target: "nine_snake.vc", branch = branch_name, "checked out");
+        debug!(target: "nebula.vc", branch = branch_name, "checked out");
         Ok(())
     }
 
@@ -230,7 +230,7 @@ impl MemoryVersionControl {
         )
         .map_err(|e| anyhow!("commit update head error: {e}"))?;
 
-        debug!(target: "nine_snake.vc", commit = %commit_id, branch = %branch_name, action, "committed");
+        debug!(target: "nebula.vc", commit = %commit_id, branch = %branch_name, action, "committed");
         Ok(commit_id)
     }
 
@@ -316,7 +316,7 @@ impl MemoryVersionControl {
                 current = rec.parent_id.clone();
                 commits.push(rec);
             } else {
-                warn!(target: "nine_snake.vc", commit = %cid, "commit not found in diff traversal");
+                warn!(target: "nebula.vc", commit = %cid, "commit not found in diff traversal");
                 break;
             }
         }
@@ -347,7 +347,7 @@ impl MemoryVersionControl {
             author,
             &format!("revert: {}", message),
         )?;
-        debug!(target: "nine_snake.vc", revert = %revert_id, target = %target_commit_id, "revert committed");
+        debug!(target: "nebula.vc", revert = %revert_id, target = %target_commit_id, "revert committed");
         Ok(revert_id)
     }
 
@@ -425,7 +425,7 @@ impl MemoryVersionControl {
             )?;
         }
 
-        debug!(target: "nine_snake.vc", source = source_branch, target = %target_branch, merged = merged_ids.len(), "merge completed");
+        debug!(target: "nebula.vc", source = source_branch, target = %target_branch, merged = merged_ids.len(), "merge completed");
         Ok(merged_ids)
     }
 }
@@ -434,12 +434,17 @@ impl MemoryVersionControl {
 mod tests {
     use super::*;
 
-    fn temp_db_path() -> String {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        format!("file:vc_test_{}?mode=memory&cache=shared", nanos)
+    // M7b #90 分类 C:原实现返回 `file:vc_test_<nanos>?mode=memory&cache=shared`
+    // URI 字符串,但 `SqliteStore::open()` 用的是 `Connection::open(path)`(非 URI
+    // 模式)。Windows 文件名不能含 `?`,导致 SqliteStore::open 失败。改用 sqlite_store.rs
+    // 测试模式:真实临时文件 + UUID,每个测试独立 DB 文件。
+    fn temp_db_path() -> std::path::PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "nebula_vc_test_{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        p
     }
 
     fn setup() -> MemoryVersionControl {
@@ -518,7 +523,10 @@ mod tests {
     fn log_returns_commits_in_desc_order() {
         let vc = setup();
         vc.commit("store", "mem-1", &serde_json::json!({}), "test", "first").unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        // M7b #90 分类 A: commit 用 chrono::Utc::now().timestamp()(秒级精度),
+        // log 用 ORDER BY created_at DESC。10ms 间隔可能落在同一秒,导致排序
+        // 不稳定。sleep(1100ms) 确保时间戳严格递增,测试不再 flaky。
+        std::thread::sleep(std::time::Duration::from_millis(1100));
         vc.commit("store", "mem-2", &serde_json::json!({}), "test", "second").unwrap();
 
         let logs = vc.log(10).unwrap();
@@ -545,6 +553,9 @@ mod tests {
     fn revert_creates_revert_commit() {
         let vc = setup();
         let c1 = vc.commit("store", "mem-1", &serde_json::json!({}), "test", "original").unwrap();
+        // M7b #90 分类 A: commit 和 revert 同秒会导致 log ORDER BY 不稳定。
+        // sleep(1100ms) 确保 revert 的时间戳严格大于 c1。
+        std::thread::sleep(std::time::Duration::from_millis(1100));
         let revert_id = vc.revert(&c1, "user", "mistake").unwrap();
 
         let logs = vc.log(10).unwrap();

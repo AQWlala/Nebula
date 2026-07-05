@@ -1,22 +1,30 @@
 [package]
-name = "nine-snake"
-version = "1.1.10"
-description = "A local-first AI assistant that grows with you"
-authors = ["nine-snake team"]
+name = "nebula"
+version = "2.0.0"
+description = "Nebula — A local-first AI assistant that evolves with your knowledge"
+authors = ["nebula team"]
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"
-repository = "https://github.com/AQWlala/nine-snake"
-homepage = "https://nine-snake.app"
+repository = "https://github.com/AQWlala/nebula"
+homepage = "https://nebula-ai.app"
 
 [lib]
-name = "nine_snake_lib"
+name = "nebula_lib"
 crate-type = ["cdylib", "rlib"]
+
+# T-S2-B-01: sidecar 二进制依赖 tonic(gRPC feature),只有在 `grpc`
+# feature 开启时才能编译。`required-features` 让 `cargo check`(默认
+# feature off)跳过此 target,避免 "unresolved crate tonic" 编译错误。
+[[bin]]
+name = "sidecar"
+path = "src/bin/sidecar.rs"
+required-features = ["grpc"]
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 # v0.3: tonic-build generates Rust types + service traits from
-# `proto/nine_snake.proto`. Pinned to 0.12 to match the runtime dep.
+# `proto/nebula.proto`. Pinned to 0.12 to match the runtime dep.
 # Marked optional so the minimal build (`--no-default-features`)
 # doesn't compile it (and its heavy transitive dep graph). The
 # `[features].grpc` list below uses `dep:tonic-build` to enable it
@@ -59,6 +67,8 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 async-trait = "0.1"
 parking_lot = "0.12"
+# T-S2-B-01: sidecar binary CLI parsing.
+clap = { version = "4.6", features = ["derive"] }
 # v1.0.1 P0#5: cancellation tokens for the reflection worker.
 tokio-util = "0.7"
 # v1.0.1 P0#12: OS keychain (macOS Keychain / Windows Credential
@@ -75,11 +85,15 @@ once_cell = "1.19"
 regex = "1.10"
 url = "2.5"
 lru = "0.12"
+# v3.1 ADR-002: DAG dependency management for MasterOrchestrator.
+# default-features = false to skip unnecessary quickcheck/serde deps.
+petgraph = { version = "0.6", default-features = false }
 futures = "0.3"
 async-stream = "0.3"
 # v0.3: gRPC stack. Gated behind the `grpc` feature (on by default).
 # The minimal build (`--no-default-features`) skips all of these.
 tonic = { version = "0.12", features = ["transport", "server", "prost"], optional = true }
+tonic-health = { version = "0.12", optional = true }
 prost = { version = "0.13", optional = true }
 prost-types = { version = "0.13", optional = true }
 tower = { version = "0.5", optional = true }
@@ -105,9 +119,10 @@ sha2 = "0.10"
 rand = "0.8"
 base64 = "0.22"
 bs58 = "0.5"
-# wasmtime is very heavy; only enable when network is available to download deps.
-# Uncomment the line below and run `cargo check --features wasm-sandbox` to verify.
-# wasmtime = { version = "24", default-features = false, features = ["cranelift"], optional = true }
+# T-S2-A-01a: wasmtime 24.x with MSVC toolchain (T-S1-PRE-05 fixed the MinGW issue).
+wasmtime = { version = "24", optional = true }
+# T-S2-A-01c: WASI preview2 support for WASM sandbox
+wasmtime-wasi = { version = "24", optional = true }
 # v0.5: cross-platform clipboard.
 arboard = "3.3"
 # v1.0: process / memory telemetry for the perf module.  Pulled
@@ -117,7 +132,14 @@ arboard = "3.3"
 # feature set.  Keep `default-features = false` to slim the binary
 # (drops `apple-app-store` / `unknown-ci` / etc.) and explicitly
 # enable the system-information bits we actually need.
-sysinfo = { version = "0.30", default-features = false, features = ["serde", "multithread"] }
+# v1.0.2: upgraded 0.30 → 0.39 to align the transitive `windows` crate
+# with tauri's `windows = "0.61"` — having both 0.52 (via sysinfo 0.30)
+# and 0.61 (via tauri) linked into the test binary caused
+# STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139) at launch.
+# v1.0.3: removed sysinfo entirely — sysinfo 0.39.5 pulls in
+# `windows v0.62.2`, conflicting with tauri's `windows v0.61.3` and
+# re-triggering STATUS_ENTRYPOINT_NOT_FOUND. Replaced with direct
+# `windows-sys` calls (GetProcessMemoryInfo) in perf/monitor.rs.
 # v1.0 (P0#5): secure temporary file handles for the skill
 # executor's sandboxed Python subprocess.  Using
 # `NamedTempFile` (not the predictable `std::env::temp_dir()`
@@ -126,23 +148,41 @@ sysinfo = { version = "0.30", default-features = false, features = ["serde", "mu
 tempfile = "3.0"
 serde_yaml = "0.9"
 getrandom = "0.2"
+# T-E-B-12: PDF/DOCX 文档文本提取(纯 Rust,无系统依赖)。
+pdf-extract = "0.7"
+docx-rs = "0.4"
+# T-E-S-33: OpenAPI spec 解析(OpenApiToolServer)。feature `openapi` 默认关闭。
+# `openapiv3` 提供 spec 3.0/3.1 数据结构;`serde_yaml` 已是非 optional 依赖(skills/wiki 使用),
+# 因此无需重复 optional 声明。
+openapiv3 = { version = "2", optional = true }
+# T-E-C-02: ScreenReader 截图理解 — screenshots 捕获屏幕,image 编码 PNG。
+# 用 feature gate(默认关闭),base64 已是非 optional 依赖(0.22)无需重复声明。
+screenshots = { version = "0.8", optional = true }
+image = { version = "0.25", optional = true }
 
 
 # v1.1-fix: bytes + http-body + http-body-util are required by
 # `grpc/server.rs` (BoxBody / Frame / Poll plumbing for the HTTP/2 + tonic
 # 0.12 wire shim). Declared as optional deps behind the `grpc` feature.
-bytes = { version = "1.6", optional = true }
+# T-E-S-44: bytes 改为非 optional — reqwest 已传递依赖 bytes,且 StorageBackend
+# trait 的流式接口需要 bytes::Bytes。不引入新代码(零新依赖原则 preserved)。
+bytes = { version = "1.6" }
 http-body = { version = "1.0", optional = true }
 http-body-util = { version = "0.1", optional = true }
+# T-E-S-44: S3 存储后端(optional,feature storage-s3 默认关闭)。
+aws-sdk-s3 = { version = "1.0", optional = true }
 
 # v1.8: Prometheus metrics + OpenTelemetry tracing (observability).
 # Standard crates, not hand-rolled — per v7.0 design spec.
+# T-E-S-29: 4 个 OTel 依赖改 optional,由 `otel` feature 启用。
+# 默认构建(--no-default-features 或不带 --features otel)不编译 OTel
+# exporter,tracing 仅用 fmt layer。
 prometheus = "0.13"
 axum = "0.7"
-opentelemetry = { version = "0.24", default-features = false, features = ["trace"] }
-opentelemetry_sdk = { version = "0.24", default-features = false, features = ["trace", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.17", default-features = false, features = ["trace", "grpc-tonic"] }
-tracing-opentelemetry = { version = "0.25", default-features = false }
+opentelemetry = { version = "0.24", default-features = false, features = ["trace"], optional = true }
+opentelemetry_sdk = { version = "0.24", default-features = false, features = ["trace", "rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.17", default-features = false, features = ["trace", "grpc-tonic"], optional = true }
+tracing-opentelemetry = { version = "0.25", default-features = false, optional = true }
 
 # Target-specific keychain backends.  Each platform enables only
 # the backend it can actually link against.
@@ -150,6 +190,23 @@ tracing-opentelemetry = { version = "0.25", default-features = false }
 keyring = { version = "3", features = ["apple-native"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
+# T-S6-A-01a: OS-Controller Windows — UIAutomation / Win32 API 调用。
+# 使用 `windows-sys`(纯 FFI bindings)而非 `windows` crate,后者会拉入
+# 运行时 COM 投影代码导致测试二进制 STATUS_ENTRYPOINT_NOT_FOUND。
+# `windows-sys` 与 tauri 拉入的 `windows = "0.61"` 独立,不冲突。
+windows-sys = { version = "0.61", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+    "Win32_System_Console",
+    # T-E-D-06: Windows 右键菜单注册表读写(HKCU\Software\Classes\*\shell\AskNebula)。
+    "Win32_System_Registry",
+    # T-E-S-55: 条件监控 Watch — GlobalMemoryStatusEx / GetSystemTimes / MEMORYSTATUSEX。
+    "Win32_System_SystemInformation",
+    # T-E-S-55: 条件监控 Watch — GetDiskFreeSpaceExW(磁盘剩余空间百分比)。
+    "Win32_Storage_FileSystem",
+] }
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["sync-secret-service", "vendored"] }
 
@@ -165,6 +222,12 @@ harness = false
 name = "memory"
 harness = false
 
+# M7b #93: ADR-003 性能回归基准(dispatch 延迟 + 流式延迟 + 并发限流)
+[[bench]]
+name = "dispatcher"
+harness = false
+required-features = ["unified-dispatcher"]
+
 [features]
 # v0.3: gRPC + vector-store are on by default. Build with
 # `--no-default-features` to strip both: the gRPC server, the tonic
@@ -172,8 +235,12 @@ harness = false
 # feature has its own in-memory fallback so the rest of the system
 # keeps working (vector search becomes a linear in-RAM cosine scan).
 default = ["vector-store"]
+# T-E-C-20: headless Docker mode — gRPC + REST API, no Tauri window.
+# Usage: cargo build --features headless --no-default-features
+headless = ["grpc", "rest-api"]
 grpc = [
   "dep:tonic",
+  "dep:tonic-health",
   "dep:tonic-build",
   "dep:prost",
   "dep:prost-types",
@@ -182,7 +249,15 @@ grpc = [
   "dep:hyper-util",
   "dep:futures-util",
   "dep:futures-core",
-  "dep:bytes",
+  "dep:http-body",
+  "dep:http-body-util",
+]
+# T-S2-B-03a: REST API 与 gRPC 解耦 — 独立 feature，默认关闭。
+# 启用方式：cargo build --features rest-api
+# 共享 hyper/hyper-util/http-body/http-body-util 4 个依赖(bytes 已非 optional)。
+rest-api = [
+  "dep:hyper",
+  "dep:hyper-util",
   "dep:http-body",
   "dep:http-body-util",
 ]
@@ -197,19 +272,72 @@ perf-telemetry = []
 # never mutates runtime behaviour when disabled — every mutator /
 # evolver reads `evolution_enabled()` first.
 self-evolution = []
-# wasm-sandbox feature is experimental — requires the wasmtime crate.
-# Enable when network is available to download deps:
-# 1. Uncomment the wasmtime dep above
-# 2. Run: cargo check --features wasm-sandbox
-wasm-sandbox = [] # experimental: not production-ready
+# v3.1 ADR-004: Feature flags for swarm evolution v2.0.
+# All default off; enable individually with --features <flag>.
+# Each flag gates compilation (#[cfg(feature = ...)]) AND has a
+# runtime master switch (env var) for zero-recompile toggling.
+# Soul system (M1-M2): SOUL.md + SoulCompiler + injection scan
+# Implies unified-dispatcher (SoulCompiler 通过 dispatch(WorkType::SoulCompile) 调用 LLM)
+soul-system = ["unified-dispatcher"]
+# MasterOrchestrator + DAG (M3): MasterAgent + TaskDag + petgraph
+# Implies unified-dispatcher (MasterAgent 通过 dispatch(WorkType::MasterDecompose) 调用 LLM)
+master-orchestrator = ["unified-dispatcher"]
+# EvolutionEngine (M4-M5): 4-Phase evolution pipeline
+# Implies self-evolution (existing evolution/ modules)
+# Implies unified-dispatcher (EvolutionEngine 通过 dispatch(WorkType::Evolution) 调用 LLM)
+evolution-engine = ["self-evolution", "unified-dispatcher"]
+# UnifiedModelDispatcher (ADR-003): unified model dispatch layer
+unified-dispatcher = []
+# T-S2-A-01a: WASM sandbox — wasmtime 24.x with MSVC toolchain.
+wasm-sandbox = ["wasmtime", "wasmtime-wasi"]
 # v1.3: MCP protocol client. Off by default.
 mcp = []
 # v1.3: native channel adapters (Telegram/Discord). Off by default.
 channels = []
-# v1.3: DID identity module. Off by default.
-did-identity = []
-# v1.3: CRDT sync conflict resolution. Off by default.
-crdt-sync = []
+# T-S2-C-01: did-identity and crdt-sync features removed — they had
+# zero #[cfg(feature = ...)] matches in the codebase. The `identity`
+# and `sync` modules are always compiled (no feature gate needed).
+# T-S2-B-01: JSON framing fallback for gRPC — uses hand-rolled hyper
+# shim instead of tonic. Only effective when `grpc` is also enabled.
+json-framing = []
+# T-E-S-42: VectorStore trait 后端开关(默认关闭)。开启时编译对应
+# REST 客户端骨架(Qdrant /api/v1, Chroma /api/v1),用已有 reqwest
+# 走 HTTP,不引入 qdrant-client / chromadb crate(零新依赖)。
+# 启用方式:cargo build --features qdrant 或 --features chroma
+qdrant = []
+chroma = []
+# T-E-S-44: 存储后端 feature 矩阵。
+# - storage-s3:S3 后端,启用 aws-sdk-s3 optional dep,默认关闭。
+# - storage-webdav:WebDAV 后端,零新依赖(reqwest 已有),默认编译 stub。
+storage-s3 = ["dep:aws-sdk-s3"]
+storage-webdav = []
+# T-E-S-29: OpenTelemetry 原生集成(OTLP gRPC 导出)。
+# 启用方式:cargo build --features otel
+# 4 个 OTel 依赖(opentelemetry / opentelemetry_sdk / opentelemetry-otlp /
+# tracing-opentelemetry)仅在 otel feature on 时编译。
+# observability/otel.rs 与 commands/observability.rs 的真实分支均由 cfg gate。
+otel = [
+  "dep:opentelemetry",
+  "dep:opentelemetry_sdk",
+  "dep:opentelemetry-otlp",
+  "dep:tracing-opentelemetry",
+]
+# T-E-S-43: SQLite 加密(SQLCipher)。
+# 启用方式:cargo build --features sqlcipher
+# 通过 rusqlite/bundled-sqlcipher-vendored-openssl feature 启用,
+# 编译 vendored OpenSSL + SQLCipher(无系统依赖)。
+# sqlite_store::open_encrypted / sqlite_cipher 模块由 cfg gate。
+sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+# T-E-C-02: ScreenReader 截图理解 — screenshots + image 编译为 optional,
+# 默认关闭。启用方式:cargo build --features vision。
+# base64 已是非 optional 依赖(0.22),无需重复声明。
+# screenshot 命令在 cfg(not(feature = "vision")) 时返回错误信息。
+vision = ["dep:screenshots", "dep:image"]
+# T-E-S-33: OpenAPI 工具服务器 — openapiv3 编译为 optional,默认关闭。
+# 启用方式:cargo build --features openapi
+# serde_yaml 已是非 optional 依赖(skills/wiki 已使用),不重复声明。
+# OpenApiToolServer / OpenApiToolAdapter / commands::openapi 由 cfg gate。
+openapi = ["dep:openapiv3"]
 
 [profile.release]
 # v1.0: minimum-size release build.

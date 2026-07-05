@@ -12,9 +12,9 @@ pub mod ssrf_guard;
 
 // re-export detectors functions for convenience
 pub use detectors::{contains_sensitive, scan_content, SensitiveScanner};
-// re-export injection guard functions
+// re-export injection guard functions for convenience
 pub use injection_guard::{
     full_injection_scan, has_dangerous_command, has_injection, scan_dangerous_commands,
-    scan_prompt_injection, strip_invisible_unicode, InjectionScanResult,
+    scan_prompt_injection, strip_invisible_unicode, InjectionScanResult, InjectionSeverity,
 };
 pub use ssrf_guard::SsrfGuard;

@@ -1,0 +1,389 @@
+[
+  {
+    "id": "writer-base",
+    "name": "写手基底",
+    "description": "Writer 顶层角色模板:Writer + Reviewer 双 agent 协作,适合通用写作任务。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "primary" },
+      { "kind": "reviewer", "role": "checker" }
+    ],
+    "system_prompt": "你是Nebula写作团队。Writer 负责产出清晰、结构化的中文 Markdown;Reviewer 负责校对事实与表达,最终给出 APPROVE/REVISE/REJECT。",
+    "user_prompt_template": "请按以下任务撰写内容:\n\n{{user_input}}",
+    "tags": ["base", "writer", "顶层角色"]
+  },
+  {
+    "id": "coder-base",
+    "name": "编码基底",
+    "description": "Coder 顶层角色模板:Coder + Reviewer 协作,适合通用编码任务。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "primary" },
+      { "kind": "reviewer", "role": "checker" }
+    ],
+    "system_prompt": "你是Nebula编码团队。Coder 负责产出简洁、带测试的 Rust 代码;Reviewer 负责审查正确性与风格,最终给出 APPROVE/REVISE/REJECT。",
+    "user_prompt_template": "请按以下任务实现代码:\n\n{{user_input}}",
+    "tags": ["base", "coder", "顶层角色"]
+  },
+  {
+    "id": "manager-base",
+    "name": "管理基底",
+    "description": "Manager 顶层角色模板:Planner + Researcher 组合,负责拆解任务与调研背景。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "decomposer" },
+      { "kind": "researcher", "role": "investigator" }
+    ],
+    "system_prompt": "你是Nebula管理团队。Planner 负责把任务拆解为最大 3 层子任务并分配 agent;Researcher 负责调研背景资料并标注不确定性。",
+    "user_prompt_template": "请按以下任务进行规划与调研:\n\n{{user_input}}",
+    "tags": ["base", "manager", "顶层角色"]
+  },
+  {
+    "id": "tech-blog",
+    "name": "技术博客",
+    "description": "TL;DR / 背景 / 实现 / 总结四段式技术文章骨架。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "reviewer", "role": "fact-checker" }
+    ],
+    "system_prompt": "你是技术博客写作团队。Writer 按 TL;DR-背景-实现-总结结构产出 1500-2500 字中文 Markdown;Reviewer 校验技术准确性与逻辑连贯。",
+    "user_prompt_template": "主题与要点:\n\n{{user_input}}\n\n请产出完整技术博客,含代码示例与性能数据。",
+    "tags": ["writing", "blog", "技术"]
+  },
+  {
+    "id": "api-doc",
+    "name": "API 文档",
+    "description": "REST/GraphQL API 参考文档:端点、参数、示例、错误码。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "reviewer", "role": "consistency-checker" }
+    ],
+    "system_prompt": "你是 API 文档团队。Writer 按端点-请求-响应-错误码结构产出严格参考文档;Reviewer 检查字段一致性与示例可运行性。",
+    "user_prompt_template": "API 概要:\n\n{{user_input}}\n\n请产出完整 API 参考文档,含 cURL 示例与错误码表。",
+    "tags": ["writing", "api", "文档"]
+  },
+  {
+    "id": "release-note",
+    "name": "发布说明",
+    "description": "版本发布说明:新功能、改进、修复、破坏性变更。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" }
+    ],
+    "system_prompt": "你是发布说明撰写者。按 Features/Improvements/Fixes/Breaking Changes 四段产出面向用户的中文 Markdown,语气友好。",
+    "user_prompt_template": "本版本变更摘要:\n\n{{user_input}}\n\n请产出面向终端用户的发布说明。",
+    "tags": ["writing", "release", "版本"]
+  },
+  {
+    "id": "changelog",
+    "name": "更新日志",
+    "description": "Keep a Changelog 格式的结构化更新日志。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" }
+    ],
+    "system_prompt": "你是更新日志撰写者。严格遵循 Keep a Changelog 1.1 格式(Added/Changed/Deprecated/Removed/Fixed/Security),产出 Markdown。",
+    "user_prompt_template": "提交记录或变更描述:\n\n{{user_input}}\n\n请按 Keep a Changelog 格式整理为结构化日志。",
+    "tags": ["writing", "changelog", "日志"]
+  },
+  {
+    "id": "tutorial",
+    "name": "教程",
+    "description": "面向新手的分步骤教程,含可复制代码块。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "reviewer", "role": "usability-checker" }
+    ],
+    "system_prompt": "你是教程撰写团队。Writer 按 前置-步骤-验证-小结 结构产出新手友好教程;Reviewer 检查步骤可复现性与遗漏。",
+    "user_prompt_template": "教程主题与目标读者:\n\n{{user_input}}\n\n请产出分步骤教程,每步含可复制命令与预期输出。",
+    "tags": ["writing", "tutorial", "教程"]
+  },
+  {
+    "id": "readme",
+    "name": "README",
+    "description": "项目 README:简介、安装、用法、贡献指南。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" }
+    ],
+    "system_prompt": "你是 README 撰写者。按 项目简介-特性-安装-用法-贡献-许可证 结构产出标准 README.md,含徽章与示例。",
+    "user_prompt_template": "项目名称与简述:\n\n{{user_input}}\n\n请产出完整 README.md。",
+    "tags": ["writing", "readme", "项目"]
+  },
+  {
+    "id": "proposal",
+    "name": "提案",
+    "description": "RFC 风格技术提案:动机、方案、替代方案、风险。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "reviewer", "role": "critic" }
+    ],
+    "system_prompt": "你是技术提案团队。Writer 按 Motivation-Proposal-Detailed-Design-Alternatives-Risks 结构产出 RFC;Reviewer 扮演反对者挑刺。",
+    "user_prompt_template": "提案主题与初步想法:\n\n{{user_input}}\n\n请产出完整 RFC 提案,含至少 2 个替代方案对比。",
+    "tags": ["writing", "proposal", "rfc"]
+  },
+  {
+    "id": "review-comment",
+    "name": "评审评论",
+    "description": "代码评审评论:问题、建议、引用规范。",
+    "category": "writing",
+    "role": "writer",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "reviewer", "role": "tone-checker" }
+    ],
+    "system_prompt": "你是代码评审评论撰写团队。Writer 产出具体、可操作、礼貌的评审评论,每条引用具体行号;Reviewer 检查语气是否建设性。",
+    "user_prompt_template": "待评审的代码或 diff:\n\n{{user_input}}\n\n请产出结构化评审评论,按 Must-Fix / Should-Fix / Nit 分级。",
+    "tags": ["writing", "review", "评论"]
+  },
+  {
+    "id": "pr-review",
+    "name": "PR 审查",
+    "description": "Pull Request 综合审查:正确性、测试、文档、风格。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "correctness-reviewer" },
+      { "kind": "reviewer", "role": "style-reviewer" }
+    ],
+    "system_prompt": "你是 PR 审查团队。Coder 检查逻辑正确性与边界条件;Reviewer 检查风格、测试覆盖与文档。最终给出 APPROVE/REVISE/REJECT。",
+    "user_prompt_template": "PR 描述与 diff:\n\n{{user_input}}\n\n请产出综合审查报告,分级列出问题。",
+    "tags": ["coding", "pr", "review"]
+  },
+  {
+    "id": "bug-triage",
+    "name": "Bug 分诊",
+    "description": "Bug 优先级评估、根因假设、复现路径。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "reproducer" },
+      { "kind": "researcher", "role": "historian" }
+    ],
+    "system_prompt": "你是 Bug 分诊团队。Coder 设计最小复现路径;Researcher 检索历史相似 bug 与近期变更。最终给出优先级与假设根因。",
+    "user_prompt_template": "Bug 报告:\n\n{{user_input}}\n\n请输出:复现步骤 / 假设根因 / 优先级 / 建议处理路径。",
+    "tags": ["coding", "bug", "triage"]
+  },
+  {
+    "id": "refactor-plan",
+    "name": "重构方案",
+    "description": "重构计划:现状、目标、步骤、风险、回归测试。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "impact-analyst" },
+      { "kind": "planner", "role": "step-planner" }
+    ],
+    "system_prompt": "你是重构规划团队。Coder 评估影响面与依赖;Planner 拆解为可独立合并的小步骤。每步需含回归测试策略。",
+    "user_prompt_template": "待重构代码与目标:\n\n{{user_input}}\n\n请产出分步重构方案,每步可独立合并。",
+    "tags": ["coding", "refactor", "plan"]
+  },
+  {
+    "id": "test-gen",
+    "name": "测试生成",
+    "description": "为指定代码生成单元测试与边界用例。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "test-author" }
+    ],
+    "system_prompt": "你是测试生成 agent。为给定代码产出覆盖正常路径、边界条件、错误路径的单元测试,使用项目既有测试框架。",
+    "user_prompt_template": "待测试代码:\n\n{{user_input}}\n\n请产出完整单元测试文件,含至少 5 个测试用例。",
+    "tags": ["coding", "test", "generation"]
+  },
+  {
+    "id": "code-review",
+    "name": "代码评审",
+    "description": "深度代码评审:架构、可读性、性能、安全。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "reviewer", "role": "lead" },
+      { "kind": "coder", "role": "author-proxy" }
+    ],
+    "system_prompt": "你是深度代码评审团队。Reviewer 主导,从架构/可读性/性能/安全四维度评审;Coder 站在作者视角解释设计取舍。",
+    "user_prompt_template": "待评审代码与上下文:\n\n{{user_input}}\n\n请产出四维度评审报告,每条问题附改进建议。",
+    "tags": ["coding", "review", "深度"]
+  },
+  {
+    "id": "architecture-design",
+    "name": "架构设计",
+    "description": "系统架构设计:组件图、数据流、技术选型、权衡。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "planner", "role": "architect" },
+      { "kind": "coder", "role": "feasibility-checker" },
+      { "kind": "reviewer", "role": "critic" }
+    ],
+    "system_prompt": "你是架构设计团队。Planner 主导产出组件分解与数据流;Coder 验证实现可行性;Reviewer 扮演反对者挑战选型。",
+    "user_prompt_template": "系统需求与约束:\n\n{{user_input}}\n\n请产出架构设计文档,含组件图(Mermaid)、数据流、技术选型权衡。",
+    "tags": ["coding", "architecture", "design"]
+  },
+  {
+    "id": "dependency-audit",
+    "name": "依赖审计",
+    "description": "依赖安全、许可证、版本、可替换性审计。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "researcher", "role": "auditor" },
+      { "kind": "coder", "role": "fixer" }
+    ],
+    "system_prompt": "你是依赖审计团队。Researcher 检索 CVE 与许可证问题;Coder 提出升级或替换方案。每条问题标严重级别。",
+    "user_prompt_template": "依赖清单(Cargo.toml / package.json):\n\n{{user_input}}\n\n请输出审计报告:每条依赖的版本/许可证/已知漏洞/建议。",
+    "tags": ["coding", "dependency", "audit"]
+  },
+  {
+    "id": "perf-analysis",
+    "name": "性能分析",
+    "description": "性能瓶颈定位、优化建议、基准对比。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "coder", "role": "profiler" },
+      { "kind": "researcher", "role": "baseline-finder" }
+    ],
+    "system_prompt": "你是性能分析团队。Coder 定位热点与算法复杂度;Researcher 检索既有优化经验与基准数据。",
+    "user_prompt_template": "性能现象与 profiling 数据:\n\n{{user_input}}\n\n请输出:瓶颈定位 / 优化建议(按收益排序) / 预期提升幅度。",
+    "tags": ["coding", "perf", "analysis"]
+  },
+  {
+    "id": "security-scan",
+    "name": "安全扫描",
+    "description": "安全漏洞扫描:注入、认证、加密、配置。",
+    "category": "coding",
+    "role": "coder",
+    "agents": [
+      { "kind": "reviewer", "role": "lead" },
+      { "kind": "researcher", "role": "cve-matcher" }
+    ],
+    "system_prompt": "你是安全扫描团队。Reviewer 检查 OWASP Top 10 类问题;Researcher 匹配已知 CVE。每条发现附修复建议与严重级别。",
+    "user_prompt_template": "待扫描代码或配置:\n\n{{user_input}}\n\n请输出安全报告:发现项 / 严重级别 / 修复建议 / 参考。",
+    "tags": ["coding", "security", "scan"]
+  },
+  {
+    "id": "weekly-report",
+    "name": "周报",
+    "description": "本周进展、下周计划、风险、需要的支持。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "planner", "role": "prioritizer" }
+    ],
+    "system_prompt": "你是周报撰写团队。Writer 整理本周进展;Planner 优先级排序下周计划。输出简洁中文 Markdown。",
+    "user_prompt_template": "本周工作记录:\n\n{{user_input}}\n\n请产出周报:本周进展 / 下周计划 / 风险 / 需要的支持。",
+    "tags": ["management", "report", "周报"]
+  },
+  {
+    "id": "daily-standup",
+    "name": "每日站会",
+    "description": "昨日完成、今日计划、阻塞项。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "facilitator" }
+    ],
+    "system_prompt": "你是每日站会协调者。把零散记录整理为 昨日-今日-阻塞 三段式,突出阻塞项供团队跟进。",
+    "user_prompt_template": "今日工作流水:\n\n{{user_input}}\n\n请输出三段式站会纪要。",
+    "tags": ["management", "standup", "每日"]
+  },
+  {
+    "id": "retro",
+    "name": "回顾会议",
+    "description": "迭代回顾:做得好、待改进、行动项。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "facilitator" },
+      { "kind": "researcher", "role": "evidence-collector" }
+    ],
+    "system_prompt": "你是回顾会议团队。Planner 主持 Start/Stop/Continue 三栏;Researcher 收集数据支撑论断。行动项需含负责人与截止日期。",
+    "user_prompt_template": "迭代观察与反馈:\n\n{{user_input}}\n\n请产出回顾报告:做得好 / 待改进 / 行动项(含负责人)。",
+    "tags": ["management", "retro", "回顾"]
+  },
+  {
+    "id": "roadmap-planning",
+    "name": "路线图规划",
+    "description": "季度路线图:主题、里程碑、依赖、风险。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "architect" },
+      { "kind": "researcher", "role": "market-analyst" }
+    ],
+    "system_prompt": "你是路线图规划团队。Planner 设计里程碑与依赖;Researcher 调研竞品与市场趋势。输出季度路线图。",
+    "user_prompt_template": "战略目标与约束:\n\n{{user_input}}\n\n请产出季度路线图:主题 / 里程碑 / 依赖 / 风险。",
+    "tags": ["management", "roadmap", "规划"]
+  },
+  {
+    "id": "sprint-planning",
+    "name": "迭代规划",
+    "description": "Sprint 待办、容量、验收标准。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "facilitator" }
+    ],
+    "system_prompt": "你是 Sprint 规划 facilitator。把需求拆解为带故事点与验收标准的任务,标注容量与依赖。",
+    "user_prompt_template": "产品 backlog 与团队容量:\n\n{{user_input}}\n\n请产出 Sprint 待办列表,每项含故事点与验收标准。",
+    "tags": ["management", "sprint", "规划"]
+  },
+  {
+    "id": "risk-assessment",
+    "name": "风险评估",
+    "description": "风险识别、概率/影响矩阵、缓解措施。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "facilitator" },
+      { "kind": "researcher", "role": "historian" }
+    ],
+    "system_prompt": "你是风险评估团队。Planner 主持概率/影响矩阵;Researcher 检索历史相似风险的发生情况。每条风险附缓解措施。",
+    "user_prompt_template": "项目背景与已知风险:\n\n{{user_input}}\n\n请输出风险矩阵:风险 / 概率 / 影响 / 缓解措施 / 负责人。",
+    "tags": ["management", "risk", "评估"]
+  },
+  {
+    "id": "okr-draft",
+    "name": "OKR 草案",
+    "description": "季度 OKR:目标、关键结果、信心指数。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "planner", "role": "drafter" },
+      { "kind": "writer", "role": "wordsmith" }
+    ],
+    "system_prompt": "你是 OKR 草案团队。Planner 设计可衡量的关键结果;Writer 打磨目标表述使其鼓舞人心。每个 KR 含信心指数(0-1)。",
+    "user_prompt_template": "战略方向与季度重点:\n\n{{user_input}}\n\n请产出 OKR:1 个目标 + 3-5 个关键结果,每个 KR 含信心指数。",
+    "tags": ["management", "okr", "目标"]
+  },
+  {
+    "id": "meeting-notes",
+    "name": "会议纪要",
+    "description": "会议纪要:议题、决议、行动项。",
+    "category": "management",
+    "role": "manager",
+    "agents": [
+      { "kind": "writer", "role": "drafter" },
+      { "kind": "planner", "role": "action-extractor" }
+    ],
+    "system_prompt": "你是会议纪要团队。Writer 整理议题与决议;Planner 提取行动项(含负责人与截止日期)。输出简洁中文 Markdown。",
+    "user_prompt_template": "会议记录或转录:\n\n{{user_input}}\n\n请输出会议纪要:议题 / 决议 / 行动项(含负责人与截止)。",
+    "tags": ["management", "meeting", "纪要"]
+  }
+]

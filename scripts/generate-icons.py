@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# generate-icons.py — produce the bundle icons nine-snake needs.
+# generate-icons.py — produce the bundle icons nebula needs.
 #
 # P0#10 fix: `src-tauri/icons/` was missing entirely, which made
 # `npm run tauri:build` fail at the bundling step. This script
@@ -23,7 +23,7 @@
 #   python scripts/generate-icons.py --out src-tauri/icons
 #
 # Requirements: Pillow >= 10.0 (for `format='ICNS'`).
-"""Generate the nine-snake bundle icon set."""
+"""Generate the nebula bundle icon set."""
 
 from __future__ import annotations
 

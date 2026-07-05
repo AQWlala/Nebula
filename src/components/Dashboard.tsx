@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v2.0: 可观测性仪表盘 + sidecar 状态 + 自我反思。
  *
  * 展示 6 项核心指标（设计文档 §7）：
@@ -16,7 +16,7 @@
  * 数据每 2 秒刷新一次，来源于 `metrics` 和 `perf_sample` 命令。
  */
 import { useEffect, useState } from 'preact/hooks';
-import { invokeTauri, NineSnakeAPI, type MetricsSnapshot, type PerfSample, type SidecarStatusInfo, type SelfReflection } from '../lib/tauri';
+import { invokeTauri, nebulaAPI, type MetricsSnapshot, type PerfSample, type SidecarStatusInfo, type SelfReflection } from '../lib/tauri';
 import { t } from '../i18n';
 
 interface DashboardData {
@@ -148,10 +148,34 @@ export function Dashboard() {
   const cacheRatio = cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)) * 100 : 0;
   const cacheAccent = cacheRatio > 80 ? 'green' : cacheRatio > 50 ? 'blue' : 'amber';
 
-  // L4 拦截率 — L4 价值层未实现，先展示占位
-  const l4Blocked = 0;
-  const l4Total = metrics?.chat_total ?? 0;
+  // L4 拦截率 — T-S1-B-03: 接入真实 L4 裁定计数。
+  // "拦截"= 非直接放行(Confirm + Plan + Deny);总数 = Allow + Confirm + Plan + Deny。
+  const l4Allow = metrics?.l4_allow_total ?? 0;
+  const l4Confirm = metrics?.l4_confirm_total ?? 0;
+  const l4Plan = metrics?.l4_plan_total ?? 0;
+  const l4Deny = metrics?.l4_deny_total ?? 0;
+  const l4Blocked = l4Confirm + l4Plan + l4Deny;
+  const l4Total = l4Allow + l4Confirm + l4Plan + l4Deny;
   const l4Ratio = l4Total > 0 ? (l4Blocked / l4Total) * 100 : 0;
+
+  // T-S1-B-03: L0 热缓存命中率(独立于 embedder 缓存)。
+  const l0Hits = metrics?.l0_hits ?? 0;
+  const l0Misses = metrics?.l0_misses ?? 0;
+  const l0Ratio = l0Hits + l0Misses > 0 ? (l0Hits / (l0Hits + l0Misses)) * 100 : 0;
+
+  // T-S1-B-03: Token 用量(累计)。
+  const tokenPrompt = metrics?.token_prompt_total ?? 0;
+  const tokenCompletion = metrics?.token_completion_total ?? 0;
+  const tokenTotal = tokenPrompt + tokenCompletion;
+
+  // T-S1-B-03: ACL 拒绝率。
+  const aclAllow = metrics?.acl_allow_total ?? 0;
+  const aclDeny = metrics?.acl_deny_total ?? 0;
+  const aclTotal = aclAllow + aclDeny;
+  const aclDenyRatio = aclTotal > 0 ? (aclDeny / aclTotal) * 100 : 0;
+
+  // T-S1-B-03: 反思被 RoundGuard skip 次数。
+  const reflectionsSkipped = metrics?.reflections_skipped_total ?? 0;
 
   // LLM 调用延迟/成本
   const chatAvg = fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count);
@@ -162,7 +186,7 @@ export function Dashboard() {
     if (reflecting) return;
     setReflecting(true);
     try {
-      const result = await NineSnakeAPI.selfReflectNow();
+      const result = await nebulaAPI.selfReflectNow();
       if (result) setReflections(result);
     } catch {
       /* ignore */
@@ -174,11 +198,11 @@ export function Dashboard() {
   // sidecar 操作
   async function handleSidecarAction(kind: string, action: 'start' | 'stop' | 'restart') {
     try {
-      if (action === 'start') await NineSnakeAPI.sidecarStart(kind);
-      else if (action === 'stop') await NineSnakeAPI.sidecarStop(kind);
-      else await NineSnakeAPI.sidecarRestart(kind);
+      if (action === 'start') await nebulaAPI.sidecarStart(kind);
+      else if (action === 'stop') await nebulaAPI.sidecarStop(kind);
+      else await nebulaAPI.sidecarRestart(kind);
       // 刷新状态
-      const updated = await NineSnakeAPI.sidecarListStatus();
+      const updated = await nebulaAPI.sidecarListStatus();
       if (updated) {
         setData((d) => ({ ...d, sidecars: updated }));
       }
@@ -264,8 +288,8 @@ export function Dashboard() {
 
         <MetricCard
           title={t('dashboard.l4.title')}
-          value={l4Blocked > 0 ? `${l4Ratio.toFixed(1)}%` : '0'}
-          subtitle={t('dashboard.l4.subtitle')}
+          value={l4Total > 0 ? `${l4Ratio.toFixed(1)}%` : '–'}
+          subtitle={`${l4Blocked}/${l4Total} ${t('dashboard.l4.subtitle')}`}
           icon="🛡️"
           accent="purple"
           progress={l4Ratio}
@@ -322,6 +346,40 @@ export function Dashboard() {
           <div class="detail-row">
             <span class="detail-label">{t('dashboard.counters.reflections')}</span>
             <span class="detail-value">{fmtCount(metrics?.reflections_generated_total)}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>{t('dashboard.observability.title')}</h3>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.observability.l0Hits')}</span>
+            <span class="detail-value">
+              {l0Ratio.toFixed(1)}% ({fmtCount(l0Hits)}/{fmtCount(l0Hits + l0Misses)})
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.observability.tokenTotal')}</span>
+            <span class="detail-value">
+              {fmtCount(tokenTotal)} (P:{fmtCount(tokenPrompt)} / C:{fmtCount(tokenCompletion)})
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.observability.l4Breakdown')}</span>
+            <span class="detail-value">
+              ✓{fmtCount(l4Allow)} / ?{fmtCount(l4Confirm)} / P{fmtCount(l4Plan)} / ✗{fmtCount(l4Deny)}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.observability.aclDeny')}</span>
+            <span class="detail-value">
+              {aclDenyRatio.toFixed(1)}% ({fmtCount(aclDeny)}/{fmtCount(aclTotal)})
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{t('dashboard.observability.reflectionsSkipped')}</span>
+            <span class={`detail-value ${reflectionsSkipped > 0 ? 'text-amber' : ''}`}>
+              {fmtCount(reflectionsSkipped)}
+            </span>
           </div>
         </div>
 
@@ -388,8 +446,8 @@ export function Dashboard() {
               {t('dashboard.selfReflect.button')} →
             </div>
           ) : (
-            reflections.map((r, i) => (
-              <div key={i} class="reflection-card">
+            reflections.map((r) => (
+              <div key={`${r.kind}-${r.title}`} class="reflection-card">
                 <div class="reflection-header">
                   <span class="reflection-kind">{reflectionKindLabel(r.kind)}</span>
                   <span class={`reflection-severity ${severityColor(r.severity)}`}>

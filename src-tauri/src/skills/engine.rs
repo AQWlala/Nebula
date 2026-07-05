@@ -31,7 +31,7 @@
 //!    to `sh -c`, so a `language == "bash"` skill that contained
 //!    `rm -rf ~` would execute.  No allow-list, no syntax check.
 //! 2. **Predictable temp path.**  The filename was
-//!    `nine_snake_skill_<uuid>.<ext>`, well-known enough that an
+//!    `nebula_skill_<uuid>.<ext>`, well-known enough that an
 //!    attacker who could write to the temp dir could pre-create
 //!    a symlink to hijack the write.
 //! 3. **No resource limits.**  An infinite loop or
@@ -118,12 +118,24 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 
+use tokio::sync::Notify;
+
 use tracing::{debug, error, warn};
 
 use crate::llm::{ChatMessage, LlmGateway};
+// base64::Engine trait 在 vision feature 下使用,默认编译未用到。
+#[cfg_attr(not(feature = "vision"), allow(unused_imports))]
+use base64::Engine;
 use crate::memory::sqlite_store::SqliteStore;
+use crate::security::SsrfGuard;
 
 use super::audit::{redact_if_sensitive, truncate_summary, SkillAuditEntry, SkillAuditLogger};
+use super::capability::{Capability, CapabilityRegistry};
+use super::exec_approval::{
+    ExecApprovalRequest, ExecApprovalTracker, TIMEOUT_FAIL_CLOSED_REASON,
+};
+use super::executor::{LocalExecutor, SkillExecutor};
+use super::protocol::{SkillRequest, SkillResponse};
 use super::store::SkillStore;
 use super::types::{
     CreateSkillRequest, ListSkillsRequest, RateSkillRequest, Skill, SkillResult,
@@ -163,10 +175,10 @@ const ALLOWED_SHELL_LANGUAGES: &[&str] = &["python"];
 /// that immediately raises when iterated, with zero side
 /// effects and a clear error message.
 const SANDBOX_PREAMBLE: &str = r#"
-# v1.0.1 P0#11 — nine-snake sandbox network blocker.
+# v1.0.1 P0#11 — nebula sandbox network blocker.
 # This preamble is prepended to every user script by the
 # skill engine.  It must not be modified by the user.
-import sys as _nine_snake_sys
+import sys as _nebula_sys
 
 # Phase 1 — import all modules that *depend* on socket BEFORE
 # patching.  `ssl.py` defines `class SSLSocket(socket.socket)`,
@@ -177,45 +189,45 @@ import sys as _nine_snake_sys
 # So import the whole chain first, then patch the high-level
 # entry points.
 try:
-    import socket as _nine_snake_socket
+    import socket as _nebula_socket
 except ImportError:
-    _nine_snake_socket = None
+    _nebula_socket = None
 try:
-    import urllib.request as _nine_snake_urllib
+    import urllib.request as _nebula_urllib
 except ImportError:
-    _nine_snake_urllib = None
+    _nebula_urllib = None
 try:
-    import http.client as _nine_snake_http
+    import http.client as _nebula_http
 except ImportError:
-    _nine_snake_http = None
+    _nebula_http = None
 try:
-    import ssl as _nine_snake_ssl
+    import ssl as _nebula_ssl
 except ImportError:
-    _nine_snake_ssl = None
+    _nebula_ssl = None
 
 # Phase 2 — patch network entry points.  Already-imported
 # modules have captured the real `socket.socket` class in
 # their class definitions, so patching the attribute now is
 # safe and only affects *new* `socket.socket(...)` calls.
-if _nine_snake_socket is not None:
-    def _nine_snake_block(*_a, **_kw):
+if _nebula_socket is not None:
+    def _nebula_block(*_a, **_kw):
         raise PermissionError(
-            "network access disabled by nine-snake sandbox (v1.0.1 P0#11)"
+            "network access disabled by nebula sandbox (v1.0.1 P0#11)"
         )
-    _nine_snake_socket.socket = _nine_snake_block
-    _nine_snake_socket.create_connection = _nine_snake_block
-    _nine_snake_socket.socketpair = _nine_snake_block
-    _nine_snake_socket.fromfd = _nine_snake_block
-    if _nine_snake_urllib is not None:
-        _nine_snake_urllib.urlopen = _nine_snake_block
-        _nine_snake_urllib.Request = _nine_snake_block
-    if _nine_snake_http is not None:
-        _nine_snake_http.HTTPConnection = _nine_snake_block
-        _nine_snake_http.HTTPSConnection = _nine_snake_block
-        _nine_snake_http.HTTP = _nine_snake_block
-    if _nine_snake_ssl is not None:
-        _nine_snake_ssl.create_default_context = _nine_snake_block
-    del _nine_snake_block
+    _nebula_socket.socket = _nebula_block
+    _nebula_socket.create_connection = _nebula_block
+    _nebula_socket.socketpair = _nebula_block
+    _nebula_socket.fromfd = _nebula_block
+    if _nebula_urllib is not None:
+        _nebula_urllib.urlopen = _nebula_block
+        _nebula_urllib.Request = _nebula_block
+    if _nebula_http is not None:
+        _nebula_http.HTTPConnection = _nebula_block
+        _nebula_http.HTTPSConnection = _nebula_block
+        _nebula_http.HTTP = _nebula_block
+    if _nebula_ssl is not None:
+        _nebula_ssl.create_default_context = _nebula_block
+    del _nebula_block
 
 # Phase 3 — import hook to block dangerous modules for user
 # code that tries `import ssl` etc. after the preamble.
@@ -235,19 +247,19 @@ class _SandboxImport:
         return None
     def load_module(self, fullname):
         raise PermissionError(
-            f"module '{fullname}' is blocked by nine-snake sandbox for security"
+            f"module '{fullname}' is blocked by nebula sandbox for security"
         )
 
-_nine_snake_sys.meta_path.insert(0, _SandboxImport())
+_nebula_sys.meta_path.insert(0, _SandboxImport())
 
 # cleanup temp names (modules stay in sys.modules)
-for _ns_name in ('_nine_snake_socket', '_nine_snake_urllib',
-                 '_nine_snake_http', '_nine_snake_ssl'):
+for _ns_name in ('_nebula_socket', '_nebula_urllib',
+                 '_nebula_http', '_nebula_ssl'):
     try:
         del globals()[_ns_name]
     except KeyError:
         pass
-del _nine_snake_sys, _SandboxImport, _ns_name
+del _nebula_sys, _SandboxImport, _ns_name
 "#;
 
 /// Bundles the store + LLM gateway so the rest of the system can call
@@ -256,6 +268,12 @@ pub struct SkillEngine {
     store: SkillStore,
     llm: Arc<LlmGateway>,
     audit: Option<Arc<SkillAuditLogger>>,
+    /// T-S2-A-02: SSRF 防护，在执行 skill 前校验 params 中的 URL。
+    ssrf_guard: SsrfGuard,
+    /// T-E-S-20: exec 类操作审批门禁。未注入时降级为直接执行（向后兼容）。
+    exec_approval: Option<Arc<ExecApprovalTracker>>,
+    /// T-E-S-36: 能力层注册中心。门面委派用,RwLock 支持 &self 下的并发读写。
+    capability_registry: parking_lot::RwLock<CapabilityRegistry>,
 }
 
 impl SkillEngine {
@@ -269,6 +287,9 @@ impl SkillEngine {
             store,
             llm,
             audit: None,
+            ssrf_guard: SsrfGuard::new(),
+            exec_approval: None,
+            capability_registry: parking_lot::RwLock::new(CapabilityRegistry::new()),
         }
     }
 
@@ -277,11 +298,26 @@ impl SkillEngine {
             store,
             llm,
             audit: None,
+            ssrf_guard: SsrfGuard::new(),
+            exec_approval: None,
+            capability_registry: parking_lot::RwLock::new(CapabilityRegistry::new()),
         }
     }
 
     pub fn with_audit(mut self, audit: Arc<SkillAuditLogger>) -> Self {
         self.audit = Some(audit);
+        self
+    }
+
+    /// T-S2-A-02: 注入自定义 SsrfGuard（例如 `with_allow_private(true)`）。
+    pub fn with_ssrf_guard(mut self, guard: SsrfGuard) -> Self {
+        self.ssrf_guard = guard;
+        self
+    }
+
+    /// T-E-S-20: 注入 exec 类操作审批 tracker。
+    pub fn with_exec_approval(mut self, tracker: Arc<ExecApprovalTracker>) -> Self {
+        self.exec_approval = Some(tracker);
         self
     }
 
@@ -306,7 +342,7 @@ impl SkillEngine {
         // still re-validate at execute time as a defence in depth.
         if !is_accepted_language(&req.language) {
             warn!(
-                target: "nine_snake.skills",
+                target: "nebula.skills",
                 language = %req.language,
                 "creating skill with language that the sandbox cannot execute"
             );
@@ -327,6 +363,9 @@ impl SkillEngine {
             activation_condition: req.activation_condition,
             platform: req.platform,
             min_confidence: req.min_confidence,
+            trust_level: req.trust_level,
+            permissions: req.permissions,
+            capabilities: req.capabilities,
         };
         self.store.insert(&skill)?;
         self.store
@@ -342,6 +381,24 @@ impl SkillEngine {
             .get(&req.id)?
             .ok_or_else(|| anyhow!("skill not found: {}", req.id))?;
 
+        // T-S2-A-02: SSRF 防护 — 在执行前校验 params 中所有看起来像 URL 的值。
+        // 如果值以 http:// 或 https:// 开头，则用 SsrfGuard 校验目标地址。
+        for (key, val) in &req.params {
+            let trimmed = val.trim();
+            if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+                if let Err(e) = self.ssrf_guard.validate_url(trimmed) {
+                    warn!(
+                        target: "nebula.skills",
+                        skill_id = %skill.id,
+                        param_key = %key,
+                        error = %e,
+                        "SSRF guard rejected URL in skill params"
+                    );
+                    return Err(anyhow!("SSRF validation failed for parameter '{}': {}", key, e));
+                }
+            }
+        }
+
         let sandbox_type = if skill.language == "llm" {
             "llm"
         } else if is_accepted_language(&skill.language) {
@@ -351,6 +408,21 @@ impl SkillEngine {
         } else {
             "unknown"
         };
+
+        // T-E-S-20: exec 类动作(python 沙箱、WASM 沙箱)执行前需用户审批。
+        // 识别依据:这些路径在本地执行代码(execute_shell / execute_wasm),
+        // 而 execute_llm 仅发起 LLM chat 调用,不属于 exec 类;不支持的语言
+        // 本就会被拒绝,无需审批。
+        if let Some(ref tracker) = self.exec_approval {
+            let exec_action = match sandbox_type {
+                "python" => Some(format!("exec python sandbox (skill {})", skill.id)),
+                "wasm" => Some(format!("exec wasm sandbox (skill {})", skill.id)),
+                _ => None,
+            };
+            if let Some(action) = exec_action {
+                await_approval(tracker, self.audit.as_ref(), &skill.id, &action).await?;
+            }
+        }
 
         let result = if skill.language == "llm" {
             self.execute_llm(&skill, &req.params).await
@@ -386,14 +458,14 @@ impl SkillEngine {
                 success,
             };
             if let Err(e) = audit.log(&entry) {
-                warn!(target: "nine_snake.skills", error = ?e, "audit log write failed");
+                warn!(target: "nebula.skills", error = ?e, "audit log write failed");
             }
         }
 
         let (output, tokens_used) = result?;
 
         if let Err(e) = self.store.bump_usage(&skill.id) {
-            warn!(target: "nine_snake.skills", error = ?e, id = %skill.id, "bump_usage failed");
+            warn!(target: "nebula.skills", error = ?e, id = %skill.id, "bump_usage failed");
         }
 
         Ok(SkillResult {
@@ -481,7 +553,7 @@ impl SkillEngine {
         let script_path = tmp.path().to_path_buf();
 
         debug!(
-            target: "nine_snake.skills",
+            target: "nebula.skills",
             id = %skill.id,
             path = %script_path.display(),
             "spawning sandboxed python"
@@ -512,7 +584,7 @@ impl SkillEngine {
             Ok(outcome) => Self::shape_shell_outcome(skill_id, outcome),
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 error!(
-                    target: "nine_snake.skills",
+                    target: "nebula.skills",
                     id = %skill_id,
                     timeout_secs = SKILL_TIMEOUT.as_secs(),
                     "skill execution exceeded wall-clock timeout; worker thread will keep running until child exits"
@@ -600,7 +672,7 @@ impl SkillEngine {
             ShellOutcome::SpawnError(e) => Err(anyhow!("spawning python failed: {e}")),
             ShellOutcome::Timeout => {
                 error!(
-                    target: "nine_snake.skills",
+                    target: "nebula.skills",
                     id = %skill_id,
                     "subprocess killed by timeout"
                 );
@@ -620,17 +692,158 @@ impl SkillEngine {
 
     /// Lists skills.
     pub fn list_skills(&self, req: ListSkillsRequest) -> Result<Vec<Skill>> {
+        // T-E-S-37: 透传多 tag + tag_match 字段。当 req.tags 非空时使用多 tag 路径
+        // (req.tag 被忽略);否则降级到旧单 tag 路径(向后兼容)。
         self.store.list(
             req.language.as_deref(),
             req.tag.as_deref(),
+            &req.tags,
+            req.tag_match,
             req.limit.max(1),
         )
+    }
+
+    /// T-E-S-37: 聚合所有 skill 的 tag 频次(委派 [`SkillStore::all_tags`])。
+    ///
+    /// 返回 `Vec<TagCount>`,按 count 降序排列,供前端显示热门标签云。
+    pub fn all_tags(&self) -> Vec<super::types::TagCount> {
+        self.store.all_tags()
     }
 
     /// Searches skills by name / description / tags.
     pub fn search_skills(&self, req: SkillSearchRequest) -> Result<Vec<Skill>> {
         self.store.text_search(&req.query, req.limit.max(1))
     }
+
+    // -----------------------------------------------------------------------
+    // T-E-S-36: 三层架构门面委派(协议层 / 能力层 / 执行层)。
+    //
+    // 旧 API(use_skill / list_skills / search_skills / create_skill /
+    // rate_skill)保持不变,以下新增方法委派 CapabilityRegistry 与
+    // SkillExecutor,供未来协议层调用点使用。
+    // -----------------------------------------------------------------------
+
+    /// T-E-S-36: 注册一个能力(委派 [`CapabilityRegistry::register`])。
+    pub fn register_capability(&self, cap: Capability) {
+        self.capability_registry.write().register(cap);
+    }
+
+    /// T-E-S-36: 按关键词匹配能力(委派 [`CapabilityRegistry::match_by_intent`])。
+    ///
+    /// 返回克隆的 [`Capability`] 列表(避免锁守卫泄漏)。
+    pub fn match_capabilities_by_intent(&self, intent: &str) -> Vec<Capability> {
+        let guard = self.capability_registry.read();
+        guard
+            .match_by_intent(intent)
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// T-E-S-36: 按 input schema 兼容性匹配能力
+    /// (委派 [`CapabilityRegistry::match_by_input`])。
+    pub fn match_capabilities_by_input(&self, input: &serde_json::Value) -> Vec<Capability> {
+        let guard = self.capability_registry.read();
+        guard
+            .match_by_input(input)
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// T-E-S-36: 列出所有已注册能力(委派 [`CapabilityRegistry::list_all`])。
+    pub fn list_capabilities(&self) -> Vec<Capability> {
+        let guard = self.capability_registry.read();
+        guard.list_all().into_iter().cloned().collect()
+    }
+
+    /// T-E-S-36: 通过协议层执行 skill(委派 [`LocalExecutor`])。
+    ///
+    /// 本期默认用 [`LocalExecutor`] 执行本地 skill(如内置 `echo`)。
+    /// 未来根据 [`SkillTransport`] 选择对应执行器。
+    pub async fn execute_skill_request(&self, req: SkillRequest) -> Result<SkillResponse> {
+        let executor = LocalExecutor::new();
+        executor.execute(req).await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// T-E-S-20: exec 类操作审批门禁
+// ---------------------------------------------------------------------------
+
+/// T-E-S-20: 等待 exec 类动作审批的核心逻辑。
+///
+/// 给定一个已注册的审批请求（`tracker.request()` 的返回值），
+/// 等待用户响应或超时 fail-closed。抽成独立函数便于单测
+/// (无需构造完整 SkillEngine)。
+///
+/// * `Ok(())` — 用户已批准，可继续执行 exec 动作。
+/// * `Err` — 用户拒绝/已关闭，或超时 fail-closed，动作不得执行。
+async fn wait_for_approval(
+    tracker: &ExecApprovalTracker,
+    req: &ExecApprovalRequest,
+    notify: Arc<Notify>,
+    audit: Option<&Arc<SkillAuditLogger>>,
+) -> Result<()> {
+    let timeout = tracker.timeout();
+    match tokio::time::timeout(timeout, notify.notified()).await {
+        Ok(_) => {
+            if tracker.is_approved(&req.id) {
+                Ok(())
+            } else {
+                Err(anyhow!("exec action denied or closed"))
+            }
+        }
+        Err(_) => {
+            // 超时 fail-closed：先落态，再写审计日志，最后返回 Err。
+            tracker.mark_timeout_fail_closed(&req.id);
+            if let Some(audit) = audit {
+                let entry = SkillAuditEntry {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    skill_id: req.skill_id.clone(),
+                    executed_at: chrono::Utc::now().timestamp_millis(),
+                    input_summary: redact_if_sensitive(&req.action),
+                    output_summary: truncate_summary("exec approval timed out (fail-closed)"),
+                    duration_ms: timeout.as_millis() as u64,
+                    sandbox_type: "exec_approval".to_string(),
+                    security_scan_result: TIMEOUT_FAIL_CLOSED_REASON.to_string(),
+                    success: false,
+                };
+                if let Err(e) = audit.log(&entry) {
+                    warn!(
+                        target: "nebula.skill.exec_approval",
+                        error = ?e,
+                        req_id = %req.id,
+                        "audit log write failed for timeout_fail_closed"
+                    );
+                }
+            } else {
+                warn!(
+                    target: "nebula.skill.exec_approval",
+                    skill_id = %req.skill_id,
+                    action = %req.action,
+                    req_id = %req.id,
+                    cause = %TIMEOUT_FAIL_CLOSED_REASON,
+                    "exec approval timed out (fail-closed)"
+                );
+            }
+            Err(anyhow!("exec approval timed out (fail-closed)"))
+        }
+    }
+}
+
+/// T-E-S-20: 发起并等待 exec 类动作审批。
+///
+/// 包装 `tracker.request()` + [`wait_for_approval`]，供 `use_skill`
+/// 在 exec 类动作执行前调用。
+async fn await_approval(
+    tracker: &Arc<ExecApprovalTracker>,
+    audit: Option<&Arc<SkillAuditLogger>>,
+    skill_id: &str,
+    action: &str,
+) -> Result<()> {
+    let (req, notify) = tracker.request(skill_id, action);
+    wait_for_approval(tracker, &req, notify, audit).await
 }
 
 impl std::fmt::Debug for SkillEngine {
@@ -701,7 +914,7 @@ fn truncate_output(stdout: &[u8], stderr: &[u8]) -> String {
         total, MAX_OUTPUT_BYTES
     ));
     warn!(
-        target: "nine_snake.skills",
+        target: "nebula.skills",
         bytes = total,
         budget = MAX_OUTPUT_BYTES,
         "skill output exceeded 1 MiB; truncated"
@@ -921,7 +1134,7 @@ mod tests {
     fn temp_db() -> (PathBuf, Arc<SqliteStore>) {
         let mut p = std::env::temp_dir();
         p.push(format!(
-            "nine_snake_skill_engine_test_{}.db",
+            "nebula_skill_engine_test_{}.db",
             uuid::Uuid::new_v4()
         ));
         let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
@@ -1272,7 +1485,7 @@ mod tests {
                 let stderr_s = String::from_utf8_lossy(&stderr);
                 let lower = stderr_s.to_ascii_lowercase();
                 assert!(
-                    lower.contains("permissionerror") || lower.contains("disabled by nine-snake"),
+                    lower.contains("permissionerror") || lower.contains("disabled by nebula"),
                     "expected PermissionError, got code={code} stderr={stderr_s}"
                 );
             }
@@ -1302,7 +1515,7 @@ mod tests {
                 let stderr_s = String::from_utf8_lossy(&stderr);
                 let lower = stderr_s.to_ascii_lowercase();
                 assert!(
-                    lower.contains("permissionerror") || lower.contains("disabled by nine-snake"),
+                    lower.contains("permissionerror") || lower.contains("disabled by nebula"),
                     "expected PermissionError, got stderr={stderr_s}"
                 );
             }
@@ -1324,7 +1537,7 @@ mod tests {
     #[test]
     fn python_sandbox_allows_local_file_io() {
         let tmp_dir = std::env::temp_dir().join(format!(
-            "nine_snake_sandbox_test_{}_{}",
+            "nebula_sandbox_test_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1360,5 +1573,97 @@ mod tests {
             }
         }
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    /// T-E-S-20: 审批通过后,wait_for_approval 应返回 Ok,动作可继续执行。
+    #[tokio::test]
+    async fn exec_approval_approved_path_continues() {
+        let tracker = Arc::new(ExecApprovalTracker::new(60));
+        let (req, notify) = tracker.request("skill-test-approved", "exec python sandbox");
+        let id = req.id.clone();
+        let t = tracker.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            assert!(t.approve(&id));
+        });
+        let result = wait_for_approval(&tracker, &req, notify, None).await;
+        assert!(result.is_ok(), "approved path should continue: {:?}", result.err());
+    }
+
+    /// T-E-S-20: 超时后 wait_for_approval 必须返回 Err 且状态为 TimeoutFailClosed。
+    #[tokio::test]
+    async fn exec_approval_timeout_fail_closed() {
+        let tracker = ExecApprovalTracker::new(50);
+        let (req, notify) = tracker.request("skill-test-timeout", "exec python sandbox");
+        let result = wait_for_approval(&tracker, &req, notify, None).await;
+        assert!(result.is_err(), "timeout should return Err");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("timed out"),
+            "expected timeout message, got: {msg}"
+        );
+        assert!(tracker.is_timeout_fail_closed(&req.id));
+        assert!(!tracker.is_approved(&req.id));
+    }
+
+    /// T-E-S-36: SkillEngine 门面旧 API 仍工作(向后兼容)+ 三层委派可用。
+    ///
+    /// 验证:添加 capability_registry 字段后,SkillEngine::new 仍可构造,
+    /// 旧 API(create_skill / list_skills)仍工作,新委派方法
+    /// (register_capability / match_capabilities_by_intent /
+    /// execute_skill_request)正常工作。
+    #[tokio::test]
+    async fn skill_engine_facade_backward_compat_and_delegation() {
+        let (p, sqlite) = temp_db();
+        let eng = SkillEngine::new(sqlite, llm());
+
+        // 1. 旧 API 仍工作:create_skill + list_skills。
+        let s = eng
+            .create_skill(CreateSkillRequest {
+                name: "compat-test".into(),
+                description: "backward compat".into(),
+                code: "print('ok')".into(),
+                language: "python".into(),
+                tags: vec![],
+                source_memory_id: None,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(s.name, "compat-test");
+        let listed = eng
+            .list_skills(ListSkillsRequest {
+                language: None,
+                tag: None,
+                limit: 10,
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(listed.iter().any(|x| x.id == s.id), "old list_skills must work");
+
+        // 2. 新委派方法:register_capability + match_capabilities_by_intent。
+        eng.register_capability(Capability {
+            id: "test:cap".to_string(),
+            name: "Test Capability".to_string(),
+            description: "for facade delegation test".to_string(),
+            skills: vec!["compat-test".to_string()],
+        });
+        let hits = eng.match_capabilities_by_intent("test");
+        assert_eq!(hits.len(), 1, "match_by_intent should find registered cap");
+        assert_eq!(hits[0].id, "test:cap");
+
+        // 3. 新委派方法:list_capabilities。
+        assert_eq!(eng.list_capabilities().len(), 1);
+
+        // 4. 新委派方法:execute_skill_request(LocalExecutor echo)。
+        let req = SkillRequest {
+            skill: "echo".to_string(),
+            input: serde_json::json!({"msg": "facade"}),
+            timeout_ms: 1000,
+        };
+        let resp = eng.execute_skill_request(req).await.unwrap();
+        assert!(resp.error.is_none(), "echo via facade should succeed");
+        assert_eq!(resp.output, serde_json::json!({"msg": "facade"}));
+
+        cleanup(&p);
     }
 }

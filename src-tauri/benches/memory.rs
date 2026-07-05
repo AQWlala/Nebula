@@ -1,4 +1,4 @@
-//! v1.0: criterion bench — memory subsystem hot paths.
+﻿//! v1.0: criterion bench — memory subsystem hot paths.
 //!
 //! Two micro-benchmarks:
 //!   * `sponge_absorb`      — insert a single memory.
@@ -10,7 +10,7 @@
 //! the shape of the real cache hit path minus the HTTP call.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use nine_snake_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
+use nebula_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
 
 fn bench_memory_construct(c: &mut Criterion) {
     c.bench_function("memory_construct", |b| {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * P0#06: theme + accent + font-size signal store.
  *
  * Replaces the Settings.tsx useEffect + style.setProperty chain with
@@ -22,7 +22,7 @@ export interface ThemeSnapshot {
   fontSize: number;
 }
 
-const STORAGE_KEY = 'nine-snake.theme';
+const STORAGE_KEY = 'nebula.theme';
 export const FONT_MIN = 12;
 export const FONT_MAX = 20;
 export const FONT_DEFAULT = 14;

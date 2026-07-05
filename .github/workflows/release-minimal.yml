@@ -1,4 +1,4 @@
-name: release-minimal
+﻿name: release-minimal
 
 # v1.1: stripped release build that disables the heaviest optional
 # crates (gRPC server + LanceDB vector store) so the installer can
@@ -145,7 +145,7 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: nine-snake-minimal-${{ matrix.platform }}
+          name: nebula-minimal-${{ matrix.platform }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*
           if-no-files-found: error
@@ -175,19 +175,19 @@ jobs:
             "platforms": {
               "linux-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-linux-x86_64.AppImage"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula-minimal-linux-x86_64.AppImage"
               },
               "darwin-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-macos-x86_64.dmg"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula-minimal-macos-x86_64.dmg"
               },
               "darwin-aarch64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-macos-aarch64.dmg"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula-minimal-macos-aarch64.dmg"
               },
               "windows-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake-minimal-windows-x86_64-setup.exe"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula-minimal-windows-x86_64-setup.exe"
               }
             }
           }

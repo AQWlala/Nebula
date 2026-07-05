@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0: i18n unit tests.
  *
  * P0#3: covers the signal-driven locale: `t(...)` must reflect
@@ -40,7 +40,7 @@ describe('i18n', () => {
 
   it('setLocale persists to localStorage', () => {
     setLocale('zh-CN');
-    expect(localStorage.getItem('nine-snake.locale')).toBe('zh-CN');
+    expect(localStorage.getItem('nebula.locale')).toBe('zh-CN');
     expect(getLocale()).toBe('zh-CN');
   });
 

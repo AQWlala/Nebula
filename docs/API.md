@@ -1,4 +1,4 @@
-# 九头蛇 · API 参考 (API Reference)
+﻿# Nebula · API 参考 (API Reference)
 
 > v1.0. 包含所有 Tauri commands 与 gRPC RPCs。
 
@@ -169,10 +169,10 @@
 
 ## 3. gRPC RPCs (22 个)
 
-定义在 `src-tauri/proto/nine_snake.proto`。
+定义在 `src-tauri/proto/nebula.proto`。
 
 > **v1.0 P0#12 状态**：22 个 RPC 的 **trait 方法体** 在
-> `src/grpc/server.rs::NineSnakeServiceImpl` 中已完整实现，并
+> `src/grpc/server.rs::nebulaServiceImpl` 中已完整实现，并
 > 通过 Tauri command 委托到底层业务逻辑。但当前版本的
 > **wire-shim**（`src/grpc/server.rs::handle_connection`）仍
 > 为占位实现 — 通过 `grpcurl` 或 tonic 客户端发起的请求会立即
@@ -248,13 +248,13 @@ service Health {
 
 ## 4. 前端封装
 
-`src/lib/tauri.ts` 暴露一个 `NineSnakeAPI` 类，每个 command 一个静态方法：
+`src/lib/tauri.ts` 暴露一个 `nebulaAPI` 类，每个 command 一个静态方法：
 
 ```ts
-import { NineSnakeAPI } from './lib/tauri';
+import { nebulaAPI } from './lib/tauri';
 
-const reply = await NineSnakeAPI.chat({ user_message: 'hi' });
-const mems = await NineSnakeAPI.memoryListRecent(20);
+const reply = await nebulaAPI.chat({ user_message: 'hi' });
+const mems = await nebulaAPI.memoryListRecent(20);
 ```
 
 类型全部导出 — IDE 自动补全。

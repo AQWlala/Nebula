@@ -153,7 +153,12 @@ pub fn check_auto_promote(
             if access_count > PROMOTE_L4_ACCESS_THRESHOLD
                 && importance > PROMOTE_L4_IMPORTANCE_THRESHOLD
             {
-                return Some(MemoryLayer::L6);
+                // v2.1 修复 (EXPERT_REVIEW P0): L6 未实现（推迟到 v2.5+）,
+                // 原 Some(MemoryLayer::L6) 会导致记忆卡在"待提升"状态。
+                // 暂返回 None,Stage 5 实现 L6 后恢复 Some(MemoryLayer::L6)。
+                // 替代策略:满足条件的 L4 记忆应触发 L5 反思引擎关注(由
+                // ReflectionEngine 通过 access_count/importance 阈值自行筛选)。
+                return None;
             }
         }
         MemoryLayer::L7 => return None,

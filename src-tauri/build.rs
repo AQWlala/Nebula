@@ -1,20 +1,20 @@
-// Build script for `nine-snake`.
+﻿// Build script for `nebula`.
 // Two responsibilities:
 //   1. Tauri build glue (icon, capabilities, etc.)
 //   2. v0.3: compile the gRPC protobuf services into a Rust module
-//      that the `nine_snake_lib::grpc` module re-exports. Skipped
+//      that the `nebula_lib::grpc` module re-exports. Skipped
 //      when the `grpc` feature is off (minimal build).
 
 fn main() {
     tauri_build::build();
 
     // v0.3: generate Rust types + tonic service traits from the
-    // single source of truth in `proto/nine_snake.proto`. Gated by
+    // single source of truth in `proto/nebula.proto`. Gated by
     // the `grpc` feature so the minimal build doesn't pull in
     // tonic-build and doesn't try to compile the .proto file.
     #[cfg(feature = "grpc")]
     {
-        let proto_path = "proto/nine_snake.proto";
+        let proto_path = "proto/nebula.proto";
         println!("cargo:rerun-if-changed={proto_path}");
 
         let mut config = tonic_build::configure()
@@ -31,6 +31,6 @@ fn main() {
 
         config
             .compile_protos(&[proto_path], &["proto"])
-            .expect("failed to compile nine_snake.proto");
+            .expect("failed to compile nebula.proto");
     }
 }

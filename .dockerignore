@@ -1,0 +1,8 @@
+target/
+node_modules/
+*.db
+.git/
+*.db-journal
+*.db-wal
+*.db-shm
+src-tauri/target/

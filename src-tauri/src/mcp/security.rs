@@ -3,7 +3,12 @@ use std::collections::HashSet;
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
-const SAFE_ENV_VARS: &[&str] = &["PATH", "HOME", "USER", "LANG"];
+// T-S1-B-02: 扩展安全环境变量列表 — 从 4 个增加到 10 个。
+// EXPERT_REVIEW §2.4.5 指出原列表不足：Windows 需要 SYSTEMROOT/TEMP/TMP，
+// 跨平台需要 TZ/LOCALE/LC_ALL 用于 locale/时区相关功能。
+const SAFE_ENV_VARS: &[&str] = &[
+    "PATH", "HOME", "USER", "LANG", "SYSTEMROOT", "TEMP", "TMP", "TZ", "LOCALE", "LC_ALL",
+];
 
 pub fn filter_safe_env_vars(
     env: &std::collections::HashMap<String, String>,
@@ -53,14 +58,10 @@ impl PkceChallenge {
 }
 
 fn sha256_digest(data: &[u8]) -> [u8; 32] {
-    use std::fmt::Write;
-    let mut hasher = sha2_assumed::Sha256::new();
-    sha2_assumed::Digest::update(&mut hasher, data);
-    sha2_assumed::Digest::finalize(hasher).into()
-}
-
-mod sha2_assumed {
-    pub use sha2::{Digest, Sha256};
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    Digest::update(&mut hasher, data);
+    Digest::finalize(hasher).into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

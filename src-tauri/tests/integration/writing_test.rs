@@ -1,4 +1,4 @@
-//! Integration tests for the v0.5 Writing engine.
+﻿//! Integration tests for the v0.5 Writing engine.
 //!
 //! Covers: template listing / application, document CRUD,
 //! Markdown export, HTML export.  The L3 memory mirror is
@@ -7,7 +7,7 @@
 //! rest of the memory stack.
 
 use super::common::TmpStore;
-use nine_snake_lib::writing::{ExportFormat, WritingEngine};
+use nebula_lib::writing::{ExportFormat, WritingEngine};
 
 fn engine(store: &TmpStore) -> WritingEngine {
     WritingEngine::new(store.store.clone(), None)

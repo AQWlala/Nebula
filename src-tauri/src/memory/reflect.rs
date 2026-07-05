@@ -51,6 +51,67 @@ pub const DEFAULT_REFLECT_MAX_MEMORIES: usize = 16;
 /// Default period (in seconds) of the background reflection worker.
 pub const DEFAULT_REFLECT_INTERVAL_SECS: u64 = 600;
 
+/// T-S1-A-06: 反思引擎护栏 — 限制冷却窗口内的最大反思轮数。
+///
+/// EXPERT_REVIEW §2.2.3 指出反思引擎可能空转（LLM 不可用时
+/// 不断 fallback 到模板摘要），浪费 token 与 CPU。护栏在
+/// `reflect_now()` 入口检查：
+/// - 若最近 `cooldown_secs` 内已执行 `max_rounds` 轮反思，则 skip
+/// - skip 时记录 `reflection_skipped` 事件（tracing::info!）
+/// - Prometheus `reflection_skipped_total` 计数器在 T-S1-B-03 接入
+///
+/// 默认值：`max_rounds=5`，`cooldown_secs=3600`（1 小时）。
+#[derive(Debug, Clone)]
+pub struct RoundGuard {
+    /// 冷却窗口内最大反思轮数。
+    pub max_rounds: usize,
+    /// 冷却窗口长度（秒）。
+    pub cooldown_secs: i64,
+    /// 最近反思的时间戳列表（Unix 秒）。超出窗口的条目在检查时被淘汰。
+    recent_rounds: Vec<i64>,
+}
+
+impl Default for RoundGuard {
+    fn default() -> Self {
+        Self {
+            max_rounds: 5,
+            cooldown_secs: 3600,
+            recent_rounds: Vec::new(),
+        }
+    }
+}
+
+impl RoundGuard {
+    pub fn new(max_rounds: usize, cooldown_secs: i64) -> Self {
+        Self {
+            max_rounds,
+            cooldown_secs,
+            recent_rounds: Vec::new(),
+        }
+    }
+
+    /// 检查是否允许执行新一轮反思。
+    ///
+    /// 返回 `true` 表示允许；`false` 表示已被护栏拦截（冷却窗口内
+    /// 轮数已达上限）。调用方应在 `false` 时 skip 并记录指标。
+    ///
+    /// 内部会先淘汰超出窗口的旧时间戳,再判断。
+    pub fn check_and_record(&mut self, now: i64) -> bool {
+        let cutoff = now - self.cooldown_secs;
+        self.recent_rounds.retain(|&t| t > cutoff);
+        if self.recent_rounds.len() >= self.max_rounds {
+            return false;
+        }
+        self.recent_rounds.push(now);
+        true
+    }
+
+    /// 当前窗口内已记录的轮数（供测试与可观测性使用）。
+    pub fn current_rounds(&self) -> usize {
+        self.recent_rounds.len()
+    }
+}
+
 /// A meta-cognitive reflection record (L5 / Metacognitive).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Reflection {
@@ -119,6 +180,9 @@ pub struct ReflectionEngine {
     /// into the spawned task so `AppState::shutdown` can cancel
     /// the worker within one tick of the loop.
     cancel_token: CancellationToken,
+    /// T-S1-A-06: 反思轮数护栏。限制冷却窗口内的最大反思轮数,
+    /// 避免反思引擎空转（EXPERT_REVIEW §2.2.3）。
+    round_guard: Mutex<RoundGuard>,
 }
 
 impl ReflectionEngine {
@@ -132,6 +196,7 @@ impl ReflectionEngine {
             shutdown: Arc::new(Notify::new()),
             in_flight: Mutex::new(false),
             cancel_token: CancellationToken::new(),
+            round_guard: Mutex::new(RoundGuard::default()),
         }
     }
 
@@ -235,14 +300,38 @@ impl ReflectionEngine {
     /// Runs a single reflection pass synchronously. Returns the
     /// reflections produced (zero or more). Safe to call concurrently;
     /// overlapping calls are de-duplicated by an in-process mutex.
+    ///
+    /// T-S1-A-06: 入口处增加 `RoundGuard` 检查。若冷却窗口（默认 1h）
+    /// 内已执行 `max_rounds`（默认 5）轮反思,本次调用直接 skip 并
+    /// 记录 `reflection_skipped` 事件。
+    /// T-S1-B-03: skip 时同步递增全局 `reflections_skipped_total` 计数器。
     pub async fn reflect_now(&self) -> Result<Vec<Reflection>> {
+        // T-S1-A-06: 轮数护栏检查（在 single-flight 之前,避免
+        // 占用 in_flight 锁却立即 skip）。
+        {
+            let now = chrono::Utc::now().timestamp();
+            let mut guard = self.round_guard.lock();
+            if !guard.check_and_record(now) {
+                info!(
+                    target: "nebula.reflect",
+                    rounds = guard.current_rounds(),
+                    max = guard.max_rounds,
+                    cooldown_secs = guard.cooldown_secs,
+                    "reflection skipped by RoundGuard (cooldown window saturated)"
+                );
+                // T-S1-B-03: 上报 skip 事件到全局 metrics。
+                crate::metrics::global().record_reflection_skipped();
+                return Ok(Vec::new());
+            }
+        }
+
         // Single-flight: drop the second concurrent caller.
         // Uses InFlightGuard so `in_flight` is reset on *any* exit
         // path (Ok, Err, panic, CancellationToken cancel).
         let _guard = match InFlightGuard::try_acquire(&self.in_flight) {
             Some(g) => g,
             None => {
-                debug!(target: "nine_snake.reflect", "reflect_now already in-flight; skipping");
+                debug!(target: "nebula.reflect", "reflect_now already in-flight; skipping");
                 return Ok(Vec::new());
             }
         };
@@ -255,15 +344,15 @@ impl ReflectionEngine {
         // need `.await`.
         let candidates = self.collect_candidates().await?;
         if candidates.is_empty() {
-            debug!(target: "nine_snake.reflect", "no candidate memories to reflect on");
+            debug!(target: "nebula.reflect", "no candidate memories to reflect on");
             return Ok(Vec::new());
         }
-        info!(target: "nine_snake.reflect", candidates = candidates.len(), "reflection pass starting");
+        info!(target: "nebula.reflect", candidates = candidates.len(), "reflection pass starting");
 
         let (content, lessons, used_fallback) = match self.synthesise(&candidates).await {
             Ok(t) => t,
             Err(e) => {
-                warn!(target: "nine_snake.reflect", error = ?e, "LLM synthesis failed; using template fallback");
+                warn!(target: "nebula.reflect", error = ?e, "LLM synthesis failed; using template fallback");
                 let (c, l) = template_summarise(&candidates);
                 (c, l, true)
             }
@@ -285,10 +374,10 @@ impl ReflectionEngine {
         // persist() returns a `dedup_replay` trigger_kind for the
         // latter so we do not double-count it in the metric.
         if reflection.trigger_kind == "dedup_replay" {
-            info!(target: "nine_snake.reflect", id = %reflection.id, "dedup replay");
+            info!(target: "nebula.reflect", id = %reflection.id, "dedup replay");
         } else {
             crate::metrics::global().record_reflection();
-            info!(target: "nine_snake.reflect", id = %reflection.id, "reflection persisted");
+            info!(target: "nebula.reflect", id = %reflection.id, "reflection persisted");
         }
         Ok(vec![reflection])
     }
@@ -409,7 +498,7 @@ impl ReflectionEngine {
             sorted_sources.dedup();
             if let Some(existing) = find_duplicate_reflection(&conn, &sorted_sources, day_bucket)? {
                 debug!(
-                    target: "nine_snake.reflect",
+                    target: "nebula.reflect",
                     id = %existing.id,
                     "dedup: reflection already exists for this memory-set / day-bucket; skipping insert"
                 );
@@ -477,7 +566,7 @@ impl ReflectionEngine {
     /// prefer the v1.0 API.
     pub fn spawn_worker(self: Arc<Self>) -> Option<JoinHandle<()>> {
         if self.cfg.worker_interval_secs == 0 {
-            info!(target: "nine_snake.reflect", "worker disabled (interval=0)");
+            info!(target: "nebula.reflect", "worker disabled (interval=0)");
             return None;
         }
         let me = self.clone();
@@ -492,16 +581,16 @@ impl ReflectionEngine {
                     // that hasn't been interrupted.
                     biased;
                     _ = cancel_token.cancelled() => {
-                        info!(target: "nine_snake.reflect", "worker received cancellation token");
+                        info!(target: "nebula.reflect", "worker received cancellation token");
                         break;
                     }
                     _ = shutdown.notified() => {
-                        info!(target: "nine_snake.reflect", "worker received shutdown signal");
+                        info!(target: "nebula.reflect", "worker received shutdown signal");
                         break;
                     }
                     _ = tokio::time::sleep(interval) => {
                         if let Err(e) = me.reflect_now().await {
-                            warn!(target: "nine_snake.reflect", error = ?e, "background reflection failed");
+                            warn!(target: "nebula.reflect", error = ?e, "background reflection failed");
                         }
                     }
                 }
@@ -809,6 +898,15 @@ pub(crate) fn row_to_memory_full(row: &rusqlite::Row<'_>) -> rusqlite::Result<Me
         compression_gen: row.get("compression_gen")?,
         pinned: pinned != 0,
         archived: false,
+        // T-E-A-09: 旧记忆列可能不存在或为 NULL,.ok().flatten() 容错。
+        ingest_cost: row.get::<_, Option<f64>>("ingest_cost").ok().flatten(),
+        // M2a #28: domain 列向后兼容。migration 035 应用前该列不存在,
+        // 应用后旧记忆为 NULL。两者均回退到默认 "shared"。
+        domain: row
+            .get::<_, Option<String>>("domain")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "shared".to_string()),
     })
 }
 
@@ -823,7 +921,7 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let mut p = std::env::temp_dir();
         p.push(format!(
-            "nine_snake_reflect_test_{}_{}.db",
+            "nebula_reflect_test_{}_{}.db",
             std::process::id(),
             n
         ));
@@ -1079,6 +1177,51 @@ mod tests {
         assert_eq!(r2[0].id, r1[0].id, "id should be reused");
         assert_eq!(r2[0].trigger_kind, "dedup_replay");
         cleanup(&p);
+    }
+
+    // --- RoundGuard tests (T-S1-A-06) ---
+
+    #[test]
+    fn round_guard_allows_within_max_rounds() {
+        let mut g = RoundGuard::new(5, 3600);
+        let now = 10000i64;
+        for i in 0..5 {
+            assert!(g.check_and_record(now + i as i64 * 10), "round {i} should be allowed");
+        }
+    }
+
+    #[test]
+    fn round_guard_blocks_at_max_rounds() {
+        let mut g = RoundGuard::new(2, 3600);
+        let now = 10000i64;
+        assert!(g.check_and_record(now));
+        assert!(g.check_and_record(now + 1));
+        assert!(!g.check_and_record(now + 2), "third round should be blocked");
+    }
+
+    #[test]
+    fn round_guard_old_rounds_expire_after_cooldown() {
+        let mut g = RoundGuard::new(2, 100);
+        let now = 10000i64;
+        assert!(g.check_and_record(now));
+        assert!(g.check_and_record(now + 1));
+        // 冷却窗口内已满，blocked
+        assert!(!g.check_and_record(now + 2));
+        // 超出冷却窗口（> 100 秒），旧的被淘汰
+        assert!(g.check_and_record(now + 200), "old rounds should have expired");
+    }
+
+    #[test]
+    fn round_guard_current_rounds_count() {
+        let mut g = RoundGuard::new(3, 100);
+        let now = 1000i64;
+        assert_eq!(g.current_rounds(), 0);
+        g.check_and_record(now);
+        assert_eq!(g.current_rounds(), 1);
+        g.check_and_record(now + 1);
+        assert_eq!(g.current_rounds(), 2);
+        g.check_and_record(now + 2);
+        assert_eq!(g.current_rounds(), 3);
     }
 
     #[test]

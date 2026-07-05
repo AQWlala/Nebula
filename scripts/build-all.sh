@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v1.0: build nine-snake for every supported target.
+# v1.0: build nebula for every supported target.
 #
 # Usage:
 #   ./scripts/build-all.sh                  # build for the host
@@ -37,7 +37,7 @@ else
   TARGETS=("$(rustc -vV | sed -n 's|host: ||p')")
 fi
 
-echo "==> nine-snake cross-build"
+echo "==> nebula cross-build"
 echo "    targets: ${TARGETS[*]}"
 echo
 

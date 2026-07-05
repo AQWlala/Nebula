@@ -374,12 +374,17 @@ mod tests {
     use crate::memory::types::{MemoryLayer, MemoryType, MemoryRelation, SourceKind};
     use crate::memory::types::Memory;
 
-    fn temp_db_path() -> String {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        format!("file:causal_test_{}?mode=memory&cache=shared", nanos)
+    // M7b #90 分类 C:原实现返回 `file:causal_test_<nanos>?mode=memory&cache=shared`
+    // URI 字符串,但 `SqliteStore::open()` 用的是 `Connection::open(path)`(非 URI
+    // 模式)。Windows 文件名不能含 `?`,导致 SqliteStore::open 失败。改用 sqlite_store.rs
+    // 测试模式:真实临时文件 + UUID,每个测试独立 DB 文件。
+    fn temp_db_path() -> std::path::PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "nebula_causal_test_{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        p
     }
 
     fn seed_chain(store: &SqliteStore) -> (String, String, String) {
@@ -394,12 +399,15 @@ mod tests {
             for m in [&a, &b, &c] {
                 store.insert_guarded_spawn(m).await.unwrap();
             }
+            // M7b #90 分类 A: add_relation 是 async fn,必须在 async 上下文中
+            // .await 才会执行。原实现 `let _ = store.add_relation(&rel_ab);`
+            // 只创建了 Future 未 await,关系从未写入 DB,导致 trace_root_causes
+            // / find_effects / explain 都找不到链条。
+            let rel_ab = MemoryRelation::new(a.id.clone(), b.id.clone(), RelationKind::Causes);
+            let rel_bc = MemoryRelation::new(b.id.clone(), c.id.clone(), RelationKind::Causes);
+            store.add_relation(&rel_ab).await.unwrap();
+            store.add_relation(&rel_bc).await.unwrap();
         });
-
-        let rel_ab = MemoryRelation::new(a.id.clone(), b.id.clone(), RelationKind::Causes);
-        let rel_bc = MemoryRelation::new(b.id.clone(), c.id.clone(), RelationKind::Causes);
-        let _ = store.add_relation(&rel_ab);
-        let _ = store.add_relation(&rel_bc);
 
         (a.id, b.id, c.id)
     }
@@ -417,7 +425,11 @@ mod tests {
         // 应至少找到一条链: C → B → A
         assert!(!chains.is_empty(), "should find at least one root cause chain");
         let best = &chains[0];
-        assert_eq!(best.leaf_id, c_id, "leaf should be C");
+        // M7b #90 分类 A: trace_root_causes 语义是从 memory_id(C)反向追踪到根因(A)。
+        // 链 nodes 顺序 = [C, B, A],root_id = C(被查询节点/效果),
+        // leaf_id = A(根因/链终点)。原断言 `leaf_id == c_id` 混淆了 root/leaf。
+        assert_eq!(best.root_id, c_id, "root should be C (queried node)");
+        assert_eq!(best.leaf_id, a_id, "leaf should be root cause A");
         assert!(best.len() >= 2, "chain should have at least 2 nodes");
         // 路径中应包含 B 和 A
         let path_ids: Vec<&str> = best.path_ids();

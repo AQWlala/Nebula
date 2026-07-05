@@ -117,7 +117,7 @@ pub struct PublishManifest {
     pub tags: Vec<String>,
     pub source_url: Option<String>,
     pub dependencies: Vec<String>,
-    pub min_nine_snake_version: Option<String>,
+    pub min_nebula_version: Option<String>,
     pub extra: HashMap<String, serde_json::Value>,
 }
 
@@ -133,7 +133,7 @@ impl Default for PublishManifest {
             tags: vec![],
             source_url: None,
             dependencies: vec![],
-            min_nine_snake_version: None,
+            min_nebula_version: None,
             extra: HashMap::new(),
         }
     }
@@ -273,7 +273,7 @@ impl SkillMarketplace {
 
     /// Build/refresh the index from the local SkillStore.
     pub fn refresh(&self) -> Result<MarketplaceStats, anyhow::Error> {
-        let local_skills = self.store.list(None, None, 1000)?;
+        let local_skills = self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
         let mut entries: Vec<SkillEntry> = Vec::new();
         let installed_ids: HashSet<String> = local_skills.iter().map(|s| s.id.clone()).collect();
 
@@ -404,26 +404,37 @@ impl SkillMarketplace {
     /// One-click install from a remote source.
     pub fn install(&self, source: &str, _identifier: &str) -> Result<SkillEntry, anyhow::Error> {
         // Delegate to SkillImporter based on source type.
+        //
+        // P0 修复:`block_in_place` 包裹 `Handle::current().block_on`,
+        // 避免在 async 上下文(Tauri command `marketplace_install` 是 async)
+        // 中直接调用 `block_on` 导致 "Cannot block the current thread
+        // from within a runtime" panic。`block_in_place` 会把当前
+        // runtime worker 的其它任务转移到备份线程,然后安全阻塞。
         let result: ImportResult = match source {
             "agentskills" => {
                 // For URL-based import, identifier is the URL
-                // We use spawn_blocking since import_from_url is async
                 let url = _identifier.to_string();
                 let importer = self.importer.clone();
-                tokio::runtime::Handle::current()
-                    .block_on(async move { importer.import_from_url(&url).await })
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async move { importer.import_from_url(&url).await })
+                })
             }
             "clawhub" => {
                 let slug = _identifier.to_string();
                 let importer = self.importer.clone();
-                tokio::runtime::Handle::current()
-                    .block_on(async move { importer.import_from_clawhub(&slug).await })
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async move { importer.import_from_clawhub(&slug).await })
+                })
             }
             "teamskillshub" => {
                 let asset_id = _identifier.to_string();
                 let importer = self.importer.clone();
-                tokio::runtime::Handle::current()
-                    .block_on(async move { importer.import_from_teamskillshub(&asset_id).await })
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async move { importer.import_from_teamskillshub(&asset_id).await })
+                })
             }
             other => anyhow::bail!("unknown source: {other}"),
         };
@@ -533,7 +544,7 @@ impl SkillMarketplace {
             tags: skill.tags,
             source_url: None,
             dependencies: vec![],
-            min_nine_snake_version: Some("1.3.0".into()),
+            min_nebula_version: Some("1.3.0".into()),
             extra: HashMap::new(),
         })
     }

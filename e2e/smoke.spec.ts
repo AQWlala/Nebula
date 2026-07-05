@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
 
 test('app boots to loading screen', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/九头蛇|nine-snake/);
+  await expect(page).toHaveTitle(/Nebula|nebula/);
   // The loading screen always shows "唤醒中…" or "Awakening…".
   await expect(page.locator('body')).toContainText(/唤醒|Awakening/);
 });

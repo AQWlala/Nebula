@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0: Settings unit tests.
  *
  * P0#4 covers:
@@ -89,7 +89,7 @@ describe('Settings (P0#4)', () => {
     const input = getByDisplayValue('14') as HTMLInputElement;
     fireEvent.input(input, { target: { value: '17' } });
     fireEvent.click(getByText('Save'));
-    const raw = localStorage.getItem('nine-snake.settings');
+    const raw = localStorage.getItem('nebula.settings');
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw!);
     expect(parsed.fontSize).toBe(17);

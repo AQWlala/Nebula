@@ -1,4 +1,4 @@
-//! `nine_snake::evolution` — self-evolution loop (v1.3).
+﻿//! `nebula::evolution` — self-evolution loop (v1.3).
 //!
 //! Building blocks for the closed-loop, agent-level self-evolution
 //! promised by the README and `docs/ARCHITECTURE.md` §3.1 (planned).
@@ -14,6 +14,7 @@
 //!   * `skill_evolver`  - SkillAutoEvolver + EvolutionPolicy + SkillArchive
 //!   * `prompt_mutator` - PromptSelfMutator + Snapshot store + rollback
 //!   * `goal_signal`    - goal function (win rate) derivation
+//!   * `engine`         - M4 EvolutionEngine (4 Phase pipeline: L1→L2→L3→L5→SOUL.md)
 //!
 //! The wiring into `SkillEngine`, `SwarmOrchestrator`, `ChatPanel` (Rust
 //! side) and `Memory::Reflect` happens via the small adapter structs
@@ -27,6 +28,11 @@ pub mod outcome;
 pub mod outcome_collectors;
 pub mod prompt_mutator;
 pub mod skill_evolver;
+
+// M4: EvolutionEngine — 4 Phase 进化管线（cfg-gated by evolution-engine feature,
+// which implies self-evolution）。
+#[cfg(feature = "evolution-engine")]
+pub mod engine;
 
 use serde::{Deserialize, Serialize};
 
@@ -104,12 +110,12 @@ impl EvolutionWorker {
 
     pub async fn run(self, mutator: prompt_mutator::SqlitePromptSelfMutator) {
         if self.config.background_period_secs == 0 {
-            info!(target: "nine_snake.evolution", "background worker disabled (period=0)");
+            info!(target: "nebula.evolution", "background worker disabled (period=0)");
             return;
         }
 
         info!(
-            target: "nine_snake.evolution",
+            target: "nebula.evolution",
             period_secs = self.config.background_period_secs,
             "evolution worker started"
         );
@@ -126,7 +132,7 @@ impl EvolutionWorker {
                         match mutator.run_once(agent, "") {
                             Ok(Some(result)) => {
                                 info!(
-                                    target: "nine_snake.evolution",
+                                    target: "nebula.evolution",
                                     agent = result.target,
                                     snapshot = %result.snapshot_id,
                                     "prompt mutation proposed"
@@ -134,13 +140,13 @@ impl EvolutionWorker {
                             }
                             Ok(None) => {}
                             Err(e) => {
-                                warn!(target: "nine_snake.evolution", agent, error = %e, "mutation pass failed");
+                                warn!(target: "nebula.evolution", agent, error = %e, "mutation pass failed");
                             }
                         }
                     }
                 }
                 _ = self.cancel.cancelled() => {
-                    info!(target: "nine_snake.evolution", "worker cancelled");
+                    info!(target: "nebula.evolution", "worker cancelled");
                     return;
                 }
             }

@@ -1,4 +1,4 @@
-//! Refined error envelope for Tauri command responses.
+﻿//! Refined error envelope for Tauri command responses.
 //!
 //! v0.2 replaces the single `internal / validation / not_found` triad
 //! from v0.1 with a fine-grained enum ([`ErrorCode`]) so the front-end
@@ -221,7 +221,7 @@ impl From<anyhow::Error> for CommandError {
 }
 
 fn log_failure(code: &str, context: &str, e: &anyhow::Error) {
-    error!(target: "nine_snake.cmd", code, context, error = ?e, "command failed");
+    error!(target: "nebula.cmd", code, context, error = ?e, "command failed");
 }
 
 fn safe_msg(context: &str) -> String {

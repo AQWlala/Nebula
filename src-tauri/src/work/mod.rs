@@ -1,4 +1,4 @@
-//! v0.5: Work mode backend — kanban-style task management.
+﻿//! v0.5: Work mode backend — kanban-style task management.
 //!
 //! Tasks live in the `work_tasks` table introduced by
 //! `004_v05.sql`.  The engine exposes a small CRUD surface plus a
@@ -107,7 +107,7 @@ impl WorkEngine {
         )
         .context("inserting work task")?;
         drop(conn);
-        info!(target: "nine_snake.work", id = %id, "task created");
+        info!(target: "nebula.work", id = %id, "task created");
         Ok(WorkTask {
             id,
             title,

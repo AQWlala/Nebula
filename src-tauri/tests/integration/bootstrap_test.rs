@@ -1,4 +1,4 @@
-//! Bootstrap → health check integration test.
+﻿//! Bootstrap → health check integration test.
 //!
 //! Verifies the v0.2 boot path:
 //!   1. `AppConfig::from_env` (with overrides) returns a usable config.
@@ -9,7 +9,7 @@
 //! v0.3: shared helpers are declared once in the parent runner file
 //! and accessed via `super::common`.
 
-use nine_snake_lib::memory::migration;
+use nebula_lib::memory::migration;
 
 #[test]
 fn bootstrap_health_check() {

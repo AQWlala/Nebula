@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: Code 模式（增强）
  *
  * 三栏布局：
@@ -13,12 +13,16 @@
  * - Agent 修改文件后，使用 Monaco DiffEditor 预览变更
  * - 支持"应用修改"和"撤销"操作
  */
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import * as monaco from 'monaco-editor';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import { NineSnakeAPI, type FileEntry, type FileContent, type GitStatus, type GitLogEntry } from '../lib/tauri';
+import { nebulaAPI, type FileEntry, type FileContent, type GitStatus, type GitLogEntry } from '../lib/tauri';
+import { nebulaStore } from '../stores/nebulaStore';
 import { MonacoEditor, detectLanguage } from './editor/MonacoEditor';
 import { FileTree, refreshFileTree } from './editor/FileTree';
 import { Terminal } from './editor/Terminal';
+import { toast } from './Toast';
+import { Spinner } from './Spinner';
 import { t } from '../i18n';
 
 export function CodeMode() {
@@ -27,6 +31,8 @@ export function CodeMode() {
   const [openPath, setOpenPath] = useState<string | null>(null);
   const [openContent, setOpenContent] = useState<string>('');
   const [dirty, setDirty] = useState(false);
+  // T-E-S-52: Monaco editor 实例(L1 定向编辑用)。
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [gitLog, setGitLog] = useState<GitLogEntry[]>([]);
   const [diff, setDiff] = useState<string>('');
@@ -41,7 +47,7 @@ export function CodeMode() {
   const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    NineSnakeAPI.editorWorkspaceRoot().then(setWorkspace).catch((e) => setError(String(e)));
+    nebulaAPI.editorWorkspaceRoot().then(setWorkspace).catch((e) => setError(String(e)));
     refreshFileTree(setEntries);
     refreshGit();
   }, []);
@@ -49,22 +55,22 @@ export function CodeMode() {
   const refreshGit = async () => {
     try {
       const [s, l] = await Promise.all([
-        NineSnakeAPI.gitStatus(),
-        NineSnakeAPI.gitLog(10),
+        nebulaAPI.gitStatus(),
+        nebulaAPI.gitLog(10),
       ]);
       setGitStatus(s);
       setGitLog(l);
     } catch (e) {
       // 仓库不存在时 git 命令会失败
-      setGitStatus({ branch: '(no repo)', entries: [], clean: true });
+      setGitStatus({ branch: t('codeMode.noRepo'), entries: [], clean: true });
       setGitLog([]);
     }
   };
 
   const onOpen = async (path: string) => {
-    if (dirty && !confirm('当前文件有未保存的改动，放弃吗？')) return;
+    if (dirty && !confirm(t('codeMode.confirmDiscard'))) return;
     try {
-      const c = await NineSnakeAPI.editorRead(path);
+      const c = await nebulaAPI.editorRead(path);
       setOpenPath(c.path);
       setOpenContent(c.content);
       setDirty(false);
@@ -77,7 +83,7 @@ export function CodeMode() {
   const onSave = async () => {
     if (!openPath) return;
     try {
-      const c = await NineSnakeAPI.editorWrite(openPath, openContent);
+      const c = await nebulaAPI.editorWrite(openPath, openContent);
       setOpenContent(c.content);
       setDirty(false);
       // 写文件后刷新文件树以更新 mtime
@@ -89,10 +95,10 @@ export function CodeMode() {
 
   const onCommit = async () => {
     if (!gitStatus) return;
-    const msg = prompt('提交信息：');
+    const msg = prompt(t('codeMode.commitMessage'));
     if (!msg) return;
     try {
-      await NineSnakeAPI.gitCommit(msg);
+      await nebulaAPI.gitCommit(msg);
       await refreshGit();
     } catch (e) {
       setError(String(e));
@@ -101,8 +107,8 @@ export function CodeMode() {
 
   const onShowDiff = async () => {
     try {
-      const d = await NineSnakeAPI.gitDiff('');
-      setDiff(d.body || '(无差异)');
+      const d = await nebulaAPI.gitDiff('');
+      setDiff(d.body || t('codeMode.noDiff'));
       setShowGit(true);
     } catch (e) {
       setError(String(e));
@@ -112,7 +118,7 @@ export function CodeMode() {
   // P1-5: 显示 Agent 修改的 Diff 预览
   const onShowAgentDiff = async (path: string, modifiedContent: string) => {
     try {
-      const originalContent = await NineSnakeAPI.editorRead(path);
+      const originalContent = await nebulaAPI.editorRead(path);
       setAgentDiff({
         original: originalContent.content,
         modified: modifiedContent,
@@ -128,7 +134,7 @@ export function CodeMode() {
   const onApplyAgentDiff = async () => {
     if (!agentDiff) return;
     try {
-      const result = await NineSnakeAPI.editorWrite(agentDiff.path, agentDiff.modified);
+      const result = await nebulaAPI.editorWrite(agentDiff.path, agentDiff.modified);
       setOpenContent(result.content);
       setDirty(false);
       setShowAgentDiff(false);
@@ -151,7 +157,7 @@ export function CodeMode() {
     setAiLoading(true);
     setAiResult('');
     try {
-      const text = await NineSnakeAPI.llmComplete(
+      const text = await nebulaAPI.llmComplete(
         `用 ${aiLang} 实现：\n${aiPrompt}\n\n只返回代码，不要解释。`,
       );
       setAiResult(text);
@@ -165,14 +171,14 @@ export function CodeMode() {
   const onStoreAsSkill = async () => {
     if (!aiResult) return;
     try {
-      await NineSnakeAPI.skillCreate({
+      await nebulaAPI.skillCreate({
         name: `snippet-${Date.now()}`,
         description: `Code snippet in ${aiLang}`,
         code: aiResult,
         language: aiLang,
         tags: [aiLang, 'snippet'],
       });
-      alert('已存入 L4');
+      toast.success(t('codeMode.savedToL4'));
     } catch (e) {
       setError(String(e));
     }
@@ -186,27 +192,27 @@ export function CodeMode() {
 
   // P1-5: 暴露 onShowAgentDiff 到 window，供外部组件（如 Agent）调用
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).nineSnakeShowAgentDiff = onShowAgentDiff;
+    (window as unknown as Record<string, unknown>).nebulaShowAgentDiff = onShowAgentDiff;
     return () => {
-      delete (window as unknown as Record<string, unknown>).nineSnakeShowAgentDiff;
+      delete (window as unknown as Record<string, unknown>).nebulaShowAgentDiff;
     };
   }, []);
 
   return (
     <div class="code-mode">
       <div class="code-toolbar">
-        <span class="code-title">💻 Code</span>
+        <span class="code-title">{t('codeMode.title')}</span>
         <span class="code-workspace" title={workspace}>{workspace}</span>
         {gitStatus && (
           <span class={`git-pill ${gitStatus.clean ? 'clean' : 'dirty'}`}>
-            {gitStatus.branch} · {gitStatus.clean ? '✓' : `${gitStatus.entries.length} 变更`}
+            {gitStatus.branch} · {gitStatus.clean ? '✓' : `${gitStatus.entries.length} ${t('codeMode.changes')}`}
           </span>
         )}
         <div class="spacer" />
-        <button onClick={onShowDiff}>diff</button>
-        <button onClick={refreshGit} title="刷新 Git">↻</button>
-        <button onClick={onCommit} disabled={!gitStatus || gitStatus.clean}>commit</button>
-        <button onClick={() => setShowGit((v) => !v)}>{showGit ? '关闭' : 'Git'}</button>
+        <button onClick={onShowDiff}>{t('codeMode.diff')}</button>
+        <button onClick={refreshGit} title={t('codeMode.refreshGit')}>↻</button>
+        <button onClick={onCommit} disabled={!gitStatus || gitStatus.clean}>{t('codeMode.commit')}</button>
+        <button onClick={() => setShowGit((v) => !v)}>{showGit ? t('codeMode.closeGit') : t('codeMode.git')}</button>
       </div>
 
       {error && <div class="code-error">{error}</div>}
@@ -255,28 +261,60 @@ export function CodeMode() {
                 {dirty && <span class="editor-dirty">●</span>}
                 <div class="spacer" />
                 <span class="editor-lang">{detectLanguage(openPath)}</span>
-                <button onClick={onSave} disabled={!dirty} class="primary">保存</button>
+                <button onClick={onSave} disabled={!dirty} class="primary">{t('codeMode.save')}</button>
               </header>
               <div class="editor-host">
                 <MonacoEditor
                   value={openContent}
                   language={detectLanguage(openPath)}
                   path={openPath}
+                  onEditorMount={(editor) => {
+                    editorRef.current = editor;
+                    // T-E-S-52: L1 定向编辑 — Ctrl/Cmd+R 重写选中文本。
+                    editor.onKeyDown((e) => {
+                      if (
+                        nebulaStore.autonomyLevel.value === 'L1' &&
+                        (e.ctrlKey || e.metaKey) &&
+                        (e.keyCode === monaco.KeyCode.KeyR)
+                      ) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const sel = editor.getSelection();
+                        if (!sel || sel.isEmpty()) {
+                          toast.warning(t('codeMode.selectText'));
+                          return;
+                        }
+                        const selected = editor.getModel()?.getValueInRange(sel) ?? '';
+                        if (!selected) return;
+                        nebulaAPI.directedEdit(selected)
+                          .then((rewritten) => {
+                            editor.executeEdits('l1-directed-edit', [{
+                              range: sel,
+                              text: rewritten,
+                            }]);
+                            editor.pushUndoStop();
+                            setOpenContent(editor.getValue());
+                            setDirty(true);
+                          })
+                          .catch((err) => toast.error(t('codeMode.directEditFailed'), String(err)));
+                      }
+                    });
+                  }}
                   onChange={(v) => { setOpenContent(v); setDirty(true); }}
                 />
               </div>
             </>
           ) : (
             <div class="editor-empty">
-              <h2>💻 Code 模式</h2>
-              <p>从左侧选择一个文件开始编辑</p>
+              <h2>{t('codeMode.emptyTitle')}</h2>
+              <p>{t('codeMode.emptySubtitle')}</p>
             </div>
           )}
         </main>
 
         <aside class="code-right">
           <div class="code-ai">
-            <h3>AI 代码生成</h3>
+            <h3>{t('codeMode.aiCodeGen')}</h3>
             <div class="row">
               <select
                 value={aiLang}
@@ -291,25 +329,25 @@ export function CodeMode() {
             </div>
             <textarea
               rows={3}
-              placeholder="描述要写的代码…"
+              placeholder={t('codeMode.aiPlaceholder')}
               value={aiPrompt}
               onInput={(e) => setAiPrompt((e.target as HTMLTextAreaElement).value)}
             />
             <div class="row">
               <button onClick={onAiGenerate} disabled={aiLoading || !aiPrompt.trim()}>
-                {aiLoading ? '生成中…' : '✨ 生成'}
+                {aiLoading ? <Spinner size={16} showLabel={false} /> : t('codeMode.generate')}
               </button>
               {aiResult && openPath && (
-                <button onClick={onApplySnippet}>追加到编辑器</button>
+                <button onClick={onApplySnippet}>{t('codeMode.appendToEditor')}</button>
               )}
-              {aiResult && <button onClick={onStoreAsSkill}>存为 Skill</button>}
+              {aiResult && <button onClick={onStoreAsSkill}>{t('codeMode.saveAsSkill')}</button>}
             </div>
             {aiResult && (
               <pre class="ai-out"><code>{aiResult}</code></pre>
             )}
           </div>
           <div class="code-terminal">
-            <h3>终端</h3>
+            <h3>{t('codeMode.terminal')}</h3>
             <Terminal />
           </div>
         </aside>
@@ -319,27 +357,27 @@ export function CodeMode() {
         <div class="git-modal" onClick={() => setShowGit(false)}>
           <div class="git-card" onClick={(e) => e.stopPropagation()}>
             <header>
-              <h3>Git 视图</h3>
+              <h3>{t('codeMode.gitView')}</h3>
               <button onClick={() => setShowGit(false)}>×</button>
             </header>
             <section>
-              <h4>状态</h4>
+              <h4>{t('codeMode.status')}</h4>
               {gitStatus && (gitStatus.clean ? (
-                <p class="muted">✓ 工作区干净</p>
+                <p class="muted">{t('codeMode.clean')}</p>
               ) : (
                 <ul class="git-status-list">
-                  {gitStatus.entries.map((e, i) => (
-                    <li key={i}><code>{e.code}</code> {e.path}</li>
+                  {gitStatus.entries.map((e) => (
+                    <li key={`${e.code}-${e.path}`}><code>{e.code}</code> {e.path}</li>
                   ))}
                 </ul>
               ))}
             </section>
             <section>
-              <h4>未提交 diff</h4>
-              <pre class="git-diff"><code>{diff || '(点击 diff 按钮加载)'}</code></pre>
+              <h4>{t('codeMode.uncommittedDiff')}</h4>
+              <pre class="git-diff"><code>{diff || t('codeMode.clickDiffHint')}</code></pre>
             </section>
             <section>
-              <h4>最近提交</h4>
+              <h4>{t('codeMode.recentCommits')}</h4>
               <ul class="git-log">
                 {gitLog.map((e) => (
                   <li key={e.hash}>

@@ -1,4 +1,4 @@
-//! v0.5: shell command execution with a whitelist + audit log.
+﻿//! v0.5: shell command execution with a whitelist + audit log.
 //!
 //! Safety model (v0.5):
 //!
@@ -284,7 +284,7 @@ impl ShellExecutor {
                         let stdout_s = String::from_utf8_lossy(&stdout).into_owned();
                         let stderr_s = String::from_utf8_lossy(&stderr).into_owned();
                         info!(
-                            target: "nine_snake.os",
+                            target: "nebula.os",
                             argv = ?argv_vec,
                             cwd = ?cwd,
                             exit_code,
@@ -301,7 +301,7 @@ impl ShellExecutor {
                         })
                     }
                     Err(e) => {
-                        warn!(target: "nine_snake.os", error = ?e, "shell exec wait failed");
+                        warn!(target: "nebula.os", error = ?e, "shell exec wait failed");
                         Err(anyhow!("wait failed: {e}"))
                     }
                 }
@@ -309,7 +309,7 @@ impl ShellExecutor {
             _ = tokio::time::sleep(timeout) => {
                 let elapsed = started.elapsed();
                 warn!(
-                    target: "nine_snake.os",
+                    target: "nebula.os",
                     argv = ?argv_vec,
                     timeout_ms = timeout.as_millis() as u64,
                     pid = ?pid,

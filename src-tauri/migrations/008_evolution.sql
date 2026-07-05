@@ -1,6 +1,6 @@
--- nine-snake v1.3 migration 008 — task_outcomes + prompt_snapshots.
+﻿-- nebula v1.3 migration 008 — task_outcomes + prompt_snapshots.
 --
--- Two tables supporting `nine_snake::evolution::*` (v1.3 self-evolution).
+-- Two tables supporting `nebula::evolution::*` (v1.3 self-evolution).
 --
 -- * `task_outcomes`: per-task outcome rows recorded by the three
 --   `outcome_collectors::*` hooks (skill, swarm, chat).  Skill

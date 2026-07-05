@@ -1,4 +1,4 @@
-//! v0.5: clipboard backend.
+﻿//! v0.5: clipboard backend.
 //!
 //! The clipboard is process-local in this version (no X11/Wayland
 //! integration).  We use the `arboard` crate when available and fall
@@ -56,7 +56,7 @@ impl ClipboardService {
         let backend = match arboard_facade::Clipboard::new() {
             Ok(c) => Some(c),
             Err(e) => {
-                warn!(target: "nine_snake.os", error = ?e, "clipboard backend unavailable; reads/writes will fail");
+                warn!(target: "nebula.os", error = ?e, "clipboard backend unavailable; reads/writes will fail");
                 None
             }
         };
@@ -101,7 +101,7 @@ impl ClipboardService {
             .ok_or_else(|| anyhow!("clipboard backend not initialised"))?;
         arboard_facade::ClipboardExt::write_text(backend, text)?;
         g.last_seen = text.to_string();
-        debug!(target: "nine_snake.os", bytes = text.len(), "clipboard write ok");
+        debug!(target: "nebula.os", bytes = text.len(), "clipboard write ok");
         Ok(())
     }
 
@@ -125,7 +125,7 @@ impl ClipboardService {
                     }
                 }
                 Err(e) => {
-                    warn!(target: "nine_snake.os", error = ?e, "clipboard read failed during watch");
+                    warn!(target: "nebula.os", error = ?e, "clipboard read failed during watch");
                 }
             }
             if std::time::Instant::now() >= deadline {
@@ -151,7 +151,7 @@ mod tests {
                 return;
             }
         };
-        let marker = "nine-snake-v0.5-test";
+        let marker = "nebula-v0.5-test";
         if svc.write_text(marker).is_err() {
             eprintln!("clipboard write failed; skipping");
             return;

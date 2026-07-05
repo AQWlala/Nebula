@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
-  "productName": "nine-snake",
-  "mainBinaryName": "nine-snake",
-  "version": "1.1.10",
-  "identifier": "com.nine-snake.desktop",
+  "productName": "nebula",
+  "mainBinaryName": "nebula",
+  "version": "2.0.0",
+  "identifier": "com.nebula.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -13,7 +13,8 @@
   "app": {
     "windows": [
       {
-        "title": "九头蛇 · nine-snake",
+        "label": "main",
+        "title": "Nebula",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -40,15 +41,15 @@
       "icons/icon.ico"
     ],
     "category": "DeveloperTool",
-    "shortDescription": "九头蛇 — 多头 AI 助手",
-    "longDescription": "A multi-headed AI agent that grows with you. 写作 / 工作 / 代码 一体。",
+    "shortDescription": "Nebula — AI 知识星云",
+    "longDescription": "A local-first AI assistant that evolves with your knowledge. Your memory, your intelligence.",
     "publisher": "AQWlala",
-    "homepage": "https://github.com/AQWlala/nine-snake",
+    "homepage": "https://github.com/AQWlala/nebula",
     "fileAssociations": [
       { "ext": ["md"], "name": "Markdown", "description": "Markdown 文档" },
       { "ext": ["txt"], "name": "Plain Text", "description": "纯文本文件" },
-      { "ext": ["hermes"], "name": "Hermes Project", "description": "九头蛇项目文件" },
-      { "ext": ["hmemory"], "name": "Hermes Memory Export", "description": "九头蛇记忆导出" }
+      { "ext": ["nebula"], "name": "Nebula Project", "description": "Nebula 项目文件" },
+      { "ext": ["nmemory"], "name": "Nebula Memory Export", "description": "Nebula 记忆导出" }
     ]
   },
   "plugins": {

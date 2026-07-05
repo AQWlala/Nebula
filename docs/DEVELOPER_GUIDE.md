@@ -1,4 +1,4 @@
-# 九头蛇 · 开发者指南 (Developer Guide)
+# Nebula · 开发者指南 (Developer Guide)
 
 > 适用于想贡献代码或构建第三方集成的开发者。
 
@@ -7,7 +7,7 @@
 ## 1. 代码结构
 
 ```
-nine-snake/
+nebula/
 ├── src/                    # Preact front-end
 │   ├── components/         # UI 组件
 │   ├── i18n/               # 国际化资源
@@ -59,8 +59,8 @@ nine-snake/
 ### 2.2 克隆 + 运行
 
 ```bash
-git clone https://github.com/nine-snake/nine-snake.git
-cd nine-snake
+git clone https://github.com/nebula/nebula.git
+cd nebula
 npm install
 npm run tauri:dev
 ```
@@ -175,28 +175,28 @@ npm run test:e2e
 ### 6.1 JSON 日志
 
 ```bash
-NINE_SNAKE_LOG_FORMAT=json npm run tauri:dev
+NEBULA_LOG_FORMAT=json npm run tauri:dev
 ```
 
 ### 6.2 日志文件
 
 ```bash
-NINE_SNAKE_LOG_DIR=/tmp/nine-snake-logs npm run tauri:dev
+NEBULA_LOG_DIR=/tmp/nebula-logs npm run tauri:dev
 ```
 
-日志会按天轮转到 `/tmp/nine-snake-logs/nine-snake.log.YYYY-MM-DD`。
+日志会按天轮转到 `/tmp/nebula-logs/nebula.log.YYYY-MM-DD`。
 
 ### 6.3 gRPC 调试
 
 ```bash
-NINE_SNAKE_GRPC=1 NINE_SNAKE_GRPC_ADDR=127.0.0.1:50051 npm run tauri:dev
+NEBULA_GRPC=1 NEBULA_GRPC_ADDR=127.0.0.1:50051 npm run tauri:dev
 grpcurl -plaintext 127.0.0.1:50051 list
 ```
 
 > **v1.0 P0#12 状态**：gRPC 服务器能 bind + accept TCP
 > 连接，但 `handle_connection` 是 v0.3 wire-shim 占位 — 22
 > 个 RPC 通过 `grpcurl` 调用会立即收到 `unimplemented`
-> 状态。trait 层（`NineSnakeService`）的 22 个方法体在
+> 状态。trait 层（`nebulaService`）的 22 个方法体在
 > `src/grpc/server.rs` 中已完整实现并单元测试。完整 HTTP/2
 > + 帧解码推迟到 v1.1。详见 `docs/API.md` §3 与
 > `tests/integration/grpc_wire_test.rs`。

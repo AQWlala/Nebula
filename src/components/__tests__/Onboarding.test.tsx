@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0.1 (P0#09): Onboarding race-condition tests.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -30,7 +30,7 @@ describe('Onboarding (P0#09)', () => {
     const { getByText } = render(<Onboarding onDone={onDone} />);
     // Click "Skip" — writes the flag and calls onDone.
     fireEvent.click(getByText(t('onboarding.skip')));
-    expect(localStorage.getItem('nine-snake.onboarding.completed')).toBe('1');
+    expect(localStorage.getItem('nebula.onboarding.completed')).toBe('1');
     expect(onDone).toHaveBeenCalled();
   });
 
@@ -39,11 +39,11 @@ describe('Onboarding (P0#09)', () => {
     markOnboarded();
     expect(shouldShowOnboarding()).toBe(false);
     // The signal and localStorage must agree.
-    expect(localStorage.getItem('nine-snake.onboarding.completed')).toBe('1');
+    expect(localStorage.getItem('nebula.onboarding.completed')).toBe('1');
   });
 
   it('shouldShowOnboarding returns false when localStorage was already set', () => {
-    localStorage.setItem('nine-snake.onboarding.completed', '1');
+    localStorage.setItem('nebula.onboarding.completed', '1');
     // Reset the in-memory signal so we can prove the next read
     // re-hydrates from storage at module load.  We re-import the
     // module via dynamic import would be heavy; instead, just
@@ -61,7 +61,7 @@ describe('Onboarding (P0#09)', () => {
     fireEvent.click(getByText(t('onboarding.next')));
     fireEvent.click(getByText(t('onboarding.next')));
     fireEvent.click(getByText(t('onboarding.finish')));
-    expect(localStorage.getItem('nine-snake.onboarding.completed')).toBe('1');
+    expect(localStorage.getItem('nebula.onboarding.completed')).toBe('1');
     expect(shouldShowOnboarding()).toBe(false);
     expect(onDone).toHaveBeenCalled();
   });

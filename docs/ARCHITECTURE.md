@@ -1,4 +1,4 @@
-# 九头蛇 · 架构 (Architecture)
+# Nebula · 架构 (Architecture)
 
 > v1.0 的分层、数据流与子系统契约。
 
@@ -71,7 +71,7 @@
 User (ChatPanel)
   │
   ▼
-NineSnakeAPI.chat({message, conversation_id?})
+nebulaAPI.chat({message, conversation_id?})
   │
   ▼ Tauri IPC
   │
@@ -98,7 +98,7 @@ NineSnakeAPI.chat({message, conversation_id?})
 返回 ChatResponseDto
   │
   ▼
-ChatPanel 渲染 + 写入 NineSnakeStore
+ChatPanel 渲染 + 写入 nebulaStore
 ```
 
 ---
@@ -164,7 +164,7 @@ ChatPanel 渲染 + 写入 NineSnakeStore
 
 ## 5. gRPC 服务（v1.1 JSON framing shim）
 
-`proto/nine_snake.proto` 定义 22 个 RPC：
+`proto/nebula.proto` 定义 22 个 RPC：
 
 | Service | RPCs |
 | ------- | ---- |
@@ -180,15 +180,15 @@ ChatPanel 渲染 + 写入 NineSnakeStore
   不支持 HPACK 头压缩、varint 编码或 gRPC 标准的 4MB 消息限制。
   标准 `grpcurl` 或 `protoc-gen-tonic` 客户端**无法直接连接**。
   调用方需使用兼容此 JSON framing 的自定义客户端。
-* **地址** — `127.0.0.1:50051` 默认（`NINE_SNAKE_GRPC_ADDR`）。
-* **关闭** — `NINE_SNAKE_GRPC=0` 禁用（`--no-default-features` 也可彻底剔除 tonic）。
+* **地址** — `127.0.0.1:50051` 默认（`NEBULA_GRPC_ADDR`）。
+* **关闭** — `NEBULA_GRPC=0` 禁用（`--no-default-features` 也可彻底剔除 tonic）。
 * **v1.1 状态** — 22 个 RPC 的 trait 方法体在
-  `src/grpc/server.rs::NineSnakeServiceImpl` 中已完整实现；
+  `src/grpc/server.rs::nebulaServiceImpl` 中已完整实现；
   `handle_connection` 使用 hyper HTTP/2 + JSON framing shim 处理真实连接。
   完整 protobuf wire 兼容（grpcurl / tonic 客户端可直连）推迟到未来版本。
 
 > **架构决策 (ADR)**：v1.x 阶段永久采用 JSON framing shim，不追求完整 protobuf wire 兼容。
-> 理由：nine-snake 是本地优先应用，Tauri IPC 已是主要通信通道；gRPC 仅作为可选的外部集成接口。
+> 理由：nebula 是本地优先应用，Tauri IPC 已是主要通信通道；gRPC 仅作为可选的外部集成接口。
 > 完整 protobuf（grpcurl/tonic 直连）推迟到有明确需求时再评估。
 
 ---
@@ -251,8 +251,8 @@ Alice                         Bob
 
 ## 10. 可观测性 (v1.0)
 
-* **结构化日志** — `NINE_SNAKE_LOG_FORMAT=json`。
-* **日志轮转** — `NINE_SNAKE_LOG_DIR=/path` 启用 daily rolling。
+* **结构化日志** — `NEBULA_LOG_FORMAT=json`。
+* **日志轮转** — `NEBULA_LOG_DIR=/path` 启用 daily rolling。
 * **指标** — `metrics` command 返回 7 个 atomic 计数器。
 * **启动报告** — `startup_report` command 返回 6 阶段耗时 + 状态。
 * **崩溃** — 前端 `ErrorBoundary` 把最近 5 次崩溃写到 `localStorage`；v1.1 计划用 Sentry。

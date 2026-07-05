@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0.1: P1-7 Onboarding 引导增强
  *
  * 3 步引导流程：
@@ -13,7 +13,7 @@ import { signal } from '@preact/signals';
 import { invoke } from '@tauri-apps/api/core';
 import { t } from '../i18n';
 
-const STORAGE_KEY = 'nine-snake.onboarding.completed';
+const STORAGE_KEY = 'nebula.onboarding.completed';
 
 interface Step {
   title: () => string;
@@ -28,9 +28,9 @@ const STEPS: Step[] = [
 
 /** 进度指示器配置 */
 const STEP_META = [
-  { label: '欢迎', description: '确认安装路径' },
-  { label: 'LLM 配置', description: '连接 Ollama' },
-  { label: '开始使用', description: '创建或导入' },
+  { labelKey: 'onboarding.stepWelcome', descKey: 'onboarding.stepWelcomeDesc' },
+  { labelKey: 'onboarding.stepLlm', descKey: 'onboarding.stepLlmDesc' },
+  { labelKey: 'onboarding.stepStart', descKey: 'onboarding.stepStartDesc' },
 ];
 
 /** Synchronously seeded from localStorage. */
@@ -90,13 +90,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         {/* P1-7: 3 步进度指示器 */}
         <div class="onboarding-progress">
           {STEP_META.map((meta, i) => (
-            <div key={i} class={`step-indicator ${i === idx ? 'active' : i < idx ? 'done' : ''}`}>
+            <div key={`step-${i}`} class={`step-indicator ${i === idx ? 'active' : i < idx ? 'done' : ''}`}>
               <div class="step-dot">
                 {i < idx ? '✓' : i + 1}
               </div>
               <div class="step-label">
-                <span class="step-title">{meta.label}</span>
-                <span class="step-desc">{meta.description}</span>
+                <span class="step-title">{t(meta.labelKey as any)}</span>
+                <span class="step-desc">{t(meta.descKey as any)}</span>
               </div>
               {i < STEP_META.length - 1 && <div class="step-line" />}
             </div>

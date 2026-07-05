@@ -1,4 +1,4 @@
-//! Planner agent — task decomposition, scheduling, and arbitration.
+﻿//! Planner agent — task decomposition, scheduling, and arbitration.
 //!
 //! ## 白皮书设计规格
 //! - **角色**：Planner-F（任务拆解）
@@ -13,9 +13,20 @@ use async_trait::async_trait;
 use tracing::info;
 
 use crate::llm::{ChatMessage, LlmGateway};
+use crate::memory::types::MemoryLayer;
 use crate::swarm::context::TeamContext;
 
 use super::{Agent, AgentKind, AgentOutput};
+
+/// T-6: Planner 可用工具集。
+const PLANNER_TOOL_SET: [&str; 2] = ["memory_search", "tool_invoke"];
+/// T-6: Planner 可访问的记忆层级。
+const PLANNER_KNOWLEDGE_SCOPE: [MemoryLayer; 2] = [MemoryLayer::L2, MemoryLayer::L5];
+/// T-6: Dify 风格 system prompt(角色定位 + 工具指引 + 知识边界)。
+const PLANNER_SYSTEM_PROMPT: &str = "You are the Planner agent (Planner-F) in the nebula swarm.\n\
+     Role: decompose tasks into sub-tasks (max depth 3), assign agents, arbitrate conflicts.\n\
+     Tools: memory_search, tool_invoke.\n\
+     Knowledge scope: L2 (cross-session experience) and L5 (lessons learned).";
 
 pub struct PlannerAgent {
     llm: Arc<LlmGateway>,
@@ -36,14 +47,16 @@ impl Agent for PlannerAgent {
         "Planner"
     }
     fn system_prompt(&self) -> &str {
-        "You are the Planner agent (Planner-F) in the nine-snake swarm. \
-         Your role is to decompose complex tasks into executable sub-tasks \
-         (max depth 3), assign them to the appropriate agents, and resolve \
-         conflicts. Output a structured plan with dependencies, then \
-         monitor execution and arbitrate when agents disagree."
+        PLANNER_SYSTEM_PROMPT
     }
     fn description(&self) -> &str {
         "Decomposes tasks, plans execution order, and arbitrates agent conflicts."
+    }
+    fn tool_set(&self) -> &[&str] {
+        &PLANNER_TOOL_SET
+    }
+    fn knowledge_scope(&self) -> &[MemoryLayer] {
+        &PLANNER_KNOWLEDGE_SCOPE
     }
 
     async fn run(&self, task: &str, ctx: &TeamContext) -> Result<AgentOutput> {
@@ -61,7 +74,31 @@ impl Agent for PlannerAgent {
         let resp = self.llm.chat(msgs).await?;
         let body = resp.message.content;
         ctx.push_str(self.name(), "plan", &body);
-        info!(target: "nine_snake.swarm", agent = %self.name(), "planner finished");
+        info!(target: "nebula.swarm", agent = %self.name(), "planner finished");
         Ok(AgentOutput::new(AgentKind::Planner, self.name(), body))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::llm::LlmGateway;
+    use std::sync::Arc;
+
+    #[test]
+    fn planner_tool_set_and_knowledge_scope() {
+        let agent = PlannerAgent::new(Arc::new(LlmGateway::new_test()));
+        assert_eq!(agent.tool_set(), &["memory_search", "tool_invoke"]);
+        assert_eq!(agent.knowledge_scope(), &[MemoryLayer::L2, MemoryLayer::L5]);
+    }
+
+    #[test]
+    fn planner_system_prompt_mentions_tools_and_scope() {
+        let agent = PlannerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.system_prompt();
+        assert!(prompt.contains("Planner"));
+        assert!(prompt.contains("memory_search"));
+        assert!(prompt.contains("L2"));
+        assert!(prompt.contains("L5"));
     }
 }

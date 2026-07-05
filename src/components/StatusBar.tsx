@@ -1,8 +1,8 @@
-/**
+﻿/**
  * v1.0: status bar.
  * v1.8: 真正轮询 `perf_sample` + `metrics` 命令，展示：
  *   - current mode
- *   - memory count (from `nineSnakeStore.recentMemories`)
+ *   - memory count (from `nebulaStore.recentMemories`)
  *   - RSS budget meter (only when `perf-telemetry` is on)
  *   - LLM online/offline (best-effort: 1 quick HEAD to the
  *     configured Ollama URL)
@@ -10,9 +10,10 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
-import { NineSnakeStore } from '../stores/nineSnakeStore';
+import { nebulaStore } from '../stores/nebulaStore';
 import { t } from '../i18n';
-import { invokeTauri, type MetricsSnapshot } from '../lib/tauri';
+import { invokeTauri, nebulaAPI, type MetricsSnapshot } from '../lib/tauri';
+import { toast } from './Toast';
 
 interface PerfSample {
   rss_bytes?: number | null;
@@ -53,8 +54,8 @@ function fmtRatio(hits: number | null | undefined, misses: number | null | undef
 export function StatusBar() {
   const [perf, setPerf] = useState<PerfSample | null>(null);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
-  const memCount = NineSnakeStore.recentMemories.value.length;
-  const mode = NineSnakeStore.mode.value;
+  const memCount = nebulaStore.recentMemories.value.length;
+  const mode = nebulaStore.mode.value;
   const online = llmOnline.value;
   const rssOver = rssBudgetBytes.value != null && (perf?.rss_bytes ?? 0) > rssBudgetBytes.value;
 
@@ -82,6 +83,24 @@ export function StatusBar() {
       clearInterval(id);
     };
   }, []);
+
+  /** T-S5-B-01: 打开浮动聊天窗口 (PIP)。 */
+  async function openFloatingChat() {
+    try {
+      await nebulaAPI.floatingChatOpen();
+    } catch (e) {
+      toast.error(t('statusBar.floatingChatFailed'), String(e));
+    }
+  }
+
+  /** T-E-D-03: 打开 / toggle 桌面悬浮球。 */
+  async function openFloatingBall() {
+    try {
+      await nebulaAPI.floatingBallOpen();
+    } catch (e) {
+      toast.error(t('statusBar.floatingBallFailed'), String(e));
+    }
+  }
 
   return (
     <footer class="statusbar" role="status" aria-live="polite">
@@ -130,6 +149,20 @@ export function StatusBar() {
           {fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count)}
         </span>
       </span>
+      <button
+        class="sb-item sb-floating-btn"
+        title={t('statusBar.openFloatingChat')}
+        onClick={() => void openFloatingChat()}
+      >
+        🪟 {t('statusBar.floating')}
+      </button>
+      <button
+        class="sb-item sb-floating-btn"
+        title={t('nav.floatingBall')}
+        onClick={() => void openFloatingBall()}
+      >
+        🌀 {t('nav.floatingBall')}
+      </button>
     </footer>
   );
 }

@@ -1,29 +1,38 @@
-//! `nine_snake::grpc` — v0.3 in-process gRPC server.
+//! `nebula::grpc` — gRPC server (v2.1: real tonic wire layer).
 //!
 //! The server binds to `127.0.0.1:50051` by default (override with
-//! `NINE_SNAKE_GRPC_ADDR`) and exposes the 22 RPCs from the design
-//! document §13. It is opt-out: setting `NINE_SNAKE_GRPC=0` keeps the
+//! `NEBULA_GRPC_ADDR`) and exposes the 22 RPCs from the design
+//! document §13. It is opt-out: setting `NEBULA_GRPC=0` keeps the
 //! server disabled.
 //!
-//! ## Architecture
+//! ## Architecture (v2.1 T-S2-B-01)
 //!
-//! * The protobuf types are generated from `proto/nine_snake.proto` at
-//!   build time via the `tonic-build` build-script in `build.rs`.
-//! * The `proto` module below is `pub` so the integration tests can
-//!   dial the in-process server and assert on the wire shape.
-//! * Each RPC delegates to the corresponding Tauri-command handler
-//!   (see `crate::commands`). The gRPC server *does not* duplicate
-//!   business logic — it's a thin wire layer.
+//! * **Default**: Uses `tonic::transport::Server` with prost-generated
+//!   types from `proto/nebula.v1.rs`. This is the real gRPC wire
+//!   layer with HTTP/2 + protobuf framing.
+//! * **Fallback** (`json-framing` feature): Uses the hand-rolled hyper
+//!   HTTP/2 shim with JSON-over-gRPC framing. Kept for environments
+//!   where prost codegen is unavailable.
+//! * The `proto` module contains hand-rolled types for the JSON fallback.
+//! * `tonic_server` module implements the 5 tonic-generated server traits
+//!   on `TonicServiceImpl`, delegating to `AppState`.
 //!
-//! ## Feature flag
+//! ## Feature flags
 //!
-//! v0.3 ships gRPC enabled by default. To disable it at compile time,
-//! build with `--no-default-features --features grpc` (the
-//! `grpc` feature is implicit in the default feature set).
+//! * `grpc` — enables the gRPC server (default: off; add with `--features grpc`)
+//! * `json-framing` — uses the hand-rolled JSON shim instead of tonic
+//!   (default: off; only effective when `grpc` is also enabled)
 
 pub mod proto;
 #[cfg(feature = "grpc")]
 pub mod server;
 
 #[cfg(feature = "grpc")]
+pub mod tonic_server;
+
+// T-S2-B-01: 默认使用 tonic wire layer; json-framing feature 启用手写 JSON shim。
+#[cfg(all(feature = "grpc", not(feature = "json-framing")))]
+pub use tonic_server::{start_tonic_server as start_server, TonicGrpcHandle as GrpcHandle};
+
+#[cfg(all(feature = "grpc", feature = "json-framing"))]
 pub use server::{start_server, GrpcHandle};

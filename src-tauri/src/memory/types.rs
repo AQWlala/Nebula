@@ -1,4 +1,4 @@
-//! Core data model for the nine-snake v7.0 memory system.
+﻿//! Core data model for the nebula v7.0 memory system.
 //!
 //! These types are intentionally `Clone` + `Serialize`/`Deserialize` so
 //! they can flow freely through the Tauri command boundary, the swarm
@@ -159,6 +159,39 @@ impl FromStr for SourceKind {
     }
 }
 
+/// T-E-B-04: 记忆溯源信息。序列化进 `Memory.metadata["provenance"]`。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Provenance {
+    /// 来源类型(与 Memory.source 一致)。
+    pub source: String,
+    /// 触发工具/agent 名(如 "writer" / "sponge" / "user"),未知为 None。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    /// 内容 SHA-256 哈希(前 16 字符),用于修改链比对。
+    pub content_hash: String,
+    /// 吸收时间(UTC 时间戳,秒)。
+    pub absorbed_at: i64,
+}
+
+impl Provenance {
+    /// 构造 provenance,自动计算 content_hash。
+    pub fn new(source: &str, tool: Option<&str>, content: &str) -> Self {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let hash = hasher.finalize();
+        // 取前 8 字节,展开为 16 个十六进制字符(`[u8]` 不实现 `LowerHex`,
+        // 需逐字节格式化)。
+        let content_hash: String = hash[..8].iter().map(|b| format!("{:02x}", b)).collect();
+        Self {
+            source: source.to_string(),
+            tool: tool.map(|s| s.to_string()),
+            content_hash,
+            absorbed_at: chrono::Utc::now().timestamp(),
+        }
+    }
+}
+
 /// Kind of edge in the memory knowledge graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -269,6 +302,30 @@ pub struct Memory {
     pub compression_gen: u32,
     pub pinned: bool,
     pub archived: bool,
+    /// T-E-A-09: 写入时记录的吸收成本(USD)。
+    /// `None` 表示未追踪(旧记忆 / cost_tracker 未注入)。
+    /// `Some(0.0)` 表示已追踪但为零(本地 Ollama + 未启用 EntityExtractor)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ingest_cost: Option<f64>,
+    /// M2a 任务 #28: 域标识（P0-9 修复）。
+    ///
+    /// 用于按"域"隔离记忆，与 CostSource（触发场景）和 SourceKind（来源类型）
+    /// 正交，构成第三维度。默认 "shared"（公共域，向后兼容旧记忆）。
+    ///
+    /// 典型值：
+    /// - `"shared"`：默认公共域（用户对话、文件吸收等）
+    /// - `"system"`：系统域（EvolutionEngine 写入、Soul 反哺等）
+    /// - `"agent_a"` / `"worker:task_123"`：特定 agent / worker 域
+    ///
+    /// M2b 将引入 PrincipalDomainMap 实现 ACL 按 domain 过滤。
+    /// M4 EvolutionEngine 通过 absorb_with_principal() 指定 domain。
+    #[serde(default = "default_domain")]
+    pub domain: String,
+}
+
+/// Memory.domain 的默认值。
+fn default_domain() -> String {
+    "shared".to_string()
 }
 
 impl Memory {
@@ -297,6 +354,8 @@ impl Memory {
             compression_gen: 0,
             pinned: layer == MemoryLayer::L7,
             archived: false,
+            ingest_cost: None,
+            domain: default_domain(),
         }
     }
 
@@ -568,5 +627,99 @@ mod tests {
             SourceKind::UserInput,
         );
         assert!(!m2.is_sensitive());
+    }
+
+    // ---- T-E-B-04: Provenance 测试 ----
+
+    /// `Provenance::new` 应填充 source / tool / content_hash / absorbed_at,
+    /// 且 content_hash 为 SHA-256 前 16 个十六进制字符(8 字节)。
+    #[test]
+    fn test_provenance_new() {
+        let p = Provenance::new("user_input", Some("writer"), "hello world");
+        assert_eq!(p.source, "user_input");
+        assert_eq!(p.tool.as_deref(), Some("writer"));
+        // SHA-256("hello world") = b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
+        // 前 16 hex 字符 = "b94d27b9934d3e08"
+        assert_eq!(p.content_hash, "b94d27b9934d3e08");
+        assert_eq!(p.content_hash.len(), 16);
+        assert!(p.absorbed_at > 0);
+
+        // tool 为 None 时不写入(序列化时 skip,这里只校验字段)。
+        let p2 = Provenance::new("system", None, "x");
+        assert!(p2.tool.is_none());
+    }
+
+    /// Provenance 序列化/反序列化 roundtrip 应保持字段一致,
+    /// 且 `tool=None` 时 JSON 中不出现 `tool` 键(skip_serializing_if)。
+    #[test]
+    fn test_provenance_serialize() {
+        let p = Provenance::new("agent_output", Some("writer"), "payload");
+        let json = serde_json::to_value(&p).unwrap();
+        // roundtrip
+        let back: Provenance = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(back.source, p.source);
+        assert_eq!(back.tool, p.tool);
+        assert_eq!(back.content_hash, p.content_hash);
+        assert_eq!(back.absorbed_at, p.absorbed_at);
+        // tool 存在时应出现
+        assert!(json.get("tool").is_some());
+
+        // tool=None 时 JSON 中无 tool 键
+        let p_none = Provenance::new("system", None, "x");
+        let json_none = serde_json::to_value(&p_none).unwrap();
+        assert!(json_none.get("tool").is_none());
+        let back_none: Provenance = serde_json::from_value(json_none).unwrap();
+        assert!(back_none.tool.is_none());
+    }
+
+    // ---- T-E-A-09: ingest_cost 测试 ----
+
+    /// `Memory::new` 应将 `ingest_cost` 初始化为 `None`。
+    #[test]
+    fn ingest_cost_defaults_to_none() {
+        let m = Memory::new(
+            MemoryType::Semantic,
+            MemoryLayer::L3,
+            "x",
+            SourceKind::UserInput,
+        );
+        assert!(m.ingest_cost.is_none());
+    }
+
+    /// `ingest_cost = None` 时序列化的 JSON 不应出现 `ingest_cost` 键
+    /// (`skip_serializing_if = "Option::is_none"` 生效),
+    /// 且 roundtrip 应保持 `None`(`#[serde(default)]` 允许缺失键)。
+    #[test]
+    fn ingest_cost_skipped_in_json_when_none() {
+        let m = Memory::new(
+            MemoryType::Semantic,
+            MemoryLayer::L3,
+            "x",
+            SourceKind::UserInput,
+        );
+        let json = serde_json::to_value(&m).unwrap();
+        assert!(
+            json.get("ingest_cost").is_none(),
+            "ingest_cost key should be skipped when None, got: {json}"
+        );
+        // roundtrip:缺失键 → None(serde default)
+        let back: Memory = serde_json::from_value(json).unwrap();
+        assert!(back.ingest_cost.is_none());
+    }
+
+    /// `ingest_cost = Some(v)` 时 roundtrip 应保持原值,且 JSON 中出现该键。
+    #[test]
+    fn ingest_cost_roundtrip_preserves_value() {
+        let mut m = Memory::new(
+            MemoryType::Semantic,
+            MemoryLayer::L3,
+            "x",
+            SourceKind::UserInput,
+        );
+        m.ingest_cost = Some(0.001234);
+        let json = serde_json::to_value(&m).unwrap();
+        assert!(json.get("ingest_cost").is_some());
+        let back: Memory = serde_json::from_value(json).unwrap();
+        assert_eq!(back.ingest_cost, Some(0.001234));
     }
 }

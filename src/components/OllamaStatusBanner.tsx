@@ -1,25 +1,25 @@
-/**
+﻿/**
  * v1.0.1 (P0#07): friendly "Ollama is down" banner.
  *
  * Rendered at the top of ChatPanel whenever
- * `NineSnakeStore.ollamaStatus.value === 'down'`.  Offers:
+ * `nebulaStore.ollamaStatus.value === 'down'`.  Offers:
  *  - a link to the upstream project (https://ollama.com)
  *  - a "Retry" button that calls `checkOllama()` again
  *
  * Rendered as a normal DOM subtree, no portal — the panel already
  * stacks the banner above the message list.
  */
-import { NineSnakeStore } from '../stores/nineSnakeStore';
+import { nebulaStore } from '../stores/nebulaStore';
 import { t } from '../i18n';
 
 const OLLAMA_URL = 'https://ollama.com';
 
 export function OllamaStatusBanner() {
-  const status = NineSnakeStore.ollamaStatus.value;
+  const status = nebulaStore.ollamaStatus.value;
   if (status !== 'down') return null;
 
   function retry() {
-    void NineSnakeStore.checkOllama();
+    void nebulaStore.checkOllama();
   }
 
   return (

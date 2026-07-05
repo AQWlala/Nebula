@@ -1,7 +1,7 @@
 //! Message bridge core — v1.2
 //!
 //! Communicates with JiuwenSwarm's agent delivery fabric for multi-channel
-//! messaging.  When `NINE_SNAKE_BRIDGE_URL` is set, the bridge acts as a
+//! messaging.  When `NEBULA_BRIDGE_URL` is set, the bridge acts as a
 //! JiuwenSwarm agent: it receives user messages routed from any channel
 //! (WeChat / Feishu / Telegram / Web) and can push responses back.
 
@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
 use super::types::{BridgeStatus, Channel, ChannelMessage, ChannelSendRequest};
+use crate::security::SsrfGuard;
 
 /// Default interval (seconds) between polls for new messages.
 #[allow(dead_code)]
@@ -75,7 +76,20 @@ impl MessageBridge {
     /// Returns `None` when the endpoint is empty (bridge disabled).
     pub fn new(endpoint_url: &str) -> Option<Self> {
         if endpoint_url.is_empty() {
-            info!(target: "nine_snake.channel", "bridge disabled (no endpoint configured)");
+            info!(target: "nebula.channel", "bridge disabled (no endpoint configured)");
+            return None;
+        }
+
+        // M7b #94: SSRF 校验 — MessageBridge 默认 127.0.0.1:8080,需要 allow_loopback
+        if let Err(e) = SsrfGuard::new()
+            .with_allow_loopback(true)
+            .validate_url(endpoint_url)
+        {
+            warn!(
+                target: "nebula.channel",
+                endpoint = %endpoint_url,
+                "SSRF validation failed, bridge disabled: {e}"
+            );
             return None;
         }
 
@@ -94,7 +108,7 @@ impl MessageBridge {
         };
 
         info!(
-            target: "nine_snake.channel",
+            target: "nebula.channel",
             endpoint = %endpoint_url,
             "message bridge initialised"
         );
@@ -108,10 +122,10 @@ impl MessageBridge {
         match self.client.get(&url).send().await {
             Ok(resp) => {
                 if resp.status().is_success() {
-                    info!(target: "nine_snake.channel", "bridge ping succeeded");
+                    info!(target: "nebula.channel", "bridge ping succeeded");
                     true
                 } else {
-                    warn!(target: "nine_snake.channel", status = %resp.status(), "bridge ping failed");
+                    warn!(target: "nebula.channel", status = %resp.status(), "bridge ping failed");
                     false
                 }
             }
@@ -146,7 +160,7 @@ impl MessageBridge {
                         .collect();
                     self.received.fetch_add(count as u64, Ordering::Relaxed);
                     if count > 0 {
-                        info!(target: "nine_snake.channel", count, "received messages");
+                        info!(target: "nebula.channel", count, "received messages");
                     }
                     converted
                 }
@@ -183,7 +197,7 @@ impl MessageBridge {
                 if resp.status().is_success() {
                     self.sent.fetch_add(1, Ordering::Relaxed);
                     info!(
-                        target: "nine_snake.channel",
+                        target: "nebula.channel",
                         channel = %req.channel.as_str(),
                         session = %req.session_id,
                         "message sent"
@@ -228,7 +242,7 @@ impl MessageBridge {
     // ------------------------------------------------------------------
 
     fn set_error(&self, msg: &str) {
-        error!(target: "nine_snake.channel", "{}", msg);
+        error!(target: "nebula.channel", "{}", msg);
         *self.last_error.lock() = Some(msg.to_string());
     }
 }
@@ -247,7 +261,7 @@ fn parse_channel(raw: &str) -> Channel {
         "wecom" => Channel::Wecom,
         "desktop" => Channel::Desktop,
         other => {
-            warn!(target: "nine_snake.channel", channel = other, "unknown channel, falling back to web");
+            warn!(target: "nebula.channel", channel = other, "unknown channel, falling back to web");
             Channel::Web
         }
     }

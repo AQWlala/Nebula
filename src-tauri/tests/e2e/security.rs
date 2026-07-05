@@ -1,4 +1,4 @@
-//! v1.0: end-to-end security audit tests.
+﻿//! v1.0: end-to-end security audit tests.
 //!
 //! These tests cover the most common attack surface in v0.5:
 //!
@@ -8,8 +8,8 @@
 //!   - Encryption round-trip with the E2EE module.
 //!   - Reflection / sponge isolation across stores.
 
-use nine_snake_lib::os::{parse_argv, ShellExecutor};
-use nine_snake_lib::sync::E2eeIdentity;
+use nebula_lib::os::{parse_argv, ShellExecutor};
+use nebula_lib::sync::E2eeIdentity;
 
 #[tokio::test]
 async fn shell_rejects_path_traversal_in_argv() {
@@ -48,11 +48,32 @@ async fn shell_rejects_unknown_binary() {
 #[tokio::test]
 async fn shell_handles_long_argv() {
     let ex = ShellExecutor::new();
-    let mut argv = vec!["echo".to_string()];
-    for i in 0..50 {
-        argv.push(format!("arg{i}"));
-    }
-    let out = ex.exec(argv, None).await.unwrap();
+    // M7b #91: Windows 没有 echo.exe(echo 是 cmd 内置命令),probe 后用
+    // python fallback(与 src/os/shell.rs::exec_runs_echo 同模式;
+    // python/python3 已在默认 whitelist 中)。
+    let probe = tokio::process::Command::new("echo")
+        .arg("ping")
+        .output()
+        .await;
+    let argv: Vec<String> = if probe.is_ok() {
+        let mut v = vec!["echo".to_string()];
+        for i in 0..50 {
+            v.push(format!("arg{i}"));
+        }
+        v
+    } else {
+        // Windows 路径:用 python 携带 50 个参数,验证长 argv 不被截断/拒绝。
+        let mut v = vec![
+            "python".to_string(),
+            "-c".to_string(),
+            "print('ok')".to_string(),
+        ];
+        for i in 0..49 {
+            v.push(format!("arg{i}"));
+        }
+        v
+    };
+    let out = ex.exec(argv, None).await.expect("exec should succeed");
     assert_eq!(out.exit_code, 0);
 }
 
@@ -63,17 +84,17 @@ async fn e2ee_round_trip_succeeds() {
     let alice_pub = alice.public_key_b64();
     let bob_pub = bob.public_key_b64();
 
-    let plaintext = b"hello nine-snake v1.0";
+    let plaintext = b"hello nebula v1.0";
     let (env_alice_to_bob, _fp) =
-        nine_snake_lib::sync::encrypt_for_peer(&alice, &bob_pub, plaintext).unwrap();
-    let pair_bob = nine_snake_lib::sync::Pair::new(bob.clone(), &alice_pub).unwrap();
+        nebula_lib::sync::encrypt_for_peer(&alice, &bob_pub, plaintext).unwrap();
+    let pair_bob = nebula_lib::sync::Pair::new(bob.clone(), &alice_pub).unwrap();
     let pt = pair_bob.decrypt(&env_alice_to_bob).unwrap();
     assert_eq!(pt, plaintext);
 
     // The other direction.
     let (env_bob_to_alice, _fp) =
-        nine_snake_lib::sync::encrypt_for_peer(&bob, &alice_pub, b"reply").unwrap();
-    let pair_alice = nine_snake_lib::sync::Pair::new(alice.clone(), &bob_pub).unwrap();
+        nebula_lib::sync::encrypt_for_peer(&bob, &alice_pub, b"reply").unwrap();
+    let pair_alice = nebula_lib::sync::Pair::new(alice.clone(), &bob_pub).unwrap();
     let pt2 = pair_alice.decrypt(&env_bob_to_alice).unwrap();
     assert_eq!(pt2, b"reply");
 }
@@ -83,12 +104,12 @@ async fn e2ee_tampered_envelope_fails() {
     let alice = E2eeIdentity::generate();
     let bob = E2eeIdentity::generate();
     let (mut env, _fp) =
-        nine_snake_lib::sync::encrypt_for_peer(&alice, &bob.public_key_b64(), b"abc").unwrap();
+        nebula_lib::sync::encrypt_for_peer(&alice, &bob.public_key_b64(), b"abc").unwrap();
     // Flip one byte of the ciphertext.
     if let Some(b) = env.ciphertext.last_mut() {
         *b ^= 0x01;
     }
-    let pair = nine_snake_lib::sync::Pair::new(bob, &alice.public_key_b64()).unwrap();
+    let pair = nebula_lib::sync::Pair::new(bob, &alice.public_key_b64()).unwrap();
     let res = pair.decrypt(&env);
     assert!(res.is_err());
 }

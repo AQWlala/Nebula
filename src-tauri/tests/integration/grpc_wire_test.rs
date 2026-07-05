@@ -2,7 +2,7 @@
 //!
 //! The v1.0 P0#12 gap is the **wire shim**: the 23 RPC method
 //! bodies are fully implemented in
-//! `nine_snake_lib::grpc::server::NineSnakeServiceImpl`, but the
+//! `nebula_lib::grpc::server::NebulaServiceImpl`, but the
 //! HTTP/2 + gRPC frame decoder is still a stub (see the
 //! `// TODO(v1.1)` note in `server.rs::handle_connection`).
 //!
@@ -15,7 +15,7 @@
 //!      will fail this test first.
 //!   2. The full set of 23 RPC method bodies is present. The
 //!      `service_implements_all_rpcs` test is a compile-time
-//!      + runtime check: it imports the `NineSnakeService` trait
+//!      + runtime check: it imports the `NebulaService` trait
 //!      and references every method name in a manifest, so
 //!      deleting any one of them is a compile error and counting
 //!      them at runtime catches accidental duplication / renames.
@@ -32,7 +32,7 @@ use tokio::io::AsyncReadExt as _;
 /// `service_implements_all_rpcs` test for the method-by-method
 /// reference.)
 ///
-/// The `NineSnakeService` trait in `src/grpc/server.rs` has 23
+/// The `NebulaService` trait in `src/grpc/server.rs` has 23
 /// method bodies: 8 Memory + 4 Swarm + 3 Reflect + 3 LLM +
 /// 5 Skills. The design doc §13 rounds to "22 RPCs" because
 /// `stream_events` is a server-streaming RPC; the README
@@ -47,7 +47,7 @@ const EXPECTED_RPC_METHODS: usize = 23;
 /// `start_server` is dropped (process exit). The OS reclaims the
 /// socket at that point.
 async fn start_test_server() -> SocketAddr {
-    use nine_snake_lib::AppState;
+    use nebula_lib::AppState;
     use tempfile::TempDir;
 
     // Throwaway AppState in a tempdir. The test never reaches
@@ -60,12 +60,15 @@ async fn start_test_server() -> SocketAddr {
     let sync = tmp.path().join("sync");
     std::fs::create_dir_all(&sync).expect("create sync dir");
 
-    let cfg = nine_snake_lib::AppConfig {
+    let cfg = nebula_lib::AppConfig {
         db_path: db.to_string_lossy().into_owned(),
         lance_path: lance.to_string_lossy().into_owned(),
         ollama_url: "http://127.0.0.1:1".to_string(), // never reached
         chat_model: "test".to_string(),
         embed_model: "test".to_string(),
+        llm_provider: "ollama".to_string(),
+        deepseek_api_url: String::new(),
+        deepseek_api_key: None,
         remote_fallback_url: None,
         blackhole_threshold_days: 30,
         embedding_dim: 4,
@@ -83,7 +86,7 @@ async fn start_test_server() -> SocketAddr {
     let _keep_alive: &'static _ = Box::leak(Box::new((state.clone(), tmp)));
 
     let bind = "127.0.0.1:0".to_string();
-    let handle = nine_snake_lib::grpc::start_server(bind, state)
+    let handle = nebula_lib::grpc::start_server(bind, state)
         .await
         .expect("start gRPC server");
     let addr = handle.local_addr();
@@ -130,15 +133,15 @@ async fn server_binds_and_accepts_tcp_connection() {
 #[tokio::test(flavor = "current_thread")]
 async fn service_implements_all_rpcs() {
     // The trait methods are referenced through a thin
-    // `NineSnakeService` trait import so any deletion or rename
+    // `NebulaService` trait import so any deletion or rename
     // of an RPC is a compile error (the import line itself
     // breaks if the trait is renamed or removed; the `impl`
     // block in `src/grpc/server.rs` stops compiling if any
     // method is renamed or its signature changes). The runtime
     // list below is a belt-and-braces assertion that the count
     // never drifts.
-    use nine_snake_lib::grpc::proto as p;
-    use nine_snake_lib::grpc::server::NineSnakeServiceImpl;
+    use nebula_lib::grpc::proto as p;
+    use nebula_lib::grpc::server::NebulaServiceImpl;
 
     // RPC manifest. Anything past this list would be a
     // v0.4 addition and must bump EXPECTED_RPC_METHODS explicitly.
@@ -205,29 +208,29 @@ async fn service_implements_all_rpcs() {
     // the precise number of unary + streaming RPCs in the proto
     // is 23.
     let wire_paths: &[&str] = &[
-        "/nine_snake.v1.MemoryService/Store",
-        "/nine_snake.v1.MemoryService/Get",
-        "/nine_snake.v1.MemoryService/Search",
-        "/nine_snake.v1.MemoryService/ListRecent",
-        "/nine_snake.v1.MemoryService/UpdateImportance",
-        "/nine_snake.v1.MemoryService/Delete",
-        "/nine_snake.v1.MemoryService/GetMany",
-        "/nine_snake.v1.MemoryService/GetStats",
-        "/nine_snake.v1.SwarmService/Execute",
-        "/nine_snake.v1.SwarmService/ListAgents",
-        "/nine_snake.v1.SwarmService/GetAgent",
-        "/nine_snake.v1.SwarmService/StreamEvents",
-        "/nine_snake.v1.ReflectService/ReflectNow",
-        "/nine_snake.v1.ReflectService/ListReflections",
-        "/nine_snake.v1.ReflectService/GetReflection",
-        "/nine_snake.v1.LlmService/Complete",
-        "/nine_snake.v1.LlmService/Chat",
-        "/nine_snake.v1.LlmService/Embed",
-        "/nine_snake.v1.SkillService/Create",
-        "/nine_snake.v1.SkillService/Use",
-        "/nine_snake.v1.SkillService/Rate",
-        "/nine_snake.v1.SkillService/List",
-        "/nine_snake.v1.SkillService/Search",
+        "/nebula.v1.MemoryService/Store",
+        "/nebula.v1.MemoryService/Get",
+        "/nebula.v1.MemoryService/Search",
+        "/nebula.v1.MemoryService/ListRecent",
+        "/nebula.v1.MemoryService/UpdateImportance",
+        "/nebula.v1.MemoryService/Delete",
+        "/nebula.v1.MemoryService/GetMany",
+        "/nebula.v1.MemoryService/GetStats",
+        "/nebula.v1.SwarmService/Execute",
+        "/nebula.v1.SwarmService/ListAgents",
+        "/nebula.v1.SwarmService/GetAgent",
+        "/nebula.v1.SwarmService/StreamEvents",
+        "/nebula.v1.ReflectService/ReflectNow",
+        "/nebula.v1.ReflectService/ListReflections",
+        "/nebula.v1.ReflectService/GetReflection",
+        "/nebula.v1.LlmService/Complete",
+        "/nebula.v1.LlmService/Chat",
+        "/nebula.v1.LlmService/Embed",
+        "/nebula.v1.SkillService/Create",
+        "/nebula.v1.SkillService/Use",
+        "/nebula.v1.SkillService/Rate",
+        "/nebula.v1.SkillService/List",
+        "/nebula.v1.SkillService/Search",
     ];
     assert!(
         wire_paths.len() >= EXPECTED_RPC_METHODS,
@@ -241,5 +244,5 @@ async fn service_implements_all_rpcs() {
     let _ = std::any::type_name::<p::Memory>();
     let _ = std::any::type_name::<p::StoreMemoryRequest>();
     // The impl type can be named (verifies it's exported).
-    let _ = std::mem::size_of::<NineSnakeServiceImpl>();
+    let _ = std::mem::size_of::<NebulaServiceImpl>();
 }

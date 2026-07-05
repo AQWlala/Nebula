@@ -1,4 +1,4 @@
-//! v1.1: KeyVault — secure private key storage abstraction.
+﻿//! v1.1: KeyVault — secure private key storage abstraction.
 //!
 //! Private keys (E2EE, API keys, etc.) must never be transmitted
 //! across the Tauri IPC boundary.  The `KeyVault` provides a
@@ -33,34 +33,34 @@ impl KeyVault {
     }
 
     pub async fn store(&self, key_id: &str, secret: &str) -> Result<()> {
-        match keychain::set(&format!("nine_snake.vault.{key_id}"), secret) {
+        match keychain::set(&format!("nebula.vault.{key_id}"), secret) {
             Ok(()) => {
-                info!(target: "nine_snake.vault", key_id, "stored in OS keychain");
+                info!(target: "nebula.vault", key_id, "stored in OS keychain");
                 Ok(())
             }
             Err(e) => {
-                warn!(target: "nine_snake.vault", key_id, error = ?e, "OS keychain unavailable; falling back to encrypted file");
+                warn!(target: "nebula.vault", key_id, error = ?e, "OS keychain unavailable; falling back to encrypted file");
                 self.store_file(key_id, secret).await
             }
         }
     }
 
     pub async fn retrieve(&self, key_id: &str) -> Result<Option<String>> {
-        match keychain::get(&format!("nine_snake.vault.{key_id}")) {
+        match keychain::get(&format!("nebula.vault.{key_id}")) {
             Ok(Some(val)) => {
-                info!(target: "nine_snake.vault", key_id, "retrieved from OS keychain");
+                info!(target: "nebula.vault", key_id, "retrieved from OS keychain");
                 Ok(Some(val))
             }
             Ok(None) => self.retrieve_file(key_id).await,
             Err(e) => {
-                warn!(target: "nine_snake.vault", key_id, error = ?e, "OS keychain read failed; trying encrypted file fallback");
+                warn!(target: "nebula.vault", key_id, error = ?e, "OS keychain read failed; trying encrypted file fallback");
                 self.retrieve_file(key_id).await
             }
         }
     }
 
     pub async fn delete(&self, key_id: &str) -> Result<()> {
-        let _ = keychain::delete(&format!("nine_snake.vault.{key_id}"));
+        let _ = keychain::delete(&format!("nebula.vault.{key_id}"));
         let path = self.file_path(key_id);
         if path.exists() {
             std::fs::remove_file(&path)
@@ -83,7 +83,7 @@ impl KeyVault {
         let sealed = Self::seal(secret)?;
         let path = self.file_path(key_id);
         std::fs::write(&path, &sealed).with_context(|| format!("writing key file for {key_id}"))?;
-        info!(target: "nine_snake.vault", key_id, "stored in encrypted file fallback");
+        info!(target: "nebula.vault", key_id, "stored in encrypted file fallback");
         Ok(())
     }
 
@@ -144,7 +144,7 @@ impl KeyVault {
     fn machine_key() -> [u8; 32] {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
-        hasher.update(b"nine-snake-key-vault-v1");
+        hasher.update(b"nebula-key-vault-v1");
         if let Ok(hostname) = std::env::var("COMPUTERNAME")
             .or_else(|_| std::env::var("HOSTNAME"))
             .or_else(|_| std::env::var("USER"))

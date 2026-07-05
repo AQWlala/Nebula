@@ -1,4 +1,4 @@
-//! P0#8 regression test: `documents.memory_id` is a real foreign key
+﻿//! P0#8 regression test: `documents.memory_id` is a real foreign key
 //! with `ON DELETE SET NULL` semantics.
 //!
 //! Verifies that:
@@ -10,7 +10,7 @@
 //!      `memory_id` to NULL (cascade behaviour) instead of leaving
 //!      a dangling reference.
 
-use nine_snake_lib::memory::migration;
+use nebula_lib::memory::migration;
 
 #[test]
 fn documents_memory_id_is_real_foreign_key() {

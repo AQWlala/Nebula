@@ -1,4 +1,4 @@
-//! OS commands — clipboard, shell, notify.
+﻿//! OS commands — clipboard, shell, notify.
 
 use std::path::PathBuf;
 
@@ -123,7 +123,7 @@ pub async fn os_autostart_enable(app: AppHandle) -> Result<(), CommandError> {
     app.autolaunch()
         .enable()
         .map_err(|e| CommandError::internal("os_autostart_enable", &anyhow::anyhow!("{e}")))?;
-    tracing::info!(target: "nine_snake.os", "autostart enabled");
+    tracing::info!(target: "nebula.os", "autostart enabled");
     Ok(())
 }
 
@@ -135,7 +135,7 @@ pub async fn os_autostart_disable(app: AppHandle) -> Result<(), CommandError> {
     app.autolaunch()
         .disable()
         .map_err(|e| CommandError::internal("os_autostart_disable", &anyhow::anyhow!("{e}")))?;
-    tracing::info!(target: "nine_snake.os", "autostart disabled");
+    tracing::info!(target: "nebula.os", "autostart disabled");
     Ok(())
 }
 
@@ -149,4 +149,97 @@ pub async fn os_autostart_is_enabled(app: AppHandle) -> Result<bool, CommandErro
         .is_enabled()
         .map_err(|e| CommandError::internal("os_autostart_is_enabled", &anyhow::anyhow!("{e}")))?;
     Ok(enabled)
+}
+
+// ---------------------------------------------------------------------------
+// T-E-C-02: ScreenReader 截图命令 — 捕获主屏并返回 base64 PNG。
+// ---------------------------------------------------------------------------
+
+/// T-E-C-02: 截取主屏并返回 base64 编码的 PNG。
+///
+/// 启用方式: `cargo build --features vision`(或前端 toggle 启用 vision feature)。
+/// screenshots crate 用于屏幕捕获, image crate 用于 PNG 编码,
+/// base64 已是非 optional 依赖(0.22),直接复用。
+///
+/// 失败场景:
+/// - vision feature 未启用 → 返回错误信息提示用户重新编译。
+/// - 无显示器(SSH/headless) → "no display available"。
+/// - 屏幕捕获失败(权限被拒) → e.to_string()。
+///
+/// 注:只截主屏(Screen::all().next()),多屏 / 区域选择见 spec §2 Out of scope。
+#[tauri::command]
+#[instrument(fields(otel.kind = "screenshot"))]
+pub async fn screenshot() -> Result<String, String> {
+    #[cfg(feature = "vision")]
+    {
+        use base64::Engine;
+        use screenshots::Screen;
+        // 收集所有显示器,取第一个作为主屏。
+        let screens = Screen::all().map_err(|e| e.to_string())?;
+        let screen = screens
+            .into_iter()
+            .next()
+            .ok_or("no display available".to_string())?;
+        // 截图 — 在 Windows 上调用 GDI,在 macOS 上调用 CGDisplay,在 Linux 上调用 X11。
+        // screenshots 0.8 的 `Screen::capture` 返回 `screenshots::Image`,它是
+        // `image::ImageBuffer<Rgba<u8>, Vec<u8>>` 的类型别名(已是 RgbaImage)。
+        // 但 screenshots 可能依赖不同版本的 image crate,所以用 `as_raw()` 取
+        // 原始像素字节(&Vec<u8>),clone 后用我们自己的 image 0.25 重建 RgbaImage,
+        // 这样跨 image crate 版本也能工作。
+        let img = screen.capture().map_err(|e| e.to_string())?;
+        let rgba: image::RgbaImage = image::ImageBuffer::from_raw(
+            img.width(),
+            img.height(),
+            img.as_raw().clone(),
+        )
+        .ok_or("failed to construct RgbaImage from raw RGBA bytes".to_string())?;
+        // 编码为 PNG,再 base64 包装。
+        let mut buf = std::io::Cursor::new(Vec::<u8>::new());
+        rgba.write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
+        let png_bytes = buf.into_inner();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&png_bytes);
+        Ok(b64)
+    }
+    #[cfg(not(feature = "vision"))]
+    {
+        // vision feature 未启用时,返回明确错误信息(非 panic,前端可处理)。
+        Err("vision feature not enabled, rebuild with --features vision".to_string())
+    }
+}
+
+#[cfg(test)]
+mod screenshot_tests {
+    use super::screenshot;
+
+    /// T-E-C-02: vision feature 未启用时 screenshot 命令应返回错误信息,
+    /// 而非 panic。vision feature 启用时此测试仍编译(返回 Ok 或真实截图)。
+    #[tokio::test]
+    async fn test_screenshot_command_feature_gated() {
+        let result = screenshot().await;
+        #[cfg(not(feature = "vision"))]
+        {
+            // 非 vision feature:必须返回错误信息。
+            let err = result.expect_err("non-vision feature must return error");
+            assert!(
+                err.contains("vision feature not enabled"),
+                "unexpected error message: {err}"
+            );
+        }
+        #[cfg(feature = "vision")]
+        {
+            // vision feature 启用时:测试环境可能无显示器(SSH/CI),
+            // 此时返回 Err 是合理的;若能截图,则返回 base64 字符串。
+            match result {
+                Ok(b64) => {
+                    // base64 字符串长度应 > 0 且不含 data: 前缀(纯 base64)。
+                    assert!(!b64.is_empty(), "base64 png should not be empty");
+                    assert!(!b64.starts_with("data:"), "should be raw base64, not data URL");
+                }
+                Err(_) => {
+                    // 测试环境无显示器或权限被拒 — 接受。
+                }
+            }
+        }
+    }
 }

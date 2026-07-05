@@ -1,4 +1,4 @@
-﻿# 九头蛇 · 用户指南 (User Guide)
+# Nebula · 用户指南 (User Guide)
 
 > 适用于 v1.0。面向最终用户。
 
@@ -8,17 +8,17 @@
 
 ### 1.1 安装
 
-* **macOS** — 双击 `.dmg`，把 *九头蛇* 拖到 *Applications*。
+* **macOS** — 双击 `.dmg`，把 *Nebula* 拖到 *Applications*。
 * **Windows** — 双击 `.msi`，按向导完成安装。
 * **Linux** — `.AppImage` 直接运行；`.deb` 用 `sudo dpkg -i ...`；`.rpm` 用 `sudo rpm -i ...`。
 
 ### 1.2 启动
 
-打开 *九头蛇*，会看到引导页（首次使用）。完成 4 步介绍后即可使用。
+打开 *Nebula*，会看到引导页（首次使用）。完成 4 步介绍后即可使用。
 
 ### 1.3 配置 Ollama
 
-九头蛇默认调用本地 Ollama：
+Nebula默认调用本地 Ollama：
 
 ```bash
 # 安装 Ollama
@@ -28,7 +28,7 @@ ollama pull qwen2.5:3b # 拉一个对话模型
 ollama pull bge-small-zh-v1.5 # 拉一个嵌入模型
 ```
 
-*九头蛇 → 设置 → Ollama URL* 可改成远程地址。
+*Nebula → 设置 → Ollama URL* 可改成远程地址。
 
 ---
 
@@ -130,7 +130,7 @@ ollama pull bge-small-zh-v1.5 # 拉一个嵌入模型
 
 ## 8. E2EE 同步
 
-九头蛇之间的同步使用 X25519 + AES-256-GCM：
+Nebula之间的同步使用 X25519 + AES-256-GCM：
 
 1. 双方各生成一对密钥
 2. 交换公钥（通过任意通道）
@@ -146,8 +146,8 @@ ollama pull bge-small-zh-v1.5 # 拉一个嵌入模型
 ### 9.1 启动慢
 
 * 检查是否首次启动（首次会跑迁移）
-* 关掉杀毒软件对 `nine-snake.exe` 的实时扫描
-* 把 `NINE_SNAKE_DB` 放到 SSD 上
+* 关掉杀毒软件对 `nebula.exe` 的实时扫描
+* 把 `NEBULA_DB` 放到 SSD 上
 
 ### 9.2 Ollama 连不上
 
@@ -167,5 +167,5 @@ ollama pull bge-small-zh-v1.5 # 拉一个嵌入模型
 
 ## 10. 反馈
 
-* [GitHub Issues](https://github.com/nine-snake/nine-snake/issues)
-* 邮件：hello@nine-snake.app
+* [GitHub Issues](https://github.com/nebula/nebula/issues)
+* 邮件：hello@nebula.app

@@ -2,14 +2,14 @@
 # v1.0: one-line installer.
 #
 # Usage:
-#   curl -fsSL https://nine-snake.app/install.sh | sh
+#   curl -fsSL https://nebula-ai.app/install.sh | sh
 #   ./scripts/install.sh                       # install latest release
 #   ./scripts/install.sh --version=1.0.0      # pin a specific version
 #   ./scripts/install.sh --dry-run            # print actions, do nothing
 #   ./scripts/install.sh --local=./out        # install from a local build
 #   ./scripts/install.sh --no-install         # just download the bundle
 #
-# P0#13 fix: previous version fabricated a `nine-snake-${target}.tar.gz`
+# P0#13 fix: previous version fabricated a `nebula-${target}.tar.gz`
 # URL but `tauri build` actually produces platform-native installers
 # (.msi / .dmg / .deb / .AppImage / .exe).  This rewrite maps the
 # current OS+arch combo onto the real artifact names published to
@@ -27,10 +27,10 @@ set -euo pipefail
 DRY_RUN=0
 NO_INSTALL=0
 LOCAL_BUNDLE_DIR=""
-VERSION="${NINE_SNAKE_VERSION:-1.0.0}"
-TIMEOUT="${NINE_SNAKE_INSTALL_TIMEOUT:-120}"
+VERSION="${NEBULA_VERSION:-1.0.0}"
+TIMEOUT="${NEBULA_INSTALL_TIMEOUT:-120}"
 
-REPO="${NINE_SNAKE_REPO:-nine-snake/nine-snake}"
+REPO="${NEBULA_REPO:-AQWlala/nebula}"
 
 usage() {
   sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
@@ -79,24 +79,24 @@ INSTALL_CMD=()
 
 case "${OS}-${ARCH}" in
   linux-x86_64)
-    FILE="nine-snake_${VERSION}_amd64.deb"
+    FILE="nebula_${VERSION}_amd64.deb"
     INSTALL_CMD=(sudo dpkg -i)
     ;;
   linux-aarch64)
-    FILE="nine-snake_${VERSION}_arm64.deb"
+    FILE="nebula_${VERSION}_arm64.deb"
     INSTALL_CMD=(sudo dpkg -i)
     ;;
   darwin-x86_64)
-    FILE="nine-snake-${VERSION}-x64.dmg"
+    FILE="nebula-${VERSION}-x64.dmg"
     # .dmg needs an interactive handoff on macOS.
     INSTALL_CMD=()
     ;;
   darwin-aarch64)
-    FILE="nine-snake-${VERSION}-aarch64.dmg"
+    FILE="nebula-${VERSION}-aarch64.dmg"
     INSTALL_CMD=()
     ;;
   windows-x86_64)
-    FILE="nine-snake_${VERSION}_x64-setup.exe"
+    FILE="nebula_${VERSION}_x64-setup.exe"
     INSTALL_CMD=()
     ;;
   *)
@@ -108,7 +108,7 @@ esac
 URL="https://github.com/${REPO}/releases/download/v${VERSION}/${FILE}"
 DEST="/tmp/${FILE}"
 
-echo "==> nine-snake v${VERSION} installer"
+echo "==> nebula v${VERSION} installer"
 echo "    platform: ${OS}-${ARCH}"
 echo "    bundle:   ${FILE}"
 
@@ -168,7 +168,7 @@ case "${FILE}" in
     echo "    installed via dpkg"
     ;;
   *.dmg)
-    echo "    opening ${DEST} — drag nine-snake.app into /Applications"
+    echo "    opening ${DEST} — drag nebula.app into /Applications"
     open "${DEST}"
     ;;
   *.exe)
@@ -189,4 +189,4 @@ case "${FILE}" in
 esac
 
 echo
-echo "==> done.  nine-snake v${VERSION} installed."
+echo "==> done.  nebula v${VERSION} installed."

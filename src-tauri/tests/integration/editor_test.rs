@@ -1,11 +1,11 @@
-//! Integration tests for the v0.5 editor surface area.
+﻿//! Integration tests for the v0.5 editor surface area.
 //!
 //! Covers: `editor_open` / `editor_read` / `editor_write` /
 //! `editor_list` + the workspace-root path sandboxing.  Git
 //! integration is covered in a separate file because it shells out
 //! to the system `git` binary and may be skipped in CI.
 
-use nine_snake_lib::editor::EditorState;
+use nebula_lib::editor::EditorState;
 use std::fs;
 
 fn fresh() -> (tempfile::TempDir, EditorState) {
@@ -38,7 +38,7 @@ fn write_creates_parent_directories() {
 fn read_rejects_path_outside_workspace() {
     let (dir, state) = fresh();
     // Create a file *outside* the workspace.
-    let outside = dir.path().parent().unwrap().join("nine_snake_outside.txt");
+    let outside = dir.path().parent().unwrap().join("nebula_outside.txt");
     fs::write(&outside, "should not be readable").expect("write outside");
     let result = state.read_file(outside.to_str().unwrap());
     assert!(result.is_err(), "expected error for path outside workspace");

@@ -1,4 +1,4 @@
-//! v0.5: editor / file-ops backend.
+﻿//! v0.5: editor / file-ops backend.
 //!
 //! The editor surface area is intentionally small — it is the
 //! lower-than-the-UI layer the Monaco/Tree/Terminal front-end talks
@@ -227,7 +227,7 @@ impl EditorState {
             let entry = match entry {
                 Ok(e) => e,
                 Err(e) => {
-                    warn!(target: "nine_snake.editor", error = ?e, "walkdir error");
+                    warn!(target: "nebula.editor", error = ?e, "walkdir error");
                     continue;
                 }
             };
@@ -288,7 +288,7 @@ impl EditorState {
                         }
                     }
                     Err(e) => {
-                        warn!(target: "nine_snake.editor", error = ?e, "watcher error");
+                        warn!(target: "nebula.editor", error = ?e, "watcher error");
                     }
                 }
             })
@@ -300,7 +300,7 @@ impl EditorState {
         // Replace any previous watcher; dropping the old one stops it.
         let mut slot = self.inner.watcher.lock();
         *slot = Some(watcher);
-        info!(target: "nine_snake.editor", root = %self.inner.workspace_root.display(), "watcher started");
+        info!(target: "nebula.editor", root = %self.inner.workspace_root.display(), "watcher started");
         Ok(rx)
     }
 
@@ -308,7 +308,7 @@ impl EditorState {
     pub fn stop_watcher(&self) {
         let mut slot = self.inner.watcher.lock();
         *slot = None;
-        info!(target: "nine_snake.editor", "watcher stopped");
+        info!(target: "nebula.editor", "watcher stopped");
     }
 }
 

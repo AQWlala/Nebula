@@ -1,4 +1,4 @@
-//! Swarm end-to-end integration tests.
+﻿//! Swarm end-to-end integration tests.
 //!
 //! Validates the full v2.0 swarm pipeline:
 //! 1. Task creation → agent dispatch → parallel execution → report
@@ -10,11 +10,13 @@
 //! agents will fail — but the orchestrator must still produce a valid
 //! report, collect errors, and broadcast on the bus.
 
-use nine_snake_lib::llm::{LlmGateway, OllamaClient};
-use nine_snake_lib::swarm::agents::{AgentKind, AgentOutput};
-use nine_snake_lib::swarm::bus::BusMessageType;
-use nine_snake_lib::swarm::negotiator::{NegotiationMethod, Negotiator};
-use nine_snake_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
+use nebula_lib::llm::{LlmGateway, OllamaClient};
+use nebula_lib::swarm::agents::{AgentKind, AgentOutput};
+use nebula_lib::swarm::bus::BusMessageType;
+use nebula_lib::swarm::negotiator::{NegotiationMethod, Negotiator};
+use nebula_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
+// M7b #91: new_without_memory 签名变更,需 ToolRegistry 第二参数。
+use nebula_lib::tools::ToolRegistry;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,7 +31,8 @@ fn mock_gateway() -> Arc<LlmGateway> {
 }
 
 fn mock_orchestrator() -> SwarmOrchestrator {
-    SwarmOrchestrator::new_without_memory(mock_gateway())
+    // M7b #91: new_without_memory 现需 ToolRegistry 第二参数。
+    SwarmOrchestrator::new_without_memory(mock_gateway(), Arc::new(ToolRegistry::new()))
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +79,8 @@ async fn swarm_explicit_agent_count_is_respected() {
 async fn swarm_by_kinds_selects_correct_agents() {
     let orch = mock_orchestrator();
     let mut task = SwarmTask::new("Review this: fn add(a,b) -> a+b");
-    task.agents = vec!["Coder".into(), "Reviewer".into()];
+    // M7b #91: AgentKind::from_str 大小写敏感,需用小写 "coder"/"reviewer"。
+    task.agents = vec!["coder".into(), "reviewer".into()];
     let report = orch
         .execute(task)
         .await
@@ -125,18 +129,28 @@ fn negotiator_picks_highest_confidence_when_no_conflict() {
             author: "agent-1".into(),
             body: "Answer A: 42".into(),
             confidence: 0.9,
+            // M7b #91: AgentOutput 新增字段。
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
             author: "agent-2".into(),
             body: "Answer B: 42".into(),
             confidence: 0.6,
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
             author: "agent-3".into(),
             body: "Answer C: 42".into(),
             confidence: 0.3,
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
     ];
     let result = neg.negotiate(outputs);
@@ -154,12 +168,19 @@ fn negotiator_detects_conflict_on_divergent_outputs() {
             author: "agent-1".into(),
             body: "The answer is LEFT.".into(),
             confidence: 0.85,
+            // M7b #91: AgentOutput 新增字段。
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
             author: "agent-2".into(),
             body: "Use the RIGHT configuration file.".into(),
             confidence: 0.80,
+            reasoning_chain: Vec::new(),
+            path_id: None,
+            tool_calls: None,
         },
     ];
     let result = neg.negotiate(outputs);
@@ -177,6 +198,10 @@ fn negotiator_single_output_passes_through() {
         author: "solo".into(),
         body: "Only child.".into(),
         confidence: 1.0,
+        // M7b #91: AgentOutput 新增字段。
+        reasoning_chain: Vec::new(),
+        path_id: None,
+        tool_calls: None,
     }];
     let result = neg.negotiate(outputs);
     assert_eq!(result.chosen.author, "solo");

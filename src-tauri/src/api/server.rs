@@ -1,4 +1,4 @@
-//! Service trait that any transport (Tauri, HTTP, MCP) can implement.
+﻿//! Service trait that any transport (Tauri, HTTP, MCP) can implement.
 //!
 //! v1.1+ exposes this trait through Tauri commands and gRPC JSON framing.
 //! - Skill CRUD API: implemented (v0.3+)
@@ -14,7 +14,7 @@ use crate::llm::ChatResponse;
 use crate::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
 use crate::swarm::{OrchestrationReport, SwarmTask};
 
-/// Input for [`NineSnakeService::memory_store`].
+/// Input for [`NebulaService::memory_store`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreMemoryRequest {
     pub content: String,
@@ -24,7 +24,7 @@ pub struct StoreMemoryRequest {
     pub metadata: Option<serde_json::Value>,
 }
 
-/// Output of [`NineSnakeService::memory_store`].
+/// Output of [`NebulaService::memory_store`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreMemoryResponse {
     pub id: String,
@@ -32,7 +32,7 @@ pub struct StoreMemoryResponse {
     pub similarity: Option<f32>,
 }
 
-/// Input for [`NineSnakeService::memory_search`].
+/// Input for [`NebulaService::memory_search`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchMemoryRequest {
     pub query: String,
@@ -40,14 +40,14 @@ pub struct SearchMemoryRequest {
     pub layer: Option<MemoryLayer>,
 }
 
-/// Output of [`NineSnakeService::memory_search`].
+/// Output of [`NebulaService::memory_search`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchMemoryHit {
     pub memory: Memory,
     pub score: f32,
 }
 
-/// Input for [`NineSnakeService::chat`].
+/// Input for [`NebulaService::chat`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatRequestDto {
     pub user_message: String,
@@ -57,7 +57,7 @@ pub struct ChatRequestDto {
 
 /// Service trait implemented by [`crate::AppState`].
 #[async_trait]
-pub trait NineSnakeService: Send + Sync {
+pub trait NebulaService: Send + Sync {
     /// One-shot chat completion (no memory lookup).
     async fn chat(&self, req: ChatRequestDto) -> Result<ChatResponse>;
 

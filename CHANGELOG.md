@@ -1,6 +1,6 @@
 # CHANGELOG
 
-所有九头蛇版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
+所有Nebula版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
 ## [1.1.10] - 2026-07-01
 
@@ -18,8 +18,8 @@
 
 * 修复 migrations 路径问题：`bundled_migrations_dir()` 使用编译时 `CARGO_MANIFEST_DIR` 路径,打包后在用户机器上不存在。改用 `include_str!` 将所有 SQL 文件内嵌到二进制中,新增 `run_bundled_migrations()` 和 `bundled_migration_status()` 函数
 * 修复 DB 相对路径问题：`db_path` 和 `lance_path` 默认为相对路径,从快捷方式启动时工作目录为 System32 导致 DB 创建失败。现在在 setup 中将相对路径解析到 app data dir
-* 修复日志默认不写文件：`init_tracing()` 仅在 `NINE_SNAKE_LOG_DIR` 设置时写文件,用户无法诊断启动崩溃。现在默认写入平台 app data 目录(Windows: `%LOCALAPPDATA%\nine-snake\logs`)
-* 添加 panic hook：`windows_subsystem = "windows"` 下 panic 被静默吞掉,用户看到"完全无反应"。现在 panic 信息写入 `nine-snake-panic.log` 文件
+* 修复日志默认不写文件：`init_tracing()` 仅在 `NEBULA_LOG_DIR` 设置时写文件,用户无法诊断启动崩溃。现在默认写入平台 app data 目录(Windows: `%LOCALAPPDATA%\nebula\logs`)
+* 添加 panic hook：`windows_subsystem = "windows"` 下 panic 被静默吞掉,用户看到"完全无反应"。现在 panic 信息写入 `nebula-panic.log` 文件
 
 ## [1.1.8] - 2026-07-01
 
@@ -27,7 +27,7 @@
 
 ### Fixed
 
-* 修复 gRPC trait 名称冲突 (E0255)：将 `use crate::api::server::NineSnakeService` 改为 `use crate::api::server::NineSnakeService as ApiNineSnakeService`
+* 修复 gRPC trait 名称冲突 (E0255)：将 `use crate::api::server::NebulaService` 改为 `use crate::api::server::NebulaService as ApiNebulaService`
 * 修复 GrpcHandle::shutdown 移动语义错误 (E0509)：将 `join` 字段改为 `Option<tokio::task::JoinHandle<()>>`，使用 `take()` 避免移动
 * 修复 hyper http2::Builder API 不匹配 (E0061/E0277/E0308)：使用 `TokioExecutor::new()` 和 `TokioTimer::new()` 适配 hyper 1.10+ API
 * 修复 lancedb 未门控导入 (E0433)：在 `use lancedb::query::{ExecutableQuery, QueryBase}` 前添加 `#[cfg(feature = "vector-store")]`
@@ -131,7 +131,7 @@
 * 修复 `skillImport()` 参数名不匹配：`{ url }` → `{ identifier }`
 * 修复 `ChatResponse` 类型不匹配：后端返回 `{ model, role, content }`，前端之前期望 `{ reply }`
 * 恢复 `tauri.conf.json::plugins.updater.pubkey` + `keys/updater_public.b64`（P0 安全守卫测试恢复）
-* 修复 README 环境变量名不一致：`ANTHROPIC_API_KEY` → `NINE_SNAKE_ANTHROPIC_KEY`
+* 修复 README 环境变量名不一致：`ANTHROPIC_API_KEY` → `NEBULA_ANTHROPIC_KEY`
 * 修复 README 版本号 badge：v1.1.0 → v1.1.4
 * CI/CD：Release job `if: always()` 修复、安装包过滤（排除 .so 和 build logs）、版本号同步
 
@@ -147,7 +147,7 @@
   * 新增 `anthropic.rs`：Anthropic Claude Messages API 原生客户端
   * 支持 Claude 3 Haiku / Sonnet / Opus 系列模型
   * Gateway 降级链：Ollama → OpenAI 兼容端 → Anthropic Claude
-  * 通过 `NINE_SNAKE_ANTHROPIC_KEY` / `NINE_SNAKE_ANTHROPIC_MODEL` 环境变量配置
+  * 通过 `NEBULA_ANTHROPIC_KEY` / `NEBULA_ANTHROPIC_MODEL` 环境变量配置
 
 * **统一 Tool 抽象层** (`src-tauri/src/tools/`)
   * `Tool` trait（`Send + Sync`）：任意能力（Shell / 文件读取 / 网页搜索）可实现统一接口
@@ -166,7 +166,7 @@
   * 完整 22 个 RPC 路由（Memory / Swarm / Reflect / LLM / Skills）
   * **注意**：当前不是完整 gRPC/HTTP2 协议栈，不支持 HPACK / protobuf / varint 编码，
     标准 grpcurl 或 tonic 客户端无法直接连接，调用方需使用兼容 JSON framing 的自定义客户端
-  * 外部程序可通过 JSON framing 协议调用 nine-snake 记忆后端
+  * 外部程序可通过 JSON framing 协议调用 nebula 记忆后端
 
 * **Shell 白名单 Glob/Regex 支持** (`src-tauri/src/os/shell.rs`)
   * `WhitelistEntry` enum：`Exact`（精确匹配） / `Glob`（前缀通配符匹配）
@@ -208,7 +208,7 @@
 * **Code 模式 Diff 预览** (`src/components/CodeMode.tsx`)
   * Agent 修改文件后，使用 Monaco `DiffEditor` 并排展示修改前后
   * "应用修改" / "撤销" 按钮
-  * 暴露 `window.nineSnakeShowAgentDiff` 全局 API
+  * 暴露 `window.nebulaShowAgentDiff` 全局 API
 
 * **Onboarding 3 步引导增强** (`src/components/Onboarding.tsx`)
   * 步骤 1：欢迎 + 确认安装路径
@@ -230,7 +230,7 @@
 
 ### Deprecated
 
-* 环境变量 `NINE_SNAKE_REMOTE_URL`（已被多 Provider 架构取代）
+* 环境变量 `NEBULA_REMOTE_URL`（已被多 Provider 架构取代）
 
 ## [1.0.0] - 2026-06-21
 
@@ -305,8 +305,8 @@
 
 * **错误处理 & 日志**
   * `src-tauri/src/error_ui.rs` — 6 类错误卡片
-  * `tracing-appender` 每日轮转日志 (`NINE_SNAKE_LOG_DIR`)
-  * JSON 日志 (`NINE_SNAKE_LOG_FORMAT=json`)
+  * `tracing-appender` 每日轮转日志 (`NEBULA_LOG_DIR`)
+  * JSON 日志 (`NEBULA_LOG_FORMAT=json`)
   * `AppState::shutdown` 优雅退出 (worker + gRPC + 250ms grace)
 
 * **新 Tauri commands (v1.0)**
@@ -433,7 +433,7 @@
 
 * **P0#10 — `src-tauri/icons/` 完全缺失**
   * `scripts/generate-icons.py` — Pillow 驱动的幂等图标生成器
-    (紫色中心 + 8 个绿色卫星的九头蛇 motif)
+    (紫色中心 + 8 个绿色卫星的Nebula motif)
   * 生成 6 个 bundle 资产：`32x32.png` / `128x128.png` /
     `128x128@2x.png` / `icon.png` / `icon.ico` (多分辨率) /
     `icon.icns`

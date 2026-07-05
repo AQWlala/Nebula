@@ -1,4 +1,4 @@
-//! PromptSelfMutator: rewrite `Agent::system_prompt` from runtime
+﻿//! PromptSelfMutator: rewrite `Agent::system_prompt` from runtime
 //! outcomes, with snapshot/rollback for safety.
 //!
 //! Hard guarantees:
@@ -111,13 +111,19 @@ impl PromptMutator for LlmPromptMutator {
             )),
         ];
 
+        // P0 修复:`block_in_place` 包裹 `Handle::current().block_on`,
+        // 避免在 async 上下文(evolution worker 在 tokio::select! loop 中)
+        // 直接调用 `block_on` 导致 "Cannot block the current thread
+        // from within a runtime" panic。
         let rt = tokio::runtime::Handle::current();
-        let result = rt.block_on(async { self.gateway.chat(messages).await });
+        let result = tokio::task::block_in_place(|| {
+            rt.block_on(async { self.gateway.chat(messages).await })
+        });
 
         match result {
             Ok(resp) => Ok(resp.message.content),
             Err(e) => {
-                warn!(target: "nine_snake.evolution", error = %e, "LLM prompt mutation failed; falling back to no-op");
+                warn!(target: "nebula.evolution", error = %e, "LLM prompt mutation failed; falling back to no-op");
                 Ok(format!("{target} (llm mutator fallback)"))
             }
         }
@@ -242,6 +248,7 @@ mod tests {
     use super::*;
     use crate::evolution::outcome::InMemoryOutcomeLedger;
     use crate::evolution::outcome::OutcomeStatus;
+    use crate::evolution::EvolutionConfig;
 
     fn setup() -> (
         Arc<parking_lot::Mutex<Connection>>,

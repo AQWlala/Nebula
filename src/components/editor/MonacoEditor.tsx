@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: Monaco Editor 集成
  *
  * 包装 @monaco-editor/react，提供：
@@ -12,6 +12,7 @@
  * `vite-plugin-monaco-editor`。
  */
 import Editor, { type OnMount } from '@monaco-editor/react';
+import type * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'preact/hooks';
 
 interface MonacoEditorProps {
@@ -20,11 +21,13 @@ interface MonacoEditorProps {
   path: string;
   readOnly?: boolean;
   onChange?: (value: string) => void;
+  onEditorMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-export function MonacoEditor({ value, language, path, readOnly, onChange }: MonacoEditorProps) {
-  const handleMount: OnMount = (_editor, monaco) => {
-    monaco.editor.defineTheme('nine-snake-dark', {
+export function MonacoEditor({ value, language, path, readOnly, onChange, onEditorMount }: MonacoEditorProps) {
+  const handleMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor; // T-E-S-52: store instance for L1 directed edit
+    monaco.editor.defineTheme('nebula-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [],
@@ -37,6 +40,7 @@ export function MonacoEditor({ value, language, path, readOnly, onChange }: Mona
         'editor.selectionBackground': '#264f78',
       },
     });
+    onEditorMount?.(editor); // T-E-S-52: callback to parent
   };
 
   // 编辑器实例引用，留给父组件（不常用）
@@ -50,7 +54,7 @@ export function MonacoEditor({ value, language, path, readOnly, onChange }: Mona
       path={path}
       language={language}
       value={value}
-      theme="nine-snake-dark"
+      theme="nebula-dark"
       onMount={handleMount}
       onChange={(v) => onChange?.(v ?? '')}
       options={{

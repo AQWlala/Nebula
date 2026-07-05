@@ -1,5 +1,5 @@
 /**
- * nine-snake · 九头蛇 主应用
+ * nebula · Nebula 主应用
  *
  * v1.0.1 layout additions:
  *  - P0#06: loadTheme() + applyTheme() at boot, and an effect that
@@ -12,28 +12,52 @@
  *    write.
  */
 import { useEffect, useState } from 'preact/hooks';
+import { lazy, Suspense } from 'preact/compat';
 import { signal } from '@preact/signals';
-import { ChatPanel } from './components/ChatPanel';
-import { SwarmView } from './components/SwarmView';
-import { MemoryInspector } from './components/MemoryInspector';
-import { MemoryMap } from './components/MemoryMap';
 import { CodeMode } from './components/CodeMode';
-import SkillPanel from './components/SkillPanel';
-import { WritingMode } from './components/WritingMode';
-import { WorkMode } from './components/WorkMode';
 import { ModeSwitcher } from './components/ModeSwitcher';
-import { Settings } from './components/Settings';
+import { AutonomySlider } from './components/AutonomySlider';
 import { Onboarding, shouldShowOnboarding } from './components/Onboarding';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, buildDefaultCommands, buildMemoryItems, useCommandPaletteShortcut } from './components/CommandPalette';
 import { Toasts, toast } from './components/Toast';
-import { Dashboard } from './components/Dashboard';
-import { NineSnakeStore } from './stores/nineSnakeStore';
+import { nebulaStore } from './stores/nebulaStore';
 import { t, currentLocale } from './i18n';
 import { loadTheme, applyTheme } from './theme';
+// T-E-A-11: Smart Prefetch — 打开文件时预取历史对话预热 SemanticCache。
+import { invokeTauri } from './lib/tauri';
 
-type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard';
+// T-S5-B-03: 代码分割懒加载 — 将大组件拆分为独立 chunk,
+// 仅在用户切换到对应视图时按需加载。
+// 保留 eager 的组件: CodeMode(默认视图,避免首屏闪烁)、
+// ModeSwitcher/StatusBar/ErrorBoundary/Toasts(常驻)、
+// Onboarding(模块因 shouldShowOnboarding 已加载)、
+// CommandPalette(工具函数需 eager)。
+const ChatPanel = lazy(() => import('./components/ChatPanel').then((m) => ({ default: m.ChatPanel })));
+const SwarmView = lazy(() => import('./components/SwarmView').then((m) => ({ default: m.SwarmView })));
+const MemoryInspector = lazy(() => import('./components/MemoryInspector').then((m) => ({ default: m.MemoryInspector })));
+const MemoryMap = lazy(() => import('./components/MemoryMap').then((m) => ({ default: m.MemoryMap })));
+const SkillPanel = lazy(() => import('./components/SkillPanel'));
+const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })));
+const CreditsDashboard = lazy(() => import('./components/CreditsDashboard').then((m) => ({ default: m.CreditsDashboard })));
+const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })));
+const WritingMode = lazy(() => import('./components/WritingMode').then((m) => ({ default: m.WritingMode })));
+const WorkMode = lazy(() => import('./components/WorkMode').then((m) => ({ default: m.WorkMode })));
+// T-E-S-27: Trusted Diagnostics Channels 前端面板。
+const DiagnosticsView = lazy(() => import('./components/DiagnosticsView').then((m) => ({ default: m.DiagnosticsView })));
+
+/** T-S5-B-03: 懒加载 chunk 下载期间的统一 fallback。 */
+function LoadingFallback() {
+  return (
+    <div class="lazy-loading-fallback" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px;">
+      <span class="lazy-spinner" style="margin-right:8px;">⏳</span>
+      {t('app.loading')}
+    </div>
+  );
+}
+
+type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics';
 
 // 全局状态：当前模式 + 当前 view
 const currentMode = signal<View>('code');
@@ -72,7 +96,7 @@ export function App() {
     loadTheme();
     applyTheme();
 
-    NineSnakeStore.bootstrap().then(
+    nebulaStore.bootstrap().then(
       () => {
         setReady(true);
         // P0#09: a single, post-boot read of the onboarding flag.
@@ -87,7 +111,7 @@ export function App() {
     // banner appears / disappears live as the user starts / stops
     // the daemon.  Cleanup on unmount.
     const poll = window.setInterval(() => {
-      NineSnakeStore.checkOllama();
+      nebulaStore.checkOllama();
     }, OLLAMA_POLL_MS);
     return () => window.clearInterval(poll);
   }, []);
@@ -99,7 +123,7 @@ export function App() {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         // view 切换
-        const u1 = await listen<string>('nine-snake://switch-view', (event) => {
+        const u1 = await listen<string>('nebula://switch-view', (event) => {
           const view = event.payload;
           if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard') {
             currentMode.value = view;
@@ -107,25 +131,40 @@ export function App() {
         });
         unlistens.push(u1);
 
-        // 文件打开（双击 .md/.txt 等）→ 切到 code 视图并通知 NineSnakeStore
-        const u2 = await listen<string>('nine-snake://open-file', (event) => {
+        // 文件打开（双击 .md/.txt 等）→ 切到 code 视图并通知 nebulaStore
+        const u2 = await listen<string>('nebula://open-file', (event) => {
           const path = event.payload;
           if (path) {
             currentMode.value = 'code';
-            NineSnakeStore.openExternalFile(path);
+            nebulaStore.openExternalFile(path);
+            // T-E-A-11: 后台预取该文件相关的历史对话到 SemanticCache。
+            // fire-and-forget,失败静默(invokeTauri 内部 catch)。
+            invokeTauri('prefetch_for_file', { path });
           }
         });
         unlistens.push(u2);
 
         // 文件拖入窗口
-        const u3 = await listen<string[]>('nine-snake://drag-drop', (event) => {
+        const u3 = await listen<string[]>('nebula://drag-drop', (event) => {
           const paths = event.payload;
           if (paths && paths.length > 0) {
             currentMode.value = 'code';
-            NineSnakeStore.openExternalFile(paths[0]);
+            nebulaStore.openExternalFile(paths[0]);
+            // T-E-A-11: 拖入文件同样触发预取。
+            invokeTauri('prefetch_for_file', { path: paths[0] });
           }
         });
         unlistens.push(u3);
+
+        // T-E-D-06: 右键"问Nebula" → 切到 chat + 预填输入框。
+        const u4 = await listen<string>('nebula://ask-file', (event) => {
+          const path = event.payload;
+          if (path) {
+            currentMode.value = 'chat';
+            nebulaStore.setChatPrefill(`请帮我分析这个文件:${path}`);
+          }
+        });
+        unlistens.push(u4);
       } catch {
         // Tauri runtime not available; ignore.
       }
@@ -172,41 +211,47 @@ export function App() {
       <div class="app" key={appKey.value}>
         <Sidebar />
         <main class="main">
-          {currentMode.value === 'code' ? (
-            <Workspace />
-          ) : (
-            <>
-              {currentMode.value === 'chat' && <ChatPanel />}
-              {currentMode.value === 'swarm' && <SwarmView />}
-              {currentMode.value === 'memory' && (
-                <div className="memory-view-container h-full flex flex-col">
-                  {/* P1-6: View mode toggle */}
-                  <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800">
-                    <button
-                      className={`px-3 py-1 text-xs rounded ${memoryView === 'map' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-                      onClick={() => setMemoryView('map')}
-                    >
-                      {t('memoryMap.title')}
-                    </button>
-                    <button
-                      className={`px-3 py-1 text-xs rounded ${memoryView === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-                      onClick={() => setMemoryView('list')}
-                    >
-                      {t('memoryView.list')}
-                    </button>
+          <Suspense fallback={<LoadingFallback />}>
+            {currentMode.value === 'code' ? (
+              <Workspace />
+            ) : (
+              <>
+                {currentMode.value === 'chat' && <ChatPanel />}
+                {currentMode.value === 'swarm' && <SwarmView />}
+                {currentMode.value === 'memory' && (
+                  <div className="memory-view-container h-full flex flex-col">
+                    {/* P1-6: View mode toggle */}
+                    <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800">
+                      <button
+                        className={`px-3 py-1 text-xs rounded ${memoryView === 'map' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        onClick={() => setMemoryView('map')}
+                      >
+                        {t('memoryMap.title')}
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded ${memoryView === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        onClick={() => setMemoryView('list')}
+                      >
+                        {t('memoryView.list')}
+                      </button>
+                    </div>
+                    {memoryView === 'map' ? <MemoryMap /> : <MemoryInspector />}
                   </div>
-                  {memoryView === 'map' ? <MemoryMap /> : <MemoryInspector />}
-                </div>
-              )}
-              {currentMode.value === 'skills' && <SkillPanel />}
-              {currentMode.value === 'dashboard' && <Dashboard />}
-            </>
-          )}
+                )}
+                {currentMode.value === 'skills' && <SkillPanel />}
+                {currentMode.value === 'dashboard' && <Dashboard />}
+                {currentMode.value === 'credits' && <CreditsDashboard />}
+                {currentMode.value === 'diagnostics' && <DiagnosticsView />}
+              </>
+            )}
+          </Suspense>
         </main>
         <StatusBar />
-        {settingsOpen.value && (
-          <Settings onClose={() => { settingsOpen.value = false; toast.success(t('settings.saved')); }} />
-        )}
+        <Suspense fallback={<LoadingFallback />}>
+          {settingsOpen.value && (
+            <Settings onClose={() => { settingsOpen.value = false; toast.success(t('settings.saved')); }} />
+          )}
+        </Suspense>
         <CommandPalette
           open={paletteOpen.value}
           onClose={() => { paletteOpen.value = false; }}
@@ -214,10 +259,10 @@ export function App() {
             () => { paletteOpen.value = false; },
             {
               setMode: (m) => { currentMode.value = m; },
-              setSubMode: (m) => { NineSnakeStore.mode.value = m; },
+              setSubMode: (m) => { nebulaStore.mode.value = m; },
               openSettings: () => { settingsOpen.value = true; },
               triggerReflection: () => {
-                NineSnakeStore.triggerReflection().then(
+                nebulaStore.triggerReflection().then(
                   () => toast.success('Reflection complete'),
                   (e) => toast.error('Reflection failed', String(e)),
                 );
@@ -233,16 +278,21 @@ export function App() {
 }
 
 /** v0.5: Code 视图内挂载 ModeSwitcher + 三模式视图。
- *  v1.7: 重命名为 Workspace，语义为"统一工作台的三视角"。 */
+ *  v1.7: 重命名为 Workspace，语义为"统一工作台的三视角"。
+ *  T-S5-B-03: WritingMode/WorkMode 懒加载,CodeMode 保持 eager(默认子视图)。 */
 function Workspace() {
-  const mode = NineSnakeStore.mode.value;
+  const mode = nebulaStore.mode.value;
   return (
     <div class="code-router">
       <ModeSwitcher />
+      {/* T-E-S-50: 自主度滑块 L0-L5,与 ModeSwitcher(任务领域)正交。 */}
+      <AutonomySlider />
       <div class="code-router-body">
-        {mode === 'writing' && <WritingMode />}
-        {mode === 'work' && <WorkMode />}
-        {mode === 'code' && <CodeMode />}
+        <Suspense fallback={<LoadingFallback />}>
+          {mode === 'writing' && <WritingMode />}
+          {mode === 'work' && <WorkMode />}
+          {mode === 'code' && <CodeMode />}
+        </Suspense>
       </div>
     </div>
   );
@@ -256,6 +306,8 @@ function Sidebar() {
     { id: 'code', icon: '💻', label: t('nav.code') },
     { id: 'skills', icon: '🔍', label: t('nav.skills') },
     { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
+    { id: 'credits', icon: '💰', label: 'Credits' },
+    { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
   ];
 
   return (
@@ -283,7 +335,7 @@ function Sidebar() {
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">{t('nav.settings')}</span>
         </button>
-        <span class="version">v{NineSnakeStore.version}</span>
+        <span class="version">v{nebulaStore.version}</span>
         <span class="slogan">{t('app.slogan')}</span>
       </div>
     </nav>

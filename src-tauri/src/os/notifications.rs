@@ -1,4 +1,4 @@
-//! v0.5: system notifications backend.
+﻿//! v0.5: system notifications backend.
 //!
 //! The v0.5 surface area is intentionally minimal: a single
 //! `notify(title, body)` function that uses the
@@ -49,7 +49,7 @@ impl NotificationLevel {
 /// always consider a successful return as "the user has been told".
 pub fn send(notification: &Notification) -> anyhow::Result<()> {
     info!(
-        target: "nine_snake.os",
+        target: "nebula.os",
         title = %notification.title,
         level = notification.level.as_str(),
         "notification dispatched (in-process log only — plug in tauri-plugin-notification in run())"

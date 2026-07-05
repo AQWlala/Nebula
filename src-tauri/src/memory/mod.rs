@@ -1,6 +1,6 @@
-//! `nine_snake::memory` — v7.0 layered memory system.
+﻿//! `nebula::memory` — v7.0 layered memory system.
 //!
-//! The memory subsystem is the heart of nine-snake. It provides:
+//! The memory subsystem is the heart of nebula. It provides:
 //!
 //! * a strongly typed [`Memory`] value object with five cognitive
 //!   [`MemoryType`]s and eight [`MemoryLayer`]s (L0..L7),
@@ -21,10 +21,24 @@
 //! model; every other module re-exports the relevant types from there.
 
 pub mod acl;
+// T-E-S-28: 对话消息标注(good/bad)+ 反馈回流 + Dify 风格数据集导出。
+pub mod annotations;
 pub mod blackhole;
+// T-E-B-11: BM25 关键词搜索（基于 FTS5）。
+pub mod bm25;
+// T-E-B-14: Dataview 式查询 DSL（手写递归下降 parser + AST → SQL 翻译）。
+pub mod query_dsl;
+// T-E-S-64: 反幻觉一致性检查器（badge 数据来源）。
+pub mod consistency;
 // v1.5: 因果图谱推理引擎。
 pub mod causal_graph;
+// T-S6-B-01: CLIP 多模态嵌入(图片向量化)。
+pub mod clip_embedder;
+// T-E-B-12: PDF/DOCX 文档文本提取。
+pub mod document_extractor;
 pub mod embedder;
+// T-E-B-09: 文件夹监控索引(自动吸收文件到记忆系统)。
+pub mod file_watcher;
 pub mod entity_extractor;
 pub mod export;
 pub mod forgetting;
@@ -42,6 +56,9 @@ pub mod sponge;
 // v2.0: 真正的 Self-Reflection — L5 元认知层升级。
 pub mod self_reflection;
 pub mod sqlite_store;
+// T-E-S-43: SQLite 明文↔密文迁移(CipherMigrator)— feature-gated 整文件。
+#[cfg(feature = "sqlcipher")]
+pub mod sqlite_cipher;
 // v1.5: LLM 驱动的多粒度摘要生成。
 pub mod summarizer;
 pub mod types;
@@ -49,28 +66,44 @@ pub mod types;
 pub mod version_control;
 // v1.3: L4 价值层（Constitutional AI + Risk Assessor + Privacy Guard + Value Predictor）。
 pub mod values;
+// T-E-B-11: BM25 + 向量混合搜索。
+pub mod hybrid_search;
+// T-E-S-42: VectorStore trait 抽象（LanceDB / Qdrant / ChromaDB）。
+pub mod vector_store;
 
-pub use acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
+pub use acl::{AclEffect, AclPermission, AclRule, MemoryAcl, PrincipalDomainMap};
+// T-E-S-28: 对话标注 + Dify 数据集导出。
+pub use annotations::{Annotation, AnnotationStats, AnnotationStore};
 pub use blackhole::BlackholeEngine;
+pub use bm25::Bm25Searcher;
+// T-E-B-14: Dataview 式查询 DSL 顶层类型透传。
+pub use query_dsl::{translate as translate_dsl, Expr as DslExpr, Field as DslField, LayerSpec, QueryAst};
+// T-E-S-64: 反幻觉一致性检查器类型透传。
+pub use consistency::{analyze, CitedMemory, ConsistencyReport, ConsistencyWarning};
 pub use causal_graph::{CausalChain, CausalGraphConfig, CausalGraphEngine, CausalNode};
-pub use embedder::Embedder;
+// T-S6-B-01: 多模态嵌入抽象与 CLIP 实现。
+pub use clip_embedder::ClipEmbedder;
+pub use embedder::{create_embedder, Embedder, EmbedderKind, EmbedderTrait};
 pub use entity_extractor::{EntityExtractor, ExtractedRelation};
-pub use export::{DataExporter, ExportManifest, ImportResult};
-pub use forgetting::{ForgettingCandidate, ForgettingConfig, ForgettingEngine};
+pub use export::{DataExporter, ExportManifest, ImportResult, RelationEntity};
+pub use forgetting::{ForgettingCandidate, ForgettingConfig, ForgettingEngine, TickResult};
 pub use graph_search::{GraphSearchConfig, GraphSearchEngine, GraphSearchResult};
+pub use hybrid_search::{HybridSearchConfig, HybridSearcher};
 pub use importance::ImportanceScorer;
 pub use l0_cache::{L0Cache, L0Stats};
 pub use lance_store::LanceStore;
 pub use layers::LayerPolicy;
 pub use orchestrator::{ContextBundle, MemoryOrchestrator, TaskHint};
 pub use migration::{Migration, MigrationState, MigrationStatus};
-pub use reflect::{ReflectConfig, Reflection, ReflectionEngine};
+pub use reflect::{ReflectConfig, Reflection, ReflectionEngine, RoundGuard};
 pub use sponge::SpongeEngine;
 pub use sqlite_store::SqliteStore;
 pub use summarizer::SummaryEngine;
 pub use types::{Memory, MemoryLayer, MemoryType, MultiGranularity, RelationKind, SourceKind};
 pub use values::{ValuesLayer, Verdict};
 pub use version_control::{CommitDiff, CommitRecord, MemoryBranch, MemoryVersionControl};
+// T-E-S-42: VectorStore trait 抽象(LanceDB/Qdrant/ChromaDB)。
+pub use vector_store::{create_vector_store, VectorStore, VectorStoreBackend};
 
 /// Constants shared across the memory subsystem.
 pub mod constants {

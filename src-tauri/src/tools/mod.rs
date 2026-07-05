@@ -6,6 +6,9 @@
 //! enumerate available tools for inclusion in the LLM system prompt.
 
 pub mod shell_tool;
+// T-E-S-33: OpenAPI 工具服务器 — feature-gated behind `openapi`。
+#[cfg(feature = "openapi")]
+pub mod openapi_server;
 use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -86,6 +89,29 @@ impl ToolRegistry {
         let prefix = format!("mcp_{server_name}_");
         let mut map = self.tools.write();
         map.retain(|k, _| !k.starts_with(&prefix));
+    }
+
+    /// T-E-S-33: 注册 OpenAPI spec 生成的工具(feature-gated behind `openapi`)。
+    ///
+    /// 遍历 `server.list_tool_definitions()`,为每个 `ToolDefinition` 创建
+    /// `OpenApiToolAdapter`(持有 `Arc<OpenApiToolServer>`)并注册。
+    /// 返回注册的工具数量。
+    #[cfg(feature = "openapi")]
+    pub fn register_openapi_tools(
+        &self,
+        server: crate::tools::openapi_server::OpenApiToolServer,
+    ) -> usize {
+        let server = Arc::new(server);
+        let mut count = 0;
+        for def in server.list_tool_definitions() {
+            let adapter = crate::tools::openapi_server::OpenApiToolAdapter::new(
+                server.clone(),
+                def,
+            );
+            self.register(Arc::new(adapter));
+            count += 1;
+        }
+        count
     }
 }
 

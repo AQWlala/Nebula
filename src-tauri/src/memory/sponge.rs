@@ -1,4 +1,4 @@
-//! Sponge absorption engine.
+﻿//! Sponge absorption engine.
 //!
 //! The sponge is the *entry point* for new memories. When a new
 //! [`Memory`] is absorbed it is:
@@ -18,14 +18,18 @@ use std::sync::Arc;
 use anyhow::Result;
 use tracing::{debug, warn};
 
+use super::acl::{AclPermission, MemoryAcl};
 use super::constants::SPONGE_MERGE_THRESHOLD;
 use super::constants::SUMMARY_BUCKETS;
 use super::embedder::Embedder;
 use super::entity_extractor::EntityExtractor;
 use super::graph_search::{GraphSearchConfig, GraphSearchEngine};
-use super::lance_store::LanceStore;
+use super::hybrid_search::{HybridSearchConfig, HybridSearcher};
 use super::sqlite_store::SqliteStore;
 use super::types::{Memory, MemoryRelation, MemoryType, MultiGranularity, RelationKind, SourceKind};
+// T-E-S-42: SpongeEngine 面向 VectorStore trait 编程,可接受任意后端。
+use super::vector_store::VectorStore;
+use crate::llm::cost_tracker::CostTracker;
 use crate::llm::LlmGateway;
 use crate::security::SensitiveScanner;
 
@@ -150,7 +154,7 @@ impl Default for ChamberConfig {
 /// Sponge absorption engine.
 pub struct SpongeEngine {
     sqlite: Arc<SqliteStore>,
-    lance: Arc<LanceStore>,
+    lance: Arc<dyn VectorStore>,
     embedder: Arc<Embedder>,
     sensitive_scanner: SensitiveScanner,
     entity_extractor: Option<EntityExtractor>,
@@ -158,10 +162,25 @@ pub struct SpongeEngine {
     keyword_activator: KeywordActivator,
     /// v1.5: 多腔体配置。
     chamber_config: ChamberConfig,
+    /// T-S1-A-04: 记忆访问控制列表。
+    ///
+    /// `None` 表示该 SpongeEngine 实例不启用 ACL 过滤（供内部可信路径
+    /// 使用，如 reflection worker、blackhole 压缩）。`Some` 表示外部
+    /// 主体（Skill / MCP / REST）调用 `search_with_acl()` 时按规则
+    /// 过滤。默认策略由 `MemoryAcl::check()` 决定（T-S1-PRE-02 已改
+    /// 为可信主体 allow + 其他 deny-all）。
+    acl: Option<Arc<MemoryAcl>>,
+    /// T-E-A-09: 成本追踪器（可选）。
+    ///
+    /// `None` 表示未注入 cost_tracker（旧调用路径 / 测试环境），
+    /// `absorb()` 不会写入 `mem.ingest_cost`（保持 `None`）。
+    /// `Some` 表示已注入，`absorb()` 会在 LLM 抽取前后采样
+    /// `total_cost_usd()` 差值，写入 `mem.ingest_cost`。
+    cost_tracker: Option<Arc<CostTracker>>,
 }
 
 impl SpongeEngine {
-    pub fn new(sqlite: Arc<SqliteStore>, lance: Arc<LanceStore>, embedder: Arc<Embedder>) -> Self {
+    pub fn new(sqlite: Arc<SqliteStore>, lance: Arc<dyn VectorStore>, embedder: Arc<Embedder>) -> Self {
         Self {
             sqlite,
             lance,
@@ -170,7 +189,56 @@ impl SpongeEngine {
             entity_extractor: None,
             keyword_activator: KeywordActivator::default(),
             chamber_config: ChamberConfig::default(),
+            acl: None,
+            cost_tracker: None,
         }
+    }
+
+    /// T-E-B-11: Hybrid search combining BM25 keyword search and
+    /// vector similarity search.
+    ///
+    /// Delegates to [`HybridSearcher`] which:
+    /// 1. Runs BM25 (FTS5) and vector search (LanceDB) in parallel.
+    /// 2. Normalises both score lists to `[0, 1]`.
+    /// 3. Fuses: `alpha * vector + (1 - alpha) * bm25` (default
+    ///    `alpha = 0.6`, vector-leaning).
+    /// 4. Deduplicates by `memory_id` and truncates to `limit`.
+    ///
+    /// Returns `(Memory, fused_score)` pairs sorted by descending
+    /// score. Unlike [`search_with_graph`], this returns full
+    /// [`Memory`] entries (hydrated from SQLite) rather than just
+    /// `(id, score)` tuples, and it combines keyword-exact recall
+    /// (BM25) with semantic recall (vector) for better coverage.
+    pub async fn search_hybrid(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<(Memory, f64)>> {
+        let searcher = HybridSearcher::new(
+            self.sqlite.clone(),
+            self.lance.clone(),
+            self.embedder.clone(),
+        );
+        searcher.search(query, limit).await
+    }
+
+    /// T-E-B-11: Hybrid search with a custom fusion config.
+    ///
+    /// Allows callers to tune `alpha` (vector vs BM25 weight) and
+    /// `over_fetch` (candidate pool size). See [`HybridSearchConfig`].
+    pub async fn search_hybrid_with_config(
+        &self,
+        query: &str,
+        limit: usize,
+        config: HybridSearchConfig,
+    ) -> Result<Vec<(Memory, f64)>> {
+        let searcher = HybridSearcher::new(
+            self.sqlite.clone(),
+            self.lance.clone(),
+            self.embedder.clone(),
+        )
+        .with_config(config);
+        searcher.search(query, limit).await
     }
 
     pub fn with_llm(mut self, llm: LlmGateway) -> Self {
@@ -188,6 +256,41 @@ impl SpongeEngine {
     pub fn with_chamber_config(mut self, config: ChamberConfig) -> Self {
         self.chamber_config = config;
         self
+    }
+
+    /// T-S1-A-04: 注入 MemoryAcl，启用 `search_with_acl()` 的结果过滤。
+    ///
+    /// 不调用此方法时 `acl` 为 `None`，`search_with_acl()` 会直接返回
+    /// 未过滤的结果（等同于 `search_with_graph()`），保证内部可信路径
+    /// （reflection / blackhole / orchestrator 以 system 主体运行）不
+    /// 受影响。外部主体（Skill / MCP / REST）的搜索请求应由调用方改走
+    /// `search_with_acl()` 并传入 requester_id。
+    pub fn with_acl(mut self, acl: Arc<MemoryAcl>) -> Self {
+        self.acl = Some(acl);
+        self
+    }
+
+    /// T-S1-A-04: 访问当前注入的 ACL（供测试与运行时检查）。
+    pub fn acl(&self) -> Option<&Arc<MemoryAcl>> {
+        self.acl.as_ref()
+    }
+
+    /// T-E-A-09: 注入 CostTracker,启用 `absorb()` 中的成本采样。
+    ///
+    /// 注入后,`absorb()` 会在入口记录 `total_cost_usd()` 起点,在
+    /// LLM 抽取(`entity_extractor.extract()`)完成后记录终点,将
+    /// 差值写入 `mem.ingest_cost`。Duplicate / Merged 分支不调用
+    /// LLM 抽取,因此差值通常为 `Some(0.0)`(已追踪但为零)。
+    ///
+    /// 未注入时 `absorb()` 保持 `mem.ingest_cost = None`(向后兼容)。
+    pub fn with_cost_tracker(mut self, tracker: Arc<CostTracker>) -> Self {
+        self.cost_tracker = Some(tracker);
+        self
+    }
+
+    /// T-E-A-09: 访问当前注入的 CostTracker（供测试与运行时检查）。
+    pub fn cost_tracker(&self) -> Option<&Arc<CostTracker>> {
+        self.cost_tracker.as_ref()
     }
 
     /// v1.5: 访问关键词激活器（用于运行时添加关键词）。
@@ -216,6 +319,38 @@ impl SpongeEngine {
     /// the SQLite write 鈥?not across the (slow) embedding call
     /// 鈥?so latency is bounded.
     pub async fn absorb(&self, mut mem: Memory) -> Result<SpongeResult> {
+        // T-E-A-09: 入口记录成本起点(若 cost_tracker 已注入)。
+        // 用于在 LLM 抽取后计算差值,写入 mem.ingest_cost。
+        let cost_before = self.cost_tracker.as_ref().map(|t| t.total_cost_usd());
+
+        // M7b #94: injection_guard 纵深防御。
+        // 在 sponge 层再次扫描(即使上层 service.rs 已扫描),防止任何绕过命令层的路径
+        // (如 gRPC 直接调用、内部代码直接 absorb)写入恶意注入内容。
+        // Critical/High 命中时 sanitize(用占位符替换),不拒绝存储(避免破坏正常流程)。
+        let scan = crate::security::injection_guard::full_injection_scan(&mem.content);
+        if let Some(severity) = scan.max_severity {
+            if severity >= crate::security::injection_guard::InjectionSeverity::Critical {
+                tracing::warn!(
+                    target: "nebula.security",
+                    hits = scan.injection_hits.len(),
+                    leaks = scan.credential_leaks.len(),
+                    "critical injection detected in sponge.absorb; sanitizing content"
+                );
+                // 用安全占位符替换恶意内容,保留记忆条目但消除注入向量。
+                mem.content = format!(
+                    "[BLOCKED BY INJECTION GUARD: {} injection hits, {} credential leaks]",
+                    scan.injection_hits.len(),
+                    scan.credential_leaks.len()
+                );
+            } else if !scan.safe {
+                tracing::warn!(
+                    target: "nebula.security",
+                    severity = %severity,
+                    "non-critical injection warning in sponge.absorb"
+                );
+            }
+        }
+
         // 1. Normalise / strip.
         mem.content = normalise(&mem.content);
         mem.summary = derive_summaries(&mem.content);
@@ -224,7 +359,7 @@ impl SpongeEngine {
         let (redacted_content, sensitive_categories) = self.sensitive_scanner.scan(&mem.content);
         if !sensitive_categories.is_empty() {
             tracing::warn!(
-                target: "nine_snake.memory",
+                target: "nebula.memory",
                 ?sensitive_categories,
                 "sensitive data detected in memory; redacted before storage"
             );
@@ -269,6 +404,14 @@ impl SpongeEngine {
                         let now = chrono::Utc::now().timestamp();
                         existing.touch(now);
                         self.sqlite.update_guarded_spawn(&existing).await?;
+                        // T-E-A-09: Duplicate 分支未走 LLM 抽取,
+                        // 差值为 .0(tracker 存在时)。mem 即将被丢弃,
+                        // 此处仅保持字段一致性(不持久化)。
+                        let cost_after = self.cost_tracker.as_ref().map(|t| t.total_cost_usd());
+                        mem.ingest_cost = match (cost_before, cost_after) {
+                            (Some(b), Some(a)) => Some(a - b),
+                            _ => None,
+                        };
                         debug!(target: "nine_sponge", id = %existing_id, sim, "duplicate absorbed");
                         return Ok(SpongeResult::Duplicate { id: existing_id });
                     }
@@ -300,6 +443,14 @@ impl SpongeEngine {
                     // independent of the SQLite row state.
                     let new_emb_vec = self.embedder.embed(&new_emb).await?;
                     self.lance.upsert(&updated_id, &new_emb_vec).await?;
+                    // T-E-A-09: Merged 分支未走 LLM 抽取,差值为 0.0
+                    // (tracker 存在时)。mem 即将被丢弃,此处仅保持
+                    // 字段一致性(不持久化)。
+                    let cost_after = self.cost_tracker.as_ref().map(|t| t.total_cost_usd());
+                    mem.ingest_cost = match (cost_before, cost_after) {
+                        (Some(b), Some(a)) => Some(a - b),
+                        _ => None,
+                    };
                     debug!(target: "nine_sponge", id = %updated_id, sim, "merged into existing");
                     return Ok(SpongeResult::Merged {
                         id: updated_id,
@@ -308,6 +459,39 @@ impl SpongeEngine {
                 }
             }
         }
+
+        // V2-T-22 + T-E-A-09: LLM-driven entity extraction for richer relations.
+        //
+        // 原本此块在 insert 之后,现移到 insert 之前,以便:
+        // 1. 在 LLM 抽取后采样 cost_after,计算差值;
+        // 2. 将 ingest_cost 写入 mem,随 insert_guarded_spawn 持久化
+        //    (避免二次 UPDATE)。
+        // 仅 collect 关系,add_relation 调用保留在 insert 之后
+        // (与 near-neighbour 关系添加保持一致,避免潜在 FK 约束)。
+        let extracted_relations: Vec<_> = if let Some(ref extractor) = self.entity_extractor {
+            let existing_ids: Vec<String> = top.iter().map(|(id, _)| id.clone()).collect();
+            match extractor
+                .extract(&mem.id, &mem.content, &existing_ids)
+                .await
+            {
+                Ok(extracted) => extracted,
+                Err(e) => {
+                    warn!(target: "nine_sponge", error = %e, "entity extraction failed; continuing with cosine-based relations");
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
+
+        // T-E-A-09: LLM 抽取后记录 cost_after,计算差值写入 mem.ingest_cost。
+        // - tracker 存在:Some(after - before)(通常 > 0,因 LLM 调用产生费用)
+        // - tracker 不存在:None(向后兼容,旧调用路径)
+        let cost_after = self.cost_tracker.as_ref().map(|t| t.total_cost_usd());
+        mem.ingest_cost = match (cost_before, cost_after) {
+            (Some(b), Some(a)) => Some(a - b),
+            _ => None,
+        };
 
         // 4. Insert fresh.
         let now = chrono::Utc::now().timestamp();
@@ -324,6 +508,26 @@ impl SpongeEngine {
                 map.insert(
                     "absorbed_via".to_string(),
                     serde_json::Value::from("sponge"),
+                );
+            }
+        }
+        // T-E-B-04: 写入结构化 provenance 到 metadata。
+        // tool 优先取 absorb_text 写入的 `provenance_tool`(若存在),
+        // 否则 None。保留上方 absorbed_at/absorbed_via 以向后兼容。
+        if mem.metadata.get("provenance").is_none() {
+            let tool = mem
+                .metadata
+                .get("provenance_tool")
+                .and_then(|v| v.as_str());
+            let provenance = crate::memory::types::Provenance::new(
+                mem.source.as_str(),
+                tool,
+                &mem.content,
+            );
+            if let serde_json::Value::Object(ref mut map) = mem.metadata {
+                map.insert(
+                    "provenance".to_string(),
+                    serde_json::to_value(&provenance).unwrap_or(serde_json::Value::Null),
                 );
             }
         }
@@ -389,27 +593,16 @@ impl SpongeEngine {
             }
         }
 
-        // V2-T-22: LLM-driven entity extraction for richer relations.
-        if let Some(ref extractor) = self.entity_extractor {
-            let existing_ids: Vec<String> = top.iter().map(|(id, _)| id.clone()).collect();
-            match extractor
-                .extract(&mem.id, &mem.content, &existing_ids)
-                .await
-            {
-                Ok(extracted) => {
-                    for er in extracted {
-                        let mut rel = MemoryRelation::new(er.from_id, er.to_id, er.relation);
-                        if let Some(evidence) = er.evidence {
-                            rel = rel.with_evidence(evidence);
-                        }
-                        if let Err(e) = self.sqlite.add_relation(&rel).await {
-                            warn!(target: "nine_sponge", error = %e, "failed to insert extracted relation");
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!(target: "nine_sponge", error = %e, "entity extraction failed; continuing with cosine-based relations");
-                }
+        // V2-T-22: 持久化 LLM 抽取的关系(extract 在 insert 之前完成)。
+        // T-E-A-09: relations 在 insert 之前 collect,在此处 add_relation
+        // 以确保 memory row 已存在(避免潜在 FK 约束)。
+        for er in extracted_relations {
+            let mut rel = MemoryRelation::new(er.from_id, er.to_id, er.relation);
+            if let Some(evidence) = er.evidence {
+                rel = rel.with_evidence(evidence);
+            }
+            if let Err(e) = self.sqlite.add_relation(&rel).await {
+                warn!(target: "nine_sponge", error = %e, "failed to insert extracted relation");
             }
         }
 
@@ -450,17 +643,97 @@ impl SpongeEngine {
         Ok(filtered)
     }
 
+    /// M2b #36: 带 principal 的记忆吸收。
+    ///
+    /// 与 [`absorb`](Self::absorb) 相同,但在吸收前根据 `principal` 解析
+    /// domain 并写入 `mem.domain`。这是 M2b domain 隔离的写入路径:
+    ///
+    /// * `evolution:agent_a` → `mem.domain = "agent_a"`
+    /// * `worker:task_42` → 查 ACL 的 PrincipalDomainMap(若已注入)→ master_domain
+    /// * `system` / `owner` / `local` → `mem.domain = "shared"`(默认)
+    /// * 未知 principal → `mem.domain` 保持原值(默认 "shared")
+    ///
+    /// **向后兼容**: 旧 [`absorb`](Self::absorb) 保留,不修改 `mem.domain`
+    /// (Memory::new() 默认 "shared"),等价于 `absorb_with_principal("system", mem)`。
+    pub async fn absorb_with_principal(
+        &self,
+        principal: &str,
+        mut mem: Memory,
+    ) -> Result<SpongeResult> {
+        // 解析 principal → domain
+        let domain = self.resolve_principal_domain(principal);
+        if let Some(d) = domain {
+            mem.domain = d;
+        }
+        // 委托给 absorb() 完成实际写入
+        self.absorb(mem).await
+    }
+
+    /// M2b #36: 解析 principal → domain。优先使用 ACL 的 PrincipalDomainMap
+    /// (若已注入),否则使用内联规则(与 PrincipalDomainMap::resolve 相同)。
+    fn resolve_principal_domain(&self, principal: &str) -> Option<String> {
+        if let Some(acl) = &self.acl {
+            if let Some(map) = acl.principal_domains() {
+                return map.resolve(principal);
+            }
+        }
+        // 内联回退(与 PrincipalDomainMap::resolve 规则一致)
+        if let Some(rest) = principal.strip_prefix("evolution:") {
+            if !rest.is_empty() {
+                return Some(rest.to_string());
+            }
+        }
+        const TRUSTED_PRINCIPALS: &[&str] = &["system", "owner", "local"];
+        if TRUSTED_PRINCIPALS.contains(&principal) {
+            return Some("shared".to_string());
+        }
+        None
+    }
+
     /// Convenience: build a fresh [`Memory`] from raw inputs and absorb
     /// it. Useful for the Tauri command layer.
+    ///
+    /// T-E-B-04: `tool` 参数记录触发吸收的 agent / 工具名(如
+    /// `"writer"` / `"sponge"` / `"user"`),写入 `metadata.provenance_tool`,
+    /// 由 `absorb()` 在构造 `Provenance` 时读取。传 `None` 保持向后兼容
+    /// (来源信息仍由 `source` 字段保留)。
     pub async fn absorb_text(
         &self,
         memory_type: super::types::MemoryType,
         layer: super::types::MemoryLayer,
         content: impl Into<String>,
         source: SourceKind,
+        tool: Option<&str>,
     ) -> Result<SpongeResult> {
-        let m = Memory::new(memory_type, layer, content, source);
+        let mut m = Memory::new(memory_type, layer, content, source);
+        // T-E-B-04: 记录 provenance tool,供 absorb() 写入结构化 provenance。
+        if let Some(t) = tool {
+            if let serde_json::Value::Object(ref mut map) = m.metadata {
+                map.insert("provenance_tool".to_string(), serde_json::Value::from(t));
+            }
+        }
         self.absorb(m).await
+    }
+
+    /// T-E-B-09: 读取文件内容并吸收到记忆系统。供 FileWatcherEngine
+    /// 在文件变更事件触发时调用。内部委托给 `absorb_text`,带
+    /// `tool = Some("file-watcher")` provenance 标记,以便审计追踪。
+    pub async fn absorb_file(
+        &self,
+        path: &std::path::Path,
+        memory_type: super::types::MemoryType,
+        layer: super::types::MemoryLayer,
+        source: SourceKind,
+    ) -> Result<SpongeResult> {
+        // T-E-B-12: PDF/DOCX 二进制文档走 document_extractor;其余走原文本路径。
+        let content = if super::document_extractor::detect_kind(path).is_some() {
+            let (_kind, text) = super::document_extractor::extract_document_text(path)?;
+            text
+        } else {
+            tokio::fs::read_to_string(path).await?
+        };
+        self.absorb_text(memory_type, layer, content, source, Some("file-watcher"))
+            .await
     }
 
     /// Hybrid search: vector similarity + optional graph traversal expansion.
@@ -494,6 +767,68 @@ impl SpongeEngine {
         hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         Ok(hits)
     }
+
+    /// T-S1-A-04: 带主体权限过滤的搜索入口。
+    ///
+    /// 行为：
+    /// 1. 调用 `search_with_graph()` 获得候选 (id, score) 列表。
+    /// 2. 若 `self.acl` 为 `None`，直接返回未过滤结果（向后兼容内部可信路径）。
+    /// 3. 若 `self.acl` 为 `Some`，对每条结果调用
+    ///    `MemoryAcl::check(requester_id, memory_id, Read)`，保留 allow 项。
+    /// 4. 通过 `tracing::warn!` 记录被过滤条目（不含内容，仅 id + requester），
+    ///    便于安全审计；未来 T-S1-B-03 仪表盘接入时改写为 Prometheus 计数器。
+    ///
+    /// 返回值中的 `filtered_count` 字段供调用方观测被拒条目数。
+    pub async fn search_with_acl(
+        &self,
+        query: &str,
+        k: usize,
+        graph_config: Option<GraphSearchConfig>,
+        requester_id: &str,
+    ) -> Result<AclFilteredSearch> {
+        let hits = self.search_with_graph(query, k, graph_config).await?;
+
+        let Some(acl) = &self.acl else {
+            // 未注入 ACL：完全放行（内部可信路径）
+            return Ok(AclFilteredSearch {
+                results: hits,
+                filtered_count: 0,
+                acl_enforced: false,
+            });
+        };
+
+        let mut kept = Vec::with_capacity(hits.len());
+        let mut filtered_count = 0usize;
+        for (id, score) in hits {
+            if acl.check(requester_id, &id, AclPermission::Read) {
+                kept.push((id, score));
+            } else {
+                filtered_count += 1;
+                warn!(
+                    target: "nebula.memory.acl",
+                    requester = requester_id,
+                    memory_id = %id,
+                    "sponge search result denied by ACL"
+                );
+            }
+        }
+        Ok(AclFilteredSearch {
+            results: kept,
+            filtered_count,
+            acl_enforced: true,
+        })
+    }
+}
+
+/// T-S1-A-04: `search_with_acl()` 的返回包装。
+#[derive(Debug, Clone)]
+pub struct AclFilteredSearch {
+    /// 通过 ACL 过滤后的 (memory_id, score) 列表，按分数降序。
+    pub results: Vec<(String, f32)>,
+    /// 被 ACL 拒绝的条目数（供可观测性使用）。
+    pub filtered_count: usize,
+    /// 是否实际执行了 ACL 检查（false 表示未注入 ACL，直接放行）。
+    pub acl_enforced: bool,
 }
 
 /// Normalises a piece of text: trims, collapses internal whitespace.
@@ -673,7 +1008,12 @@ mod tests {
 
     #[test]
     fn keyword_activator_add_keyword_works() {
-        let mut ka = KeywordActivator::with_keywords(Vec::new(), 0.5);
+        // M7b #90 分类 A: KeywordActivator::activate 在 keywords 为空时返回 true
+        // (无关键词 → 总是激活,见行 95-96)。原测试用 Vec::new() 初始集,
+        // 导致 `assert!(!ka.activate(...))` 失败。改用非空初始集 ["other"],
+        // 这样 activate("特殊内容") 不匹配 "other" → false,验证 add_keyword
+        // 后能匹配新关键词 "特殊"。
+        let mut ka = KeywordActivator::with_keywords(vec!["other".to_string()], 0.5);
         assert!(!ka.activate("特殊内容"));
         ka.add_keyword("特殊");
         assert!(ka.activate("这是一段特殊内容"));
@@ -707,5 +1047,132 @@ mod tests {
         assert!(!kws.is_empty());
         assert!(kws.contains(&"重要".to_string()));
         assert!(kws.contains(&"important".to_string()));
+    }
+
+    // ---- T-S1-A-04: ACL 注入与过滤测试 ----
+
+    /// `with_acl()` builder 应将 ACL 注入 SpongeEngine，且 `acl()` 访问器返回同一引用。
+    /// 不调用 `with_acl()` 时 `acl()` 应返回 `None`。
+    #[test]
+    fn acl_builder_injects_and_accessor_returns_reference() {
+        use crate::memory::acl::{AclEffect, AclPermission, AclRule};
+        // 构造一个带规则的 ACL
+        let mut acl = MemoryAcl::new();
+        acl.add_rule(AclRule {
+            principal: "skill-1".into(),
+            resource: "mem-secret".into(),
+            permission: AclPermission::Read,
+            effect: AclEffect::Deny,
+        });
+        let acl_arc = Arc::new(acl);
+
+        // 我们无法在单测中构造完整 SpongeEngine（需要 SQLite + LanceDB +
+        // Ollama embedder），因此直接验证 ACL 模块行为，确保
+        // `search_with_acl()` 依赖的 `MemoryAcl::check()` 语义正确。
+        assert!(!acl_arc.check("skill-1", "mem-secret", AclPermission::Read));
+        // M7b #90 分类 D: skill-1 非可信主体,对 mem-other 无匹配规则 → 默认 deny。
+        // 原断言 `assert!(...)` 残留 allow-by-default 假设,与本测试行 1049
+        // (`assert!(!acl_arc.check("external", ...))` 非可信默认 deny)自相矛盾。
+        assert!(!acl_arc.check("skill-1", "mem-other", AclPermission::Read));
+        // 可信主体默认 allow（T-S1-PRE-02）
+        assert!(acl_arc.check("system", "mem-secret", AclPermission::Read));
+        // 非可信主体对未匹配资源默认 deny（T-S1-PRE-02）
+        assert!(!acl_arc.check("external", "mem-anything", AclPermission::Read));
+    }
+
+    /// `AclFilteredSearch` 结构体的字段语义：`acl_enforced=false` 表示
+    /// 未注入 ACL（内部可信路径），`filtered_count` 应为 0。
+    #[test]
+    fn acl_filtered_search_passthrough_when_no_acl() {
+        let passthrough = AclFilteredSearch {
+            results: vec![("m1".into(), 0.9), ("m2".into(), 0.5)],
+            filtered_count: 0,
+            acl_enforced: false,
+        };
+        assert_eq!(passthrough.results.len(), 2);
+        assert_eq!(passthrough.filtered_count, 0);
+        assert!(!passthrough.acl_enforced);
+    }
+
+    /// `AclFilteredSearch` 在 ACL 生效时正确记录被拒条目数。
+    #[test]
+    fn acl_filtered_search_records_denied_count() {
+        let enforced = AclFilteredSearch {
+            results: vec![("m1".into(), 0.9)],
+            filtered_count: 2,
+            acl_enforced: true,
+        };
+        assert_eq!(enforced.results.len(), 1);
+        assert_eq!(enforced.filtered_count, 2);
+        assert!(enforced.acl_enforced);
+    }
+
+    // ---- T-E-A-09: cost_tracker 注入与差值计算测试 ----
+
+    /// `CostTracker::total_cost_usd()` 在 record() 后应正确累加。
+    /// 这是 `absorb()` 中差值计算的基础(`cost_after - cost_before`)。
+    #[test]
+    fn cost_tracker_total_cost_usd_accumulates_after_record() {
+        let tracker = CostTracker::new();
+        // 初始为 0
+        let before = tracker.total_cost_usd();
+        assert!(before >= 0.0);
+        // record 后应 > before(取决于模型单价)
+        tracker.record("gpt-4o", 100, 50);
+        let after = tracker.total_cost_usd();
+        assert!(
+            after > before,
+            "total_cost_usd should increase after record: before={before}, after={after}"
+        );
+    }
+
+    /// 注入 mock CostTracker 后,差值计算逻辑应正确反映 LLM 调用费用。
+    ///
+    /// 此测试验证 `absorb()` 中使用的差值公式:
+    /// `ingest_cost = Some(cost_after - cost_before)`(tracker 存在时)。
+    /// 我们无法在单测中构造完整 SpongeEngine(需要 SQLite + LanceDB +
+    /// Ollama embedder),因此直接验证差值计算的语义。
+    #[test]
+    fn ingest_cost_diff_matches_tracker_delta() {
+        let tracker = CostTracker::new();
+        let cost_before = tracker.total_cost_usd();
+        // 模拟 LLM 抽取调用
+        tracker.record("gpt-4o", 200, 100);
+        let cost_after = tracker.total_cost_usd();
+        let ingest_cost = Some(cost_after - cost_before);
+        assert!(
+            ingest_cost.unwrap() > 0.0,
+            "ingest_cost should be positive after LLM call"
+        );
+    }
+
+    /// 未注入 tracker 时,差值计算应返回 None(向后兼容)。
+    /// 这对应 `absorb()` 中 `cost_tracker = None` 的分支。
+    #[test]
+    fn ingest_cost_none_when_tracker_absent() {
+        // 模拟 cost_tracker = None 的情况
+        let cost_tracker: Option<Arc<CostTracker>> = None;
+        let cost_before = cost_tracker.as_ref().map(|t| t.total_cost_usd());
+        let cost_after = cost_tracker.as_ref().map(|t| t.total_cost_usd());
+        let ingest_cost = match (cost_before, cost_after) {
+            (Some(b), Some(a)) => Some(a - b),
+            _ => None,
+        };
+        assert!(ingest_cost.is_none(), "ingest_cost should be None when tracker absent");
+    }
+
+    /// tracker 存在但无 LLM 调用时(Duplicate/Merged 分支),差值应为 0.0。
+    #[test]
+    fn ingest_cost_zero_when_no_llm_call() {
+        let tracker = Arc::new(CostTracker::new());
+        let cost_tracker: Option<Arc<CostTracker>> = Some(tracker);
+        let cost_before = cost_tracker.as_ref().map(|t| t.total_cost_usd());
+        // 无 LLM 调用,cost_after == cost_before
+        let cost_after = cost_tracker.as_ref().map(|t| t.total_cost_usd());
+        let ingest_cost = match (cost_before, cost_after) {
+            (Some(b), Some(a)) => Some(a - b),
+            _ => None,
+        };
+        assert_eq!(ingest_cost, Some(0.0));
     }
 }

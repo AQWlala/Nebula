@@ -1,4 +1,4 @@
--- nine-snake v0.2 migration 002 — reflection engine support
+﻿-- nebula v0.2 migration 002 — reflection engine support
 -- Adds the `importance` column to `reflections` (v0.1 was missing it),
 -- supporting indexes, and a join table linking each reflection to
 -- the memories that triggered it.

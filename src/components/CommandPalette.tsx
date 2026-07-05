@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0: command palette (⌘K / Ctrl-K).
  *
  * Fuzzy-searches a static list of commands plus recent
@@ -8,7 +8,7 @@
  */
 import Fuse from 'fuse.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { NineSnakeAPI } from '../lib/tauri';
+import { nebulaAPI } from '../lib/tauri';
 import { t } from '../i18n';
 
 export interface CommandItem {
@@ -29,16 +29,16 @@ export function buildDefaultCommands(
   },
 ): CommandItem[] {
   return [
-    { id: 'view.chat', title: 'Go to Chat', group: 'View', run: () => { actions.setMode('chat'); onClose(); } },
-    { id: 'view.swarm', title: 'Go to Swarm', group: 'View', run: () => { actions.setMode('swarm'); onClose(); } },
-    { id: 'view.memory', title: 'Go to Memory', group: 'View', run: () => { actions.setMode('memory'); onClose(); } },
-    { id: 'view.code', title: 'Go to Code', group: 'View', run: () => { actions.setMode('code'); onClose(); } },
-    { id: 'view.skills', title: 'Go to Skills', group: 'View', run: () => { actions.setMode('skills'); onClose(); } },
-    { id: 'submode.writing', title: 'Switch to Writing', group: 'Sub-mode', run: () => { actions.setSubMode('writing'); onClose(); } },
-    { id: 'submode.work', title: 'Switch to Work', group: 'Sub-mode', run: () => { actions.setSubMode('work'); onClose(); } },
-    { id: 'submode.code', title: 'Switch to Code', group: 'Sub-mode', run: () => { actions.setSubMode('code'); onClose(); } },
-    { id: 'action.reflect', title: 'Trigger reflection now', group: 'Action', run: () => { actions.triggerReflection(); onClose(); } },
-    { id: 'action.open-settings', title: 'Open settings', group: 'Action', run: () => { actions.openSettings(); onClose(); } },
+    { id: 'view.chat', title: t('command.view.chat'), group: t('command.group.view'), run: () => { actions.setMode('chat'); onClose(); } },
+    { id: 'view.swarm', title: t('command.view.swarm'), group: t('command.group.view'), run: () => { actions.setMode('swarm'); onClose(); } },
+    { id: 'view.memory', title: t('command.view.memory'), group: t('command.group.view'), run: () => { actions.setMode('memory'); onClose(); } },
+    { id: 'view.code', title: t('command.view.code'), group: t('command.group.view'), run: () => { actions.setMode('code'); onClose(); } },
+    { id: 'view.skills', title: t('command.view.skills'), group: t('command.group.view'), run: () => { actions.setMode('skills'); onClose(); } },
+    { id: 'submode.writing', title: t('command.submode.writing'), group: t('command.group.submode'), run: () => { actions.setSubMode('writing'); onClose(); } },
+    { id: 'submode.work', title: t('command.submode.work'), group: t('command.group.submode'), run: () => { actions.setSubMode('work'); onClose(); } },
+    { id: 'submode.code', title: t('command.submode.code'), group: t('command.group.submode'), run: () => { actions.setSubMode('code'); onClose(); } },
+    { id: 'action.reflect', title: t('command.action.reflect'), group: t('command.group.action'), run: () => { actions.triggerReflection(); onClose(); } },
+    { id: 'action.open-settings', title: t('command.action.openSettings'), group: t('command.group.action'), run: () => { actions.openSettings(); onClose(); } },
   ];
 }
 
@@ -159,7 +159,7 @@ export function useCommandPaletteShortcut(handler: () => void) {
 
 export async function buildMemoryItems(limit = 10): Promise<CommandItem[]> {
   try {
-    const mems = await NineSnakeAPI.memoryListRecent(limit);
+    const mems = await nebulaAPI.memoryListRecent(limit);
     return mems.map((m) => ({
       id: `mem.${m.id}`,
       // P0#2: Memory.summary only has s50 / s150 / s500 / s2000.
@@ -167,7 +167,7 @@ export async function buildMemoryItems(limit = 10): Promise<CommandItem[]> {
       // the list always renders without runtime TypeError.
       title: m.summary.s50 || m.content.slice(0, 50),
       hint: m.layer,
-      group: 'Memory',
+      group: t('command.group.memory'),
       run: () => {
         // Default: copy summary to clipboard so the user can paste
         // it into a chat.  Real v1.0 wire-up can navigate to the

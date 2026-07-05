@@ -5,7 +5,7 @@ use tauri::State;
 use tracing::{instrument, warn};
 
 use crate::api::server::{
-    NineSnakeService, SearchMemoryHit, SearchMemoryRequest, StoreMemoryRequest, StoreMemoryResponse,
+    NebulaService, SearchMemoryHit, SearchMemoryRequest, StoreMemoryRequest, StoreMemoryResponse,
 };
 use crate::commands::error::CommandError;
 use crate::memory::types::{Memory, MemoryLayer, SourceKind};
@@ -24,7 +24,7 @@ pub async fn memory_store(
 ) -> Result<StoreMemoryResponse, CommandError> {
     if request.layer == MemoryLayer::L7 && request.source != SourceKind::System {
         warn!(
-            target: "nine_snake.cmd",
+            target: "nebula.cmd",
             source = ?request.source,
             "non-System source attempted L7 write; demoting to L6"
         );
@@ -107,7 +107,7 @@ pub async fn memory_update_importance(
     let final_importance = if let Some(m) = &mem {
         if m.layer == MemoryLayer::L7 && clamped < 0.9 {
             warn!(
-                target: "nine_snake.cmd",
+                target: "nebula.cmd",
                 id = %id,
                 requested = clamped,
                 "L7 memory importance cannot be lowered below 0.9; clamping"
@@ -138,7 +138,7 @@ pub async fn memory_delete(state: State<'_, AppState>, id: String) -> Result<boo
         Ok(deleted) => {
             if deleted {
                 if let Err(e) = state.lance.delete(&id).await {
-                    warn!(target: "nine_snake.cmd", error = ?e, "lance delete failed");
+                    warn!(target: "nebula.cmd", error = ?e, "lance delete failed");
                 }
             }
             Ok(deleted)
@@ -160,6 +160,32 @@ pub async fn memory_get_many(
         .await
         .map_err(|e| CommandError::internal("memory_get_many", &anyhow::anyhow!("{e}")))?
         .map_err(|e| CommandError::db("memory_get_many", &e))
+}
+
+/// Tauri command: T-E-B-14 Dataview-style DSL query.
+///
+/// Accepts a query string like `FROM L3 WHERE kind=fact AND importance>0.7`
+/// and returns the matching [`Memory`] rows. The query is parsed by
+/// [`crate::memory::query_dsl::Parser::parse_str`], translated to a
+/// parameterised SQL `SELECT` (all values bound as `?` placeholders),
+/// and executed via [`SqliteStore::query_dsl`]. `compressed_from IS NULL`
+/// is force-injected so black-hole-compressed rows stay hidden.
+///
+/// Parse errors map to [`CommandError::validation`]; database errors
+/// map to [`CommandError::db`].
+#[tauri::command]
+#[instrument(skip(state, query), fields(otel.kind = "memory_query_dsl"))]
+pub async fn memory_query_dsl(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<Memory>, CommandError> {
+    let ast = crate::memory::query_dsl::parse_str(&query)
+        .map_err(CommandError::validation)?;
+    let sqlite = state.sqlite.clone();
+    tokio::task::spawn(async move { sqlite.query_dsl(&ast).await })
+        .await
+        .map_err(|e| CommandError::internal("memory_query_dsl", &anyhow::anyhow!("{e}")))?
+        .map_err(|e| CommandError::db("memory_query_dsl", &e))
 }
 
 /// Snapshot of layer distribution for the stats RPC.
@@ -388,4 +414,228 @@ pub async fn memory_merge(
         .await
         .map_err(|e| CommandError::internal("memory_merge", &anyhow::anyhow!("{e}")))?
         .map_err(|e| CommandError::internal("memory_merge", &anyhow::anyhow!("{e}")))
+}
+
+// ---------------------------------------------------------------------------
+// T-S1-A-02: MemoryOrchestrator 暴露 IPC 命令。
+// ---------------------------------------------------------------------------
+
+use crate::memory::orchestrator::ContextBundle;
+
+/// Tauri command: 运行 MemoryOrchestrator 的上下文组装，返回可直接注入
+/// LLM system prompt 的 `ContextBundle`。
+///
+/// 前端可用此命令预览某条用户消息会召回哪些记忆，便于调试
+/// 上下文组装策略。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "memory_orchestrator_run"))]
+pub async fn memory_orchestrator_run(
+    state: State<'_, AppState>,
+    task: String,
+) -> Result<ContextBundle, CommandError> {
+    let bundle = state
+        .orchestrator
+        .assemble_context(&task, "system")
+        .await
+        .map_err(|e| CommandError::internal("memory_orchestrator_run", &e))?;
+    Ok(bundle)
+}
+
+// ===========================================================================
+// T-S6-B-01: 多模态嵌入命令
+// ===========================================================================
+
+use crate::llm::ollama::OllamaClient;
+use crate::memory::clip_embedder::ClipEmbedder;
+use crate::memory::embedder::EmbedderTrait;
+
+/// 默认 CLIP 模型名。可通过 `NEBULA_CLIP_MODEL` 环境变量覆盖。
+const DEFAULT_CLIP_MODEL: &str = "clip";
+
+/// Tauri command: 将 base64 编码的图片嵌入为向量(CLIP)。
+///
+/// T-S6-B-01: 图片记忆走 CLIP 向量化。命令接收 base64 字符串,
+/// 解码后调用 `ClipEmbedder::embed_image`。CLIP 模型名通过
+/// `NEBULA_CLIP_MODEL` 环境变量配置,默认 `clip`;向量维度
+/// 沿用 `AppConfig::embedding_dim`(与 BGE 共存于同一向量空间)。
+///
+/// 注意:此命令当前未在 `lib.rs` 的 `invoke_handler` 中注册,
+/// 留作后续前端接入时启用,故标注 `#[allow(dead_code)]`。
+#[tauri::command]
+#[allow(dead_code)]
+pub async fn embed_image(
+    state: State<'_, AppState>,
+    image_base64: String,
+) -> Result<Vec<f32>, String> {
+    use base64::Engine as _;
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&image_base64)
+        .map_err(|e| format!("invalid base64 image: {e}"))?;
+
+    let model = std::env::var("NEBULA_CLIP_MODEL")
+        .unwrap_or_else(|_| DEFAULT_CLIP_MODEL.to_string());
+
+    let embedder = ClipEmbedder::new(
+        OllamaClient::new(state.config.ollama_url.clone()),
+        model,
+        state.config.embedding_dim,
+    );
+
+    embedder
+        .embed_image(&bytes)
+        .await
+        .map_err(|e| format!("embed_image failed: {e}"))
+}
+
+// ===========================================================================
+// T-E-D-06: 文件拖拽吸收 — sponge_absorb_file 命令
+// ===========================================================================
+
+/// T-E-D-06: 拖拽文件白名单扩展名集合。
+///
+/// 设计约束(spec §拖拽链路 第 4 条):
+/// 二进制文件(图片/视频等)用扩展名白名单过滤,非白名单 toast 提示。
+///
+/// 文本类: txt/md/json/yaml/toml/csv/py/js/ts/rs/go/java/c/cpp/h/sql/xml/html/css
+/// 文档类: pdf/docx(由 `absorb_file` 内部 `document_extractor` 处理)
+pub const ABSORB_FILE_ALLOWED_EXTS: &[&str] = &[
+    "txt", "md", "json", "yaml", "toml", "csv", "py", "js", "ts", "rs", "go", "java", "c", "cpp",
+    "h", "sql", "xml", "html", "css", "pdf", "docx",
+];
+
+/// T-E-D-06: 检查文件扩展名是否在吸收白名单内(大小写不敏感)。
+/// 无扩展名或非 UTF-8 扩展名返回 `false`。
+pub fn is_absorb_file_allowed(path: &std::path::Path) -> bool {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) => {
+            let lower = ext.to_ascii_lowercase();
+            ABSORB_FILE_ALLOWED_EXTS.iter().any(|allowed| *allowed == lower)
+        }
+        None => false,
+    }
+}
+
+/// T-E-D-06: 拖拽/右键文件自动吸收到记忆系统。
+///
+/// 扩展名白名单过滤(避免 `absorb_file` 处理二进制文件崩溃):
+/// 文本类 + 文档类(pdf/docx 由 `document_extractor` 提取文本)。
+///
+/// 调用 [`SpongeEngine::absorb_file`],使用 `Semantic + L3 + External`
+/// 默认参数(对应 spec §拖拽链路 第 3 条)。
+///
+/// 返回 `serde_json::Value`:
+/// ```json
+/// { "id": "...", "kind": "inserted"|"merged"|"duplicate"|"deactivated",
+///   "similarity": 0.95|null, "path": "..." }
+/// ```
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "sponge_absorb_file"))]
+pub async fn sponge_absorb_file(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<serde_json::Value, CommandError> {
+    use crate::memory::sponge::SpongeResult;
+    use crate::memory::types::{MemoryLayer, MemoryType, SourceKind};
+
+    let p = std::path::PathBuf::from(&path);
+
+    // 1. 扩展名白名单检查(大小写不敏感)。
+    if !is_absorb_file_allowed(&p) {
+        return Err(CommandError::validation(format!(
+            "unsupported file type: {path} (allowed: txt/md/json/yaml/toml/csv/py/js/ts/rs/go/java/c/cpp/h/sql/xml/html/css/pdf/docx)"
+        )));
+    }
+
+    // 2. 文件存在性检查(避免 absorb_file 内部 tokio::fs::read_to_string 崩溃)。
+    if !p.is_file() {
+        return Err(CommandError::validation(format!("not a file: {path}")));
+    }
+
+    // 3. 调用 sponge.absorb_file;非文本文件(pdf/docx)由内部
+    //    document_extractor 处理,文本类走 tokio::fs::read_to_string。
+    let sponge = state.sponge.clone();
+    let result = sponge
+        .absorb_file(
+            &p,
+            MemoryType::Semantic,
+            MemoryLayer::L3,
+            SourceKind::External,
+        )
+        .await
+        .map_err(|e| CommandError::memory("sponge_absorb_file", &e))?;
+
+    let (id, kind, similarity) = match result {
+        SpongeResult::Inserted { id } => (id, "inserted", None),
+        SpongeResult::Merged { id, similarity } => (id, "merged", Some(similarity)),
+        SpongeResult::Duplicate { id } => (id, "duplicate", Some(1.0)),
+        SpongeResult::Deactivated { id } => (id, "deactivated", None),
+    };
+
+    tracing::info!(
+        target: "nebula.cmd.sponge_absorb_file",
+        path = %path,
+        id = %id,
+        kind,
+        "file absorbed"
+    );
+
+    Ok(serde_json::json!({
+        "id": id,
+        "kind": kind,
+        "similarity": similarity,
+        "path": path,
+    }))
+}
+
+#[cfg(test)]
+mod sponge_absorb_file_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn whitelist_accepts_text_extensions_case_insensitive() {
+        for ext in &["txt", "md", "json", "yaml", "toml", "csv", "py", "js", "ts",
+                     "rs", "go", "java", "c", "cpp", "h", "sql", "xml", "html", "css"] {
+            let p = PathBuf::from(format!("foo.{ext}"));
+            assert!(is_absorb_file_allowed(&p), "expected {ext} to be allowed");
+            // 大写也允许
+            let p_upper = PathBuf::from(format!("foo.{}", ext.to_uppercase()));
+            assert!(is_absorb_file_allowed(&p_upper), "expected {ext} (upper) to be allowed");
+        }
+    }
+
+    #[test]
+    fn whitelist_accepts_document_extensions() {
+        for ext in &["pdf", "docx"] {
+            let p = PathBuf::from(format!("report.{ext}"));
+            assert!(is_absorb_file_allowed(&p), "expected {ext} to be allowed");
+        }
+    }
+
+    #[test]
+    fn whitelist_rejects_binary_extensions() {
+        for ext in &["png", "jpg", "jpeg", "gif", "mp4", "mov", "exe", "bin", "zip", "tar", "gz"] {
+            let p = PathBuf::from(format!("binary.{ext}"));
+            assert!(!is_absorb_file_allowed(&p), "expected {ext} to be rejected");
+        }
+    }
+
+    #[test]
+    fn whitelist_rejects_no_extension() {
+        let p = PathBuf::from("README");
+        assert!(!is_absorb_file_allowed(&p));
+    }
+
+    #[test]
+    fn whitelist_rejects_unknown_extension() {
+        let p = PathBuf::from("foo.unknownext");
+        assert!(!is_absorb_file_allowed(&p));
+    }
+
+    #[test]
+    fn whitelist_handles_paths_with_dirs() {
+        let p = PathBuf::from("/some/long/path/to/file.PY");
+        assert!(is_absorb_file_allowed(&p));
+    }
 }

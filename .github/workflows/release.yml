@@ -1,4 +1,4 @@
-name: release
+﻿name: release
 
 on:
   push:
@@ -179,7 +179,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nine-snake-${{ matrix.platform }}
+          name: nebula-${{ matrix.platform }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*
           if-no-files-found: warn
@@ -220,19 +220,19 @@ jobs:
             "platforms": {
               "linux-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_amd64.AppImage"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_amd64.AppImage"
               },
               "darwin-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_x64.dmg"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_x64.dmg"
               },
               "darwin-aarch64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_aarch64.dmg"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_aarch64.dmg"
               },
               "windows-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nine-snake_${TAG_NAME#v}_x64-setup.exe"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_x64-setup.exe"
               }
             }
           }

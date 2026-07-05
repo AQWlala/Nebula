@@ -1,4 +1,4 @@
-//! Memory flow integration test: store → search → compress → reflect.
+﻿//! Memory flow integration test: store → search → compress → reflect.
 //!
 //! Validates the v0.2 happy path: a small corpus of L3 memories is
 //! stored via the SqliteStore, "compressed" by toggling
@@ -9,9 +9,9 @@
 //! v0.3: shared helpers are declared once in the parent runner file
 //! and accessed via `super::common`.
 
-use nine_snake_lib::memory::migration;
-use nine_snake_lib::memory::reflect::{ReflectConfig, ReflectionEngine};
-use nine_snake_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
+use nebula_lib::memory::migration;
+use nebula_lib::memory::reflect::{ReflectConfig, ReflectionEngine};
+use nebula_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
 
 fn high_mem(id: &str, content: &str) -> Memory {
     let mut m = Memory::new(

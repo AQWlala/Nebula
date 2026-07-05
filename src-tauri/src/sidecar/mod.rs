@@ -19,21 +19,30 @@
 
 pub mod ipc;
 pub mod manager;
+/// T-S6-A-01a: OS-Controller sidecar 服务处理器。
+pub mod os_controller_service;
 pub mod protocol;
+/// T-S4-B-02: Reflection sidecar 服务处理器。
+pub mod reflection_service;
+/// T-S4-B-01: Skill sidecar 服务处理器。
+pub mod skill_service;
 
 pub use manager::{SidecarKind, SidecarManager, SidecarStatus};
+pub use os_controller_service::OsControllerServiceHandler;
 pub use protocol::SidecarConfig;
+pub use reflection_service::ReflectionServiceHandler;
+pub use skill_service::SkillServiceHandler;
 
 use std::path::PathBuf;
 
 /// Sidecar 二进制文件的默认查找路径。
 ///
 /// 优先顺序：
-/// 1. 环境变量 `NINE_SNAKE_SIDECAR_DIR` 指定的目录
+/// 1. 环境变量 `NEBULA_SIDECAR_DIR` 指定的目录
 /// 2. 当前可执行文件同目录下的 `sidecars/` 子目录
 /// 3. 开发模式下的 `target/debug/` 或 `target/release/`
 pub fn default_sidecar_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("NINE_SNAKE_SIDECAR_DIR") {
+    if let Ok(dir) = std::env::var("NEBULA_SIDECAR_DIR") {
         return PathBuf::from(dir);
     }
 
@@ -53,10 +62,10 @@ pub fn default_sidecar_dir() -> PathBuf {
 /// Sidecar 二进制文件名（根据平台）。
 #[cfg(windows)]
 pub fn sidecar_exe_name(kind: SidecarKind) -> String {
-    format!("nine-snake-{}.exe", kind.as_str())
+    format!("nebula-{}.exe", kind.as_str())
 }
 
 #[cfg(not(windows))]
 pub fn sidecar_exe_name(kind: SidecarKind) -> String {
-    format!("nine-snake-{}", kind.as_str())
+    format!("nebula-{}", kind.as_str())
 }

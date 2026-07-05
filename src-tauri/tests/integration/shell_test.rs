@@ -1,11 +1,11 @@
-//! Integration tests for the v0.5 OS shell executor.
+﻿//! Integration tests for the v0.5 OS shell executor.
 //!
 //! The shell executor is the security-sensitive part of the OS
 //! integration, so the test suite focuses on the safety model
 //! (whitelist, argv validation, timeout) more than on positive
 //! command execution.
 
-use nine_snake_lib::os::{parse_argv, ShellExecutor};
+use nebula_lib::os::{parse_argv, ShellExecutor};
 use std::time::Duration;
 
 #[tokio::test]

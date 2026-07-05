@@ -1,4 +1,4 @@
-//! Integration test shared helpers.
+﻿//! Integration test shared helpers.
 //!
 //! The v0.3 integration suite (`tests/integration/`) needs to spin up
 //! a real `SqliteStore` + `LanceStore` in a temporary directory. The
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 
-use nine_snake_lib::memory::sqlite_store::SqliteStore;
+use nebula_lib::memory::sqlite_store::SqliteStore;
 
 /// A pair of (tempdir, sqlite store) used by the integration tests.
 /// Holding onto `TempDir` keeps the directory alive for the duration
@@ -33,15 +33,15 @@ impl TmpStore {
     /// v0.1 baseline schema.
     pub fn new() -> Self {
         let dir = tempfile::tempdir().expect("create tempdir");
-        let db_path = dir.path().join("nine_snake_test.db");
+        let db_path = dir.path().join("nebula_test.db");
         let store = Arc::new(SqliteStore::open(&db_path).expect("open sqlite"));
         // Apply v0.2 migrations on top of the v0.1 baseline.
         {
             let conn = store.raw_connection();
             let conn = conn.lock();
-            nine_snake_lib::memory::migration::run_migrations(
+            nebula_lib::memory::migration::run_migrations(
                 &conn,
-                nine_snake_lib::memory::migration::bundled_migrations_dir(),
+                nebula_lib::memory::migration::bundled_migrations_dir(),
             )
             .expect("apply migrations");
         }

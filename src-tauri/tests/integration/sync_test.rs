@@ -1,4 +1,4 @@
-//! Integration tests for the v0.5 cross-device sync module.
+﻿//! Integration tests for the v0.5 cross-device sync module.
 //!
 //! Covers the E2EE primitives (X25519 + HKDF + AES-256-GCM) and
 //! the local transport (envelope write / read / ack).
@@ -7,7 +7,7 @@
 //! identity, derive a shared session key, encrypt a message, drop
 //! it into the inbox, and the receiver decrypts it.
 
-use nine_snake_lib::sync::{
+use nebula_lib::sync::{
     recv_all_unsealed, send_sealed, E2eeIdentity, EncryptedEnvelope, LocalTransport, Pair,
 };
 

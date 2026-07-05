@@ -136,6 +136,8 @@ impl ValuesLayer {
             }
         }
 
+        // T-S1-B-03: 上报 L4 裁定到全局 metrics,供仪表盘计算拦截率。
+        crate::metrics::global().record_l4_verdict(&verdict);
         verdict
     }
 

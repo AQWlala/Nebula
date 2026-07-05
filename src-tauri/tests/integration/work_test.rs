@@ -1,11 +1,11 @@
-//! Integration tests for the v0.5 Work engine.
+﻿//! Integration tests for the v0.5 Work engine.
 //!
 //! Covers: create / move / delete / time tracking / priority
 //! recommendation.  We don't exercise the L3 mirror (the engine is
 //! created without a SpongeEngine).
 
 use super::common::TmpStore;
-use nine_snake_lib::work::{recommend_priority, summarise_meeting, TaskStatus, WorkEngine};
+use nebula_lib::work::{recommend_priority, summarise_meeting, TaskStatus, WorkEngine};
 
 fn engine(store: &TmpStore) -> WorkEngine {
     WorkEngine::new(store.store.clone())

@@ -1,11 +1,11 @@
-//! Skill importer — v1.2 P2 eco compatibility
+﻿//! Skill importer — v1.2 P2 eco compatibility
 //!
 //! Imports skills from external ecosystems:
 //!
 //! * **agentskills.io** — The open skill registry. Skills are distributed as
 //!   Markdown files following the agentskills.io SKILL.md schema.  This
 //!   importer fetches the raw Markdown, parses the YAML front-matter, and
-//!   converts it into a nine-snake [`Skill`].
+//!   converts it into a nebula [`Skill`].
 //!
 //! * **ClawHub** — Clawd's community skill hub.  Skills have a `clawhub`
 //!   slug that resolves to a GitHub repository; the importer fetches the
@@ -20,11 +20,12 @@
 //! promote them) to prevent supply-chain attacks through third-party skill
 //! registries.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
+use crate::security::SsrfGuard;
 use super::store::SkillStore;
 use super::types::{CreateSkillRequest, Skill};
 
@@ -71,7 +72,7 @@ impl SkillImporter {
         Self {
             store,
             client: Client::builder()
-                .user_agent("nine-snake/1.2 skill-importer")
+                .user_agent("nebula/1.2 skill-importer")
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .expect("reqwest client build is infallible"),
@@ -84,7 +85,7 @@ impl SkillImporter {
     /// agentskills.io SKILL.md schema (YAML front-matter + body).
     pub async fn import_from_url(&self, url: &str) -> ImportResult {
         let source = url.to_string();
-        debug!(target: "nine_snake.importer", url, "fetching skill");
+        debug!(target: "nebula.importer", url, "fetching skill");
 
         let content = match self.fetch_skill_md(url).await {
             Ok(c) => c,
@@ -113,7 +114,7 @@ impl SkillImporter {
         match self.store_skill(parsed).await {
             Ok(skill) => {
                 info!(
-                    target: "nine_snake.importer",
+                    target: "nebula.importer",
                     id = %skill.id,
                     name = %skill.name,
                     "skill imported successfully"
@@ -164,16 +165,21 @@ impl SkillImporter {
     /// Import a skill from TeamSkillsHub by asset ID.
     ///
     /// The asset is fetched from the team skills API and parsed into
-    /// a nine-snake skill.
+    /// a nebula skill.
     pub async fn import_from_teamskillshub(&self, asset_id: &str) -> ImportResult {
         let source = format!("teamskillshub:{asset_id}");
-        // TODO: implement TeamSkillsHub API client.
-        // For now, return a placeholder.
+        // T-S3-A-02: 委托给 TeamSkillsHubImporter 实现。
+        // 由于 SkillImporter 不持有 TeamSkillsHubClient,
+        // 这里保留为快捷入口,实际逻辑由 TeamSkillsHubImporter 实现。
         ImportResult {
             success: false,
             skill: None,
             source,
-            error: Some("TeamSkillsHub import not yet implemented".to_string()),
+            error: Some(
+                "use TeamSkillsHubImporter::import() instead — \
+                 SkillImporter does not hold a TeamSkillsHubClient"
+                    .to_string(),
+            ),
         }
     }
 
@@ -182,6 +188,10 @@ impl SkillImporter {
     // ------------------------------------------------------------------
 
     async fn fetch_skill_md(&self, url: &str) -> Result<String> {
+        // M7b #94: SSRF 校验 — skill URL 是用户可控的,需校验目标地址。
+        SsrfGuard::new()
+            .validate_url(url)
+            .map_err(|e| anyhow!("SSRF validation failed for skill URL: {e}"))?;
         let resp = self
             .client
             .get(url)
@@ -196,8 +206,18 @@ impl SkillImporter {
         resp.text().await.context("reading response body")
     }
 
+    /// T-S3-A-02: 公共关联函数,解析 SKILL.md 内容为 CreateSkillRequest。
+    /// 供 TeamSkillsHubImporter 和其他外部调用者使用。
+    pub fn from_skill_md(content: &str) -> Result<CreateSkillRequest> {
+        Self::parse_skill_md_inner(content)
+    }
+
     /// Parse an agentskills.io-compatible SKILL.md into a CreateSkillRequest.
     fn parse_skill_md(&self, content: &str) -> Result<CreateSkillRequest> {
+        Self::parse_skill_md_inner(content)
+    }
+
+    fn parse_skill_md_inner(content: &str) -> Result<CreateSkillRequest> {
         // Parse YAML front-matter.
         let front_matter = Self::extract_yaml_front_matter(content)?;
 
@@ -229,6 +249,49 @@ impl SkillImporter {
             })
             .unwrap_or_default();
 
+        // T-S3-A-01: 解析 trust_level（默认 0=未验证）
+        let trust_level = front_matter
+            .get("trust_level")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u8;
+
+        // T-S3-A-01: 解析 permissions（如 ["file:read", "network:http"]）
+        let permissions: Vec<String> = front_matter
+            .get("permissions")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // T-S3-A-01: 解析 capabilities 并构造 CapabilitySet
+        let capabilities = {
+            use super::sandbox::{Capability, CapabilitySet};
+            let mut caps = CapabilitySet::new();
+            if let Some(arr) = front_matter.get("capabilities").and_then(|v| v.as_array()) {
+                for cap in arr {
+                    if let Some(s) = cap.as_str() {
+                        match s {
+                            "file:read" | "FileRead" => caps.grant(Capability::FileRead),
+                            "file:write" | "FileWrite" => caps.grant(Capability::FileWrite),
+                            "network" | "Network" => caps.grant(Capability::Network),
+                            "subprocess" | "Subprocess" => caps.grant(Capability::Subprocess),
+                            "env:read" | "EnvRead" => caps.grant(Capability::EnvRead),
+                            "clipboard:read" | "ClipboardRead" => {
+                                caps.grant(Capability::ClipboardRead)
+                            }
+                            "llm:call" | "LlmCall" => caps.grant(Capability::LlmCall),
+                            "db:access" | "DbAccess" => caps.grant(Capability::DbAccess),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            caps
+        };
+
         // Extract instructions from the body (everything after front-matter).
         let instructions = Self::extract_body(content);
 
@@ -242,6 +305,9 @@ impl SkillImporter {
             activation_condition: None,
             platform: None,
             min_confidence: None,
+            trust_level,
+            permissions,
+            capabilities,
         })
     }
 
@@ -303,6 +369,9 @@ impl SkillImporter {
             activation_condition: None,
             platform: None,
             min_confidence: None,
+            trust_level: req.trust_level,
+            permissions: req.permissions.clone(),
+            capabilities: req.capabilities.clone(),
         };
         self.store.insert(&skill)?;
 
@@ -346,7 +415,7 @@ tags: [summarization, nlp, utility]
 3. Output a concise summary
 "#;
 
-        let result = importer.parse_skill_md(md).unwrap();
+        let result = SkillImporter::from_skill_md(md).unwrap();
         assert_eq!(result.name, "text-summarizer");
         assert_eq!(result.language, "text");
         assert_eq!(result.tags, vec!["summarization", "nlp", "utility"]);

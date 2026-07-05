@@ -1,6 +1,6 @@
-# 🔧 CI / CD Secrets Setup (v1.0.1)
+﻿# 🔧 CI / CD Secrets Setup (v1.0.1)
 
-> **本文件是 nine-snake 项目 GitHub Actions 所需 secret 的**唯一权威**清单。**
+> **本文件是 nebula 项目 GitHub Actions 所需 secret 的**唯一权威**清单。**
 > 任何在 `.github/workflows/` 中引用、但本文件未列出的 secret 都是
 > 实现错误，请**先**修复 workflow 再继续。
 
@@ -52,7 +52,7 @@ GitHub → 仓库 → **Settings** → **Secrets and variables** → **Actions**
 
 | Secret 名称 | 类型 | 内容 | 生成方式 |
 |------------|------|------|----------|
-| `WINDOWS_CERTIFICATE` | base64 文本 | EV / OV code-signing `.pfx`（base64 编码） | `base64 -w 0 nine-snake.pfx > b64.txt`（Git Bash / WSL）或 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('nine-snake.pfx'))`（PowerShell） |
+| `WINDOWS_CERTIFICATE` | base64 文本 | EV / OV code-signing `.pfx`（base64 编码） | `base64 -w 0 nebula.pfx > b64.txt`（Git Bash / WSL）或 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('nebula.pfx'))`（PowerShell） |
 | `WINDOWS_CERTIFICATE_PASSWORD` | 文本 | `.pfx` 的导入密码 | 创建 .pfx 时设置的密码 |
 
 > 强烈建议使用 **EV (Extended Validation)** 证书——它不需要累计 SmartScreen
@@ -137,4 +137,4 @@ GitHub → 仓库 → **Settings** → **Secrets and variables** → **Actions**
 ---
 
 **最后更新**：2026-06-21 · v1.0.1 release.
-**负责**：nine-snake DevOps 维护者.
+**负责**：nebula DevOps 维护者.

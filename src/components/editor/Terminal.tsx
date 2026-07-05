@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: 集成终端
  *
  * 用 xterm.js 渲染一个真实 PTY 风格的终端。
@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
-import { NineSnakeAPI, type ShellOutput } from '../../lib/tauri';
+import { nebulaAPI, type ShellOutput } from '../../lib/tauri';
 
 const HISTORY_MAX = 200;
 const PROMPT = '$ ';
@@ -120,7 +120,7 @@ export function Terminal() {
     // Real command → backend
     try {
       const argv = line.split(/\s+/);
-      const out = await NineSnakeAPI.osShellExec({ argv, timeout_ms: 30_000 });
+      const out = await nebulaAPI.osShellExec({ argv, timeout_ms: 30_000 });
       writeOutput(out);
     } catch (e) {
       xtermRef.current?.writeln(`\x1b[31m${String(e)}\x1b[0m`);

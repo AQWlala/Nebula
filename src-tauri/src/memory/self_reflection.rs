@@ -98,12 +98,16 @@ impl SelfReflectionEngine {
     }
 
     /// 执行一次完整的自我反思（所有三种类型）。
+    ///
+    /// T-S1-A-06: 反思结果持久化到 `self_reflections` 表。
+    /// 每条 `SelfReflection` 生成一行,含 insights/action_items 的 JSON
+    /// 序列化。失败时记录 warn 但不阻断后续反思类型。
     pub async fn reflect_all(&self) -> Result<Vec<SelfReflection>> {
         let mut results = Vec::new();
 
         let recent = self.recent_memories(20).await?;
         if recent.is_empty() {
-            debug!(target: "nine_snake.self_reflect", "no recent memories for reflection");
+            debug!(target: "nebula.self_reflect", "no recent memories for reflection");
             return Ok(results);
         }
 
@@ -111,7 +115,7 @@ impl SelfReflectionEngine {
         match self.reflect_value_alignment(&recent) {
             Ok(r) => results.push(r),
             Err(e) => {
-                debug!(target: "nine_snake.self_reflect", error = %e,
+                debug!(target: "nebula.self_reflect", error = %e,
                     "value alignment reflection failed");
             }
         }
@@ -120,10 +124,10 @@ impl SelfReflectionEngine {
         match self.reflect_outcomes() {
             Ok(Some(r)) => results.push(r),
             Ok(None) => {
-                debug!(target: "nine_snake.self_reflect", "no outcomes for review");
+                debug!(target: "nebula.self_reflect", "no outcomes for review");
             }
             Err(e) => {
-                debug!(target: "nine_snake.self_reflect", error = %e,
+                debug!(target: "nebula.self_reflect", error = %e,
                     "outcome reflection failed");
             }
         }
@@ -132,15 +136,102 @@ impl SelfReflectionEngine {
         match self.reflect_self_improvement(&results) {
             Ok(r) => results.push(r),
             Err(e) => {
-                debug!(target: "nine_snake.self_reflect", error = %e,
+                debug!(target: "nebula.self_reflect", error = %e,
                     "self-improvement reflection failed");
             }
         }
 
-        info!(target: "nine_snake.self_reflect", count = results.len(),
-            "self-reflection pass complete");
+        // T-S1-A-06: 持久化反思结果到 self_reflections 表。
+        // 单条持久化失败不阻断其他反思,只记录 warn。
+        for reflection in &results {
+            if let Err(e) = self.persist_reflection(reflection) {
+                tracing::warn!(
+                    target: "nebula.self_reflect",
+                    kind = reflection.kind.as_str(),
+                    error = %e,
+                    "failed to persist self-reflection to DB"
+                );
+            }
+        }
+
+        info!(target: "nebula.self_reflect", count = results.len(),
+            "self-reflection pass complete (persisted to self_reflections table)");
 
         Ok(results)
+    }
+
+    /// T-S1-A-06: 持久化单条反思到 `self_reflections` 表。
+    ///
+    /// 字段映射：
+    /// - `insights` / `action_items` / `related_memory_ids` 序列化为 JSON 字符串
+    /// - `kind` 用 `ReflectionKind::as_str()` 字符串
+    /// - `id` 用 UUIDv4
+    pub fn persist_reflection(&self, reflection: &SelfReflection) -> Result<()> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().timestamp();
+        let insights_json = serde_json::to_string(&reflection.insights)
+            .unwrap_or_else(|_| "[]".to_string());
+        let action_items_json = serde_json::to_string(&reflection.action_items)
+            .unwrap_or_else(|_| "[]".to_string());
+        let related_ids_json = serde_json::to_string(&reflection.related_memory_ids)
+            .unwrap_or_else(|_| "[]".to_string());
+
+        let conn = self.sqlite.raw_connection();
+        let conn = conn.lock();
+        conn.execute(
+            "INSERT INTO self_reflections
+                (id, kind, title, content, insights, action_items, confidence, severity, related_memory_ids, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                reflection.kind.as_str(),
+                reflection.title,
+                reflection.content,
+                insights_json,
+                action_items_json,
+                reflection.confidence,
+                reflection.severity,
+                related_ids_json,
+                now,
+            ],
+        ).map_err(|e| anyhow::anyhow!("sqlite insert self_reflection error: {e}"))?;
+
+        debug!(
+            target: "nebula.self_reflect",
+            id = %id,
+            kind = reflection.kind.as_str(),
+            "self-reflection persisted"
+        );
+        Ok(())
+    }
+
+    /// T-S1-A-06: 查询历史反思记录（按时间倒序）。
+    ///
+    /// 供 UI 历史回溯面板使用。返回 `(id, kind, title, content, created_at)`
+    /// 元组；完整字段（insights/action_items）可通过 `get_self_reflection()` 获取。
+    pub fn list_recent_self_reflections(&self, limit: usize) -> Result<Vec<(String, String, String, String, i64)>> {
+        let conn = self.sqlite.raw_connection();
+        let conn = conn.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, kind, title, content, created_at \
+                 FROM self_reflections ORDER BY created_at DESC LIMIT ?1",
+            )
+            .map_err(|e| anyhow::anyhow!("sqlite prepare error: {e}"))?;
+        let rows = stmt
+            .query_map(params![limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })
+            .map_err(|e| anyhow::anyhow!("sqlite query error: {e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| anyhow::anyhow!("sqlite row error: {e}"))?;
+        Ok(rows)
     }
 
     /// 价值对齐反思：检查最近的记忆是否与 L4 价值观一致。
@@ -485,6 +576,48 @@ struct OutcomeRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_db() -> (std::path::PathBuf, Arc<SqliteStore>) {
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "nebula_self_reflect_test_{}_{}.db",
+            std::process::id(),
+            n
+        ));
+        let store = Arc::new(SqliteStore::open(&p).unwrap());
+        crate::memory::migration::run_bundled_migrations(
+            &store.raw_connection().lock(),
+        )
+        .unwrap();
+        (p, store)
+    }
+
+    fn cleanup(p: &std::path::Path) {
+        let _ = std::fs::remove_file(p);
+        let _ = std::fs::remove_file(p.with_extension("db-wal"));
+        let _ = std::fs::remove_file(p.with_extension("db-shm"));
+    }
+
+    fn dummy_reflection(kind: ReflectionKind, title: &str) -> SelfReflection {
+        SelfReflection {
+            kind,
+            title: title.to_string(),
+            content: "test content".to_string(),
+            insights: vec!["insight a".to_string(), "insight b".to_string()],
+            action_items: vec!["action 1".to_string()],
+            confidence: 0.85,
+            severity: 0.6,
+            related_memory_ids: vec!["mem-1".to_string(), "mem-2".to_string()],
+        }
+    }
+
+    fn make_engine(store: Arc<SqliteStore>) -> SelfReflectionEngine {
+        SelfReflectionEngine::new(store, ValuesLayer::with_defaults(), ReflectConfig::default())
+    }
 
     #[test]
     fn reflection_kind_as_str() {
@@ -514,5 +647,84 @@ mod tests {
         assert_eq!(r.kind.as_str(), "value_alignment");
         assert!(r.confidence >= 0.0 && r.confidence <= 1.0);
         assert!(r.severity >= 0.0 && r.severity <= 1.0);
+    }
+
+    // --- T-S1-A-06: persist_reflection + list_recent_self_reflections tests ---
+
+    #[test]
+    fn persist_reflection_inserts_row() {
+        let (p, store) = temp_db();
+        let engine = make_engine(store);
+        let r = dummy_reflection(ReflectionKind::ValueAlignment, "test title");
+        engine.persist_reflection(&r).unwrap();
+
+        let rows = engine.list_recent_self_reflections(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, "value_alignment");
+        assert_eq!(rows[0].2, "test title");
+        assert_eq!(rows[0].3, "test content");
+        cleanup(&p);
+    }
+
+    #[test]
+    fn list_recent_self_reflections_returns_descending_order() {
+        let (p, store) = temp_db();
+        let engine = make_engine(store);
+        engine.persist_reflection(&dummy_reflection(ReflectionKind::ValueAlignment, "first")).unwrap();
+        // M7b #90 分类 A: persist_reflection 用 chrono::Utc::now().timestamp()(秒级精度),
+        // list_recent_self_reflections 用 ORDER BY created_at DESC。同秒插入会导致
+        // 顺序不稳定。sleep(1100ms) 确保第二条时间戳严格大于第一条。
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        // 模拟时间差：手动插入第二条（更新 created_at 会不同，但 persist_reflection 用 now()）
+        // 由于两条插入时间接近，我们通过数量验证而非严格时间排序。
+        engine.persist_reflection(&dummy_reflection(ReflectionKind::OutcomeReview, "second")).unwrap();
+
+        let rows = engine.list_recent_self_reflections(10).unwrap();
+        assert_eq!(rows.len(), 2);
+        // 最新插入的在最前面
+        assert_eq!(rows[0].2, "second");
+        assert_eq!(rows[0].1, "outcome_review");
+        assert_eq!(rows[1].2, "first");
+        cleanup(&p);
+    }
+
+    #[test]
+    fn persist_reflection_serializes_json_fields() {
+        let (p, store) = temp_db();
+        let engine = make_engine(store);
+        let r = dummy_reflection(ReflectionKind::SelfImprovement, "json test");
+        engine.persist_reflection(&r).unwrap();
+
+        let conn = engine.sqlite.raw_connection();
+        let conn = conn.lock();
+        let row: (String, String, String) = conn
+            .query_row(
+                "SELECT insights, action_items, related_memory_ids FROM self_reflections LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        let insights: Vec<String> = serde_json::from_str(&row.0).unwrap();
+        let action_items: Vec<String> = serde_json::from_str(&row.1).unwrap();
+        let related_ids: Vec<String> = serde_json::from_str(&row.2).unwrap();
+
+        assert_eq!(insights, vec!["insight a", "insight b"]);
+        assert_eq!(action_items, vec!["action 1"]);
+        assert_eq!(related_ids, vec!["mem-1", "mem-2"]);
+        cleanup(&p);
+    }
+
+    #[test]
+    fn list_recent_self_reflections_respects_limit() {
+        let (p, store) = temp_db();
+        let engine = make_engine(store);
+        for i in 0..5 {
+            let r = dummy_reflection(ReflectionKind::SelfImprovement, &format!("r{i}"));
+            engine.persist_reflection(&r).unwrap();
+        }
+        let rows = engine.list_recent_self_reflections(2).unwrap();
+        assert_eq!(rows.len(), 2);
+        cleanup(&p);
     }
 }

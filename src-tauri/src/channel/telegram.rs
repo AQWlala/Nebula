@@ -1,4 +1,4 @@
-use std::sync::Arc;
+﻿use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -7,6 +7,8 @@ use parking_lot::Mutex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
+
+use crate::security::SsrfGuard;
 
 use super::types::{ChannelAdapter, ChannelKind, ChannelStatus};
 
@@ -59,12 +61,20 @@ pub struct TelegramBotAdapter {
 
 impl TelegramBotAdapter {
     pub fn new(bot_token: &str) -> Self {
+        // T-S3-B-01: 使用 SSRF 安全客户端（Telegram API 域名固定为 api.telegram.org,
+        // 但仍使用安全客户端保持一致性）。
+        let guard = SsrfGuard::new();
+        let client = guard
+            .build_safe_client()
+            .unwrap_or_else(|_| {
+                Client::builder()
+                    .timeout(Duration::from_secs(30))
+                    .build()
+                    .expect("reqwest Client::build is infallible")
+            });
         Self {
             bot_token: bot_token.to_string(),
-            client: Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .expect("reqwest Client::build is infallible"),
+            client,
             status: Arc::new(Mutex::new(ChannelStatus::Offline)),
             last_update_id: Arc::new(Mutex::new(0)),
         }
@@ -142,7 +152,7 @@ impl TelegramBotAdapter {
         let resp = self.client.post(&url).json(&req).send().await?;
         if resp.status().as_u16() == 429 {
             *self.status.lock() = ChannelStatus::RateLimited;
-            warn!(target: "nine_snake.telegram", "rate limited by Telegram API");
+            warn!(target: "nebula.telegram", "rate limited by Telegram API");
         } else if !resp.status().is_success() {
             *self.status.lock() = ChannelStatus::Failed;
             anyhow::bail!("Telegram sendMessage failed: {}", resp.status());
@@ -162,7 +172,7 @@ impl ChannelAdapter for TelegramBotAdapter {
         let resp = self.client.get(&url).send().await?;
         if resp.status().is_success() {
             *self.status.lock() = ChannelStatus::Online;
-            info!(target: "nine_snake.telegram", "Telegram bot started");
+            info!(target: "nebula.telegram", "Telegram bot started");
             Ok(())
         } else {
             *self.status.lock() = ChannelStatus::Failed;

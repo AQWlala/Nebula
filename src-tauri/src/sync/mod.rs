@@ -10,13 +10,16 @@
 //! v1.1: 添加了 `key_vault` 模块，提供私钥安全存储抽象。
 
 pub mod crdt;
+pub mod crdt_op_log;
 pub mod device_manager;
 pub mod e2ee;
 pub mod key_vault;
 pub mod pairing;
+pub mod relay_client;
 pub mod transport;
 
 pub use crdt::{CrdtEngine, CrdtMergeResult, CrdtVersion, FieldChange};
+pub use crdt_op_log::{CrdtOpLog, CrdtOpLogEntry, CrdtOpStats};
 pub use device_manager::{DeviceManager, DeviceRevokeResult, PairedDevice};
 pub use e2ee::{
     encrypt_for_peer, E2eeIdentity, E2eePublicIdentity, EncryptedEnvelope, Pair, SessionKey,

@@ -1,5 +1,5 @@
 /**
- * 九头蛇全局状态管理
+ * Nebula全局状态管理
  *
  * v1.0.1 (P0#07): added `ollamaStatus` signal and `checkOllama()`
  * for the friendly offline banner in ChatPanel.  We poll every
@@ -7,18 +7,22 @@
  */
 import { signal } from '@preact/signals';
 import {
-  NineSnakeAPI,
+  nebulaAPI,
   type Memory,
   type MetricsSnapshot,
   type MigrationStatus,
   type Reflection,
   type SwarmAgentResult,
 } from '../lib/tauri';
+import {
+  DEFAULT_AUTONOMY_LEVEL,
+  type AutonomyLevel,
+} from '../lib/autonomy';
 
 /** "ok" means the backend answered health with ollama reachable. */
 export type HealthStatus = 'unknown' | 'ok' | 'down';
 
-class NineSnakeStoreClass {
+class nebulaStoreClass {
   ready = signal(false);
   version = signal<string>('unknown');
   recentMemories = signal<Memory[]>([]);
@@ -39,10 +43,20 @@ class NineSnakeStoreClass {
   ollamaStatus = signal<HealthStatus>('unknown');
   /** v1.7: 外部打开的文件路径（双击 .md/.txt 或拖入文件时设置）。 */
   externalFilePath = signal<string | null>(null);
+  /** T-E-D-06: 右键"问Nebula"时预填到 chat 输入框的文本。 */
+  chatPrefill = signal<string | null>(null);
+  /** T-S5-A-03: AI 自动模式开关(默认启用 LLM 路由,关闭退化为关键词)。 */
+  aiAutoMode = signal<boolean>(true);
+  /** T-S5-A-03: 最近一次自动路由的模式(供手动切换时比对误判)。 */
+  lastAutoRoutedMode = signal<'writing' | 'work' | 'code' | null>(null);
+  /** T-S5-A-03: 模式误分类计数(用户手动覆盖自动路由时递增)。 */
+  modeMisclassification = signal<number>(0);
+  /** T-E-S-50: 自主度滑块 L0-L5(默认 L2 对话,与 modeRouter 正交)。 */
+  autonomyLevel = signal<AutonomyLevel>(DEFAULT_AUTONOMY_LEVEL);
 
   async bootstrap(): Promise<void> {
-    await NineSnakeAPI.bootstrap();
-    const health = await NineSnakeAPI.health();
+    await nebulaAPI.bootstrap();
+    const health = await nebulaAPI.health();
     this.version.value = health.version;
     this.ready.value = true;
     await this.refreshMemories();
@@ -50,11 +64,18 @@ class NineSnakeStoreClass {
     await this.refreshReflections();
     await this.refreshMigrationStatus();
     await this.checkOllama();
+    // T-E-S-50: 从后端同步当前自主度等级(默认 L2)。
+    try {
+      const { getLevel } = await import('../lib/autonomy');
+      this.autonomyLevel.value = await getLevel();
+    } catch {
+      /* Tauri runtime unavailable; keep default L2 */
+    }
   }
 
   async refreshMemories(limit = 20): Promise<void> {
     try {
-      this.recentMemories.value = await NineSnakeAPI.memoryListRecent(limit);
+      this.recentMemories.value = await nebulaAPI.memoryListRecent(limit);
     } catch (e) {
       console.error('refreshMemories failed:', e);
     }
@@ -62,7 +83,7 @@ class NineSnakeStoreClass {
 
   async refreshMetrics(): Promise<void> {
     try {
-      this.metrics.value = await NineSnakeAPI.metrics();
+      this.metrics.value = await nebulaAPI.metrics();
     } catch (e) {
       console.error('refreshMetrics failed:', e);
     }
@@ -70,7 +91,7 @@ class NineSnakeStoreClass {
 
   async refreshMigrationStatus(): Promise<void> {
     try {
-      this.migrationStatus.value = await NineSnakeAPI.migrationStatus();
+      this.migrationStatus.value = await nebulaAPI.migrationStatus();
     } catch (e) {
       console.error('refreshMigrationStatus failed:', e);
     }
@@ -78,7 +99,7 @@ class NineSnakeStoreClass {
 
   async refreshReflections(limit = 20): Promise<void> {
     try {
-      this.reflections.value = await NineSnakeAPI.listReflections(limit);
+      this.reflections.value = await nebulaAPI.listReflections(limit);
     } catch (e) {
       console.error('refreshReflections failed:', e);
     }
@@ -86,7 +107,7 @@ class NineSnakeStoreClass {
 
   /** v0.2: manually trigger a reflection pass. */
   async triggerReflection(): Promise<Reflection[]> {
-    const out = await NineSnakeAPI.reflectNow();
+    const out = await nebulaAPI.reflectNow();
     await this.refreshReflections();
     await this.refreshMetrics();
     return out;
@@ -104,7 +125,7 @@ class NineSnakeStoreClass {
       // "down" so v0.5 backends that don't report it still get a
       // honest "we don't know" → banner shown, rather than a
       // silent success.
-      const h = await NineSnakeAPI.healthFull();
+      const h = await nebulaAPI.healthFull();
       this.ollamaStatus.value = h?.ollama === 'ok' ? 'ok' : 'down';
     } catch {
       this.ollamaStatus.value = 'down';
@@ -118,7 +139,7 @@ class NineSnakeStoreClass {
     this.swarmOutputs.value = [];
 
     try {
-      const result = await NineSnakeAPI.swarmExecute({
+      const result = await nebulaAPI.swarmExecute({
         description,
         agents,
         max_retries: 2,
@@ -150,6 +171,14 @@ class NineSnakeStoreClass {
   openExternalFile(path: string) {
     this.externalFilePath.value = path;
   }
+
+  /**
+   * T-E-D-06: 预填 chat 输入框文本(右键"问Nebula"时调用)。
+   * ChatPanel 监听 chatPrefill signal 变化,读取后清空。
+   */
+  setChatPrefill(text: string) {
+    this.chatPrefill.value = text;
+  }
 }
 
-export const NineSnakeStore = new NineSnakeStoreClass();
+export const nebulaStore = new nebulaStoreClass();

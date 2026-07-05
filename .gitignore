@@ -46,3 +46,11 @@ cargo-errors*.txt
 # Codex/OpenCode agent
 .opencode/
 .agents/
+
+# Trae IDE
+.trae/
+.trae-cn/
+
+# Temp cargo check output
+cargo_check_full.txt
+cargo_check_output.txt

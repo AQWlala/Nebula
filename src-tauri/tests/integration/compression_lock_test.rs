@@ -1,4 +1,4 @@
-//! v1.0.1 P0#10 — Black-hole compression must not race the sponge
+﻿//! v1.0.1 P0#10 — Black-hole compression must not race the sponge
 //! `absorb` writer.
 //!
 //! Background: in v1.0 the BlackHole `compress_group` rewrite of
@@ -16,7 +16,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use nine_snake_lib::memory::sqlite_store::SqliteStore;
+use nebula_lib::memory::sqlite_store::SqliteStore;
 
 /// Sentinel string the test inserts into the `content` column
 /// before triggering a compress/absorb cycle.  If a partial
@@ -30,7 +30,7 @@ fn compression_lock_is_mutually_exclusive() {
     use std::thread;
 
     let tmp = std::env::temp_dir().join(format!(
-        "nine_snake_lock_test_{}_{}.db",
+        "nebula_lock_test_{}_{}.db",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -100,13 +100,13 @@ async fn blackhole_and_sponge_concurrent_no_partial_read() {
     // path.  Instead we drive a high-volume "absorb/update"
     // loop on both threads and assert the row count is
     // monotonic and the sentinel never leaks.
-    use nine_snake_lib::memory::types::{
+    use nebula_lib::memory::types::{
         Memory, MemoryLayer, MemoryType, MultiGranularity, SourceKind,
     };
     use rusqlite::params;
 
     let tmp = std::env::temp_dir().join(format!(
-        "nine_snake_concurrent_test_{}_{}.db",
+        "nebula_concurrent_test_{}_{}.db",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

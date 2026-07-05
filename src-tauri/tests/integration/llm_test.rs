@@ -1,4 +1,4 @@
-//! Integration tests that require a running Ollama server.
+﻿//! Integration tests that require a running Ollama server.
 //!
 //! These tests are gated behind both `#[ignore]` (so they don't run
 //! on a default `cargo test`) **and** the `OLLAMA_TEST=1` env var (so
@@ -18,7 +18,7 @@
 
 use std::time::Duration;
 
-use nine_snake_lib::llm::{LlmGateway, OllamaClient};
+use nebula_lib::llm::{LlmGateway, OllamaClient};
 
 const OLLAMA_URL: &str = "http://127.0.0.1:11434";
 const CHAT_MODEL: &str = "qwen2.5:3b";
@@ -45,7 +45,7 @@ async fn real_chat_against_ollama() {
     let gw = make_gateway();
     let resp = tokio::time::timeout(
         Duration::from_secs(60),
-        gw.chat(vec![nine_snake_lib::llm::ChatMessage::user(
+        gw.chat(vec![nebula_lib::llm::ChatMessage::user(
             "Reply with exactly the word 'pong' and nothing else.",
         )]),
     )
@@ -73,7 +73,7 @@ async fn real_embed_against_ollama() {
     }
     let client = std::sync::Arc::new(OllamaClient::new(OLLAMA_URL));
     let embedder =
-        nine_snake_lib::memory::embedder::Embedder::new((*client).clone(), EMBED_MODEL, 768);
+        nebula_lib::memory::embedder::Embedder::new((*client).clone(), EMBED_MODEL, 768);
     let vec = tokio::time::timeout(Duration::from_secs(60), embedder.embed("hello world"))
         .await
         .expect("embed timeout (60s)")
@@ -100,10 +100,14 @@ async fn real_swarm_run_against_ollama() {
         return;
     }
     let gw = std::sync::Arc::new(make_gateway());
-    let orch = nine_snake_lib::swarm::SwarmOrchestrator::new_without_memory(gw);
+    // M7b #91: new_without_memory 现需 ToolRegistry 第二参数。
+    let orch = nebula_lib::swarm::SwarmOrchestrator::new_without_memory(
+        gw,
+        std::sync::Arc::new(nebula_lib::tools::ToolRegistry::new()),
+    );
     let report = tokio::time::timeout(
         Duration::from_secs(180),
-        orch.execute(nine_snake_lib::swarm::SwarmTask {
+        orch.execute(nebula_lib::swarm::SwarmTask {
             description: "Say pong in one short sentence.".to_string(),
             agent_count: 3,
             agents: vec![],

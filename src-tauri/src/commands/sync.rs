@@ -1,4 +1,4 @@
-//! Sync (E2EE) commands — identity, encrypt, decrypt, send, recv, ack.
+﻿//! Sync (E2EE) commands — identity, encrypt, decrypt, send, recv, ack.
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -174,7 +174,7 @@ pub async fn sync_recv(
                 messages.push(msg);
             }
             Err(e) => {
-                tracing::warn!(target: "nine_snake.sync", error = %e, id = %msg.id, "failed to decrypt envelope");
+                tracing::warn!(target: "nebula.sync", error = %e, id = %msg.id, "failed to decrypt envelope");
                 messages.push(msg);
             }
         }

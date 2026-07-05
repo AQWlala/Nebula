@@ -1,0 +1,14 @@
+-- T-E-A-09: 记忆吸收成本(USD)。
+--
+-- 每条 Memory 写入时记录该记忆的吸收成本(向量化 + LLM 抽取消耗)。
+-- 列默认 NULL,对应 Option<f64>::None(旧记忆 / cost_tracker 未注入)。
+-- Some(0.0) 表示已追踪但为零(本地 Ollama + 未启用 EntityExtractor)。
+--
+-- 幂等模式参考 027_cost_source.sql:
+--   * 重复应用时报 "duplicate column name",
+--     migration runner(见 migration.rs::is_idempotent_error)
+--     将其视为幂等错误静默忽略;
+--   * 旧记忆读取 NULL → Option<f64>::None(row_to_memory 用
+--     `row.get::<_, Option<f64>>("ingest_cost").ok().flatten()`
+--     容错,且 #[serde(default)] 允许 JSON 缺失键)。
+ALTER TABLE memories ADD COLUMN ingest_cost REAL;

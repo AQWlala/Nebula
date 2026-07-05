@@ -1,4 +1,4 @@
--- nine-snake migration 018 — fix skill_ratings PK collision.
+﻿-- nebula migration 018 — fix skill_ratings PK collision.
 --
 -- The original PK (skill_id, created_at) caused INSERT failures when
 -- two ratings for the same skill landed in the same second (and later,

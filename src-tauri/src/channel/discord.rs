@@ -1,4 +1,4 @@
-use std::sync::Arc;
+﻿use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -7,6 +7,8 @@ use parking_lot::Mutex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
+
+use crate::security::SsrfGuard;
 
 use super::types::{ChannelAdapter, ChannelKind, ChannelStatus};
 
@@ -25,12 +27,29 @@ pub struct DiscordBotAdapter {
 
 impl DiscordBotAdapter {
     pub fn new(webhook_url: &str) -> Self {
+        // T-S3-B-01: 使用 SSRF 安全客户端验证 webhook URL 并防止重定向攻击。
+        // M7b #94: 修复 validate_url 结果被丢弃的 bug — 现在处理 Err。
+        let guard = SsrfGuard::new();
+        if let Err(e) = guard.validate_url(webhook_url) {
+            tracing::warn!(
+                target: "nebula.ssrf",
+                url = webhook_url,
+                error = %e,
+                "Discord webhook URL failed SSRF validation; client will still be built \
+                 but requests to this URL will be blocked by redirect policy"
+            );
+        }
+        let client = guard
+            .build_safe_client()
+            .unwrap_or_else(|_| {
+                Client::builder()
+                    .timeout(Duration::from_secs(30))
+                    .build()
+                    .expect("reqwest Client::build is infallible")
+            });
         Self {
             webhook_url: webhook_url.to_string(),
-            client: Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .expect("reqwest Client::build is infallible"),
+            client,
             status: Arc::new(Mutex::new(ChannelStatus::Offline)),
         }
     }
@@ -48,7 +67,7 @@ impl DiscordBotAdapter {
             .await?;
         if resp.status().as_u16() == 429 {
             *self.status.lock() = ChannelStatus::RateLimited;
-            warn!(target: "nine_snake.discord", "rate limited by Discord API");
+            warn!(target: "nebula.discord", "rate limited by Discord API");
         } else if !resp.status().is_success() {
             *self.status.lock() = ChannelStatus::Failed;
             anyhow::bail!("Discord webhook failed: {}", resp.status());
@@ -68,7 +87,7 @@ impl ChannelAdapter for DiscordBotAdapter {
         match resp {
             Ok(r) if r.status().is_success() => {
                 *self.status.lock() = ChannelStatus::Online;
-                info!(target: "nine_snake.discord", "Discord webhook adapter started");
+                info!(target: "nebula.discord", "Discord webhook adapter started");
                 Ok(())
             }
             Ok(r) => {

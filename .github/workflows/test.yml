@@ -54,7 +54,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           CARGO_PROFILE_DEV_DEBUG: "0"
-        run: cargo build --tests --features grpc,channels,did-identity,crdt-sync
+        run: cargo build --tests --features grpc,channels
       - name: Install cargo-nextest
         # nextest provides per-test timeouts (--timeout 120s) which
         # kill hanging tests instead of letting them block the entire
@@ -176,10 +176,47 @@ jobs:
           retention-days: 7
       - name: Lint
         working-directory: src-tauri
-        run: cargo clippy --features grpc,channels,did-identity,crdt-sync -- -D warnings
+        run: cargo clippy --features grpc,channels -- -D warnings
       - name: Format check
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+      # T-S2-C-01: feature-cfg consistency check. Scans Cargo.toml
+      # features and fails if any feature (except default/custom-protocol)
+      # has zero #[cfg(feature = "...")] matches in src/.
+      - name: Feature-cfg consistency check
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking feature-cfg consistency..."
+          # Extract feature names from [features] section, skipping
+          # meta features (default, custom-protocol) and comment lines.
+          FEATURES=$(awk '/^\[features\]/{f=1;next} /^\[/{f=0} f && /^[a-z]/ {sub(/=.*/,""); print $1}' Cargo.toml)
+          DEAD=""
+          for feat in $FEATURES; do
+            case "$feat" in
+              default|custom-protocol) continue ;;
+            esac
+            # Search for cfg(feature = "feat") in src/ and tests/
+            count=$(grep -r --include='*.rs' -c "feature.*=.*\"$feat\"" src/ tests/ 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
+            if [ "$count" -eq 0 ]; then
+              echo "  DEAD: feature '$feat' has 0 cfg matches in src/ or tests/"
+              DEAD="$DEAD $feat"
+            else
+              echo "  OK:   feature '$feat' has $count cfg match(es)"
+            fi
+          done
+          if [ -n "$DEAD" ]; then
+            echo ""
+            echo "ERROR: The following features are defined in Cargo.toml but have"
+            echo "zero #[cfg(feature = \"...\")] matches in the codebase:"
+            echo "  $DEAD"
+            echo ""
+            echo "Either add cfg guards or remove the feature definition."
+            exit 1
+          fi
+          echo ""
+          echo "All features have cfg matches — consistency check passed."
       # v1.0.1 P0#02: audit Rust dependencies against the RustSec
       # advisory database. `--locked` pins cargo-audit's own deps
       # to Cargo.lock so the install is reproducible.
@@ -189,16 +226,16 @@ jobs:
       - name: Audit dependencies
         id: audit
         working-directory: src-tauri
-        continue-on-error: true
-        # `--deny warnings` would also fail on unmaintained crates
-        # (warnings, not vulnerabilities); we keep audit at
-        # vulnerability-level only so unmaintained crates can be
-        # triaged in their own PR.
-        # 暂时 continue-on-error: 安全漏洞不应阻止 CI 通过,
-        # 但输出保存为 artifact 供后续分析修复。
+        # v2.1 修复 (EXPERT_REVIEW EA-5): 移除 continue-on-error,
+        # 默认 cargo audit 在有 RUSTSEC 漏洞时返回非 0 退出码阻断 CI。
+        # unmaintained crates 只产生 warning 不阻断（默认行为）。
+        # 详见 docs/EXPERT_REVIEW_v2.1.md §6.1。
         shell: bash
         run: |
-          cargo audit > audit-output.txt 2>&1 || true
+          cargo audit > audit-output.txt 2>&1 || {
+            cat audit-output.txt
+            exit 1
+          }
           cat audit-output.txt
       - name: Upload audit output
         if: always()
@@ -220,6 +257,13 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm test
-      - name: Upload coverage
+      - name: Run tests with coverage
         if: success()
-        run: echo "coverage upload placeholder"
+        run: npm run test:coverage
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-coverage
+          path: coverage/
+          if-no-files-found: ignore

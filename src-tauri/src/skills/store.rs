@@ -15,7 +15,7 @@ use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use tracing::debug;
 
-use super::types::Skill;
+use super::types::{Skill, TagCount, TagMatch};
 use crate::memory::sqlite_store::SqliteStore;
 
 /// Thread-safe CRUD wrapper for the `skills` table.
@@ -94,11 +94,13 @@ impl SkillStore {
                  success_count, failure_count, last_used, created_at,
                  code, language, tags, usage_count, avg_rating,
                  rating_count, updated_at, source_memory_id,
-                 activation_condition, platform, min_confidence)
+                 activation_condition, platform, min_confidence,
+                 trust_level, permissions, capabilities)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6,
                      ?7, ?8, ?9, ?10,
                      ?11, ?12, ?13, ?14, ?15,
-                     ?16, ?17, ?18, ?19, ?20, ?21)",
+                     ?16, ?17, ?18, ?19, ?20, ?21,
+                     ?22, ?23, ?24)",
             params![
                 s.id,
                 memory_id,
@@ -121,9 +123,12 @@ impl SkillStore {
                 activation_json,
                 platform_json,
                 s.min_confidence,
+                s.trust_level,
+                serde_json::to_string(&s.permissions).unwrap_or_else(|_| "[]".to_string()),
+                serde_json::to_string(&s.capabilities).unwrap_or_else(|_| "{}".to_string()),
             ],
         )?;
-        debug!(target: "nine_snake.skills", id = %s.id, name = %s.name, "inserted skill");
+        debug!(target: "nebula.skills", id = %s.id, name = %s.name, "inserted skill");
         Ok(())
     }
 
@@ -134,7 +139,8 @@ impl SkillStore {
             "SELECT id, name, description, code, language, tags,
                     usage_count, avg_rating, rating_count,
                     created_at, updated_at, source_memory_id,
-                    activation_condition, platform, min_confidence
+                    activation_condition, platform, min_confidence,
+                    trust_level, permissions, capabilities
              FROM skills WHERE id = ?1",
             params![id],
             row_to_skill,
@@ -143,11 +149,19 @@ impl SkillStore {
         .map_err(Into::into)
     }
 
-    /// Lists skills, optionally filtered by language and tag.
+    /// Lists skills, optionally filtered by language and tag(s).
+    ///
+    /// **T-E-S-37 扩展**:新增 `tags: &[String]` + `tag_match: TagMatch` 参数,
+    /// 支持多 tag 的 OR(Any)/AND(All)匹配。当 `tags` 非空时,优先使用多 tag
+    /// 过滤逻辑;否则降级到旧 `tag: Option<&str>` 单 tag 路径(向后兼容)。
+    ///
+    /// 所有 tag 值都用参数化绑定(`?` 占位符)防 SQL 注入,不用字符串拼接。
     pub fn list(
         &self,
         language: Option<&str>,
-        tag: Option<&str>,
+        single_tag: Option<&str>,
+        tags: &[String],
+        tag_match: TagMatch,
         limit: u32,
     ) -> Result<Vec<Skill>> {
         let g = self.conn.lock();
@@ -158,32 +172,100 @@ impl SkillStore {
             "SELECT id, name, description, code, language, tags,
                     usage_count, avg_rating, rating_count,
                     created_at, updated_at, source_memory_id,
-                    activation_condition, platform, min_confidence
+                    activation_condition, platform, min_confidence,
+                    trust_level, permissions, capabilities
              FROM skills WHERE 1=1",
         );
         if language.is_some() {
             sql.push_str(" AND language = ?");
         }
-        if tag.is_some() {
+
+        // T-E-S-37: 多 tag 优先于单 tag。当 tags 非空时使用多 tag 逻辑
+        // (按 tag_match 模式 OR / AND 拼接),否则降级到旧单 tag 路径。
+        let use_multi_tags = !tags.is_empty();
+        if use_multi_tags {
+            // 多 tag 模式:每个 tag 用一个 `?` 占位符 + `LIKE ?` 表达式,
+            // 防止 SQL 注入。OR 模式用括号包裹避免与前置条件歧义。
+            let likes: Vec<&str> = tags.iter().map(|_| "tags LIKE ?").collect();
+            let joined = likes.join(match tag_match {
+                TagMatch::Any => " OR ",
+                TagMatch::All => " AND ",
+            });
+            // Any 模式必须用括号包裹,否则 `AND (cond1 OR cond2)` 语义会被前置条件
+            // 破坏;All 模式括号无害但更清晰。
+            sql.push_str(&format!(" AND ({joined})"));
+        } else if single_tag.is_some() {
             sql.push_str(" AND tags LIKE ?");
         }
         sql.push_str(" ORDER BY created_at DESC LIMIT ?");
+
         let mut stmt = g.prepare(&sql)?;
+
+        // 收集所有参数到堆上,然后转为 `&dyn ToSql` 引用序列。
+        // 注意顺序必须与 SQL 占位符顺序一致:language, [tag(s)], limit。
         let lang_p = language.map(|s| s.to_string());
-        let tag_p = tag.map(|s| format!("%\"{}\"%", s));
+        let single_tag_p = if !use_multi_tags {
+            single_tag.map(|s| format!("%\"{}\"%", s))
+        } else {
+            None
+        };
+        // 多 tag 模式:每个 tag 序列化为 `%"tagN"%`(与单 tag 一致的 LIKE 模式)。
+        let multi_tag_p: Vec<String> = tags
+            .iter()
+            .map(|t| format!("%\"{}\"%", t))
+            .collect();
         let lim_p = limit.max(1) as i64;
+
         let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::new();
         if let Some(ref s) = lang_p {
             params_vec.push(s as &dyn rusqlite::ToSql);
         }
-        if let Some(ref s) = tag_p {
+        if use_multi_tags {
+            for s in multi_tag_p.iter() {
+                params_vec.push(s as &dyn rusqlite::ToSql);
+            }
+        } else if let Some(ref s) = single_tag_p {
             params_vec.push(s as &dyn rusqlite::ToSql);
         }
         params_vec.push(&lim_p);
+
         let rows = stmt
             .query_map(params_vec.as_slice(), row_to_skill)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    /// T-E-S-37: 聚合所有 tag 的频次,按 count 降序返回。
+    ///
+    /// 用 `json_each(skills.tags)` 把每个 skill 的 JSON 数组展开为多行,
+    /// 然后按 tag 字符串分组计数。无任何 skill 的 tag 返回空 Vec。
+    ///
+    /// SQL 形如:
+    /// ```sql
+    /// SELECT tag, COUNT(*) FROM (
+    ///   SELECT json_each.value AS tag FROM skills, json_each(skills.tags)
+    /// ) GROUP BY tag ORDER BY COUNT(*) DESC
+    /// ```
+    pub fn all_tags(&self) -> Vec<TagCount> {
+        let g = self.conn.lock();
+        let mut stmt = match g.prepare(
+            "SELECT tag, COUNT(*) AS cnt FROM (
+                SELECT json_each.value AS tag FROM skills, json_each(skills.tags)
+             ) GROUP BY tag ORDER BY cnt DESC",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let rows = stmt.query_map([], |r| {
+            Ok(TagCount {
+                tag: r.get::<_, String>(0)?,
+                count: r.get::<_, i64>(1)? as usize,
+            })
+        });
+        match rows {
+            Ok(iter) => iter.filter_map(|r| r.ok()).collect(),
+            Err(_) => Vec::new(),
+        }
     }
 
     /// Atomically updates `usage_count`, `avg_rating` and
@@ -285,6 +367,19 @@ fn row_to_skill(row: &Row<'_>) -> rusqlite::Result<Skill> {
         .get::<_, Option<String>>(13)?
         .and_then(|s| serde_json::from_str(&s).ok());
     let min_confidence: Option<f32> = row.get(14)?;
+    let trust_level: u8 = row.get::<_, i64>(15).unwrap_or(0) as u8;
+    let permissions: Vec<String> = row
+        .get::<_, Option<String>>(16)
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let capabilities: super::sandbox::CapabilitySet = row
+        .get::<_, Option<String>>(17)
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
     Ok(Skill {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -309,6 +404,9 @@ fn row_to_skill(row: &Row<'_>) -> rusqlite::Result<Skill> {
         activation_condition,
         platform,
         min_confidence,
+        trust_level,
+        permissions,
+        capabilities,
     })
 }
 
@@ -327,7 +425,7 @@ mod tests {
 
     fn temp_db() -> (PathBuf, SkillStore) {
         let mut p = std::env::temp_dir();
-        p.push(format!("nine_snake_skill_test_{}.db", uuid::Uuid::new_v4()));
+        p.push(format!("nebula_skill_test_{}.db", uuid::Uuid::new_v4()));
         let s = SkillStore::open_test(&p).unwrap();
         (p, s)
     }
@@ -350,6 +448,9 @@ mod tests {
             activation_condition: None,
             platform: None,
             min_confidence: None,
+            trust_level: 0,
+            permissions: vec![],
+            capabilities: super::super::sandbox::CapabilitySet::new(),
         }
     }
 
@@ -381,14 +482,203 @@ mod tests {
         b.tags = vec!["math".to_string()];
         s.insert(&b).unwrap();
 
-        let all = s.list(None, None, 10).unwrap();
+        // T-E-S-37: list() 签名已扩展,旧调用方需传入 tags=[] + tag_match=Any。
+        let all = s
+            .list(None, None, &[], TagMatch::Any, 10)
+            .unwrap();
         assert_eq!(all.len(), 2);
-        let rust_only = s.list(Some("rust"), None, 10).unwrap();
+        let rust_only = s
+            .list(Some("rust"), None, &[], TagMatch::Any, 10)
+            .unwrap();
         assert_eq!(rust_only.len(), 1);
         assert_eq!(rust_only[0].id, "sk-1");
-        let math_only = s.list(None, Some("math"), 10).unwrap();
+        let math_only = s
+            .list(None, Some("math"), &[], TagMatch::Any, 10)
+            .unwrap();
         assert_eq!(math_only.len(), 1);
         assert_eq!(math_only[0].id, "sk-2");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: 多 tag OR(Any)匹配 — 任一 tag 命中即返回。
+    #[test]
+    fn list_filters_by_multiple_tags_any() {
+        let (p, s) = temp_db();
+        // sk-1: tags = [string, utility]
+        s.insert(&sample()).unwrap();
+        // sk-2: tags = [math]
+        let mut b = sample();
+        b.id = "sk-2".to_string();
+        b.name = "math_utils".to_string();
+        b.language = "python".to_string();
+        b.tags = vec!["math".to_string()];
+        s.insert(&b).unwrap();
+        // sk-3: tags = [string, math]
+        let mut c = sample();
+        c.id = "sk-3".to_string();
+        c.name = "string_math".to_string();
+        c.tags = vec!["string".to_string(), "math".to_string()];
+        s.insert(&c).unwrap();
+
+        // tags=[string, math] + Any:应返回 3 条(每条都至少命中一个)。
+        let tags = vec!["string".to_string(), "math".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        assert_eq!(hits.len(), 3, "Any match should return all 3");
+
+        // tags=[string, utility] + Any:应返回 2 条(sk-1 命中两个,sk-3 命中 string)。
+        let tags = vec!["string".to_string(), "utility".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        assert_eq!(hits.len(), 2, "Any match should return sk-1 + sk-3");
+
+        // tags=[nonexistent] + Any:应返回 0 条。
+        let tags = vec!["nonexistent".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        assert!(hits.is_empty(), "no skill should match nonexistent tag");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: 多 tag AND(All)匹配 — 所有 tag 都必须命中。
+    #[test]
+    fn list_filters_by_multiple_tags_all() {
+        let (p, s) = temp_db();
+        s.insert(&sample()).unwrap(); // tags = [string, utility]
+        let mut b = sample();
+        b.id = "sk-2".to_string();
+        b.name = "math_utils".to_string();
+        b.language = "python".to_string();
+        b.tags = vec!["math".to_string()];
+        s.insert(&b).unwrap();
+        let mut c = sample();
+        c.id = "sk-3".to_string();
+        c.name = "string_math".to_string();
+        c.tags = vec!["string".to_string(), "math".to_string()];
+        s.insert(&c).unwrap();
+
+        // tags=[string, math] + All:只有 sk-3 同时有两个 tag,应返回 1 条。
+        let tags = vec!["string".to_string(), "math".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        assert_eq!(hits.len(), 1, "All match should return only sk-3");
+        assert_eq!(hits[0].id, "sk-3");
+
+        // tags=[string, utility] + All:只有 sk-1 同时有两个 tag,应返回 1 条。
+        let tags = vec!["string".to_string(), "utility".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "sk-1");
+
+        // tags=[math, nonexistent] + All:应返回 0 条(无人同时有)。
+        let tags = vec!["math".to_string(), "nonexistent".to_string()];
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        assert!(hits.is_empty(), "All match with nonexistent tag should return 0");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: 多 tag 与 language 过滤可叠加。
+    #[test]
+    fn list_filters_by_language_and_multiple_tags() {
+        let (p, s) = temp_db();
+        s.insert(&sample()).unwrap(); // rust, [string, utility]
+        let mut c = sample();
+        c.id = "sk-3".to_string();
+        c.name = "string_math".to_string();
+        c.language = "python".to_string();
+        c.tags = vec!["string".to_string(), "math".to_string()];
+        s.insert(&c).unwrap();
+
+        // language=rust + tags=[string, math] + Any:只匹配 sk-1(string 命中)。
+        let tags = vec!["string".to_string(), "math".to_string()];
+        let hits = s
+            .list(Some("rust"), None, &tags, TagMatch::Any, 10)
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "sk-1");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: tags 非空时优先于单 tag 字段(单 tag 被忽略)。
+    #[test]
+    fn list_multi_tags_takes_precedence_over_single_tag() {
+        let (p, s) = temp_db();
+        s.insert(&sample()).unwrap(); // sk-1: [string, utility]
+
+        // single_tag="nonexistent" + tags=["string"]:应返回 sk-1,
+        // 因为 tags 非空时使用多 tag 路径,single_tag 被忽略。
+        let tags = vec!["string".to_string()];
+        let hits = s
+            .list(None, Some("nonexistent"), &tags, TagMatch::Any, 10)
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "sk-1");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: SQL 注入防护 — tag 值含特殊字符(引号 / 分号)应被安全绑定。
+    /// 不会改变 SQL 语义,只会作为 LIKE 模式的一部分匹配(此处应无匹配)。
+    #[test]
+    fn list_tags_use_parameterized_binding_no_sql_injection() {
+        let (p, s) = temp_db();
+        s.insert(&sample()).unwrap();
+        // tag 值含单引号 + 分号 + DROP TABLE:应被 `?` 绑定为字面量 LIKE 模式,
+        // 不会执行注入的 SQL。预期 0 匹配(tag 不存在)。
+        let evil_tag = "'; DROP TABLE skills; --".to_string();
+        let hits = s
+            .list(None, None, &[evil_tag], TagMatch::Any, 10)
+            .unwrap();
+        assert!(hits.is_empty(), "evil tag should match nothing");
+        // 验证 skills 表仍存在(未被 DROP)。
+        let after = s.list(None, None, &[], TagMatch::Any, 10).unwrap();
+        assert_eq!(after.len(), 1, "skills table must still exist");
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: all_tags() 正确聚合 tag 频次,按 count 降序返回。
+    #[test]
+    fn all_tags_aggregates_correctly() {
+        let (p, s) = temp_db();
+        s.insert(&sample()).unwrap(); // sk-1: [string, utility]
+        let mut b = sample();
+        b.id = "sk-2".to_string();
+        b.name = "string_math".to_string();
+        b.tags = vec!["string".to_string(), "math".to_string()];
+        s.insert(&b).unwrap();
+        let mut c = sample();
+        c.id = "sk-3".to_string();
+        c.name = "string_only".to_string();
+        c.tags = vec!["string".to_string()];
+        s.insert(&c).unwrap();
+
+        let counts = s.all_tags();
+        // string 出现 3 次,math 1 次,utility 1 次。
+        // 顺序:string(3) > math(1) == utility(1)(后者顺序不稳定)。
+        assert_eq!(counts.len(), 3, "should have 3 unique tags");
+        assert_eq!(counts[0].tag, "string");
+        assert_eq!(counts[0].count, 3, "string should appear 3 times");
+        // 验证 math + utility 各 1 次(顺序无保证,用 find)。
+        let math = counts.iter().find(|t| t.tag == "math").expect("math missing");
+        assert_eq!(math.count, 1);
+        let utility = counts.iter().find(|t| t.tag == "utility").expect("utility missing");
+        assert_eq!(utility.count, 1);
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: 无 skill 时 all_tags() 返回空 Vec。
+    #[test]
+    fn all_tags_returns_empty_when_no_skills() {
+        let (p, s) = temp_db();
+        assert!(s.all_tags().is_empty());
+        cleanup(&p);
+    }
+
+    /// T-E-S-37: skill.tags = [](空数组)时 all_tags() 不应报错也不应贡献行。
+    #[test]
+    fn all_tags_skips_empty_tag_arrays() {
+        let (p, s) = temp_db();
+        let mut b = sample();
+        b.id = "sk-empty-tags".to_string();
+        b.tags = vec![];
+        s.insert(&b).unwrap();
+        let counts = s.all_tags();
+        assert!(counts.is_empty(), "empty tags array should not contribute rows");
         cleanup(&p);
     }
 

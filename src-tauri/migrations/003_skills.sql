@@ -1,4 +1,4 @@
--- nine-snake v0.3 migration 003 — skill CRUD support.
+﻿-- nebula v0.3 migration 003 — skill CRUD support.
 --
 -- The v0.1 `skills` table was reserved (no rows ever written) but
 -- lacked the columns the v0.3 engine needs. This migration:
@@ -41,4 +41,4 @@ CREATE INDEX IF NOT EXISTS idx_skill_ratings_skill ON skill_ratings(skill_id);
 
 -- 4. Bookkeeping.
 INSERT OR IGNORE INTO schema_version(version, applied_at, description)
-VALUES (3, strftime('%s','now'), 'nine-snake v0.3 skill CRUD support');
+VALUES (3, strftime('%s','now'), 'nebula v0.3 skill CRUD support');

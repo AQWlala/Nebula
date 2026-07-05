@@ -1,13 +1,19 @@
-use std::collections::HashMap;
+﻿use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::warn;
+use tracing::{debug, warn};
+
+use super::deadlock::WaitForGraph;
+use super::events::SwarmEvent;
 
 const BUS_CAPACITY: usize = 256;
 const BROADCAST_CAPACITY: usize = 512;
+/// T-S1-B-02: SwarmEvent 广播通道容量。
+const EVENT_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BusMessage {
@@ -25,6 +31,8 @@ pub enum BusMessageType {
     Response,
     Notification,
     Capability,
+    /// T-S4-A-03: Agent 间 CRDT 操作传播(负载为序列化的 CrdtVersion)。
+    CrdtSync,
 }
 
 type PendingReply = tokio::sync::Mutex<HashMap<String, oneshot::Sender<BusMessage>>>;
@@ -32,16 +40,25 @@ type PendingReply = tokio::sync::Mutex<HashMap<String, oneshot::Sender<BusMessag
 pub struct AgentBus {
     mailboxes: Arc<tokio::sync::Mutex<HashMap<String, mpsc::Sender<BusMessage>>>>,
     broadcast_tx: broadcast::Sender<BusMessage>,
+    /// T-S1-B-02: 独立的 SwarmEvent 通道,与 BusMessage 解耦。
+    /// 前端通过 `subscribe_events` IPC 订阅此通道。
+    event_tx: broadcast::Sender<SwarmEvent>,
     pending_replies: Arc<PendingReply>,
+    /// T-E-S-05: 等待图(WFG),用于死锁检测。
+    /// 记录 `A → waits_for → B` 关系(Agent A 正在等待 Agent B 回复)。
+    wait_for_graph: Arc<RwLock<WaitForGraph>>,
 }
 
 impl AgentBus {
     pub fn new() -> Self {
         let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
+        let (event_tx, _) = broadcast::channel(EVENT_CAPACITY);
         Self {
             mailboxes: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             broadcast_tx,
+            event_tx,
             pending_replies: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            wait_for_graph: Arc::new(RwLock::new(WaitForGraph::new())),
         }
     }
 
@@ -70,6 +87,11 @@ impl AgentBus {
             .map_err(|e| anyhow!("send failed: {e}"))
     }
 
+    /// T-E-S-05: 获取等待图(WFG)的 Arc 引用,供死锁检测器使用。
+    pub fn wait_for_graph(&self) -> Arc<RwLock<WaitForGraph>> {
+        Arc::clone(&self.wait_for_graph)
+    }
+
     /// Send a request to a specific agent and wait for a response.
     /// This enables P2P request-response communication between agents.
     pub async fn request(
@@ -96,7 +118,10 @@ impl AgentBus {
         };
         self.send(msg).await?;
 
+        self.wait_for_graph.write().add_wait(from, to);
+
         let result = tokio::time::timeout(timeout, reply_rx).await;
+        self.wait_for_graph.write().remove_wait(from, to);
         self.pending_replies.lock().await.remove(&correlation_id);
         match result {
             Ok(Ok(response)) => Ok(response),
@@ -133,12 +158,38 @@ impl AgentBus {
 
     pub fn broadcast(&self, message: BusMessage) {
         if self.broadcast_tx.send(message).is_err() {
-            warn!(target: "nine_snake.bus", "no active broadcast receivers");
+            warn!(target: "nebula.bus", "no active broadcast receivers");
         }
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<BusMessage> {
         self.broadcast_tx.subscribe()
+    }
+
+    /// T-S1-B-02: 广播一个结构化 SwarmEvent,供前端订阅可视化。
+    /// T-E-S-26: 同时向全局 EventBus 广播(自动包装 EventEnvelope)。
+    pub fn emit_event(&self, event: SwarmEvent) {
+        // T-E-S-26: 向 EventBus 广播(协议化 EventEnvelope)。
+        crate::swarm::event_bus::global().emit(event.clone());
+        // 保留原有 event_tx 通道(向后兼容 subscribe_events 旧路径)。
+        if self.event_tx.send(event).is_err() {
+            // 没有订阅者不算错误:orchestrator 仍会正常执行,
+            // 只是当前没有前端在监听。
+            debug!(target: "nebula.bus", "no active SwarmEvent subscribers");
+        }
+    }
+
+    /// T-S1-B-02: 订阅 SwarmEvent 流。返回的 Receiver 可在
+    /// `subscribe_events` Tauri 命令中循环 `recv().await` 并通过
+    /// `tauri::ipc::Channel::send` 推送给前端。
+    pub fn subscribe_events(&self) -> broadcast::Receiver<SwarmEvent> {
+        self.event_tx.subscribe()
+    }
+
+    /// T-S1-B-02: 返回 event sender 的克隆,供 orchestrator 在
+    /// spawn 的 agent 任务中 emit 事件而不需要持有 `&self`。
+    pub fn event_sender(&self) -> broadcast::Sender<SwarmEvent> {
+        self.event_tx.clone()
     }
 }
 

@@ -1,4 +1,4 @@
-//! v1.7: 全局快捷键接线。
+﻿//! v1.7: 全局快捷键接线。
 //!
 //! 设计文档 v7.0 §6 OS 集成 — 全局快捷键表（第四轮 line 366-376）。
 //!
@@ -36,7 +36,7 @@ where
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(
-                target: "nine_snake.os.shortcut",
+                target: "nebula.os.shortcut",
                 accel,
                 error = %e,
                 "failed to parse shortcut; skipping"
@@ -53,13 +53,13 @@ where
         }
     }) {
         tracing::warn!(
-            target: "nine_snake.os.shortcut",
+            target: "nebula.os.shortcut",
             accel,
             error = %e,
             "failed to register shortcut; it may be occupied by another app"
         );
     } else {
-        tracing::info!(target: "nine_snake.os.shortcut", accel, "shortcut registered");
+        tracing::info!(target: "nebula.os.shortcut", accel, "shortcut registered");
     }
 }
 
@@ -91,7 +91,7 @@ fn on_switch_to_memory(app: &AppHandle) {
             let _ = w.set_focus();
         }
     }
-    let _ = app.emit("nine-snake://switch-view", "memory");
+    let _ = app.emit("nebula://switch-view", "memory");
 }
 
 /// Cmd/Ctrl+Shift+S：切换到蜂群视图。
@@ -102,11 +102,11 @@ fn on_switch_to_swarm(app: &AppHandle) {
             let _ = w.set_focus();
         }
     }
-    let _ = app.emit("nine-snake://switch-view", "swarm");
+    let _ = app.emit("nebula://switch-view", "swarm");
 }
 
 /// Cmd/Ctrl+Q：真正退出（绕过"关闭=最小化到托盘"）。
 fn on_quit(app: &AppHandle) {
-    tracing::info!(target: "nine_snake.os.shortcut", "user pressed Cmd+Q; exiting");
+    tracing::info!(target: "nebula.os.shortcut", "user pressed Cmd+Q; exiting");
     app.exit(0);
 }

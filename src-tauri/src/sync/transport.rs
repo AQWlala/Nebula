@@ -1,4 +1,4 @@
-//! v0.5: cross-device transport (local-only).
+﻿//! v0.5: cross-device transport (local-only).
 //!
 //! For v0.5 the transport is intentionally local: encrypted
 //! envelopes are written to a per-pair "inbox" directory on disk
@@ -60,7 +60,7 @@ impl LocalTransport {
             .with_context(|| format!("writing tmp envelope: {}", tmp.display()))?;
         std::fs::rename(&tmp, &path)
             .with_context(|| format!("renaming envelope: {}", path.display()))?;
-        info!(target: "nine_snake.sync", envelope_id, "envelope written to inbox");
+        info!(target: "nebula.sync", envelope_id, "envelope written to inbox");
         Ok(())
     }
 
@@ -75,7 +75,7 @@ impl LocalTransport {
             let entry = match entry {
                 Ok(e) => e,
                 Err(e) => {
-                    warn!(target: "nine_snake.sync", error = ?e, "inbox entry error");
+                    warn!(target: "nebula.sync", error = ?e, "inbox entry error");
                     continue;
                 }
             };
@@ -90,7 +90,7 @@ impl LocalTransport {
             let bytes = match std::fs::read(&path) {
                 Ok(b) => b,
                 Err(e) => {
-                    warn!(target: "nine_snake.sync", error = ?e, path = %path.display(), "inbox read failed");
+                    warn!(target: "nebula.sync", error = ?e, path = %path.display(), "inbox read failed");
                     continue;
                 }
             };
@@ -99,7 +99,7 @@ impl LocalTransport {
             ) {
                 Ok(e) => e,
                 Err(e) => {
-                    warn!(target: "nine_snake.sync", error = ?e, path = %path.display(), "inbox parse failed");
+                    warn!(target: "nebula.sync", error = ?e, path = %path.display(), "inbox parse failed");
                     continue;
                 }
             };

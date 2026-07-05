@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -48,12 +48,13 @@ impl EntityExtractor {
         let messages = vec![ChatMessage {
             role: "user".to_string(),
             content: prompt,
+            ..Default::default()
         }];
 
         let response = match self.llm.chat(messages).await {
             Ok(r) => r.message.content,
             Err(e) => {
-                warn!(target: "nine_snake.entity_extractor", error = ?e, "LLM call failed; returning empty relations");
+                warn!(target: "nebula.entity_extractor", error = ?e, "LLM call failed; returning empty relations");
                 return Ok(Vec::new());
             }
         };
@@ -62,7 +63,7 @@ impl EntityExtractor {
 
         if !relations.is_empty() {
             info!(
-                target: "nine_snake.entity_extractor",
+                target: "nebula.entity_extractor",
                 memory_id,
                 count = relations.len(),
                 "extracted entity relations"
@@ -95,7 +96,7 @@ impl EntityExtractor {
         let parsed: Vec<RawRelation> = match serde_json::from_str(&json_str) {
             Ok(v) => v,
             Err(e) => {
-                warn!(target: "nine_snake.entity_extractor", error = %e, "failed to parse LLM relation output");
+                warn!(target: "nebula.entity_extractor", error = %e, "failed to parse LLM relation output");
                 return Vec::new();
             }
         };

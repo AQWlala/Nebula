@@ -1,6 +1,6 @@
-# 贡献指南 (Contributing to nine-snake)
+# 贡献指南 (Contributing to Nebula)
 
-感谢你有兴趣让九头蛇变得更好！本文档说明如何贡献。
+感谢你有兴趣让 Nebula 变得更好！本文档说明如何贡献。
 
 ## 行为准则
 
@@ -11,15 +11,15 @@
 
 ## 报告 Bug
 
-提交 [GitHub Issue](https://github.com/nine-snake/nine-snake/issues/new?template=bug.md) 并附：
+提交 [GitHub Issue](https://github.com/AQWlala/nebula/issues/new?template=bug.md) 并附：
 
 1. 复现步骤
 2. 期望行为
 3. 实际行为
 4. 截图（如有）
 5. 操作系统 + 版本
-6. 九头蛇版本（`health` command 输出）
-7. 日志（`NINE_SNAKE_LOG_DIR` 下）
+6. Nebula 版本（`health` command 输出）
+7. 日志（`NEBULA_LOG_DIR` 下）
 
 ## 提议新特性
 
@@ -94,8 +94,8 @@ Refs: #123
 
 * GitHub Issues — bug / feature
 * Discussions — Q&A / 想法
-* Discord — `https://discord.gg/nine-snake`（即将开放）
-* Email — `hello@nine-snake.app`
+* Discord — `https://discord.gg/nebula-ai`（即将开放）
+* Email — `hello@nebula-ai.app`
 
 ## 许可证
 

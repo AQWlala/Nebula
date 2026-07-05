@@ -1,4 +1,4 @@
-//! v1.3 P1-3: 技能沙箱隔离 — 基于能力的权限模型。
+﻿//! v1.3 P1-3: 技能沙箱隔离 — 基于能力的权限模型。
 //!
 //! 当前技能执行通过 Python 子进程沙箱（见 `skills::engine::execute_shell`），
 //! 具备进程隔离 + 网络阻断 + 内存限制。本模块在此之上增加**声明式能力**
@@ -127,7 +127,7 @@ impl fmt::Display for RiskLevel {
 ///   - file:read
 ///   - llm:call
 /// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CapabilitySet {
     /// 已授予的能力集合。
     granted: HashSet<Capability>,
@@ -282,14 +282,18 @@ pub enum SandboxError {
 #[cfg(feature = "wasm-sandbox")]
 mod wasm_sandbox {
     use super::{Capability, CapabilitySet, SandboxResult};
+    use crate::security::SsrfGuard;
     use anyhow::{anyhow, Result};
-    use std::sync::Arc;
+    use reqwest::Client;
     use tracing::{info, warn};
 
     const DEFAULT_MAX_FUEL: u64 = 1_000_000;
 
     struct WasmState {
         capabilities: CapabilitySet,
+        http_client: Client,
+        stdout: String,
+        stderr: String,
     }
 
     pub struct WasmSandbox {
@@ -323,15 +327,21 @@ mod wasm_sandbox {
             let mut linker = wasmtime::Linker::new(&engine);
 
             if config.capabilities.has(Capability::FileRead) {
-                linker.func_wrap("env", "file_read", |_path: i32| -> i32 { -1 })?;
+                linker.func_wrap("env", "file_read", |_path: i32, _path_len: i32, _buf: i32, _buf_len: i32| -> i32 {
+                    -1
+                })?;
             }
 
             if config.capabilities.has(Capability::FileWrite) {
-                linker.func_wrap("env", "file_write", |_path: i32, _data: i32| -> i32 { -1 })?;
+                linker.func_wrap("env", "file_write", |_path: i32, _path_len: i32, _data: i32, _data_len: i32| -> i32 {
+                    -1
+                })?;
             }
 
             if config.capabilities.has(Capability::Network) {
-                linker.func_wrap("env", "http_fetch", |_url: i32| -> i32 { -1 })?;
+                linker.func_wrap("env", "http_fetch", |_url: i32, _url_len: i32, _buf: i32, _buf_len: i32| -> i32 {
+                    -1
+                })?;
             }
 
             Ok(Self {
@@ -352,6 +362,15 @@ mod wasm_sandbox {
                 &self.engine,
                 WasmState {
                     capabilities: self.capabilities.clone(),
+                    // M7b #94: SSRF 校验 — 沙箱内 wasm 调用应受 SSRF 限制
+                    http_client: SsrfGuard::new()
+                        .build_safe_client()
+                        .unwrap_or_else(|e| {
+                            warn!(target: "nebula.wasm", "failed to build SSRF-safe HTTP client, falling back to default: {e}");
+                            reqwest::Client::new()
+                        }),
+                    stdout: String::new(),
+                    stderr: String::new(),
                 },
             );
 
@@ -372,7 +391,7 @@ mod wasm_sandbox {
 
             match result {
                 Ok(_) => {
-                    info!(target: "nine_snake.wasm", func = func_name, elapsed_ms, "WASM execution completed");
+                    info!(target: "nebula.wasm", func = func_name, elapsed_ms, "WASM execution completed");
                     Ok(SandboxResult {
                         success: true,
                         stdout: String::new(),
@@ -386,7 +405,7 @@ mod wasm_sandbox {
                     let msg = format!("{e}");
                     let out_of_fuel = msg.contains("all fuel consumed");
                     if out_of_fuel {
-                        warn!(target: "nine_snake.wasm", func = func_name, max_fuel = self.max_fuel, "WASM execution ran out of fuel");
+                        warn!(target: "nebula.wasm", func = func_name, max_fuel = self.max_fuel, "WASM execution ran out of fuel");
                     }
                     Ok(SandboxResult {
                         success: false,

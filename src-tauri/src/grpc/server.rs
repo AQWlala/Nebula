@@ -1,13 +1,13 @@
-//! gRPC server implementation for nine-snake v0.3.
+﻿//! gRPC server implementation for nebula v0.3.
 //!
 //! ## Layout
 //!
 //! The tonic-generated server trait (`MemoryService`, `SwarmService`,
 //! `ReflectService`, `LlmService`, `SkillService`) is normally
-//! produced by `tonic-build` from `proto/nine_snake.proto`. Because
+//! produced by `tonic-build` from `proto/nebula.proto`. Because
 //! v0.3 ships without a `cargo` build step, this file **simulates**
 //! the generated traits: every method is declared in the
-//! [`NineSnakeService`] trait and implemented in [`NineSnakeServiceImpl`].
+//! [`NebulaService`] trait and implemented in [`NebulaServiceImpl`].
 //!
 //! The body of each RPC is a JSON blob (see
 //! [`crate::grpc::proto::JsonBody`]). Tonic's `transport::Server`
@@ -51,7 +51,7 @@ use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 
 use super::proto::*;
-use crate::api::server::NineSnakeService as ApiNineSnakeService;
+use crate::api::server::NebulaService as ApiNebulaService;
 use crate::skills::types as skill_types;
 use crate::AppState;
 
@@ -86,8 +86,8 @@ impl GrpcHandle {
         }
         if let Some(join) = self.join.take() {
             match join.await {
-                Ok(_) => info!(target: "nine_snake.grpc", addr = %self.addr, "gRPC server stopped"),
-                Err(e) => warn!(target: "nine_snake.grpc", error = ?e, "gRPC server join error"),
+                Ok(_) => info!(target: "nebula.grpc", addr = %self.addr, "gRPC server stopped"),
+                Err(e) => warn!(target: "nebula.grpc", error = ?e, "gRPC server join error"),
             }
         }
     }
@@ -118,14 +118,14 @@ pub async fn start_server(bind_addr: String, state: AppState) -> Result<GrpcHand
         .with_context(|| format!("bind gRPC listener on {addr}"))?;
     let bound = listener.local_addr()?;
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let service = Arc::new(NineSnakeServiceImpl::new(state));
+    let service = Arc::new(NebulaServiceImpl::new(state));
     let join = tokio::spawn(async move {
         // v0.3 inner shim: a `tokio::spawn`-per-connection HTTP/2
         // listener. v0.5 will replace this with
         // `tonic::transport::Server::builder().add_service(...).serve_with_shutdown(...)`.
         accept_loop(listener, service, shutdown_rx).await;
     });
-    info!(target: "nine_snake.grpc", addr = %bound, "gRPC server task spawned");
+    info!(target: "nebula.grpc", addr = %bound, "gRPC server task spawned");
     Ok(GrpcHandle {
         addr: bound,
         shutdown_tx: Some(shutdown_tx),
@@ -137,13 +137,13 @@ pub async fn start_server(bind_addr: String, state: AppState) -> Result<GrpcHand
 // Service trait
 // ---------------------------------------------------------------------------
 
-/// A trait that mirrors the 22 RPCs from `proto/nine_snake.proto`.
+/// A trait that mirrors the 22 RPCs from `proto/nebula.proto`.
 ///
 /// Each method takes a `JsonBody<Req>` and returns a `Result<JsonBody<Res>,
 /// GrpcError>` so the wire codec stays uniform. v0.5 will replace
 /// this trait with the tonic-generated one.
 #[async_trait]
-pub trait NineSnakeService: Send + Sync {
+pub trait NebulaService: Send + Sync {
     // Memory (8 RPCs)
     async fn store(&self, req: StoreMemoryRequest) -> Result<StoreMemoryResponse, GrpcError>;
     async fn get(&self, req: GetMemoryRequest) -> Result<Memory, GrpcError>;
@@ -249,11 +249,11 @@ impl From<anyhow::Error> for GrpcError {
 
 /// Concrete service implementation. Each method delegates to the
 /// Tauri-command layer (the single source of business logic).
-pub struct NineSnakeServiceImpl {
+pub struct NebulaServiceImpl {
     state: AppState,
 }
 
-impl NineSnakeServiceImpl {
+impl NebulaServiceImpl {
     pub fn new(state: AppState) -> Self {
         Self { state }
     }
@@ -261,7 +261,7 @@ impl NineSnakeServiceImpl {
 
 #[cfg(feature = "grpc")]
 #[async_trait]
-impl NineSnakeService for NineSnakeServiceImpl {
+impl NebulaService for NebulaServiceImpl {
     // ---- Memory ---------------------------------------------------------
 
     async fn store(&self, req: StoreMemoryRequest) -> Result<StoreMemoryResponse, GrpcError> {
@@ -371,7 +371,7 @@ impl NineSnakeService for NineSnakeServiceImpl {
             .map_err(|e| GrpcError::internal(e.to_string()))?;
         if deleted {
             if let Err(e) = lance.delete(&req.id).await {
-                tracing::warn!(target: "nine_snake.grpc", error = ?e, "lance delete failed");
+                tracing::warn!(target: "nebula.grpc", error = ?e, "lance delete failed");
             }
         }
         Ok(DeleteResponse { deleted })
@@ -605,6 +605,7 @@ impl NineSnakeService for NineSnakeServiceImpl {
             .map(|m| crate::llm::ChatMessage {
                 role: m.role,
                 content: m.content,
+                ..Default::default()
             })
             .collect();
         let model = if req.model.is_empty() {
@@ -711,6 +712,7 @@ impl NineSnakeService for NineSnakeServiceImpl {
                     Some(req.tag)
                 },
                 limit: if req.limit == 0 { 50 } else { req.limit },
+                ..Default::default()
             })
             .map_err(|e| GrpcError::internal(e.to_string()))?;
         Ok(ListSkillsResponse {
@@ -740,7 +742,7 @@ impl NineSnakeService for NineSnakeServiceImpl {
 
 #[cfg(not(feature = "grpc"))]
 #[async_trait]
-impl NineSnakeService for NineSnakeServiceImpl {
+impl NebulaService for NebulaServiceImpl {
     async fn store(&self, _req: StoreMemoryRequest) -> Result<StoreMemoryResponse, GrpcError> {
         Err(GrpcError::internal("gRPC feature not enabled"))
     }
@@ -956,13 +958,13 @@ fn agent_kind_from_rust(s: &str) -> AgentKind {
 #[cfg(feature = "grpc")]
 async fn accept_loop(
     listener: tokio::net::TcpListener,
-    service: Arc<NineSnakeServiceImpl>,
+    service: Arc<NebulaServiceImpl>,
     mut shutdown_rx: oneshot::Receiver<()>,
 ) {
     loop {
         tokio::select! {
             _ = &mut shutdown_rx => {
-                info!(target: "nine_snake.grpc", "gRPC server received shutdown signal");
+                info!(target: "nebula.grpc", "gRPC server received shutdown signal");
                 return;
             }
             accepted = listener.accept() => {
@@ -971,12 +973,12 @@ async fn accept_loop(
                         let svc = service.clone();
                         tokio::spawn(async move {
                             if let Err(e) = handle_connection(stream, svc).await {
-                                debug!(target: "nine_snake.grpc", error = ?e, "connection error");
+                                debug!(target: "nebula.grpc", error = ?e, "connection error");
                             }
                         });
                     }
                     Err(e) => {
-                        warn!(target: "nine_snake.grpc", error = ?e, "accept failed");
+                        warn!(target: "nebula.grpc", error = ?e, "accept failed");
                     }
                 }
             }
@@ -984,10 +986,10 @@ async fn accept_loop(
     }
 }
 
-/// HTTP/2 service that dispatches gRPC requests to the NineSnakeService.
+/// HTTP/2 service that dispatches gRPC requests to the NebulaService.
 async fn grpc_service(
     req: Request<Incoming>,
-    service: Arc<NineSnakeServiceImpl>,
+    service: Arc<NebulaServiceImpl>,
 ) -> Result<Response<BoxBody>, Infallible> {
     let path = req.uri().path().to_string();
 
@@ -995,7 +997,7 @@ async fn grpc_service(
     let body_bytes = match req.into_body().collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(e) => {
-            error!(target: "nine_snake.grpc", error = ?e, "failed to read request body");
+            error!(target: "nebula.grpc", error = ?e, "failed to read request body");
             let resp = Response::builder()
                 .status(hyper::StatusCode::BAD_REQUEST)
                 .body(vec_to_box_body(Vec::new()))
@@ -1008,7 +1010,7 @@ async fn grpc_service(
     // Route to the appropriate handler based on path
     let (status, response_body) = match path.as_str() {
         // Memory service RPCs
-        "/nine_snake.v1.MemoryService/Store" => {
+        "/nebula.v1.MemoryService/Store" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<StoreMemoryRequest>>(bytes)
             }) {
@@ -1019,7 +1021,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/Get" => {
+        "/nebula.v1.MemoryService/Get" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<GetMemoryRequest>>(bytes)
             }) {
@@ -1030,7 +1032,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/Search" => {
+        "/nebula.v1.MemoryService/Search" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<SearchRequest>>(bytes)
             }) {
@@ -1041,7 +1043,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/ListRecent" => {
+        "/nebula.v1.MemoryService/ListRecent" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ListRecentRequest>>(bytes)
             }) {
@@ -1052,7 +1054,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/UpdateImportance" => {
+        "/nebula.v1.MemoryService/UpdateImportance" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<UpdateImportanceRequest>>(bytes)
             }) {
@@ -1063,7 +1065,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/Delete" => {
+        "/nebula.v1.MemoryService/Delete" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<DeleteRequest>>(bytes)
             }) {
@@ -1074,7 +1076,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/GetMany" => {
+        "/nebula.v1.MemoryService/GetMany" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<GetManyRequest>>(bytes)
             }) {
@@ -1085,7 +1087,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.MemoryService/GetStats" => {
+        "/nebula.v1.MemoryService/GetStats" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<StatsRequest>>(bytes)
             }) {
@@ -1097,7 +1099,7 @@ async fn grpc_service(
             }
         }
         // Swarm service RPCs
-        "/nine_snake.v1.SwarmService/Execute" => {
+        "/nebula.v1.SwarmService/Execute" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<SwarmRequest>>(bytes)
             }) {
@@ -1108,7 +1110,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SwarmService/ListAgents" => {
+        "/nebula.v1.SwarmService/ListAgents" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ListAgentsRequest>>(bytes)
             }) {
@@ -1119,7 +1121,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SwarmService/GetAgent" => {
+        "/nebula.v1.SwarmService/GetAgent" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<GetAgentRequest>>(bytes)
             }) {
@@ -1130,7 +1132,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SwarmService/StreamEvents" => {
+        "/nebula.v1.SwarmService/StreamEvents" => {
             // Server-streaming RPC - return unimplemented for now
             (
                 hyper::StatusCode::NOT_IMPLEMENTED,
@@ -1138,7 +1140,7 @@ async fn grpc_service(
             )
         }
         // Reflect service RPCs
-        "/nine_snake.v1.ReflectService/ReflectNow" => {
+        "/nebula.v1.ReflectService/ReflectNow" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ReflectRequest>>(bytes)
             }) {
@@ -1149,7 +1151,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.ReflectService/ListReflections" => {
+        "/nebula.v1.ReflectService/ListReflections" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ListReflectionsRequest>>(bytes)
             }) {
@@ -1160,7 +1162,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.ReflectService/GetReflection" => {
+        "/nebula.v1.ReflectService/GetReflection" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<GetReflectionRequest>>(bytes)
             }) {
@@ -1172,7 +1174,7 @@ async fn grpc_service(
             }
         }
         // LLM service RPCs
-        "/nine_snake.v1.LLMService/Complete" => {
+        "/nebula.v1.LLMService/Complete" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<CompleteRequest>>(bytes)
             }) {
@@ -1183,7 +1185,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.LLMService/Chat" => {
+        "/nebula.v1.LLMService/Chat" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ChatRequest>>(bytes)
             }) {
@@ -1194,7 +1196,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.LLMService/Embed" => {
+        "/nebula.v1.LLMService/Embed" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<EmbedRequest>>(bytes)
             }) {
@@ -1206,7 +1208,7 @@ async fn grpc_service(
             }
         }
         // Skill service RPCs
-        "/nine_snake.v1.SkillService/Create" => {
+        "/nebula.v1.SkillService/Create" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<CreateSkillRequest>>(bytes)
             }) {
@@ -1217,7 +1219,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SkillService/Use" => {
+        "/nebula.v1.SkillService/Use" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<UseSkillRequest>>(bytes)
             }) {
@@ -1228,7 +1230,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SkillService/Rate" => {
+        "/nebula.v1.SkillService/Rate" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<RateSkillRequest>>(bytes)
             }) {
@@ -1239,7 +1241,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SkillService/List" => {
+        "/nebula.v1.SkillService/List" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<ListSkillsRequest>>(bytes)
             }) {
@@ -1250,7 +1252,7 @@ async fn grpc_service(
                 Err(e) => (hyper::StatusCode::BAD_REQUEST, encode_error(&e)),
             }
         }
-        "/nine_snake.v1.SkillService/Search" => {
+        "/nebula.v1.SkillService/Search" => {
             match decode_and_dispatch!(&body_vec, |bytes| {
                 serde_json::from_slice::<JsonBody<SearchSkillsRequest>>(bytes)
             }) {
@@ -1262,7 +1264,7 @@ async fn grpc_service(
             }
         }
         _ => {
-            warn!(target: "nine_snake.grpc", path = %path, "unknown gRPC path");
+            warn!(target: "nebula.grpc", path = %path, "unknown gRPC path");
             (hyper::StatusCode::NOT_FOUND, b"unknown method".to_vec())
         }
     };
@@ -1278,7 +1280,7 @@ async fn grpc_service(
 
     let body = response_body;
     let resp = response.body(vec_to_box_body(body)).unwrap_or_else(|e| {
-        error!(target: "nine_snake.grpc", error = %e, "failed to build gRPC response");
+        error!(target: "nebula.grpc", error = %e, "failed to build gRPC response");
         Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(vec_to_box_body(Vec::new()))
@@ -1320,7 +1322,7 @@ fn vec_to_box_body(data: Vec<u8>) -> BoxBody {
 /// the response back. This implementation uses hyper's HTTP/2 server support.
 async fn handle_connection(
     stream: tokio::net::TcpStream,
-    service: Arc<NineSnakeServiceImpl>,
+    service: Arc<NebulaServiceImpl>,
 ) -> Result<()> {
     let io = TokioIo::new(stream);
 

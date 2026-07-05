@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v0.5: Writing 模式
  *
  * 左侧：模板库 + 文档列表
@@ -12,10 +12,11 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { marked } from 'marked';
 import {
-  NineSnakeAPI,
+  nebulaAPI,
   type Document,
   type WritingTemplate,
 } from '../lib/tauri';
+import { t } from '../i18n';
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -32,7 +33,7 @@ export function WritingMode() {
 
   // 初始加载
   useEffect(() => {
-    NineSnakeAPI.writingListTemplates().then(setTemplates).catch((e) => setError(String(e)));
+    nebulaAPI.writingListTemplates().then(setTemplates).catch((e) => setError(String(e)));
     refreshDocuments();
   }, []);
 
@@ -43,7 +44,7 @@ export function WritingMode() {
     setSaveState('saving');
     const t = setTimeout(async () => {
       try {
-        await NineSnakeAPI.writingUpdateDocument(currentId, content);
+        await nebulaAPI.writingUpdateDocument(currentId, content);
         setSaveState('saved');
         // 后端 word_count 已经更新，刷新列表里那一行
         refreshDocuments();
@@ -57,7 +58,7 @@ export function WritingMode() {
 
   const refreshDocuments = async () => {
     try {
-      const docs = await NineSnakeAPI.writingListDocuments(50);
+      const docs = await nebulaAPI.writingListDocuments(50);
       setDocuments(docs);
     } catch (e) {
       console.error('refreshDocuments failed:', e);
@@ -76,7 +77,7 @@ export function WritingMode() {
     if (!currentTemplate) return;
     const values: Record<string, string> = {};
     for (const p of currentTemplate.placeholders) {
-      const v = prompt(`${p.hint}${p.multiline ? '（可粘贴多行）' : ''}`);
+      const v = prompt(`${p.hint}${p.multiline ? t('writingMode.multilineHint') : ''}`);
       if (v === null) return;
       values[p.name] = v;
     }
@@ -86,7 +87,7 @@ export function WritingMode() {
     }
     const finalTitle = values.title || currentTemplate.label;
     try {
-      const doc = await NineSnakeAPI.writingCreateDocument({
+      const doc = await nebulaAPI.writingCreateDocument({
         title: finalTitle,
         template_id: currentTemplate.id,
         content: body,
@@ -105,10 +106,10 @@ export function WritingMode() {
 
   const onNewBlank = async () => {
     try {
-      const doc = await NineSnakeAPI.writingCreateDocument({
-        title: '未命名文档',
+      const doc = await nebulaAPI.writingCreateDocument({
+        title: t('writingMode.untitled'),
         template_id: 'blank',
-        content: '# 标题\n\n开始写…',
+        content: t('writingMode.defaultContent'),
         metadata: null,
       });
       await refreshDocuments();
@@ -130,9 +131,9 @@ export function WritingMode() {
   };
 
   const onDelete = async (id: string) => {
-    if (!confirm('确认删除该文档？此操作不可撤销。')) return;
+    if (!confirm(t('writingMode.confirmDelete'))) return;
     try {
-      await NineSnakeAPI.writingDeleteDocument(id);
+      await nebulaAPI.writingDeleteDocument(id);
       if (currentId === id) {
         setCurrentId(null);
         setTitle('');
@@ -147,10 +148,10 @@ export function WritingMode() {
   const onExport = async (format: 'markdown' | 'html') => {
     if (!currentId) return;
     try {
-      const exp = await NineSnakeAPI.writingExport(currentId, format);
+      const exp = await nebulaAPI.writingExport(currentId, format);
       // 复制到剪贴板（如果可用）+ 浏览器下载
       try {
-        await NineSnakeAPI.osClipboardWrite(exp.body);
+        await nebulaAPI.osClipboardWrite(exp.body);
       } catch {
         // 剪贴板不可用时不阻塞
       }
@@ -172,33 +173,33 @@ export function WritingMode() {
     <div class="writing-mode">
       <aside class="writing-side">
         <section class="writing-templates">
-          <h3>模板</h3>
+          <h3>{t('writingMode.templates')}</h3>
           <div class="template-grid">
-            {templates.map((t) => (
+            {templates.map((tpl) => (
               <button
-                key={t.id}
-                class={`template-card ${templateId === t.id ? 'active' : ''}`}
-                onClick={() => setTemplateId(t.id)}
-                title={t.description}
+                key={tpl.id}
+                class={`template-card ${templateId === tpl.id ? 'active' : ''}`}
+                onClick={() => setTemplateId(tpl.id)}
+                title={tpl.description}
               >
-                <div class="tpl-icon">{t.icon}</div>
-                <div class="tpl-label">{t.label}</div>
-                <div class="tpl-desc">{t.description}</div>
+                <div class="tpl-icon">{tpl.icon}</div>
+                <div class="tpl-label">{tpl.label}</div>
+                <div class="tpl-desc">{tpl.description}</div>
               </button>
             ))}
           </div>
           <button class="primary" disabled={!currentTemplate} onClick={onNewFromTemplate}>
-            + 用当前模板新建
+            {t('writingMode.newFromTemplate')}
           </button>
           <button class="ghost" onClick={onNewBlank}>
-            + 空白文档
+            {t('writingMode.newBlank')}
           </button>
         </section>
 
         <section class="writing-docs">
-          <h3>我的文档</h3>
+          <h3>{t('writingMode.myDocs')}</h3>
           {documents.length === 0 ? (
-            <p class="empty">还没有文档</p>
+            <p class="empty">{t('writingMode.noDocs')}</p>
           ) : (
             <ul>
               {documents.map((d) => (
@@ -209,7 +210,7 @@ export function WritingMode() {
                 >
                   <div class="doc-title">{d.title}</div>
                   <div class="doc-meta">
-                    {d.word_count} 字 · {tplLabel(d.template_id, templates)}
+                    {d.word_count} {t('writingMode.words')} · {tplLabel(d.template_id, templates)}
                   </div>
                   <button class="doc-del" onClick={(e) => { e.stopPropagation(); onDelete(d.id); }}>
                     ×
@@ -229,25 +230,25 @@ export function WritingMode() {
                 class="doc-title-input"
                 value={title}
                 onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
-                placeholder="文档标题"
+                placeholder={t('writingMode.titlePlaceholder')}
               />
               <span class={`save-state save-${saveState}`}>
                 {saveState === 'idle' && '—'}
-                {saveState === 'saving' && '保存中…'}
-                {saveState === 'saved' && '已保存'}
-                {saveState === 'error' && '保存失败'}
+                {saveState === 'saving' && t('writingMode.saving')}
+                {saveState === 'saved' && t('writingMode.saved')}
+                {saveState === 'error' && t('writingMode.saveError')}
               </span>
               <div class="spacer" />
-              <span class="stats">{wordCount} 字 · {readMinutes} 分钟阅读</span>
-              <button onClick={() => onExport('markdown')}>导出 MD</button>
-              <button onClick={() => onExport('html')}>导出 HTML</button>
+              <span class="stats">{t('writingMode.wordCount', { count: wordCount, minutes: readMinutes })}</span>
+              <button onClick={() => onExport('markdown')}>{t('writingMode.exportMd')}</button>
+              <button onClick={() => onExport('html')}>{t('writingMode.exportHtml')}</button>
             </header>
             <div class="writing-tabs">
               <button class={tab === 'edit' ? 'active' : ''} onClick={() => setTab('edit')}>
-                编辑
+                {t('writingMode.edit')}
               </button>
               <button class={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}>
-                预览
+                {t('writingMode.preview')}
               </button>
             </div>
             {tab === 'edit' ? (
@@ -255,7 +256,7 @@ export function WritingMode() {
                 class="doc-editor"
                 value={content}
                 onInput={(e) => setContent((e.target as HTMLTextAreaElement).value)}
-                placeholder="开始写吧…支持 Markdown"
+                placeholder={t('writingMode.editorPlaceholder')}
               />
             ) : (
               <article
@@ -268,9 +269,9 @@ export function WritingMode() {
           </>
         ) : (
           <div class="writing-empty">
-            <h2>✍️ 选一个模板开始</h2>
-            <p>支持长文 / 报告 / 邮件 / 小说等 6 种内置模板</p>
-            <p>内容会自动保存到本地，并镜像到 L3 长期记忆</p>
+            <h2>{t('writingMode.emptyTitle')}</h2>
+            <p>{t('writingMode.emptySubtitle1')}</p>
+            <p>{t('writingMode.emptySubtitle2')}</p>
             {error && <p class="error">{error}</p>}
           </div>
         )}
@@ -302,6 +303,6 @@ function sanitizeFilename(s: string): string {
 }
 
 function tplLabel(id: string, all: WritingTemplate[]): string {
-  if (id === 'blank') return '空白';
-  return all.find((t) => t.id === id)?.label ?? id;
+  if (id === 'blank') return t('writingMode.blank');
+  return all.find((tpl) => tpl.id === id)?.label ?? id;
 }

@@ -1,43 +1,43 @@
-/**
- * v1.0.1 (P0#07): NineSnakeStore.checkOllama unit tests.
+﻿/**
+ * v1.0.1 (P0#07): nebulaStore.checkOllama unit tests.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NineSnakeStore } from '../nineSnakeStore';
-import { NineSnakeAPI } from '../../lib/tauri';
+import { nebulaStore } from '../nebulaStore';
+import { nebulaAPI } from '../../lib/tauri';
 
 beforeEach(() => {
   // Reset the status back to "unknown" so each test starts clean.
-  NineSnakeStore.ollamaStatus.value = 'unknown';
+  nebulaStore.ollamaStatus.value = 'unknown';
   vi.restoreAllMocks();
 });
 
-describe('NineSnakeStore.checkOllama (P0#07)', () => {
+describe('nebulaStore.checkOllama (P0#07)', () => {
   it('checkOllama_down_sets_signal_to_down', async () => {
-    vi.spyOn(NineSnakeAPI, 'healthFull').mockRejectedValue(new Error('connection refused'));
-    const result = await NineSnakeStore.checkOllama();
+    vi.spyOn(nebulaAPI, 'healthFull').mockRejectedValue(new Error('connection refused'));
+    const result = await nebulaStore.checkOllama();
     expect(result).toBe('down');
-    expect(NineSnakeStore.ollamaStatus.value).toBe('down');
+    expect(nebulaStore.ollamaStatus.value).toBe('down');
   });
 
   it('checkOllama ok (ollama: "ok") keeps signal green', async () => {
-    vi.spyOn(NineSnakeAPI, 'healthFull').mockResolvedValue({
+    vi.spyOn(nebulaAPI, 'healthFull').mockResolvedValue({
       status: 'ok',
       version: '1.0.0',
       ollama: 'ok',
     });
-    const result = await NineSnakeStore.checkOllama();
+    const result = await nebulaStore.checkOllama();
     expect(result).toBe('ok');
-    expect(NineSnakeStore.ollamaStatus.value).toBe('ok');
+    expect(nebulaStore.ollamaStatus.value).toBe('ok');
   });
 
   it('checkOllama absent ollama field is treated as down', async () => {
-    vi.spyOn(NineSnakeAPI, 'healthFull').mockResolvedValue({
+    vi.spyOn(nebulaAPI, 'healthFull').mockResolvedValue({
       status: 'ok',
       version: '1.0.0',
       ollama: 'down',
     });
-    const result = await NineSnakeStore.checkOllama();
+    const result = await nebulaStore.checkOllama();
     expect(result).toBe('down');
-    expect(NineSnakeStore.ollamaStatus.value).toBe('down');
+    expect(nebulaStore.ollamaStatus.value).toBe('down');
   });
 });

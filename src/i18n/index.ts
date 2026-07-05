@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0: lightweight i18n.
  *
  * Two-locale MVP (zh-CN, en-US).  Locale is read from
@@ -26,7 +26,7 @@ const DICTS: Record<Locale, Dict> = {
   'zh-CN': zhCN as unknown as Dict,
 };
 
-const STORAGE_KEY = 'nine-snake.locale';
+const STORAGE_KEY = 'nebula.locale';
 
 function detectLocale(): Locale {
   try {

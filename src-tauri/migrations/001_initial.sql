@@ -1,4 +1,4 @@
--- nine-snake v7.0 memory system initial schema
+﻿-- nebula v7.0 memory system initial schema
 -- All memory-related tables; designed to support 8 layers (L0..L7)
 -- and 5 memory types (Semantic, Episodic, Procedural, Emotional, Metacognitive).
 
@@ -163,4 +163,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT OR IGNORE INTO schema_version(version, applied_at, description)
-VALUES (1, strftime('%s','now'), 'nine-snake v7.0 initial memory schema');
+VALUES (1, strftime('%s','now'), 'nebula v7.0 initial memory schema');

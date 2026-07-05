@@ -1,4 +1,4 @@
-//! v1.0: criterion bench — cold-start time.
+﻿//! v1.0: criterion bench — cold-start time.
 //!
 //! Measures the wall-clock time to construct an in-memory
 //! `AppState`.  We can't easily measure the *full* Tauri
@@ -7,7 +7,7 @@
 //! cold-start budget on the reference machine.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use nine_snake_lib::{build_state_for_tests, AppConfig};
+use nebula_lib::{build_state_for_tests, AppConfig};
 use tempfile::tempdir;
 
 fn bench_app_bootstrap(c: &mut Criterion) {

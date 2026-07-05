@@ -1,4 +1,4 @@
-// v0.3: Skill Browser (技能浏览器).
+﻿// v0.3: Skill Browser (技能浏览器).
 //
 // The marketplace shows every skill the local engine knows about,
 // grouped by language and tag. Each card exposes three actions:
@@ -14,7 +14,9 @@
 
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { NineSnakeAPI, type Skill } from '../lib/tauri';
+import { nebulaAPI, type Skill } from '../lib/tauri';
+import { Modal } from './Modal';
+import { t } from '../i18n';
 
 const LANG_BADGE: Record<string, string> = {
   rust: '🦀 rust',
@@ -51,7 +53,7 @@ export function SkillMarketplace(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const data = await NineSnakeAPI.skillList({
+      const data = await nebulaAPI.skillList({
         language: langFilter || undefined,
         tag: tagFilter || undefined,
         limit: 100,
@@ -95,7 +97,7 @@ export function SkillMarketplace(): JSX.Element {
   async function runSkill(skill: Skill) {
     setUseResult(null);
     try {
-      const result = await NineSnakeAPI.skillUse({ id: skill.id, params: {} });
+      const result = await nebulaAPI.skillUse({ id: skill.id, params: {} });
       setUseResult({ skillId: skill.id, output: result.output });
       await reload();
     } catch (e) {
@@ -105,7 +107,7 @@ export function SkillMarketplace(): JSX.Element {
 
   async function submitRating(skill: Skill, rating: number) {
     try {
-      await NineSnakeAPI.skillRate({ id: skill.id, rating });
+      await nebulaAPI.skillRate({ id: skill.id, rating });
       setRateOpen(null);
       await reload();
     } catch (e) {
@@ -116,28 +118,28 @@ export function SkillMarketplace(): JSX.Element {
   return (
     <div class="skill-browser">
       <header class="skill-browser__header">
-        <h2>🔍 技能浏览器 / Skill Browser</h2>
+        <h2>🔍 {t('skillMarketplace.title')}</h2>
         <div class="skill-browser__actions">
           <input
             type="search"
-            placeholder="search skills…"
+            placeholder={t('skillMarketplace.searchPlaceholder')}
             value={search}
             onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
           />
           <button onClick={() => setCreateOpen(true)} class="primary">
-            + 新建技能
+            {t('skillMarketplace.newSkill')}
           </button>
         </div>
       </header>
 
       {error && <div class="error">⚠ {error}</div>}
-      {loading && <div class="muted">loading…</div>}
+      {loading && <div class="muted">{t('skillMarketplace.loading')}</div>}
 
       <div class="skill-browser__filters">
         <label>
-          语言：
+          {t('skillMarketplace.language')}
           <select value={langFilter} onChange={(e) => setLangFilter((e.target as HTMLSelectElement).value)}>
-            <option value="">全部</option>
+            <option value="">{t('skillMarketplace.all')}</option>
             {allLanguages.map((l) => (
               <option key={l} value={l}>
                 {LANG_BADGE[l] ?? l}
@@ -146,9 +148,9 @@ export function SkillMarketplace(): JSX.Element {
           </select>
         </label>
         <label>
-          标签：
+          {t('skillMarketplace.tag')}
           <select value={tagFilter} onChange={(e) => setTagFilter((e.target as HTMLSelectElement).value)}>
-            <option value="">全部</option>
+            <option value="">{t('skillMarketplace.all')}</option>
             {allTags.map((t) => (
               <option key={t} value={t}>
                 #{t}
@@ -157,13 +159,13 @@ export function SkillMarketplace(): JSX.Element {
           </select>
         </label>
         <span class="muted">
-          {visible.length} / {skills.length} skills
+          {t('skillMarketplace.skillCount', { visible: visible.length, total: skills.length })}
         </span>
       </div>
 
       {visible.length === 0 && !loading ? (
         <div class="empty-state">
-          <p>还没有技能。点击 <strong>+ 新建技能</strong> 创建第一个吧。</p>
+          <p dangerouslySetInnerHTML={{ __html: t('skillMarketplace.empty') }} />
         </div>
       ) : (
         <ul class="skill-cards">
@@ -173,7 +175,7 @@ export function SkillMarketplace(): JSX.Element {
                 <h3>{s.name}</h3>
                 <span class="skill-card__lang">{LANG_BADGE[s.language] ?? s.language}</span>
               </div>
-              <p class="skill-card__desc">{s.description || <em>no description</em>}</p>
+              <p class="skill-card__desc">{s.description || <em>{t('skillMarketplace.noDescription')}</em>}</p>
               <div class="skill-card__meta">
                 <span>{formatRating(s.avg_rating, s.rating_count)}</span>
                 <span>·</span>
@@ -181,7 +183,7 @@ export function SkillMarketplace(): JSX.Element {
                 {s.source_memory_id && (
                   <>
                     <span>·</span>
-                    <span title={s.source_memory_id}>from memory</span>
+                    <span title={s.source_memory_id}>{t('skillMarketplace.fromMemory')}</span>
                   </>
                 )}
               </div>
@@ -193,8 +195,8 @@ export function SkillMarketplace(): JSX.Element {
                 ))}
               </div>
               <div class="skill-card__actions">
-                <button onClick={() => void runSkill(s)}>▶ Use</button>
-                <button onClick={() => setRateOpen(s)}>★ Rate</button>
+                <button onClick={() => void runSkill(s)}>{t('skillMarketplace.use')}</button>
+                <button onClick={() => setRateOpen(s)}>{t('skillMarketplace.rate')}</button>
               </div>
             </li>
           ))}
@@ -202,13 +204,13 @@ export function SkillMarketplace(): JSX.Element {
       )}
 
       {useResult && (
-        <Modal title="▶ Skill output" onClose={() => setUseResult(null)}>
-          <pre class="skill-output">{useResult.output || '(empty output)'}</pre>
+        <Modal open={true} title={t('skillMarketplace.skillOutput')} onClose={() => setUseResult(null)}>
+          <pre class="skill-output">{useResult.output || t('skillMarketplace.emptyOutput')}</pre>
         </Modal>
       )}
 
       {rateOpen && (
-        <Modal title={`★ Rate "${rateOpen.name}"`} onClose={() => setRateOpen(null)}>
+        <Modal open={true} title={t('skillMarketplace.rateTitle', { name: rateOpen.name })} onClose={() => setRateOpen(null)}>
           <RatingPicker
             onSubmit={(r) => void submitRating(rateOpen, r)}
             onCancel={() => setRateOpen(null)}
@@ -252,9 +254,9 @@ function RatingPicker({
         <span class="muted">{value}/5</span>
       </div>
       <div class="modal__actions">
-        <button onClick={onCancel}>取消</button>
+        <button onClick={onCancel}>{t('skillMarketplace.cancel')}</button>
         <button class="primary" onClick={() => onSubmit(value)}>
-          提交
+          {t('skillMarketplace.submit')}
         </button>
       </div>
     </div>
@@ -280,7 +282,7 @@ function CreateSkillModal({
     setBusy(true);
     setErr(null);
     try {
-      await NineSnakeAPI.skillCreate({
+      await nebulaAPI.skillCreate({
         name: name.trim(),
         description: description.trim(),
         code,
@@ -299,21 +301,21 @@ function CreateSkillModal({
   }
 
   return (
-    <Modal title="+ 新建技能" onClose={onClose}>
+    <Modal open={true} title={t('skillMarketplace.createTitle')} onClose={onClose}>
       <div class="form">
         <label>
-          名称
+          {t('skillMarketplace.name')}
           <input value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} />
         </label>
         <label>
-          描述
+          {t('skillMarketplace.description')}
           <input
             value={description}
             onInput={(e) => setDescription((e.target as HTMLInputElement).value)}
           />
         </label>
         <label>
-          语言
+          {t('skillMarketplace.languageLabel')}
           <select value={language} onChange={(e) => setLanguage((e.target as HTMLSelectElement).value)}>
             <option value="rust">rust</option>
             <option value="python">python</option>
@@ -323,7 +325,7 @@ function CreateSkillModal({
           </select>
         </label>
         <label>
-          标签（逗号分隔）
+          {t('skillMarketplace.tags')}
           <input
             value={tags}
             placeholder="e.g. string, utility"
@@ -331,7 +333,7 @@ function CreateSkillModal({
           />
         </label>
         <label>
-          代码
+          {t('skillMarketplace.code')}
           <textarea
             rows={10}
             value={code}
@@ -341,10 +343,10 @@ function CreateSkillModal({
         {err && <div class="error">⚠ {err}</div>}
         <div class="modal__actions">
           <button onClick={onClose} disabled={busy}>
-            取消
+            {t('skillMarketplace.cancel')}
           </button>
           <button class="primary" onClick={submit} disabled={busy || !name.trim() || !code.trim()}>
-            {busy ? '提交中…' : '创建'}
+            {busy ? t('skillMarketplace.creating') : t('skillMarketplace.create')}
           </button>
         </div>
       </div>
@@ -352,26 +354,4 @@ function CreateSkillModal({
   );
 }
 
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: JSX.Element | JSX.Element[];
-  onClose: () => void;
-}): JSX.Element {
-  return (
-    <div class="modal-backdrop" onClick={onClose}>
-      <div class="modal" onClick={(e) => e.stopPropagation()}>
-        <header class="modal__header">
-          <h3>{title}</h3>
-          <button class="modal__close" onClick={onClose} aria-label="close">
-            ✕
-          </button>
-        </header>
-        <div class="modal__body">{children}</div>
-      </div>
-    </div>
-  );
-}
+

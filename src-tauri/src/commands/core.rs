@@ -5,8 +5,9 @@ use tauri::State;
 use tracing::instrument;
 
 use crate::commands::error::CommandError;
+use crate::diagnostics::DoctorReport;
 use crate::memory::MigrationStatus;
-use crate::metrics::MetricsSnapshot;
+use crate::metrics::{build_ttft_stats, MetricsSnapshot, TtftStats};
 use crate::AppState;
 
 /// v1.0: front-end handshake.  The store calls this on mount to
@@ -55,6 +56,17 @@ pub struct HealthDto {
     pub ollama: String,
 }
 
+/// T-E-S-62: doctor 健康检查 — 并发执行 10 个子系统检查
+/// (AppConfig / Keychain / SQLite / LanceDB / Ollama / Gateway /
+/// Sidecar / IPC / 日志目录 / 备份目录),返回结构化 `DoctorReport`
+/// (ok/warn/fail 分级 + 修复建议)。任一子检查失败不导致整体失败,
+/// 由前端 DoctorView 渲染提示用户。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "doctor_run"))]
+pub async fn doctor_run(state: State<'_, AppState>) -> Result<DoctorReport, CommandError> {
+    Ok(crate::diagnostics::run_doctor(&state).await)
+}
+
 /// v1.0: returns the cold-start report.  Cheap; just a clone of
 /// the in-memory `BTreeMap`.
 #[tauri::command]
@@ -83,6 +95,16 @@ pub async fn perf_sample(
 pub async fn metrics(state: State<'_, AppState>) -> Result<MetricsSnapshot, CommandError> {
     let _ = state;
     Ok(crate::metrics::global().snapshot())
+}
+
+/// T-E-D-02: Tauri command — 返回首响时间(TTFT)统计快照。
+/// 内部调用 [`crate::metrics::build_ttft_stats`],传入全局 Metrics 单例。
+/// 前端通过 `invoke('metrics_ttft')` 拿到 `avg_us` / `count` 用于性能监控。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "metrics_ttft"))]
+pub async fn metrics_ttft(state: State<'_, AppState>) -> Result<TtftStats, CommandError> {
+    let _ = state;
+    Ok(build_ttft_stats(crate::metrics::global()))
 }
 
 /// v0.2: Tauri command — read the current migration status.
@@ -133,10 +155,21 @@ pub struct AppSettingsDto {
     pub extra_shell_bins: Option<Vec<String>>,
     /// Onboarding completed.
     pub onboarding_done: Option<bool>,
+    /// T-E-A-05: 日预算(USD),0=不限制。
+    pub daily_budget_usd: Option<f64>,
+    /// T-E-S-40: 主 LLM provider(deepseek/ollama/openai-compat/anthropic)。
+    pub llm_provider: Option<String>,
+    /// T-E-S-40: OpenAI 兼容 provider base URL(vLLM/LMStudio/OpenRouter/自建)。
+    pub openai_compat_url: Option<String>,
+    /// T-E-S-40: OpenAI 兼容 provider 默认模型名。
+    pub openai_compat_model: Option<String>,
+    /// T-E-B-09: 启动时监控的文件夹列表(canonicalized 字符串)。
+    /// 保存设置时通过 `file_watcher.reload_paths` 热更新。
+    pub watch_paths: Option<Vec<String>>,
 }
 
 fn settings_path() -> std::path::PathBuf {
-    let base = std::env::var("NINE_SNAKE_DATA_DIR").unwrap_or_else(|_| ".".to_string());
+    let base = std::env::var("NEBULA_DATA_DIR").unwrap_or_else(|_| ".".to_string());
     std::path::PathBuf::from(base).join("settings.json")
 }
 
@@ -181,14 +214,42 @@ pub async fn save_app_settings(
         for b in extras {
             if !state.shell.is_allowed(b) {
                 tracing::warn!(
-                    target: "nine_snake.cmd",
+                    target: "nebula.cmd",
                     bin = %b,
                     "user requested shell bin not in default whitelist; v1.0 cannot hot-add (see docs)"
                 );
             }
         }
     }
-    write_settings(&settings).map_err(|e| CommandError::internal("save_app_settings", &e))
+    write_settings(&settings).map_err(|e| CommandError::internal("save_app_settings", &e))?;
+
+    // T-E-A-05: 热更新日预算到 LlmGateway(无需重启)。
+    if let Some(budget) = &settings.daily_budget_usd {
+        state.llm.set_daily_budget(*budget);
+    }
+
+    // T-E-B-09: 热更新文件夹监控路径。
+    // 若 `watch_paths` 字段出现(即便是空 Vec)即触发 reload。
+    // - 空 Vec:清空所有 watcher(相当于停用)
+    // - 非空 Vec:替换 watcher 集合
+    // 若 engine 从未 start 且新列表非空,会退化为 start + 需要 spawn_worker;
+    // 但首次保存设置通常在 bootstrap 之后,worker 已按 config 启动。
+    if let Some(watch_paths) = &settings.watch_paths {
+        let path_bufs: Vec<std::path::PathBuf> =
+            watch_paths.iter().map(std::path::PathBuf::from).collect();
+        let needs_start = state.file_watcher_worker.lock().is_none();
+        if needs_start && !path_bufs.is_empty() {
+            // engine 尚未启动:先 start 再 spawn_worker。
+            state.file_watcher.start(path_bufs);
+            if let Some(handle) = state.file_watcher.clone().spawn_worker() {
+                *state.file_watcher_worker.lock() = Some(handle);
+            }
+        } else {
+            state.file_watcher.reload_paths(path_bufs);
+        }
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -257,4 +318,75 @@ pub async fn get_api_key() -> Result<Option<MaskedApiKey>, CommandError> {
 pub async fn delete_api_key() -> Result<(), CommandError> {
     crate::security::keychain::delete(crate::security::keychain::KEY_API_KEY)
         .map_err(|e| CommandError::internal("delete_api_key", &e))
+}
+
+// ---------------------------------------------------------------------------
+// T-E-S-40: 多 provider keychain 命令(deepseek/openai-compat/anthropic)。
+// 保留旧 set_api_key/get_api_key/delete_api_key 兼容,新命令通过 `provider`
+// 字符串路由到对应 slot。
+// ---------------------------------------------------------------------------
+
+/// 根据 provider 名返回 keychain slot 常量。
+/// 未知 provider 回退到 `KEY_API_KEY`(向后兼容)。
+fn provider_key_slot(provider: &str) -> &'static str {
+    match provider {
+        "deepseek" => crate::security::keychain::KEY_DEEPSEEK_API_KEY,
+        "openai-compat" => crate::security::keychain::KEY_OPENAI_COMPAT_API_KEY,
+        "anthropic" => crate::security::keychain::KEY_ANTHROPIC_API_KEY,
+        // 回退到旧 slot,保持与 set_api_key 行为一致。
+        _ => crate::security::keychain::KEY_API_KEY,
+    }
+}
+
+/// T-E-S-40: 写入指定 provider 的 API key 到 OS keychain。
+/// `value` 为空时视为删除(对齐 `set_api_key` 语义)。
+#[tauri::command]
+#[instrument(fields(otel.kind = "set_provider_api_key"))]
+pub async fn set_provider_api_key(
+    provider: String,
+    value: String,
+) -> Result<(), CommandError> {
+    let slot = provider_key_slot(&provider);
+    if value.trim().is_empty() {
+        crate::security::keychain::delete(slot)
+            .map_err(|e| CommandError::internal("set_provider_api_key", &e))?;
+        return Ok(());
+    }
+    crate::security::keychain::set(slot, &value)
+        .map_err(|e| CommandError::internal("set_provider_api_key", &e))
+}
+
+/// T-E-S-40: 读取指定 provider 的 API key(掩码版)。
+/// 返回 `Option<MaskedApiKey>`,`None` 表示该 provider 未配置。
+#[tauri::command]
+#[instrument(fields(otel.kind = "get_provider_api_key"))]
+pub async fn get_provider_api_key(
+    provider: String,
+) -> Result<Option<MaskedApiKey>, CommandError> {
+    let slot = provider_key_slot(&provider);
+    let raw = crate::security::keychain::get(slot)
+        .map_err(|e| CommandError::internal("get_provider_api_key", &e))?;
+    Ok(raw.map(|key| {
+        let len = key.len();
+        let prefix_len = key.len().min(3);
+        let suffix_len = key.len().min(3);
+        let prefix = key[..prefix_len].to_string();
+        let suffix = if len > 6 {
+            &key[len - suffix_len..]
+        } else {
+            ""
+        };
+        let masked = if len > 6 {
+            format!("{}****{}", &key[..prefix_len], suffix)
+        } else if len > 0 {
+            format!("{}****", &key[..prefix_len])
+        } else {
+            String::new()
+        };
+        MaskedApiKey {
+            masked,
+            length: len,
+            prefix,
+        }
+    }))
 }

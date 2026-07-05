@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a feature for nine-snake
+about: Suggest a feature for nebula
 title: "[Feature] "
 labels: enhancement
 ---
