@@ -1,4 +1,4 @@
-﻿// Build script for `nebula`.
+// Build script for `nebula`.
 // Two responsibilities:
 //   1. Tauri build glue (icon, capabilities, etc.)
 //   2. v0.3: compile the gRPC protobuf services into a Rust module
@@ -14,7 +14,7 @@ fn main() {
     // tonic-build and doesn't try to compile the .proto file.
     #[cfg(feature = "grpc")]
     {
-        let proto_path = "proto/nebula.proto";
+        let proto_path = "proto/nine_snake.proto";
         println!("cargo:rerun-if-changed={proto_path}");
 
         let mut config = tonic_build::configure()
