@@ -1,4 +1,4 @@
-﻿//! v1.0: criterion bench — memory subsystem hot paths.
+//! v1.0: criterion bench — memory subsystem hot paths.
 //!
 //! Two micro-benchmarks:
 //!   * `sponge_absorb`      — insert a single memory.
@@ -34,7 +34,7 @@ fn bench_summary_build(c: &mut Criterion) {
                 "x".repeat(2000).as_str(),
                 SourceKind::AgentOutput,
             );
-            let _ = m.summary.s80.clone();
+            let _ = m.summary.s50.clone();
         });
     });
 }

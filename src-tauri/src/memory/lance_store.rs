@@ -1,11 +1,11 @@
 //! LanceDB-backed dense vector store for memory embeddings.
 //!
 //! The store keeps a fixed-dimension vector per memory id and supports
-//! cosine-similarity top-k queries. In v0.1 we use a **real** LanceDB
-//! connection (`lancedb = "0.4"`); the previous in-memory mirror is
-//! gone. The LanceDB API is itself async (`table.add(...).execute()`,
-//! `query().nearest_to(...).limit(k).execute()`), so we never block
-//! the Tauri runtime on Arrow / Lance I/O.
+//! cosine-similarity top-k queries. We use a **real** LanceDB
+//! connection (`lancedb = "0.31"`, arrow 58.0); the previous in-memory
+//! mirror is gone. The LanceDB API is itself async
+//! (`table.add(...).execute()`, `query().nearest_to(...).limit(k).execute()`),
+//! so we never block the Tauri runtime on Arrow / Lance I/O.
 //!
 //! Build variants:
 //! - Default (`--features vector-store`, on by default): real LanceDB
@@ -34,7 +34,8 @@ const FALLBACK_WARNING_THRESHOLD: usize = 8_000;
 
 #[cfg(feature = "vector-store")]
 use arrow_array::{
-    Array, FixedSizeListArray, Float32Array, RecordBatch, RecordBatchIterator, StringArray,
+    Array, FixedSizeListArray, Float32Array, RecordBatch, RecordBatchIterator, RecordBatchReader,
+    StringArray,
 };
 #[cfg(feature = "vector-store")]
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
@@ -246,11 +247,16 @@ impl LanceStore {
                 let _ = table.delete(&predicate).await; // ignore "no rows matched"
 
                 // Build the new record batch and stream it in.
+                // lancedb 0.31's `Table::add` requires `T: Scannable`. The trait
+                // is no longer implemented for `RecordBatchIterator` directly —
+                // it is implemented for `Box<dyn RecordBatchReader + Send>`, so
+                // we box the iterator into that trait object.
                 let batch = build_record_batch(&[id.to_string()], &[vector.to_vec()], self.dim)?;
                 let iter =
                     RecordBatchIterator::new(vec![Ok(batch)].into_iter(), self.schema.clone());
+                let reader: Box<dyn RecordBatchReader + Send> = Box::new(iter);
                 table
-                    .add(iter)
+                    .add(reader)
                     .execute()
                     .await
                     .with_context(|| format!("lance add for {id}"))?;
@@ -282,9 +288,12 @@ impl LanceStore {
         {
             if let Some(table) = self.ensure_table().await? {
                 let predicate = format!("{ID_COL} = '{}'", id.replace('\'', "''"));
-                table.delete(&predicate).await.unwrap_or_else(|e| {
+                // lancedb 0.31's `Table::delete` returns `Result<DeleteResult>`
+                // (was `Result<()>` in 0.4). We discard the `DeleteResult` and
+                // only log on error.
+                if let Err(e) = table.delete(&predicate).await {
                     warn!(target: "nebula.memory", error = %e, "lance delete failed");
-                });
+                }
             }
             Ok(removed)
         }

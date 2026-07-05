@@ -1,198 +1,205 @@
-# Nebula · 知识星云
+<div align="center">
 
-> A local-first AI assistant that evolves with your knowledge.
+# 🌌 Nebula · 知识星云
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/test.yml) [![Release](https://img.shields.io/badge/release-v2.0.0-blue)](CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+**你的 AI 第二大脑，本地优先，与你的知识共同演化。**
 
-**Nebula** 是一款本地优先的 AI 助手，用 Rust + Tauri 2.0 + Preact 构建。它像宇宙中的星云一样，不断从你的知识和经验中演化成长，所有数据默认存储在本地，你的记忆只属于你。
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Release](https://img.shields.io/badge/release-v2.0.0-blue)](CHANGELOG.md)
+[![Rust](https://img.shields.io/badge/Rust-102K+-orange)](https://www.rust-lang.org/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-yellow)](https://tauri.app/)
 
----
+**5 层记忆 · 6 Agent 蜂群 · E2EE 同步 · 本地推理 · MIT 开源**
 
-## 🌌 为什么选择 Nebula？
-
-| 特性 | 说明 |
-|------|------|
-| 🧠 **5 层记忆架构** | L0 缓存 → L4 知识，自动压缩与层级提升，L5 元认知反思 |
-| 🐝 **蜂群协作** | 6 种 Agent（Coder/Writer/Reviewer/Researcher/Planner/Generic）协同工作 |
-| 🔐 **隐私优先** | 数据默认本地存储，E2EE 同步（X25519 + AES-256-GCM） |
-| ⚡ **本地推理** | 通过 Ollama 运行本地模型，也可降级到 Anthropic Claude |
-| 📚 **LLM Wiki** | 自动将对话编译为可编辑的 Wiki 笔记，支持双向链接 |
-| 🔧 **可扩展** | 技能系统，自定义 AI 能力（WASM/MCP/OpenAPI） |
-| 🌍 **国际化** | 中文 / 英文界面，开箱即用 |
+</div>
 
 ---
 
-## 🗺️ 核心架构
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                    Tauri Shell (Rust)                     │
-│                                                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐  │
-│  │  Memory   │ │   LLM    │ │  Swarm   │ │   Sync     │  │
-│  │  L0 – L5  │ │  Ollama  │ │  6 Agents│ │   E2EE     │  │
-│  │ SQLite +  │ │  Claude  │ │  Bus +   │ │  X25519 +  │  │
-│  │  LanceDB  │ │  Gateway │ │Negotiator│ │  AES-GCM   │  │
-│  └─────┬─────┘ └────┬─────┘ └────┬─────┘ └────────────┘  │
-│        └─────────────┴────────────┘                       │
-│                       ▲                                   │
-│              ┌────────┴────────┐                          │
-│              │    AppState     │  Security · ACL    │
-│              └────────┬────────┘                          │
-└───────────────────────┼──────────────────────────────────┘
-                        │ 106 Tauri Commands + gRPC + REST
-┌───────────────────────┼──────────────────────────────────┐
-│              Preact Front-end  ▼                          │
-│                                                          │
-│   Chat · Swarm · Memory · Code · Skills · Settings      │
-│   Streaming Chat · Wiki Notes · Device Management        │
-│   Command Palette (⌘K) · i18n · Dark Mode               │
-└──────────────────────────────────────────────────────────┘
-```
+> **云端 AI 越强大，你的思考越被托管。**
+>
+> 别把第二大脑，租给别人。
 
 ---
 
-## ✨ 功能亮点
+## 🌌 这不是又一个 ChatGPT 套壳
 
-### 🧠 记忆系统
+Nebula 是一款**本地优先**的 AI 助手，但它的真正野心不是"聊天"，而是 **记忆**。
 
-5 层记忆架构，模拟人类记忆的层级递进：
+- 你和它聊过的每一句话，它会**记住**
+- 你写过的代码、调研过的资料，它会**沉淀**
+- 你三个月前的灵感，它会**主动回忆**
+- 它会**反思**自己的判断，**进化**自己的能力
+- 所有这一切，**数据只属于你**——本地存储，端到端加密同步
 
-| 层级 | 名称 | 说明 | 状态 |
+**别人卖你 AI，Nebula 卖你对 AI 的主权。**
+
+📖 完整产品哲学见 [营销白皮书](docs/WHITEPAPER_v2.0_marketing.md)
+
+---
+
+## 💔 你也有这些困扰吗？
+
+| 痛点 | Nebula 的回答 |
+|------|--------------|
+| 🤯 **遗忘焦虑** — 三个月前的灵感像从未发生过 | L4/L5 记忆主动召回，"三年前的论证逻辑"也能引用 |
+| 😰 **隐私让渡** — 把大脑租给 OpenAI/Notion | 本地存储 + E2EE + SQLCipher，私钥永不出设备 |
+| 😩 **AI 失忆** — 每次对话重新解释你是谁 | 5 层演化记忆，AI 越用越懂你 |
+| 🗂️ **笔记失控** — Notion/Obsidian 越用越乱 | LLM Wiki 双向链接 + 黑洞引擎自动压缩 |
+| 💸 **Token 烧钱** — 跑一次复杂任务几十刀 | SemanticCache 降 70% Token + Ollama 本地零费用 |
+
+---
+
+## ✨ 四个让 Nebula 不同的理由
+
+### 1. 🧠 5 层记忆架构 — 不是聊天记录，是会演化的记忆
+
+业界大部分"AI 记忆"只是把历史对话塞回 Prompt。Nebula 不一样：
+
+| 层级 | 名称 | 角色 | 状态 |
 |------|------|------|------|
-| L0 | 缓存 | 最近访问 + 会话上下文（LRU, 64MB） | ✅ |
-| L1 | 消息 | 对话/操作原始记录（7天保留） | ✅ |
-| L2 | 经验 | 命名实体、概念关联 | ✅ |
-| L3 | 事实 | 结构化知识 + 技能库 | ✅ |
-| L4 | 知识 | 跨任务抽象 + 用户偏好 | ✅ |
-| L5 | 教训 | 元认知反思与自我改进 | ⚠️ 预览 |
+| **L0** | 缓存 | 当前会话上下文，毫秒级响应 | ✅ |
+| **L1** | 消息 | 原始对话/操作流水 | ✅ |
+| **L2** | 经验 | 实体关联、概念网络 | ✅ |
+| **L3** | 事实 | 结构化知识 + 技能库 | ✅ |
+| **L4** | 知识 | 跨任务抽象 + 用户偏好 + 价值对齐 | ✅ |
+| **L5** | 教训 | **元认知反思，自我改进** ⚡ | ✅ |
 
-- **自动压缩**：低重要性记忆自动归档，保持系统轻盈
-- **向量搜索**：LanceDB 驱动的语义检索 + SQLite 全文搜索
-- **BM25 混合搜索**：关键词精确匹配 + 向量语义搜索的完美结合
-- **访问控制**：Memory ACL 管理记忆的读写权限
-- **实体抽取**：LLM 驱动的实体与关系自动发现
+**黑洞引擎**压缩低价值记忆，**海绵引擎**吸收高价值记忆——你的记忆像真正的星云，**有生有灭，自我演化**。
 
-### 📚 LLM Wiki
+### 2. 🐝 蜂群协作 — 一个 Agent 不够，那就六个
 
-将对话自动编译为结构化知识：
+复杂任务从来不是一个人能搞定的。Nebula 内置 6 种专业 Agent：
 
-- **智能编译**：每次对话完成后自动生成 Wiki 笔记
-- **双向链接**：`[[笔记名]]` 语法创建知识网络
-- **可编辑**：Markdown 视图直接编辑，修改后自动重新向量化
-- **索引维护**：自动生成 `index.md` 和 `log.md`，追踪知识演化
-- **知识卡片**：点击链接查看完整知识卡片，包含定义、相关实体和来源
+| Agent | 角色 | 典型场景 |
+|-------|------|---------|
+| 🎨 **Writer** | 撰写文档、博客、提案 | 技术博客、API 文档 |
+| 💻 **Coder** | 实现代码、修复 Bug | 代码实现、PR 审查 |
+| 🔍 **Reviewer** | 审查、校对、挑刺 | 事实核查、一致性检查 |
+| 📚 **Researcher** | 调研背景、整理资料 | 主题调研 |
+| 📋 **Planner** | 拆解任务、分配调度 | 任务分解 |
+| 🛠️ **Generic** | 通用兜底 | 任意场景 |
 
-### 🐝 蜂群 (Swarm)
+通过 **AgentBus** 通信，由 **Negotiator** 协商置信度，必要时 LLM 仲裁——这是真正的**协作工作流**，不是简单的多 Agent。
 
-多 Agent 协作完成复杂任务：
+### 3. 🔐 隐私优先 — 你的记忆，只属于你
 
-- **6 种 Agent**：Coder / Writer / Reviewer / Researcher / Planner / Generic
-- **AgentBus 消息总线**：点对点 + 广播通信
-- **Negotiator 协商**：置信度投票 + LLM 仲裁 + 降级策略
-- **动态 Agent 池**：按任务复杂度动态调整 Agent 数量
-- **函数调用**：原生 LLM Function Calling 支持
+| 安全能力 | 实现 |
+|---------|------|
+| **本地存储** | SQLite + LanceDB，数据默认不上云 |
+| **E2EE 同步** | X25519 + HKDF-SHA256 + AES-256-GCM，私钥永不出设备 |
+| **SSRF 防护** | 拦截对内网的请求 |
+| **Prompt 注入检测** | 扫描恶意输入 |
+| **Shell 白名单** | 仅允许预授权命令 |
+| **KeyVault** | OS Keychain 优先 |
+| **DB 加密** | SQLCipher 全库加密 |
 
-### 🔐 安全与隐私
+**你不用把记忆上传到别人的服务器，也能跨设备同步。**
 
-- **SSRF 防护**：拦截对内网地址的请求
-- **注入检测**：扫描 Prompt 注入和凭证泄露
-- **Shell 白名单**：仅允许预授权命令执行
-- **E2EE 同步**：X25519 密钥交换 + AES-256-GCM 加密
-- **设备管理**：配对设备注册与撤销
-- **KeyVault**：OS Keychain 优先 + AES-256-GCM 文件降级
+### 4. 💰 成本可控 — 不烧钱的 AI 才能用得起
 
-### 💰 成本优化
-
-- **SemanticCache**：语义缓存层，相似查询直接返回，降低 70% Token 消耗
-- **TokenJuice**：三级压缩策略，减少输入 Token 数量
-- **ModelRouter**：智能路由到最优模型（本地/远程）
-- **日预算限制**：超限自动切换到免费本地模型
-- **成本追踪**：详细的 Token 费用统计与可视化
+| 优化手段 | 效果 |
+|---------|------|
+| **SemanticCache** | 语义缓存，**降 70% Token** |
+| **TokenJuice** | 三级压缩 |
+| **ModelRouter** | 智能路由，本地优先 |
+| **日预算** | 超限自动切换免费本地模型 |
+| **本地推理** | Ollama 跑 qwen2.5/deepseek，零 API 费用 |
 
 ---
 
-## 📦 安装
+## 🎯 谁在用 Nebula？
 
-### 预编译包
+### 📝 写作者 — 让 AI 记住你的写作偏好
 
-前往 [Releases](https://github.com/AQWlala/nebula/releases) 下载最新版本：
+> "三年前我写过一篇关于分布式锁的文章，Nebula 不仅记得，还能在新文章里自动引用我当时的论证逻辑。"
 
-| 平台 | 安装包 |
-|------|--------|
-| Windows x86_64 | `.msi` / `.exe` (NSIS) |
-| macOS Apple Silicon | `.dmg` |
-| macOS Intel | `.dmg` |
-| Linux x86_64 | `.AppImage` |
+### 💻 开发者 — 让 AI 记住你的代码风格
+
+> "我对 Reviewer Agent 说'检查这个 PR'，它直接引用了我半年前的代码评审标准。它真的'懂'我。"
+
+### 📚 研究者 — 让 AI 帮你构建知识网络
+
+> "三个月前调研的论文，Nebula 自动整理成 Wiki 笔记，今天写论文时一搜就有，还带双向链接。"
+
+### 🧠 知识工作者 — 让 AI 成为你的外脑
+
+> "我把每天的灵感随手丢给 Nebula，半年后回看，它已经替我织出了一张知识星图。"
 
 ---
 
-## 🛠️ 开发
-
-### 前置依赖
-
-| 工具 | 版本 |
-|------|------|
-| Rust | 1.75+ |
-| Node.js | 20+ |
-| npm | 10+ |
-| Ollama | latest (可选，运行时需要) |
-
-### 快速开始
+## 🚀 60 秒上手
 
 ```bash
-git clone https://github.com/AQWlala/nebula.git
-cd nebula
+git clone https://github.com/AQWlala/Nebula.git
+cd Nebula
 npm install
 npm run tauri:dev
 ```
 
-### 构建
+或下载预编译包：[Releases](https://github.com/AQWlala/Nebula/releases)
 
-```bash
-npm run tauri:build
-```
+| 平台 | 安装包 |
+|------|--------|
+| Windows | `.msi` / `.exe` |
+| macOS Apple Silicon | `.dmg` |
+| macOS Intel | `.dmg` |
+| Linux | `.AppImage` / `.deb` |
 
-### 测试
-
-```bash
-# Rust 测试
-cd src-tauri && cargo test
-
-# 前端测试
-npm test
-
-# E2E 测试
-npm run test:e2e
-```
+> **零配置开箱即用**。可选配置 Ollama（本地推理）或 DeepSeek/Anthropic API Key（远程模型）。不配置也能跑。
 
 ---
 
-## ⚙️ 配置
+## ⚖️ 与同类产品对比
 
-通过环境变量配置，常用项：
+| 能力 | **Nebula** | ChatGPT | Notion AI | MemGPT | Supermemory | Obsidian+AI |
+|------|-----------|---------|-----------|--------|-------------|-------------|
+| **本地优先** | ✅ | ❌ | ❌ | 部分 | ❌ | ✅ |
+| **5 层记忆** | ✅ + L5 反思 | ❌ | ❌ | 3 层 | ❌ | ❌ |
+| **多 Agent** | ✅ 6 蜂群 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **E2EE 同步** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **本地推理** | ✅ Ollama | ❌ | ❌ | ✅ | ❌ | 部分 |
+| **LLM Wiki** | ✅ 双向链接 | ❌ | 部分 | ❌ | ❌ | 部分 |
+| **开源** | ✅ MIT | ❌ | ❌ | ✅ | 部分 | 插件 |
+| **数据归属** | **你** | OpenAI | Notion | 你 | 他们 | 你 |
+| **月费** | **$0** | $20+ | $10+ | $0 | $10+ | $0+ |
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `NEBULA_DB` | `nebula.db` | SQLite 数据库路径 |
-| `NEBULA_LANCE` | `nebula_lance` | LanceDB 向量库路径 |
-| `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama 服务地址 |
-| `NEBULA_CHAT_MODEL` | `qwen2.5:3b` | 对话模型 |
-| `NEBULA_EMBED_MODEL` | `BAAI/bge-small-zh-v1.5` | 嵌入模型 |
-| `NEBULA_ANTHROPIC_KEY` | — | Anthropic Claude API Key |
-| `NEBULA_ANTHROPIC_MODEL` | `claude-3-5-haiku-20241022` | Claude 模型名 |
+> **核心差异**：别人卖你 AI，Nebula 卖你**对 AI 的主权**。
 
 ---
 
-## 🛡️ 技术栈
+## 🧬 技术深度
 
-| 层 | 技术 |
-|----|------|
-| 后端 | Rust · Tauri 2.0 · Tokio · rusqlite · LanceDB · tonic (gRPC) |
-| 前端 | Preact · TypeScript · Vite · Tailwind CSS · Monaco Editor · xterm.js |
-| 安全 | X25519 · AES-256-GCM · Ed25519 · HKDF-SHA256 |
-| AI | Ollama · Anthropic Claude · DeepSeek · 自定义 LLM Gateway |
-| 同步 | E2EE · CRDT (LWW) |
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       Tauri Shell (Rust)                          │
+│                                                                  │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐      │
+│   │  Memory   │  │   LLM    │  │  Swarm   │  │   Sync     │      │
+│   │  L0 – L5  │  │  Gateway │  │  6 Agents│  │   E2EE     │      │
+│   │ SQLite +  │  │ Ollama   │  │ AgentBus │  │ X25519 +   │      │
+│   │ LanceDB   │  │ DeepSeek │  │Negotiator│  │ AES-GCM    │      │
+│   │ 黑洞+海绵 │  │ Claude   │  │  Master  │  │  CRDT      │      │
+│   └─────┬─────┘  └────┬─────┘  └────┬─────┘  └────────────┘      │
+│         └─────────────┴─────────────┘                             │
+│                        ▲                                          │
+│               ┌────────┴────────┐                                 │
+│               │    AppState     │  Security · ACL · Cost          │
+│               └────────┬────────┘                                 │
+└────────────────────────┼─────────────────────────────────────────┘
+                         │ 257 Tauri Commands + 23 gRPC RPCs
+┌────────────────────────┼─────────────────────────────────────────┐
+│                Preact Frontend  ▼                                  │
+│   Chat · Swarm · Memory · Code · Skills · Arena · Wiki            │
+│   Streaming · DAG Canvas · Knowledge Cards · ⌘K Palette           │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**一些数字**：
+- **102,743 行 Rust 代码** · 287 个源文件
+- **257 个 Tauri 命令** · 23 个 gRPC RPC
+- **36 个 SQL 迁移** · 完整数据层演进
+- **28 个场景模板** · 开箱即用的工作流
+- **17+ Feature Flag** · 三种部署形态可裁剪
 
 ---
 
@@ -200,25 +207,71 @@ npm run test:e2e
 
 | 文档 | 内容 |
 |------|------|
+| [营销白皮书](docs/WHITEPAPER_v2.0_marketing.md) | 产品哲学、定位、竞品、商业模式 ⭐ |
+| [技术白皮书](docs/WHITEPAPER_v2.0.md) | 完整技术架构与实现状态 |
 | [用户指南](docs/USER_GUIDE.md) | 安装、配置、使用 |
-| [开发者指南](docs/DEVELOPER_GUIDE.md) | 开发环境搭建、贡献流程 |
 | [架构详解](docs/ARCHITECTURE.md) | 系统架构与设计决策 |
-| [API 文档](docs/API.md) | 完整 API 参考 |
-| [故障排查](docs/TROUBLESHOOTING.md) | 常见问题与解决方案 |
+| [开发者指南](docs/DEVELOPER_GUIDE.md) | 开发环境、贡献流程 |
+| [路线图 v2.1](docs/ROADMAP_v2.1.md) | 下一版本规划 |
 | [变更日志](CHANGELOG.md) | 版本变更记录 |
+
+---
+
+## 🗺️ 路线图
+
+- ✅ **v2.0** — 5 层记忆 + 蜂群 + E2EE + LLM Wiki + Arena（已交付）
+- 🔧 **v2.1** — Skill Marketplace Hub · 多模态视觉 · MCP 生态 · 双棘轮 E2EE
+- 🔬 **v2.2** — Soul 灵魂编辑器 · 自主进化引擎 · Master Orchestrator
+- 🌌 **v3.0** — 知识星图可视化 · 跨用户知识共享 · Agent 领导者选举
 
 ---
 
 ## 🤝 贡献
 
-欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+Nebula 是 MIT 开源项目，欢迎一切形式的贡献：
+
+- ⭐ **Star** 这个仓库（让更多人看到）
+- 🐛 [提交 Issue](https://github.com/AQWlala/Nebula/issues) 反馈问题
+- 🔀 [发起 PR](https://github.com/AQWlala/Nebula/pulls) 改进代码
+- 💬 分享你的使用场景到 [Discussions](https://github.com/AQWlala/Nebula/discussions)
+
+**Good First Issue**：
+1. `[i18n]` 补充日语/韩语翻译
+2. `[docs]` 为 6 个 Agent 各写一篇使用案例
+3. `[ui]` 给 DAG Canvas 添加节点右键菜单
+4. `[test]` 为 SemanticCache 补充测试用例
+
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
+## 💭 Nebula 宣言
+
+> 我们相信，AI 应该是大脑的延伸，不是大脑的替代。
+>
+> 当所有 AI 都在往"更大、更强、更云端"狂奔时，我们选择另一条路：
+>
+> **让 AI 回到本地，让记忆回到你的手中，让思考回到你的主权。**
+>
+> Nebula 不是 OpenAI 的复制品，不是 ChatGPT 的套壳。
+> 它是你**真正拥有的**第二大脑——会记住、会思考、会进化，但**永远属于你**。
+>
+> 你的知识，如星云般不断演化。
+>
+> 这就是 Nebula。
 
 ---
 
 ## 📄 许可证
 
-[MIT](LICENSE) © 2024-2026 nebula team
+[MIT](LICENSE) © 2024-2026 Nebula Team
 
 ---
 
-> **Nebula** — 你的知识，如星云般不断演化。
+<div align="center">
+
+**如果 Nebula 让你眼前一亮，给个 ⭐ 让更多人看到它。**
+
+**你的知识，如星云般不断演化。** 🌌
+
+</div>
