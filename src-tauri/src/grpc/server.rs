@@ -1,10 +1,10 @@
-﻿//! gRPC server implementation for nebula v0.3.
+//! gRPC server implementation for nebula v0.3.
 //!
 //! ## Layout
 //!
 //! The tonic-generated server trait (`MemoryService`, `SwarmService`,
 //! `ReflectService`, `LlmService`, `SkillService`) is normally
-//! produced by `tonic-build` from `proto/nebula.proto`. Because
+//! produced by `tonic-build` from `proto/nine_snake.proto`. Because
 //! v0.3 ships without a `cargo` build step, this file **simulates**
 //! the generated traits: every method is declared in the
 //! [`NebulaService`] trait and implemented in [`NebulaServiceImpl`].

@@ -24,7 +24,7 @@ required-features = ["grpc"]
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 # v0.3: tonic-build generates Rust types + service traits from
-# `proto/nebula.proto`. Pinned to 0.12 to match the runtime dep.
+# `proto/nine_snake.proto`. Pinned to 0.12 to match the runtime dep.
 # Marked optional so the minimal build (`--no-default-features`)
 # doesn't compile it (and its heavy transitive dep graph). The
 # `[features].grpc` list below uses `dep:tonic-build` to enable it
