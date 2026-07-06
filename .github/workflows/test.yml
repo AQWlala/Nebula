@@ -70,10 +70,18 @@ jobs:
           # 如果编译失败,提取错误消息作为 GitHub annotations
           if [ $build_exit -ne 0 ]; then
             echo "--- Compile errors (as annotations) ---"
-            # 提取 error[E####] 行和紧跟的 --> file:line:col 行
+            # 提取 error[E####] 行作为 annotations
             grep -E "^error\[E[0-9]+\]|^error:" build-output.txt | head -n 10 | while IFS= read -r line; do
               echo "::error::$line"
             done
+            # 如果没有 error[ 行,提取 --> file:line:col 行及其前 5 行
+            # (错误消息通常在 --> 行之前)
+            if ! grep -q "^error\[" build-output.txt; then
+              echo "--- No error[ lines found, showing --> lines with context ---"
+              grep -B 5 -E "^\s+--> .*\.rs:" build-output.txt | head -n 60 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            fi
           fi
           exit $build_exit
       - name: Upload build output

@@ -117,6 +117,7 @@ pub async fn start_server(bind_addr: String, state: AppState) -> Result<GrpcHand
         .await
         .with_context(|| format!("bind gRPC listener on {addr}"))?;
     let bound = listener.local_addr()?;
+    eprintln!("[grpc] start_server: bind_addr={addr:?}, bound={bound:?}");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let service = Arc::new(NebulaServiceImpl::new(state));
     let join = tokio::spawn(async move {

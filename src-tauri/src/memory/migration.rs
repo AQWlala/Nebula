@@ -205,6 +205,12 @@ fn apply_one(conn: &Connection, m: &Migration) -> Result<()> {
 /// `PRAGMA`.  Uses the same scanner as `split_sql` so line
 /// comments (`--`) and block comments (`/* ... */`) are skipped.
 fn statement_is_pragma(stmt: &str) -> bool {
+    // Skip UTF-8 BOM (U+FEFF) if present — some editors save SQL files
+    // with BOM, which is not whitespace and would cause this function
+    // to return false, leading to PRAGMA journal_mode being executed
+    // inside a transaction ("cannot change into wal mode from within
+    // a transaction").
+    let stmt = stmt.strip_prefix('\u{feff}').unwrap_or(stmt);
     let mut chars = stmt.chars().peekable();
     let mut word_buf = String::new();
     loop {
@@ -282,6 +288,8 @@ fn apply_statements_from_vec(conn: &Connection, stmts: &[String]) -> Result<()> 
 ///     transparent,
 ///   * only emits a split when the semicolon sits at top-level.
 fn split_sql(sql: &str) -> Vec<String> {
+    // Skip UTF-8 BOM if present — see statement_is_pragma() for details.
+    let sql = sql.strip_prefix('\u{feff}').unwrap_or(sql);
     let mut out: Vec<String> = Vec::new();
     let mut buf = String::new();
     let mut chars = sql.chars().peekable();
