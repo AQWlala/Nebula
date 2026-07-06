@@ -60,27 +60,23 @@ async fn start_test_server() -> SocketAddr {
     let sync = tmp.path().join("sync");
     std::fs::create_dir_all(&sync).expect("create sync dir");
 
+    // 使用 from_env() 作为基础,仅覆盖测试需要的字段,避免
+    // AppConfig 新增字段时破坏编译 (E0063 missing fields)。
     let cfg = nebula_lib::AppConfig {
         db_path: db.to_string_lossy().into_owned(),
         lance_path: lance.to_string_lossy().into_owned(),
         ollama_url: "http://127.0.0.1:1".to_string(), // never reached
-        chat_model: "test".to_string(),
-        embed_model: "test".to_string(),
-        llm_provider: "ollama".to_string(),
-        deepseek_api_url: String::new(),
-        deepseek_api_key: None,
-        remote_fallback_url: None,
-        blackhole_threshold_days: 30,
         embedding_dim: 4,
         reflect_interval_secs: 0,
-        reflect_window_days: 7,
-        reflect_min_importance: 0.5,
         grpc_enabled: false, // we manage the lifecycle ourselves
         grpc_bind_addr: "127.0.0.1:0".to_string(),
         editor_workspace: ".".to_string(),
         sync_inbox: sync.to_string_lossy().into_owned(),
+        ..nebula_lib::AppConfig::from_env()
     };
-    let state = AppState::bootstrap(cfg).await.expect("bootstrap");
+    // bootstrap_headless 不需要 tauri::AppHandle (E0061: bootstrap 现已
+    // 改为 2 参数签名,这里用 headless 变体保持测试自包含)。
+    let state = AppState::bootstrap_headless(cfg).await.expect("bootstrap_headless");
     // Keep `state` (and the tempdir) alive for the test's
     // lifetime by parking them in a leaked `Box`.
     let _keep_alive: &'static _ = Box::leak(Box::new((state.clone(), tmp)));

@@ -1,4 +1,4 @@
-﻿// M7b #91: channel 模块受 `channels` feature 门控(默认关闭)。
+// M7b #91: channel 模块受 `channels` feature 门控(默认关闭)。
 // 用 cfg gate 包裹导入与对应测试,避免默认构建下编译失败。
 #[cfg(feature = "channels")]
 use nebula_lib::channel::router::WebChatAdapter;
@@ -345,7 +345,7 @@ fn test_skill_audit_redaction() {
 #[test]
 fn test_channel_router_register() {
     let router = ChannelRouter::new();
-    router.register(Box::new(WebChatAdapter::new()));
+    router.register(std::sync::Arc::new(WebChatAdapter::new()));
     let channels = router.list_channels();
     assert_eq!(channels.len(), 1);
 }
