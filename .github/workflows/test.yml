@@ -174,7 +174,7 @@ jobs:
             echo "File size: $(wc -c < nextest-output.txt) bytes, $(wc -l < nextest-output.txt) lines"
             # Grep for failure markers.  Use ^\s* to match lines
             # starting with optional whitespace then the marker.
-            failures=$(grep -E "^\s+(FAIL|CANCEL|ERROR|ABORT)\b|panicked at|Terminating|^error:|test result|Tests:" nextest-output.txt | head -n 10)
+            failures=$(grep -E "^\s+(FAIL|CANCEL|ERROR|ABORT)\b|panicked at|Terminating|^error:|test result|Tests:|run_migrations failed|\[grpc_wire_test\]" nextest-output.txt | head -n 10)
             if [ -n "$failures" ]; then
               echo "--- Failures (as annotations) ---"
               echo "$failures" | while IFS= read -r line; do
@@ -196,6 +196,22 @@ jobs:
             cat nextest-output.txt
           else
             echo "::error::nextest-output.txt not found — Test step may not have run"
+            # If Build tests failed, extract compile errors from build-output.txt
+            if [ -f build-output.txt ]; then
+              echo "=== Build output (compile errors) ==="
+              echo "File size: $(wc -c < build-output.txt) bytes"
+              # Grep for Rust compiler error lines (error[E0000], error:, etc.)
+              build_errors=$(grep -E "^error\[E[0-9]+\]|^error:|--> .*\.rs:" build-output.txt | head -n 10)
+              if [ -n "$build_errors" ]; then
+                echo "--- Compile errors (as annotations) ---"
+                echo "$build_errors" | while IFS= read -r line; do
+                  echo "::error::$line"
+                done
+              fi
+              # Print last 30 lines of build output for context
+              echo "--- Last 30 lines of build output ---"
+              tail -n 30 build-output.txt
+            fi
           fi
       - name: Upload test output
         if: always()

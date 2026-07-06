@@ -1011,10 +1011,10 @@ mod tests {
         // database.  The `e2ee_keys` table MUST NOT exist.
         let (db_path, conn) = temp_db();
         run_migrations(&conn, bundled_migrations_dir()).unwrap_or_else(|e| {
-            // 打印完整错误链 (含具体失败的 migration 文件名 + SQL 语句),
-            // 便于在 CI 日志中定位是哪个 migration 失败了。
-            eprintln!("run_migrations failed (full error chain):\n{e:#}");
-            panic!("run_migrations failed: {e}");
+            // 把完整错误链嵌入 panic 消息,这样 nextest 输出和 GitHub
+            // annotations 都能直接看到具体失败的 migration 文件名 + SQL 语句,
+            // 不需要下载 artifact。
+            panic!("run_migrations failed (full error chain):\n{e:#}");
         });
         let has: bool = conn
             .query_row(

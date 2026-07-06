@@ -112,33 +112,39 @@ async fn server_binds_and_accepts_tcp_connection() {
     // scheduled immediately after `start_server` returns (the
     // `tokio::spawn` is queued but not yet polled). The kernel
     // usually queues the SYN, but under load the connect can
-    // transiently fail with ECONNREFUSED. We retry up to 5 times
-    // with 200ms back-off (total ~1s) before giving up.
+    // transiently fail with ECONNREFUSED. We retry up to 10 times
+    // with 500ms back-off (total ~5s) before giving up.
+    // Each attempt prints a diagnostic line so CI logs show the
+    // retry progression and the exact error from each attempt.
     let mut stream = {
         let mut last_err = None;
         let mut connected = None;
-        for attempt in 0..5u8 {
+        for attempt in 0..10u8 {
             let connect =
                 tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect(addr))
                     .await;
             match connect {
                 Ok(Ok(s)) => {
+                    eprintln!("[grpc_wire_test] connected on attempt {}", attempt + 1);
                     connected = Some(s);
                     break;
                 }
                 Ok(Err(e)) => {
+                    eprintln!("[grpc_wire_test] attempt {} connect failed: {e}", attempt + 1);
                     last_err = Some(format!("connect failed (attempt {}): {e}", attempt + 1));
-                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                 }
                 Err(_) => {
+                    eprintln!("[grpc_wire_test] attempt {} connect timed out (2s)", attempt + 1);
                     last_err = Some(format!("connect timed out (attempt {})", attempt + 1));
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                 }
             }
         }
         match connected {
             Some(s) => s,
             None => panic!(
-                "TCP connect to {} failed after 5 retries: {}",
+                "TCP connect to {} failed after 10 retries: {}",
                 addr,
                 last_err.unwrap_or_else(|| "unknown".to_string())
             ),
