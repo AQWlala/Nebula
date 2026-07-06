@@ -1,18 +1,15 @@
-//! P0#12 regression tests for the v0.3 gRPC wire shim.
+//! P1-A regression tests for the tonic gRPC wire layer.
 //!
-//! The v1.0 P0#12 gap is the **wire shim**: the 23 RPC method
-//! bodies are fully implemented in
-//! `nebula_lib::grpc::server::NebulaServiceImpl`, but the
-//! HTTP/2 + gRPC frame decoder is still a stub (see the
-//! `// TODO(v1.1)` note in `server.rs::handle_connection`).
+//! The default build path uses `tonic_server::start_tonic_server`
+//! (real `tonic::transport::Server` with prost-generated types).
+//! The JSON shim in `server.rs` is only used when the `json-framing`
+//! feature is explicitly enabled.
 //!
-//! These tests guard two things so that the v1.0.1 follow-up can
-//! land safely:
+//! These tests guard two things:
 //!
 //!   1. The infrastructure path (bind a TCP port, accept a
-//!      connection, close it) works end-to-end. Anyone trying to
-//!      "remove the unused server code" because "it's a stub"
-//!      will fail this test first.
+//!      connection, close it) works end-to-end with tonic's
+//!      HTTP/2 server.
 //!   2. The full set of 23 RPC method bodies is present. The
 //!      `service_implements_all_rpcs` test is a compile-time
 //!      + runtime check: it imports the `NebulaService` trait
