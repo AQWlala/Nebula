@@ -17,10 +17,16 @@ fn main() {
         let proto_path = "proto/nebula.proto";
         println!("cargo:rerun-if-changed={proto_path}");
 
+        // v2.0: 确保 out_dir 存在。该目录下的 *.v1.rs 被 .gitignore
+        // 忽略（tonic-build 构建产物），git 不跟踪空目录，CI checkout
+        // 后目录不存在会导致 compile_protos 失败 (Os code 3 NotFound)。
+        let out_dir = "src/grpc/proto";
+        std::fs::create_dir_all(out_dir).expect("failed to create grpc proto out_dir");
+
         let mut config = tonic_build::configure()
             .build_server(true)
             .build_client(true)
-            .out_dir("src/grpc/proto");
+            .out_dir(out_dir);
 
         // A few message types intentionally have their own Rust
         // counterparts (Memory, Reflection, Skill, etc.) and we keep
