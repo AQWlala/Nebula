@@ -1,0 +1,46 @@
+# Git attributes — line ending & diff normalization
+# Cross-platform: Windows checks out CRLF, commits LF; Unix checks out LF.
+
+# Auto-detect text files, normalize line endings on commit
+* text=auto eol=lf
+
+# Explicit text files
+*.rs       text eol=lf
+*.toml     text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+*.json     text eol=lf
+*.md       text eol=lf
+*.sql      text eol=lf
+*.proto    text eol=lf
+*.sh       text eol=lf
+*.ts       text eol=lf
+*.tsx      text eol=lf
+*.js       text eol=lf
+*.jsx      text eol=lf
+*.css      text eol=lf
+*.html     text eol=lf
+*.txt      text eol=lf
+*.lock     text eol=lf
+
+# Windows-specific scripts keep CRLF
+*.ps1      text eol=crlf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+
+# Binary files — no line ending conversion
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.icns     binary
+*.pdf      binary
+*.db       binary
+*.sqlite   binary
+*.sqlite3  binary
+*.wasm     binary
+*.exe      binary
+*.dll      binary
+*.so       binary
+*.dylib    binary

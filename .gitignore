@@ -58,3 +58,16 @@ cargo-errors*.txt
 # Temp cargo check output
 cargo_check_full.txt
 cargo_check_output.txt
+
+# CI diagnostic temp files
+check_ci.py
+check-*.txt
+fetch_log*.py
+fetch_logs*.py
+tmp_repro_*.py
+.tmp_*.ps1
+ci_logs.txt
+
+# Python __pycache__
+__pycache__/
+*.pyc
