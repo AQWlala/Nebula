@@ -1010,7 +1010,12 @@ mod tests {
         // Run the full bundled migration set against a clean
         // database.  The `e2ee_keys` table MUST NOT exist.
         let (db_path, conn) = temp_db();
-        run_migrations(&conn, bundled_migrations_dir()).unwrap();
+        run_migrations(&conn, bundled_migrations_dir()).unwrap_or_else(|e| {
+            // 打印完整错误链 (含具体失败的 migration 文件名 + SQL 语句),
+            // 便于在 CI 日志中定位是哪个 migration 失败了。
+            eprintln!("run_migrations failed (full error chain):\n{e:#}");
+            panic!("run_migrations failed: {e}");
+        });
         let has: bool = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='e2ee_keys'",

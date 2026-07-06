@@ -2370,9 +2370,13 @@ mod tests {
             )
             .unwrap()
         };
+        // 使用 >= 而非 >: compile_raw 和 update_note_from_user 都用
+        // chrono::Utc::now().timestamp_millis() 取时间戳,在快速 CI 上
+        // 两者可能落在同一毫秒内 (updated == created)。>= 仍能验证
+        // "update 后 updated_at 不会倒退" 这一核心契约。
         assert!(
-            updated > created,
-            "updated_at ({updated}) should be > created_at ({created})"
+            updated >= created,
+            "updated_at ({updated}) should be >= created_at ({created})"
         );
 
         cleanup(paths, dir);

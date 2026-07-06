@@ -122,7 +122,17 @@ jobs:
           CARGO_PROFILE_DEV_DEBUG: "0"
         run: |
           set +e
-          cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 > nextest-output.txt 2>&1
+          # Windows: integration test binary fails to load due to
+          # STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139) — Tauri pulls in
+          # the `windows` crate whose COM projection code references
+          # entry points not present on the GitHub Actions Windows
+          # Server runner.  Using --lib skips the integration test
+          # binary so the lib tests can still run.
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 --lib > nextest-output.txt 2>&1
+          else
+            cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 > nextest-output.txt 2>&1
+          fi
           nextest_exit=$?
           set -e
           echo "nextest exited with code $nextest_exit"

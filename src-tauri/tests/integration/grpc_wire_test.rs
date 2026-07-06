@@ -107,9 +107,43 @@ async fn server_binds_and_accepts_tcp_connection() {
     // (the wire shim is a stub anyway); we just want to confirm
     // the accept loop fires and the server's `handle_connection`
     // logs + closes.
-    let connect =
-        tokio::time::timeout(Duration::from_secs(5), tokio::net::TcpStream::connect(addr)).await;
-    let mut stream = connect.expect("connect timed out").expect("connect failed");
+    //
+    // Retry loop: on Ubuntu CI the accept_loop task may not be
+    // scheduled immediately after `start_server` returns (the
+    // `tokio::spawn` is queued but not yet polled). The kernel
+    // usually queues the SYN, but under load the connect can
+    // transiently fail with ECONNREFUSED. We retry up to 5 times
+    // with 200ms back-off (total ~1s) before giving up.
+    let mut stream = {
+        let mut last_err = None;
+        let mut connected = None;
+        for attempt in 0..5u8 {
+            let connect =
+                tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect(addr))
+                    .await;
+            match connect {
+                Ok(Ok(s)) => {
+                    connected = Some(s);
+                    break;
+                }
+                Ok(Err(e)) => {
+                    last_err = Some(format!("connect failed (attempt {}): {e}", attempt + 1));
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+                Err(_) => {
+                    last_err = Some(format!("connect timed out (attempt {})", attempt + 1));
+                }
+            }
+        }
+        match connected {
+            Some(s) => s,
+            None => panic!(
+                "TCP connect to {} failed after 5 retries: {}",
+                addr,
+                last_err.unwrap_or_else(|| "unknown".to_string())
+            ),
+        }
+    };
 
     // The server uses hyper's HTTP/2 serve_connection.  Per RFC 7540
     // §3.4, the server sends its connection preface (a SETTINGS
