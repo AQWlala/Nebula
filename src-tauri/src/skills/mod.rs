@@ -27,6 +27,7 @@ pub mod exec_approval;
 pub mod exporter;
 pub mod executor;
 pub mod extractor;
+pub mod discover;
 pub mod hub_client;
 pub mod importer;
 pub mod marketplace;

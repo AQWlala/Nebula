@@ -132,6 +132,71 @@ impl SkillStore {
         Ok(())
     }
 
+    /// Upserts a skill: inserts if new, updates if the id already exists.
+    /// Used by the auto-discovery system to refresh discovered skills.
+    pub fn upsert(&self, s: &Skill) -> Result<()> {
+        let now = chrono::Utc::now().timestamp();
+        let tags_json = serde_json::to_string(&s.tags).unwrap_or_else(|_| "[]".to_string());
+        let activation_json = s
+            .activation_condition
+            .as_ref()
+            .map(|a| serde_json::to_string(a).unwrap_or_default());
+        let platform_json = s
+            .platform
+            .as_ref()
+            .map(|p| serde_json::to_string(p).unwrap_or_default());
+        let g = self.conn.lock();
+        let memory_id = s.source_memory_id.clone().unwrap_or_else(|| s.id.clone());
+        if s.source_memory_id.is_none() {
+            g.execute(
+                "INSERT OR IGNORE INTO memories (id, memory_type, layer, content, last_access, created_at) VALUES (?1, 'Procedural', 'L3', '', ?2, ?2)",
+                params![memory_id, now],
+            )?;
+        }
+        g.execute(
+            "INSERT OR REPLACE INTO skills
+                (id, memory_id, name, description, steps, trigger,
+                 success_count, failure_count, last_used, created_at,
+                 code, language, tags, usage_count, avg_rating,
+                 rating_count, updated_at, source_memory_id,
+                 activation_condition, platform, min_confidence,
+                 trust_level, permissions, capabilities)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+                     ?7, ?8, ?9, ?10,
+                     ?11, ?12, ?13, ?14, ?15,
+                     ?16, ?17, ?18, ?19, ?20, ?21,
+                     ?22, ?23, ?24)",
+            params![
+                s.id,
+                memory_id,
+                s.name,
+                s.description,
+                "[]",
+                "",
+                0,
+                0,
+                0,
+                now,
+                s.code,
+                s.language,
+                tags_json,
+                s.usage_count,
+                s.avg_rating,
+                s.rating_count,
+                now,
+                s.source_memory_id,
+                activation_json,
+                platform_json,
+                s.min_confidence,
+                s.trust_level,
+                serde_json::to_string(&s.permissions).unwrap_or_else(|_| "[]".to_string()),
+                serde_json::to_string(&s.capabilities).unwrap_or_else(|_| "{}".to_string()),
+            ],
+        )?;
+        debug!(target: "nebula.skills", id = %s.id, name = %s.name, "upserted skill");
+        Ok(())
+    }
+
     /// Fetches a skill by id.
     pub fn get(&self, id: &str) -> Result<Option<Skill>> {
         let g = self.conn.lock();
