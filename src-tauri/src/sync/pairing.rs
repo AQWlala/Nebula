@@ -160,7 +160,8 @@ impl PairingState {
 
         // Derive session key from static keys (ECDH)
         let peer_public_key = x25519_dalek::PublicKey::from(
-            TryInto::<[u8; 32]>::try_into(peer_static_pubkey).unwrap(),
+            TryInto::<[u8; 32]>::try_into(peer_static_pubkey)
+                .expect("length checked above (32 bytes)"),
         );
         let session = self.local_identity.derive_session_key(&peer_public_key);
 
@@ -221,7 +222,8 @@ impl PairingState {
 
         // 派生会话密钥
         let peer_public_key = x25519_dalek::PublicKey::from(
-            TryInto::<[u8; 32]>::try_into(peer_static_bytes).unwrap(),
+            TryInto::<[u8; 32]>::try_into(peer_static_bytes)
+                .expect("length checked above (32 bytes)"),
         );
         let session = self.local_identity.derive_session_key(&peer_public_key);
 
