@@ -572,6 +572,11 @@ pub fn run() {
             crate::commands::db_encryption_status,
             crate::commands::db_encryption_enable,
             crate::commands::db_encryption_disable,
+            crate::commands::security::oauth_list_providers,
+            crate::commands::security::oauth_authorization_url,
+            crate::commands::security::oauth_authorize,
+            crate::commands::security::oauth_disconnect,
+            crate::commands::security::oauth_status,
             #[cfg(feature = "mcp")]
             crate::commands::mcp_server_list,
             #[cfg(feature = "mcp")]

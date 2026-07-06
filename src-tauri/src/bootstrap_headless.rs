@@ -394,6 +394,7 @@ impl AppState {
             roller,
             #[cfg(feature = "unified-dispatcher")]
             dispatcher,
+            oauth_manager: Arc::new(crate::identity::OAuthManager::new()),
         })
     }
 

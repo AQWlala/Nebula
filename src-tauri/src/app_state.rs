@@ -176,4 +176,6 @@ pub struct AppState {
     /// M7a #86: UnifiedModelDispatcher。
     #[cfg(feature = "unified-dispatcher")]
     pub dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>>,
+    /// P1-B: OAuth 2.0 manager — aggregates providers, manages token lifecycle.
+    pub oauth_manager: Arc<crate::identity::OAuthManager>,
 }

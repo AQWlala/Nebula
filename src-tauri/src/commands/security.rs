@@ -202,6 +202,80 @@ pub async fn db_encryption_disable(
     ))
 }
 
+// ---------------------------------------------------------------------------
+// P1-B: OAuth 2.0 commands
+// ---------------------------------------------------------------------------
+
+/// Returns the list of registered OAuth providers with their connection status.
+#[tauri::command]
+pub fn oauth_list_providers(
+    state: tauri::State<'_, crate::AppState>,
+) -> Vec<crate::identity::OAuthProviderInfo> {
+    state.oauth_manager.list_providers()
+}
+
+/// Returns the authorization URL for a provider.  The front-end opens this
+/// URL in the browser; after the user consents, the provider redirects to
+/// `redirect_uri` with a `code` query param which the front-end passes to
+/// [`oauth_authorize`].
+#[tauri::command]
+pub fn oauth_authorization_url(
+    state: tauri::State<'_, crate::AppState>,
+    provider_id: String,
+    state_param: Option<String>,
+) -> Result<String, CommandError> {
+    let state_val = state_param.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    state
+        .oauth_manager
+        .authorization_url(&provider_id, &state_val)
+        .map_err(|e| CommandError::internal("failed to build authorization URL", &e))
+}
+
+/// Exchanges an authorization code for a token and stores it in the keychain.
+#[tauri::command]
+pub async fn oauth_authorize(
+    state: tauri::State<'_, crate::AppState>,
+    provider_id: String,
+    code: String,
+) -> Result<(), CommandError> {
+    state
+        .oauth_manager
+        .authorize(&provider_id, &code)
+        .await
+        .map_err(|e| CommandError::internal("OAuth authorization failed", &e))
+}
+
+/// Disconnects a provider: revokes and deletes the stored token.
+#[tauri::command]
+pub async fn oauth_disconnect(
+    state: tauri::State<'_, crate::AppState>,
+    provider_id: String,
+) -> Result<(), CommandError> {
+    state
+        .oauth_manager
+        .disconnect(&provider_id)
+        .await
+        .map_err(|e| CommandError::internal("OAuth disconnect failed", &e))
+}
+
+/// Checks if a provider's token is still valid, refreshing it if needed.
+/// Returns `true` if the provider is connected with a valid token.
+#[tauri::command]
+pub async fn oauth_status(
+    state: tauri::State<'_, crate::AppState>,
+    provider_id: String,
+) -> Result<bool, CommandError> {
+    match state
+        .oauth_manager
+        .refresh_if_needed(&provider_id)
+        .await
+        .map_err(|e| CommandError::internal("OAuth status check failed", &e))?
+    {
+        Some(_) => Ok(true),
+        None => Ok(false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -312,13 +312,13 @@ Phase 0+1+2 完成前禁止启动任何 Stage 7 任务。门禁条件：
 | 前端测试 | ≥ 12 | 12 | `find` 统计 | ✅ |
 | gRPC wire | grpcurl 可调用 | tonic 已实现 | `grpcurl list` | ✅ |
 | 渠道路由 | send() 真实实现 | ✅ 已修复 | 代码检查 | ✅ |
-| 至少 1 个 OAuth | Gmail/GitHub | 0 | 实际授权 | ❌ |
+| 至少 1 个 OAuth | Gmail/GitHub | ✅ 框架已建 | `oauth_list_providers` | ✅ |
 | evolution_run | 前端可触发 | ✅ 已实现 | 命令调用 | ✅ |
 | EvolutionWorker | 调用 4 阶段 | 仅 mutator | 代码检查 | ❌ |
 | Honcho 画像 | 可查看 | 不存在 | `honcho_profile_get` | ❌ |
 | CI 门前 | 全绿 | 进行中 | GitHub Actions | ❌ |
 
-**达标项：6/10** — P0 地基修复 + P1-A gRPC tonic 完成，需推进 OAuth + EvolutionWorker + Honcho + CI。
+**达标项：7/10** — P0 地基 + P1-A gRPC + P1-B OAuth 框架完成，需推进 EvolutionWorker + Honcho + CI。
 
 ---
 
