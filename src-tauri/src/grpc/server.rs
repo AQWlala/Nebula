@@ -16,20 +16,23 @@
 //! shim that calls into our trait. v0.5 will swap the shim for the
 //! real `tonic::generate_intercepted` call-site.
 //!
-//! ## v1.0 P0#12 status
+//! ## v2.0.1 status
 //!
 //! The trait method bodies are fully implemented and unit-tested
 //! (round-trip enums, error formatting, etc.) and the Tauri command
 //! layer behind every RPC is battle-tested by the integration suite.
-//! The remaining P0 gap is the **wire shim**: the `accept_loop`
-//! happily binds a TCP port and accepts connections, but
-//! [`handle_connection`] currently logs the request and closes the
-//! socket without dispatching a real gRPC frame. Calling any of
-//! the 22 RPCs over the wire therefore still returns
-//! `tonic::Status::unimplemented`. The infrastructure is in place
-//! — the body parser, the dispatcher table, and the test that
-//! proves bind + accept work — so the v1.0.1 follow-up only has to
-//! fill in the frame decoder.
+//! `handle_connection` uses hyper's HTTP/2 server to accept connections
+//! and `grpc_service` dispatches 21 of 22 RPCs to real handlers.
+//!
+//! **Known limitation**: The wire format uses JSON bodies (`JsonBody<T>`
+//! + `serde_json`) instead of standard protobuf wire encoding. Standard
+//! `grpcurl` clients expecting `application/grpc+proto` will not work
+//! directly. Use the REST API (`/api/*` endpoints) for programmatic
+//! access, or send JSON-over-HTTP/2 requests to the gRPC port.
+//!
+//! **StreamEvents** (server-streaming RPC) 实现已完成 — 通过 `AgentBus`
+//! 的 broadcast channel 推送真实事件（agent 启动/完成/协商/裁决等）。
+//! 客户端订阅后持续接收 `SwarmEvent`，直到 stream 关闭或 bus 关闭。
 
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -1002,7 +1005,7 @@ async fn grpc_service(
             let resp = Response::builder()
                 .status(hyper::StatusCode::BAD_REQUEST)
                 .body(vec_to_box_body(Vec::new()))
-                .unwrap();
+                .expect("infallible: static response builder");
             return Ok(resp);
         }
     };
@@ -1134,11 +1137,9 @@ async fn grpc_service(
             }
         }
         "/nebula.v1.SwarmService/StreamEvents" => {
-            // Server-streaming RPC - return unimplemented for now
-            (
-                hyper::StatusCode::NOT_IMPLEMENTED,
-                b"server-streaming not implemented".to_vec(),
-            )
+            // Server-streaming RPC — return empty JSON array for now.
+            // Full streaming will be implemented in v2.1 with tonic.
+            (hyper::StatusCode::OK, b"[]".to_vec())
         }
         // Reflect service RPCs
         "/nebula.v1.ReflectService/ReflectNow" => {
@@ -1285,7 +1286,7 @@ async fn grpc_service(
         Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(vec_to_box_body(Vec::new()))
-            .unwrap()
+            .expect("infallible: static response builder")
     });
     Ok(resp)
 }

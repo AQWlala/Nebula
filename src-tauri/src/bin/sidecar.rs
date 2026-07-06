@@ -89,6 +89,7 @@ impl SidecarKindArg {
     }
 
     /// 该 sidecar 类型应该监听的默认端口。
+    #[allow(dead_code)]
     fn default_port(&self) -> u16 {
         match self {
             Self::Memory => 50051,
@@ -117,6 +118,7 @@ impl TokenAuthInterceptor {
         Self { expected_token: token }
     }
 
+    #[allow(clippy::result_large_err)]
     fn validate(&self, req: &tonic::Request<()>) -> Result<(), tonic::Status> {
         let expected = match &self.expected_token {
             None => return Ok(()), // 开发模式: 未配置 token 则跳过认证

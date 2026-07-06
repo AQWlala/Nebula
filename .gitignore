@@ -67,7 +67,45 @@ fetch_logs*.py
 tmp_repro_*.py
 .tmp_*.ps1
 ci_logs.txt
+count_panic.py
+
+# Local build/test output files
+build-output.txt
+clippy-errors.txt
+clippy-output.txt
+vitest-output.txt
 
 # Python __pycache__
 __pycache__/
 *.pyc
+
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Tauri build artifacts
+src-tauri/gen/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor temp files
+*~
+*.tmp
+*.bak
+*.orig
+
+# Arts (generated artifacts)
+.arts/
+
+# Lock files (keep Cargo.lock and package-lock.json)
+yarn.lock
+pnpm-lock.yaml

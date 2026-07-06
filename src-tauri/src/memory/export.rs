@@ -154,11 +154,11 @@ impl DataExporter {
         let relation_entities: Vec<RelationEntity> = relations
             .iter()
             .map(|r| {
-                let evidence_redacted = r.evidence.as_ref().and_then(|ev| {
+                let evidence_redacted = r.evidence.as_ref().map(|ev| {
                     if contains_sensitive(ev) {
-                        Some("[REDACTED]".to_string())
+                        "[REDACTED]".to_string()
                     } else {
-                        Some(ev.clone())
+                        ev.clone()
                     }
                 });
                 RelationEntity {

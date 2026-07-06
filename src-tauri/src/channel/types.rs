@@ -82,8 +82,8 @@ pub struct ChannelMessageV2 {
 #[async_trait]
 pub trait ChannelAdapter: Send + Sync {
     fn kind(&self) -> ChannelKind;
-    async fn start(&mut self) -> Result<()>;
-    async fn stop(&mut self) -> Result<()>;
+    async fn start(&self) -> Result<()>;
+    async fn stop(&self) -> Result<()>;
     async fn send(&self, message: &str, reply_to: Option<&str>) -> Result<()>;
     fn status(&self) -> ChannelStatus;
 }

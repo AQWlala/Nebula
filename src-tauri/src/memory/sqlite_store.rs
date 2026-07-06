@@ -768,7 +768,7 @@ impl SqliteStore {
                         params![id],
                     )
                     .map_err(|e| anyhow!("sqlite archive_memories error: {e}"))?;
-                total += n as usize;
+                total += n;
             }
             Ok(total)
         })

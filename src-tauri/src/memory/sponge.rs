@@ -636,7 +636,7 @@ impl SpongeEngine {
         let filtered: Vec<(String, f32)> = raw
             .into_iter()
             .filter(|(id, _)| {
-                type_map.get(id.as_str()).map_or(false, |t| *t == target_type)
+                type_map.get(id.as_str()) == Some(&target_type)
             })
             .collect();
 

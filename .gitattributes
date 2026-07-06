@@ -1,46 +1,48 @@
-# Git attributes — line ending & diff normalization
-# Cross-platform: Windows checks out CRLF, commits LF; Unix checks out LF.
-
-# Auto-detect text files, normalize line endings on commit
+# Auto-detect text files and normalize line endings
 * text=auto eol=lf
 
-# Explicit text files
-*.rs       text eol=lf
-*.toml     text eol=lf
-*.yaml     text eol=lf
-*.yml      text eol=lf
-*.json     text eol=lf
-*.md       text eol=lf
-*.sql      text eol=lf
-*.proto    text eol=lf
-*.sh       text eol=lf
-*.ts       text eol=lf
-*.tsx      text eol=lf
-*.js       text eol=lf
-*.jsx      text eol=lf
-*.css      text eol=lf
-*.html     text eol=lf
-*.txt      text eol=lf
-*.lock     text eol=lf
+# Rust source files
+*.rs text eol=lf
+*.toml text eol=lf
 
-# Windows-specific scripts keep CRLF
-*.ps1      text eol=crlf
-*.bat      text eol=crlf
-*.cmd      text eol=crlf
+# Web source files
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
 
-# Binary files — no line ending conversion
-*.png      binary
-*.jpg      binary
-*.jpeg     binary
-*.gif      binary
-*.ico      binary
-*.icns     binary
-*.pdf      binary
-*.db       binary
-*.sqlite   binary
-*.sqlite3  binary
-*.wasm     binary
-*.exe      binary
-*.dll      binary
-*.so       binary
-*.dylib    binary
+# Shell scripts
+*.sh text eol=lf
+
+# Proto files
+*.proto text eol=lf
+
+# SQL migrations
+*.sql text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.svg text eol=lf
+
+# Windows-specific
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# macOS-specific
+*.dylib binary
+
+# Linux-specific
+*.so binary

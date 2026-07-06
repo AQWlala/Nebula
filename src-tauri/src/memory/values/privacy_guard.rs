@@ -54,7 +54,7 @@ impl PrivacyGuard {
             return PrivacyVerdict::Ok;
         }
         // 红线：身份证号出现即阻断（防止 PII 进 LLM 上下文）。
-        if names.iter().any(|n| *n == "china_id") {
+        if names.contains(&"china_id") {
             return PrivacyVerdict::Block(format!(
                 "检测到完整身份证号，禁止将 PII 发送给 LLM：{}",
                 summarize(&redacted)

@@ -32,6 +32,7 @@ use crate::security::SsrfGuard;
 use super::{FileMetadata, StorageBackend, StorageError, StorageResult};
 
 /// WebDAV 存储后端。
+#[allow(dead_code)]
 pub struct WebDavBackend {
     /// feature 开启时持有 reqwest::Client;关闭时为 None(stub)。
     #[cfg(feature = "storage-webdav")]
@@ -91,6 +92,7 @@ impl WebDavBackend {
     }
 
     /// 构造完整 URL:base_url + path(正斜杠拼接)。
+    #[allow(dead_code)]
     fn url(&self, path: &str) -> String {
         let base = self.base_url.trim_end_matches('/');
         let path = path.trim_start_matches('/');

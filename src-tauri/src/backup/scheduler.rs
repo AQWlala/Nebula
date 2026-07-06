@@ -436,11 +436,9 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<u64> {
 /// 计算目录下所有文件的总大小(字节)。
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0u64;
-    for entry in WalkDir::new(path) {
-        if let Ok(entry) = entry {
-            if entry.file_type().is_file() {
-                total += entry.metadata().map(|m| m.len()).unwrap_or(0);
-            }
+    for entry in WalkDir::new(path).into_iter().filter_map(Result::ok) {
+        if entry.file_type().is_file() {
+            total += entry.metadata().map(|m| m.len()).unwrap_or(0);
         }
     }
     total

@@ -143,7 +143,7 @@ impl GenericAgent {
             return Vec::new();
         }
 
-        let has_tool_invoke = tool_set.iter().any(|t| *t == "tool_invoke");
+        let has_tool_invoke = tool_set.contains(&"tool_invoke");
         let exact_set: std::collections::HashSet<&str> =
             tool_set.iter().copied().collect();
 
@@ -151,13 +151,7 @@ impl GenericAgent {
             .list_all()
             .into_iter()
             .filter(|(name, _, _)| {
-                if exact_set.contains(name.as_str()) {
-                    true
-                } else if has_tool_invoke && name.starts_with("mcp_") {
-                    true
-                } else {
-                    false
-                }
+                exact_set.contains(name.as_str()) || (has_tool_invoke && name.starts_with("mcp_"))
             })
             .map(|(name, description, schema)| {
                 crate::llm::ToolSpec::function(name, description, schema)

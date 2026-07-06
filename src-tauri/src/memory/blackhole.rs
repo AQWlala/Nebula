@@ -76,6 +76,7 @@ impl BlackholeEngine {
     /// `memories.content` cell.  The lock is process-wide and
     /// held for the duration of the pass; on a healthy machine
     /// the pass completes in milliseconds.
+    #[allow(clippy::await_holding_lock)]
     pub async fn run_pass(&self, batch_size: usize) -> Result<CompressionReport> {
         // v1.0.1 P0#10: hold the compression lock for the entire
         // pass.  We do NOT offload the whole pass to
@@ -143,6 +144,7 @@ impl BlackholeEngine {
     ///
     /// 调用关系:`ForgettingEngine::tick()` 在 `archive_memories()` 成功后
     /// 调用本方法,形成"归档 → 压缩"闭环。
+    #[allow(clippy::await_holding_lock)]
     pub async fn run_pass_archived(&self, batch_size: usize) -> Result<CompressionReport> {
         let _compression_guard = self.sqlite.compression_lock();
         let candidates = self

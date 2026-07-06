@@ -102,6 +102,7 @@ pub enum CmpOp {
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 
 /// 固定 User-Agent。
+#[allow(dead_code)]
 const USER_AGENT: &str = "Nebula/1.0";
 
 /// 抓取结果。
@@ -428,6 +429,7 @@ fn unescape_ics(s: &str) -> String {
 }
 
 /// 查找临近事件:返回 `start` 在 `[now, now + lead_minutes]` 范围内的事件。
+#[allow(clippy::needless_lifetimes)]
 pub fn find_upcoming_events<'a>(
     events: &'a [IcsEvent],
     now: chrono::DateTime<chrono::Utc>,

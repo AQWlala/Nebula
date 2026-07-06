@@ -281,11 +281,7 @@ impl Metrics {
     /// T-E-D-02: 平均首响时间（微秒）。无数据时返回 0（避免除零）。
     pub fn ttft_avg_us(&self) -> u64 {
         let n = self.ttft_count.load(Ordering::Relaxed);
-        if n == 0 {
-            0
-        } else {
-            self.ttft_us_total.load(Ordering::Relaxed) / n
-        }
+        self.ttft_us_total.load(Ordering::Relaxed).checked_div(n).unwrap_or(0)
     }
 
     /// Atomically snapshots all counters into a transport-friendly

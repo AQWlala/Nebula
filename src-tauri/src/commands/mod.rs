@@ -1,4 +1,4 @@
-﻿//! Tauri command handlers — the entry points invoked from the
+//! Tauri command handlers — the entry points invoked from the
 //! front-end. Each command is a thin shim that translates a JSON DTO
 //! into a call on the shared [`AppState`].
 //!
@@ -206,12 +206,13 @@ pub use arena::*;
 pub use openapi::*;
 
 // Extracted submodules re-export。
-pub use service::*;
+// service 模块仅含 `impl NebulaService for AppState` trait 实现,无私有项可 re-export。
 pub use persona::*;
 // M6 #82: master 命令 re-export。
 pub use master::*;
-// M6 #78: evolution 命令 re-export(无 feature 门控的命令仍 re-export,
-// feature-gated 命令仅在对应 feature 开启时导出)。
+// M6 #78: evolution 命令 re-export(feature 全 off 时模块内无公开项,
+// 门控以避免 unused import 警告)。
+#[cfg(any(feature = "evolution-engine", feature = "self-evolution"))]
 pub use evolution::*;
 
 #[cfg(feature = "soul-system")]

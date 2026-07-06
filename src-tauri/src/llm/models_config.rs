@@ -324,12 +324,11 @@ impl ModelsConfig {
                         "models.json loaded"
                     );
                     // #16: v1→v2 迁移
-                    let cfg = if cfg.version < 2 {
+                    if cfg.version < 2 {
                         Self::migrate_v1_to_v2(cfg, path)
                     } else {
                         cfg
-                    };
-                    cfg
+                    }
                 }
                 Err(e) => {
                     warn!(

@@ -1,4 +1,4 @@
-﻿//! Tonic-based gRPC server implementation for the nebula T-S2-B-01 task.
+//! Tonic-based gRPC server implementation for the nebula T-S2-B-01 task.
 //!
 //! This file implements the 5 tonic-generated server traits
 //! (`MemoryService`, `SwarmService`, `ReflectService`, `LlmService`,
@@ -1023,10 +1023,22 @@ impl Drop for TonicGrpcHandle {
 /// All 5 services (Memory, Swarm, Reflect, LLM, Skill) are registered on a
 /// single tonic server, each accessible at its generated path prefix
 /// (e.g. `/nebula.v1.MemoryService/Store`).
+///
+/// 关键修复：先 bind TcpListener 获取实际端口（bind_addr 为 :0 时
+/// 由 OS 分配随机端口），再用 serve_with_incoming 让 tonic 使用已绑定
+/// 的 listener。否则 TonicGrpcHandle.addr 会保存 :0 而非实际端口，
+/// 导致客户端连接失败。
 pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::Result<TonicGrpcHandle> {
     let addr: SocketAddr = bind_addr
         .parse()
         .map_err(|e| anyhow::anyhow!("invalid gRPC bind address '{}': {}", bind_addr, e))?;
+
+    // 先 bind TcpListener 获取实际端口（bind_addr 为 :0 时由 OS 分配）
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| anyhow::anyhow!("bind gRPC listener on {addr}: {e}"))?;
+    let bound = listener.local_addr()?;
+    info!(target: "nebula.grpc", requested = %addr, bound = %bound, "gRPC listener bound");
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
@@ -1040,13 +1052,23 @@ pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::R
     let skill_impl = impl_arc.clone();
 
     let join = tokio::spawn(async move {
+        // 用 serve_with_incoming_shutdown 代替 serve_with_shutdown，
+        // 这样 tonic 使用我们已经 bind 好的 listener（端口已知），而不是
+        // 内部再 bind。tonic 0.12 用 TcpIncoming::from_listener 转换。
+        let incoming = match tonic::transport::server::TcpIncoming::from_listener(listener, true, None) {
+            Ok(i) => i,
+            Err(e) => {
+                error!(target: "nebula.grpc", error = %e, "failed to create TcpIncoming");
+                return;
+            }
+        };
         let result = tonic::transport::Server::builder()
             .add_service(generated::memory_service_server::MemoryServiceServer::from_arc(memory_impl))
             .add_service(generated::swarm_service_server::SwarmServiceServer::from_arc(swarm_impl))
             .add_service(generated::reflect_service_server::ReflectServiceServer::from_arc(reflect_impl))
             .add_service(generated::llm_service_server::LlmServiceServer::from_arc(llm_impl))
             .add_service(generated::skill_service_server::SkillServiceServer::from_arc(skill_impl))
-            .serve_with_shutdown(addr, async move {
+            .serve_with_incoming_shutdown(incoming, async move {
                 let _ = shutdown_rx.await;
                 info!(target: "nebula.grpc", "tonic gRPC server received shutdown signal");
             })
@@ -1057,10 +1079,10 @@ pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::R
         }
     });
 
-    info!(target: "nebula.grpc", addr = %addr, "tonic gRPC server task spawned (5 services, 22 RPCs)");
+    info!(target: "nebula.grpc", addr = %bound, "tonic gRPC server task spawned (5 services, 22 RPCs)");
 
     Ok(TonicGrpcHandle {
-        addr,
+        addr: bound,
         shutdown_tx: Some(shutdown_tx),
         join: Some(join),
     })

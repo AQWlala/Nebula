@@ -51,7 +51,7 @@ pub async fn subscribe_diagnostics(
                     "subscribe_diagnostics lagged behind, emitting Dropped meta-event"
                 );
                 // 发出 Dropped 元事件,前端可见。
-                state.diagnostics.emit_dropped(n as u64);
+                state.diagnostics.emit_dropped(n);
                 continue;
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -134,7 +134,7 @@ pub async fn diagnostics_open_logs(
     // 避免暴露私有函数。诊断日志预期与主日志在同一目录。
     #[cfg(target_os = "windows")]
     {
-        if let Some(local_appdata) = std::env::var("LOCALAPPDATA").ok() {
+        if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
             let dir = PathBuf::from(local_appdata)
                 .join("nebula")
                 .join("logs");
@@ -143,7 +143,7 @@ pub async fn diagnostics_open_logs(
     }
     #[cfg(target_os = "macos")]
     {
-        if let Some(home) = std::env::var("HOME").ok() {
+        if let Ok(home) = std::env::var("HOME") {
             let dir = PathBuf::from(home)
                 .join("Library")
                 .join("Logs")
@@ -153,7 +153,7 @@ pub async fn diagnostics_open_logs(
     }
     #[cfg(target_os = "linux")]
     {
-        if let Some(home) = std::env::var("HOME").ok() {
+        if let Ok(home) = std::env::var("HOME") {
             let dir = PathBuf::from(home).join(".local").join("share").join("nebula").join("logs");
             return Ok(Some(dir.to_string_lossy().to_string()));
         }

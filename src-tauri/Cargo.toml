@@ -239,7 +239,9 @@ required-features = ["unified-dispatcher"]
 # transport, and the LanceDB dense-vector backend. The LanceDB
 # feature has its own in-memory fallback so the rest of the system
 # keeps working (vector search becomes a linear in-RAM cosine scan).
-default = ["vector-store"]
+# v1.0.1 P1-B-2: channels 默认开启 — native channel adapters (Telegram/Discord)
+# 不再需要显式 --features channels。
+default = ["vector-store", "channels"]
 # T-E-C-20: headless Docker mode — gRPC + REST API, no Tauri window.
 # Usage: cargo build --features headless --no-default-features
 headless = ["grpc", "rest-api"]

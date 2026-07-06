@@ -51,10 +51,7 @@ pub async fn watch_stop(state: State<'_, AppState>) -> Result<(), CommandError> 
     // 2. 取出 worker handle 并 timeout-await(250ms)
     let handle = state.file_watcher_worker.lock().take();
     if let Some(h) = handle {
-        match tokio::time::timeout(Duration::from_millis(250), h).await {
-            Ok(_) => {}
-            Err(_) => {}
-        }
+        let _ = tokio::time::timeout(Duration::from_millis(250), h).await;
     }
     Ok(())
 }

@@ -1,4 +1,4 @@
-﻿//! M6 #82: Master orchestrator + L4 approval Tauri 命令。
+//! M6 #82: Master orchestrator + L4 approval Tauri 命令。
 //!
 //! ## 命令清单
 //! - `master_run(input, mode, on_master_event)` — 启动 MasterOrchestrator 编排,
@@ -14,8 +14,11 @@
 use tauri::State;
 use tracing::instrument;
 
-use crate::autonomy::{self, ConfirmationStatus, PendingConfirmation};
+use crate::autonomy::{ConfirmationStatus, PendingConfirmation};
+#[cfg(feature = "master-orchestrator")]
+use crate::autonomy; // for autonomy::get_level() / autonomy::CONFIRMATION_TIMEOUT_MS
 use crate::commands::error::CommandError;
+#[cfg(feature = "master-orchestrator")]
 use crate::memory::values::risk_assessor::ActionKind;
 use crate::AppState;
 

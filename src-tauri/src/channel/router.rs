@@ -1,15 +1,15 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use parking_lot::Mutex;
+use reqwest::Client;
 use tracing::{info, warn};
 
 use super::types::{ChannelAdapter, ChannelKind, ChannelStatus};
 
 pub struct ChannelRouter {
-    // T-S3-B-01: 改为 Arc<dyn ChannelAdapter> 以便在 async 上下文中
-    // 安全地克隆出锁外调用,避免跨 .await 持有 MutexGuard（Send 不安全）。
     adapters: Mutex<HashMap<ChannelKind, Arc<dyn ChannelAdapter>>>,
 }
 
@@ -31,20 +31,15 @@ impl ChannelRouter {
     }
 
     pub async fn start_all(&self) -> Result<()> {
-        // T-S3-B-01: 先收集所有适配器的 Arc 克隆,释放锁后再调用 .await,
-        // 避免 parking_lot::MutexGuard 跨 .await 导致 future 不满足 Send。
         let adapters: Vec<(ChannelKind, Arc<dyn ChannelAdapter>)> = {
             let guard = self.adapters.lock();
             guard.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
         };
         for (kind, adapter) in &adapters {
-            // ChannelAdapter::start 需要 &mut self,但 Arc 无法直接获取 &mut。
-            // 这里通过 try_lock 或内部可变性来处理。
-            // 由于适配器内部使用 Arc<Mutex<ChannelStatus>> 管理状态,
-            // 实际上 start 只是验证连接并设置状态,不需要真正的 &mut self。
-            // 我们忽略 &mut self 要求,直接调用 send 来验证连接。
-            // TODO(见 ROADMAP): 后续重构 ChannelAdapter trait 将 start/stop 改为 &self。
-            info!(target: "nebula.channel", kind = %kind.as_str(), "adapter start requested");
+            match adapter.start().await {
+                Ok(()) => info!(target: "nebula.channel", kind = %kind.as_str(), "adapter started"),
+                Err(e) => warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter start failed"),
+            }
         }
         Ok(())
     }
@@ -54,8 +49,11 @@ impl ChannelRouter {
             let guard = self.adapters.lock();
             guard.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
         };
-        for (kind, _adapter) in &adapters {
-            info!(target: "nebula.channel", kind = %kind.as_str(), "adapter stop requested");
+        for (kind, adapter) in &adapters {
+            match adapter.stop().await {
+                Ok(()) => info!(target: "nebula.channel", kind = %kind.as_str(), "adapter stopped"),
+                Err(e) => warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter stop failed"),
+            }
         }
         Ok(())
     }
@@ -66,7 +64,6 @@ impl ChannelRouter {
         message: &str,
         reply_to: Option<&str>,
     ) -> Result<()> {
-        // T-S3-B-01: 克隆 Arc 出锁,释放 MutexGuard 后再 .await。
         let adapter = {
             let guard = self.adapters.lock();
             guard
@@ -100,8 +97,10 @@ impl Default for ChannelRouter {
     }
 }
 
+/// WebChat adapter — emits messages via tracing log (for headless)
+/// or Tauri events (for GUI mode, handled by inbox layer).
 pub struct WebChatAdapter {
-    status: ChannelStatus,
+    status: Arc<Mutex<ChannelStatus>>,
 }
 
 impl Default for WebChatAdapter {
@@ -113,7 +112,7 @@ impl Default for WebChatAdapter {
 impl WebChatAdapter {
     pub fn new() -> Self {
         Self {
-            status: ChannelStatus::Offline,
+            status: Arc::new(Mutex::new(ChannelStatus::Offline)),
         }
     }
 }
@@ -124,36 +123,59 @@ impl ChannelAdapter for WebChatAdapter {
         ChannelKind::WebChat
     }
 
-    async fn start(&mut self) -> Result<()> {
-        self.status = ChannelStatus::Online;
+    async fn start(&self) -> Result<()> {
+        *self.status.lock() = ChannelStatus::Online;
+        info!(target: "nebula.channel", "WebChat adapter started");
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        self.status = ChannelStatus::Offline;
+    async fn stop(&self) -> Result<()> {
+        *self.status.lock() = ChannelStatus::Offline;
         Ok(())
     }
 
-    async fn send(&self, _message: &str, _reply_to: Option<&str>) -> Result<()> {
+    async fn send(&self, message: &str, reply_to: Option<&str>) -> Result<()> {
+        // WebChat messages are delivered via Tauri events in GUI mode
+        // (handled by InboxManager). In headless mode, log the message
+        // so it's not silently dropped.
+        info!(
+            target: "nebula.channel.webchat",
+            reply_to = ?reply_to,
+            message_len = message.len(),
+            "WebChat message delivered (len={})",
+            message.len()
+        );
         Ok(())
     }
 
     fn status(&self) -> ChannelStatus {
-        self.status.clone()
+        self.status.lock().clone()
     }
 }
 
+/// Telegram adapter — sends messages via Telegram Bot API.
+/// Uses internal mutability (Arc<Mutex>) for &self compatibility.
 pub struct TelegramAdapter {
-    status: ChannelStatus,
     bot_token: String,
+    client: Client,
+    status: Arc<Mutex<ChannelStatus>>,
 }
 
 impl TelegramAdapter {
     pub fn new(bot_token: &str) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            status: ChannelStatus::Offline,
             bot_token: bot_token.to_string(),
+            client,
+            status: Arc::new(Mutex::new(ChannelStatus::Offline)),
         }
+    }
+
+    fn api_url(&self, method: &str) -> String {
+        format!("https://api.telegram.org/bot{}/{}", self.bot_token, method)
     }
 }
 
@@ -163,39 +185,98 @@ impl ChannelAdapter for TelegramAdapter {
         ChannelKind::Telegram
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         if self.bot_token.is_empty() {
             anyhow::bail!("Telegram bot token is required");
         }
-        self.status = ChannelStatus::Online;
-        Ok(())
+        let url = self.api_url("getMe");
+        let resp = self.client.get(&url).send().await?;
+        if resp.status().is_success() {
+            *self.status.lock() = ChannelStatus::Online;
+            info!(target: "nebula.channel", "Telegram bot started");
+            Ok(())
+        } else {
+            *self.status.lock() = ChannelStatus::Failed;
+            anyhow::bail!("Telegram getMe failed: {}", resp.status())
+        }
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        self.status = ChannelStatus::Offline;
+    async fn stop(&self) -> Result<()> {
+        *self.status.lock() = ChannelStatus::Offline;
         Ok(())
     }
 
     async fn send(&self, message: &str, reply_to: Option<&str>) -> Result<()> {
-        let _ = (message, reply_to);
+        // Parse chat_id from the message or reply_to
+        // Format: "chat_id:actual_message" or just a chat_id in reply_to
+        let (chat_id, text) = if let Some(colon_pos) = message.find(':') {
+            let id_part = &message[..colon_pos];
+            let msg_part = &message[colon_pos + 1..];
+            match id_part.parse::<i64>() {
+                Ok(id) => (id, msg_part),
+                Err(_) => (0, message),
+            }
+        } else {
+            // Try parsing entire message as chat_id (legacy behavior)
+            match message.parse::<i64>() {
+                Ok(id) => (id, message),
+                Err(_) => {
+                    warn!(target: "nebula.channel", "Telegram send: cannot parse chat_id from message");
+                    return Ok(());
+                }
+            }
+        };
+
+        if chat_id == 0 {
+            warn!(target: "nebula.channel", "Telegram send: chat_id is 0, skipping");
+            return Ok(());
+        }
+
+        let url = self.api_url("sendMessage");
+        let mut payload = serde_json::json!({
+            "chat_id": chat_id,
+            "text": text,
+        });
+        if let Some(r) = reply_to {
+            if let Ok(reply_id) = r.parse::<i64>() {
+                payload["reply_to_message_id"] = serde_json::json!(reply_id);
+            }
+        }
+
+        let resp = self.client.post(&url).json(&payload).send().await?;
+        if resp.status().as_u16() == 429 {
+            *self.status.lock() = ChannelStatus::RateLimited;
+            warn!(target: "nebula.channel", "Telegram rate limited");
+        } else if !resp.status().is_success() {
+            *self.status.lock() = ChannelStatus::Failed;
+            anyhow::bail!("Telegram sendMessage failed: {}", resp.status());
+        }
         Ok(())
     }
 
     fn status(&self) -> ChannelStatus {
-        self.status.clone()
+        self.status.lock().clone()
     }
 }
 
+/// Discord adapter — sends messages via Discord webhook.
+/// Uses internal mutability (Arc<Mutex>) for &self compatibility.
 pub struct DiscordAdapter {
-    status: ChannelStatus,
     webhook_url: String,
+    client: Client,
+    status: Arc<Mutex<ChannelStatus>>,
 }
 
 impl DiscordAdapter {
     pub fn new(webhook_url: &str) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            status: ChannelStatus::Offline,
             webhook_url: webhook_url.to_string(),
+            client,
+            status: Arc::new(Mutex::new(ChannelStatus::Offline)),
         }
     }
 }
@@ -206,26 +287,55 @@ impl ChannelAdapter for DiscordAdapter {
         ChannelKind::Discord
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         if self.webhook_url.is_empty() {
             anyhow::bail!("Discord webhook URL is required");
         }
-        self.status = ChannelStatus::Online;
-        Ok(())
+        let resp = self.client.get(&self.webhook_url).send().await;
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                *self.status.lock() = ChannelStatus::Online;
+                info!(target: "nebula.channel", "Discord webhook adapter started");
+                Ok(())
+            }
+            Ok(r) => {
+                *self.status.lock() = ChannelStatus::Failed;
+                anyhow::bail!("Discord webhook validation failed: {}", r.status())
+            }
+            Err(e) => {
+                *self.status.lock() = ChannelStatus::Failed;
+                anyhow::bail!("Discord webhook connection failed: {e}")
+            }
+        }
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        self.status = ChannelStatus::Offline;
+    async fn stop(&self) -> Result<()> {
+        *self.status.lock() = ChannelStatus::Offline;
         Ok(())
     }
 
     async fn send(&self, message: &str, _reply_to: Option<&str>) -> Result<()> {
-        let _ = message;
+        let payload = serde_json::json!({
+            "content": message,
+        });
+        let resp = self
+            .client
+            .post(&self.webhook_url)
+            .json(&payload)
+            .send()
+            .await?;
+        if resp.status().as_u16() == 429 {
+            *self.status.lock() = ChannelStatus::RateLimited;
+            warn!(target: "nebula.channel", "Discord rate limited");
+        } else if !resp.status().is_success() {
+            *self.status.lock() = ChannelStatus::Failed;
+            anyhow::bail!("Discord webhook failed: {}", resp.status());
+        }
         Ok(())
     }
 
     fn status(&self) -> ChannelStatus {
-        self.status.clone()
+        self.status.lock().clone()
     }
 }
 
@@ -255,5 +365,25 @@ mod tests {
             router.status(&ChannelKind::Telegram),
             ChannelStatus::Offline
         );
+    }
+
+    #[tokio::test]
+    async fn webchat_send_succeeds() {
+        let adapter = WebChatAdapter::new();
+        adapter.start().await.unwrap();
+        let result = adapter.send("test message", None).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn telegram_adapter_stores_token() {
+        let adapter = TelegramAdapter::new("test-token");
+        assert_eq!(adapter.kind(), ChannelKind::Telegram);
+    }
+
+    #[test]
+    fn discord_adapter_stores_url() {
+        let adapter = DiscordAdapter::new("https://discord.com/api/webhooks/test");
+        assert_eq!(adapter.kind(), ChannelKind::Discord);
     }
 }

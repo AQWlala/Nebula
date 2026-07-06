@@ -509,7 +509,7 @@ impl Negotiator {
         // 策略:取第一个 1-10 范围内的数字作为评分。
         for token in text.split_whitespace() {
             if let Ok(n) = token.parse::<u8>() {
-                if n >= 1 && n <= 10 {
+                if (1..=10).contains(&n) {
                     return n;
                 }
             }

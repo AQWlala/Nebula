@@ -167,7 +167,7 @@ impl ChannelAdapter for TelegramBotAdapter {
         ChannelKind::Telegram
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         let url = self.api_url("getMe");
         let resp = self.client.get(&url).send().await?;
         if resp.status().is_success() {
@@ -180,7 +180,7 @@ impl ChannelAdapter for TelegramBotAdapter {
         }
     }
 
-    async fn stop(&mut self) -> Result<()> {
+    async fn stop(&self) -> Result<()> {
         *self.status.lock() = ChannelStatus::Offline;
         Ok(())
     }

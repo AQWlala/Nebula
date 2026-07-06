@@ -85,6 +85,7 @@ pub struct SelfReflection {
 pub struct SelfReflectionEngine {
     sqlite: Arc<SqliteStore>,
     values: ValuesLayer,
+    #[allow(dead_code)]
     config: ReflectConfig,
 }
 
@@ -306,7 +307,7 @@ impl SelfReflectionEngine {
         };
 
         let mut content = String::new();
-        content.push_str(&format!("## 价值对齐报告\n\n"));
+        content.push_str("## 价值对齐报告\n\n");
         content.push_str(&format!("- 审查记忆数: {}\n", total));
         content.push_str(&format!("- 对齐率: {:.0}%\n", alignment_score * 100.0));
         content.push_str(&format!("- 违规数: {}\n", violations.len()));
@@ -468,7 +469,7 @@ impl SelfReflectionEngine {
 
         let mut content = String::new();
         content.push_str("## 自我改进计划\n\n");
-        content.push_str(&format!("### 优先级评估\n\n"));
+        content.push_str("### 优先级评估\n\n");
         content.push_str(&format!("- 高优先级: {} 项\n", high_severity));
         content.push_str(&format!("- 中优先级: {} 项\n\n", medium_severity));
 
@@ -560,9 +561,11 @@ impl SelfReflectionEngine {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct OutcomeRecord {
     #[allow(dead_code)]
     id: String,
+    #[allow(dead_code)]
     source: String,
     status: String,
     #[allow(dead_code)]

@@ -104,6 +104,7 @@ pub struct ChatTurnPair {
 
 /// 路径 LIKE 检索返回的原始行。
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct RawRow {
     pub(crate) id: String,
     pub(crate) content: String,

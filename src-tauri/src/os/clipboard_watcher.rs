@@ -292,10 +292,8 @@ fn is_email(s: &str) -> bool {
 /// IPv4 / IPv6 检测。
 fn is_ip(s: &str) -> bool {
     // IPv4: a.b.c.d,每段 0-255。
-    if s.split('.').count() == 4 {
-        if s.split('.').all(|p| p.parse::<u8>().is_ok()) {
-            return true;
-        }
+    if s.split('.').count() == 4 && s.split('.').all(|p| p.parse::<u8>().is_ok()) {
+        return true;
     }
     // IPv6:含至少一个 ':' 且每段为十六进制。
     if s.contains(':') && s.len() <= 39 {

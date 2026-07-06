@@ -147,7 +147,7 @@ impl SsrfGuard {
         let guard = self.clone();
         let policy = reqwest::redirect::Policy::custom(move |attempt| {
             // attempt.url() 返回即将跳转的目标 URL
-            if let Err(e) = guard.validate_url(&attempt.url().to_string()) {
+            if let Err(e) = guard.validate_url(&attempt.url().as_str()) {
                 tracing::warn!(
                     target: "nebula.ssrf",
                     url = %attempt.url(),

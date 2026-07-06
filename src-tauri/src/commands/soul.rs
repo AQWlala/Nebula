@@ -17,6 +17,7 @@
 //! - 初始化:lib.rs setup 阶段调用 `soul::init_from_env()` 读取环境变量
 //! - 运行时切换:Settings UI 通过本命令调用 `set_soul_system_enabled()`
 
+#[cfg(feature = "soul-system")]
 use tracing::instrument;
 
 #[cfg(feature = "soul-system")]

@@ -1035,7 +1035,7 @@ impl SwarmOrchestrator {
         // 把 agent 与 config 配对(按索引)。
         let paired: Vec<(Arc<dyn Agent>, ThoughtAgentConfig)> = agents
             .into_iter()
-            .zip(configs.into_iter())
+            .zip(configs)
             .collect();
 
         let handles: Vec<_> = paired

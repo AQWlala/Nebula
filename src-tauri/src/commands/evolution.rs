@@ -1,35 +1,37 @@
 //! M6 #78: 进化日志 + 回滚 Tauri 命令。
 //!
 //! 提供 evolution_log_list / evolution_log_get / evolution_rollback /
-//! evolution_enabled / evolution_set_enabled 五个命令,供前端调用。
+//! evolution_enabled / evolution_set_enabled / evolution_run 六个命令,供前端调用。
 //!
 //! ## Feature Gate
 //!
 //! - 前 3 个命令(log_list / log_get / rollback)由 `evolution-engine` feature 门控,
 //!   因为它们依赖 EvolutionLog / Roller 等仅在该 feature 下编译的类型。
-//! - 后 2 个命令(enabled / set_enabled)由 `self-evolution` feature 门控,
-//!   因为 `evolution_enabled()` / `set_evolution_enabled()` 在 `evolution` 模块中,
-//!   该模块整体由 `self-evolution` 门控。`evolution-engine` 隐含 `self-evolution`,
-//!   因此启用进化引擎时这两个命令必然可用。
+//! - 后 3 个命令(enabled / set_enabled / run)由 `self-evolution` feature 门控。
 //! - feature 全 off 时这些命令不编译,前端 invoke 会返回 "command not found"。
 //!
-//! ## 注意
+//! ## evolution_run
 //!
-//! - `evolution_run` 命令(触发 4 Phase 进化)未包含在本次实现中,
-//!   因为 EvolutionEngine 需要 dispatcher 注入,且 4 Phase 是长耗时操作,
-//!   需要流式事件推送(类似 master_run),留待后续迭代。
-//! - `evolution_config_get` / `evolution_config_set` 也未包含,
-//!   因为 EvolutionEngineConfig 当前通过代码硬编码,无运行时修改需求。
+//! 触发 4 Phase 进化管线(Extract → Compile → Reflect → Soul)。
+//! 长耗时操作,前端应显示进度指示器。
+//! 结果通过 Tauri event "evolution-completed" 推送。
 
+#[cfg(any(feature = "evolution-engine", feature = "self-evolution"))]
 use tauri::State;
+#[cfg(any(feature = "evolution-engine", feature = "self-evolution"))]
 use tracing::instrument;
 
+#[cfg(any(feature = "evolution-engine", feature = "self-evolution"))]
 use crate::AppState;
 
 // M7b #91: CommandError 仅在 evolution-engine / self-evolution feature
 // 开启时被使用,门控导入避免默认构建下 unused import 警告。
 #[cfg(any(feature = "evolution-engine", feature = "self-evolution"))]
 use super::error::CommandError;
+
+// P2-A: Emitter trait needed for app.emit() in evolution_run
+#[cfg(feature = "evolution-engine")]
+use tauri::Emitter;
 
 /// 列出全部进化日志条目(按写入顺序)。
 ///
@@ -106,4 +108,71 @@ pub async fn evolution_enabled() -> Result<bool, CommandError> {
 pub async fn evolution_set_enabled(enabled: bool) -> Result<(), CommandError> {
     crate::evolution::set_evolution_enabled(enabled);
     Ok(())
+}
+
+/// 触发 4 Phase 进化管线(Extract → Compile → Reflect → Soul)。
+///
+/// 这是长耗时操作(LLM 调用 × 4 阶段),前端应显示进度指示器。
+/// 完成后通过 Tauri event "evolution-completed" 推送结果。
+///
+/// `master_id` 用于记忆 domain 隔离,默认 "default"。
+///
+/// ## 错误处理
+///
+/// - 进化引擎未启用 → 返回错误提示
+/// - 运行时开关关闭 → 自动启用后执行
+/// - 单个 Phase 失败 → 记 warning 并继续下一 Phase(不中断)
+/// - 所有 Phase 完成 → 返回 EvolutionResult
+#[cfg(feature = "evolution-engine")]
+#[tauri::command]
+#[instrument(skip(state, app), fields(otel.kind = "evolution_run"))]
+pub async fn evolution_run(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    master_id: Option<String>,
+) -> Result<crate::evolution::engine::EvolutionResult, CommandError> {
+    let engine = state
+        .evolution_engine
+        .as_ref()
+        .ok_or_else(|| CommandError::internal("evolution_run", &anyhow::anyhow!("evolution engine not initialized — enable 'evolution-engine' feature")))?;
+
+    let mid = master_id.unwrap_or_else(|| "default".to_string());
+
+    // 确保运行时开关已启用
+    if !crate::evolution::evolution_enabled() {
+        crate::evolution::set_evolution_enabled(true);
+    }
+
+    tracing::info!(target: "nebula.evolution", master_id = %mid, "starting 4-phase evolution run");
+
+    let result = engine
+        .run(&mid)
+        .await
+        .map_err(|e| CommandError::internal("evolution_run", &anyhow::anyhow!("{e}")))?;
+
+    tracing::info!(
+        target: "nebula.evolution",
+        master_id = %mid,
+        degraded = result.degraded,
+        warnings = result.warnings.len(),
+        phases = result.phases.len(),
+        "evolution run completed"
+    );
+
+    // 推送完成事件到前端
+    let _ = app.emit("evolution-completed", &result);
+
+    Ok(result)
+}
+
+/// 查询进化引擎是否已初始化(feature flag + AppState)。
+///
+/// 与 `evolution_enabled` 的区别:
+/// - `evolution_enabled` 检查运行时开关
+/// - `evolution_engine_ready` 检查引擎是否已构造(feature on + bootstrap 完成)
+#[cfg(feature = "evolution-engine")]
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "evolution_engine_ready"))]
+pub async fn evolution_engine_ready(state: State<'_, AppState>) -> Result<bool, CommandError> {
+    Ok(state.evolution_engine.is_some())
 }

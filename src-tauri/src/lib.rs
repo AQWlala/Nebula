@@ -881,7 +881,7 @@ impl AppState {
             let watch_paths: Vec<std::path::PathBuf> = config
                 .watch_paths
                 .iter()
-                .map(|s| std::path::PathBuf::from(s))
+                .map(std::path::PathBuf::from)
                 .collect();
             file_watcher.start(watch_paths);
             if let Some(handle) = file_watcher.clone().spawn_worker() {
@@ -2057,6 +2057,7 @@ pub fn run() {
                 // floating-ball 窗口的拖拽语义是"吸收到记忆"(emit_ball_drag_drop),
                 // 其余窗口的拖拽语义是"打开为代码文件"(emit_drag_drop)。
                 tauri::WindowEvent::DragDrop(drag_drop) => {
+                    #[allow(clippy::collapsible_match)]
                     if let tauri::DragDropEvent::Drop { paths, .. } = drag_drop {
                         let app = window.app_handle();
                         if window.label() == crate::commands::window::FLOATING_BALL_LABEL {
@@ -2593,6 +2594,11 @@ pub fn run() {
             commands::evolution_enabled,
             #[cfg(feature = "self-evolution")]
             commands::evolution_set_enabled,
+            // P2-A: evolution_run — 触发 4 Phase 进化管线
+            #[cfg(feature = "evolution-engine")]
+            commands::evolution_run,
+            #[cfg(feature = "evolution-engine")]
+            commands::evolution_engine_ready,
             // M7b #97: Soul 系统运行时开关命令。
             #[cfg(feature = "soul-system")]
             commands::soul_system_enabled,
@@ -2907,7 +2913,7 @@ impl AppState {
             let watch_paths: Vec<std::path::PathBuf> = config
                 .watch_paths
                 .iter()
-                .map(|s| std::path::PathBuf::from(s))
+                .map(std::path::PathBuf::from)
                 .collect();
             file_watcher.start(watch_paths);
             if let Some(handle) = file_watcher.clone().spawn_worker() {

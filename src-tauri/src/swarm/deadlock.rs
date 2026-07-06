@@ -25,7 +25,7 @@ impl WaitForGraph {
     pub fn add_wait(&mut self, waiter: &str, wait_for: &str) {
         self.edges
             .entry(waiter.to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(wait_for.to_string());
     }
 

@@ -173,7 +173,7 @@ impl MemoryVersionControl {
             anyhow::bail!("cannot delete main branch");
         }
         let active = self.get_active_branch()?;
-        if active.as_ref().map_or(false, |b| b.name == name) {
+        if active.as_ref().is_some_and(|b| b.name == name) {
             anyhow::bail!("cannot delete active branch; checkout main first");
         }
         let conn = self.sqlite.raw_connection();

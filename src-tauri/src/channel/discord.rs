@@ -82,7 +82,7 @@ impl ChannelAdapter for DiscordBotAdapter {
         ChannelKind::Discord
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(&self) -> Result<()> {
         let resp = self.client.get(&self.webhook_url).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
@@ -101,7 +101,7 @@ impl ChannelAdapter for DiscordBotAdapter {
         }
     }
 
-    async fn stop(&mut self) -> Result<()> {
+    async fn stop(&self) -> Result<()> {
         *self.status.lock() = ChannelStatus::Offline;
         Ok(())
     }

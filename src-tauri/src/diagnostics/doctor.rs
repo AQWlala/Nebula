@@ -306,7 +306,7 @@ async fn check_lancedb(state: &AppState) -> DoctorCheck {
             };
             DoctorCheck {
                 name: "lancedb".to_string(),
-                status: if dir_exists { CheckStatus::Warn } else { CheckStatus::Warn },
+                status: CheckStatus::Warn,
                 message: format!(
                     "向量后端健康检查失败: {} (path={}, dir_exists={})",
                     e, lance_path, dir_exists

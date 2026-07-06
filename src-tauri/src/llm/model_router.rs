@@ -21,6 +21,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+#[allow(unused_imports)]
 use tracing::warn;
 
 use crate::llm::ollama::{ChatMessage, OllamaClient};

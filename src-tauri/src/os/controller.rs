@@ -221,7 +221,7 @@ impl Default for OsControllerService {
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::{HWND, LPARAM};
 #[cfg(target_os = "windows")]
-type BOOL = i32;
+type WinBool = i32;
 
 /// 读取窗口标题(GetWindowTextW)。
 ///
@@ -247,9 +247,9 @@ fn get_window_title(hwnd: HWND) -> String {
 /// `EnumWindows` 回调 — 收集可见且有标题的顶层窗口。
 ///
 /// 通过 `LPARAM` 传递 `&mut Vec<WindowInfo>` 的裸指针。
-/// 返回 `1`(BOOL true)表示继续枚举。
+/// 返回 `1`(WinBool true)表示继续枚举。
 #[cfg(target_os = "windows")]
-unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> WinBool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, IsWindowVisible};
 
     let state = &mut *(lparam as *mut Vec<WindowInfo>);

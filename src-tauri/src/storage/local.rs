@@ -76,7 +76,7 @@ impl LocalBackend {
             )));
         }
         // 路径遍历检查 — 同时检查正斜杠和反斜杠分隔的组件
-        for component in path.split(|c| c == '/' || c == '\\') {
+        for component in path.split(['/', '\\']) {
             if component == ".." {
                 return Err(StorageError::InvalidPath(format!(
                     "path traversal not allowed: {path}"

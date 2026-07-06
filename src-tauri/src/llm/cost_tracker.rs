@@ -76,17 +76,17 @@ impl CostSource {
     }
 }
 
-/// T-E-A-12: task_local 容器 — 在异步任务上下文中传播当前 CostSource。
-///
-/// `record()` / `record_with_context()` 通过 `COST_SOURCE.try_get()` 读取
-/// 当前来源;未设置(不在 `with_source` 上下文内)时回退到 `CostSource::Chat`。
-/// `COST_TRIGGER_ID` 携带触发器 ID,自动化动作执行期间设置,供 CostRecord
-/// 关联到具体 trigger。
-///
-/// 注意:这两个 static 故意保持私有(不加 `pub`),因为 `pub static` 在
-/// `task_local!` 宏展开中会触发 rustc metadata encoder 的 ICE
-/// (rmeta/encoder "no entry found for key")。外部通过 `with_source` /
-/// `with_automation_trigger` 公共包装函数访问。
+// T-E-A-12: task_local 容器 — 在异步任务上下文中传播当前 CostSource。
+//
+// `record()` / `record_with_context()` 通过 `COST_SOURCE.try_get()` 读取
+// 当前来源;未设置(不在 `with_source` 上下文内)时回退到 `CostSource::Chat`。
+// `COST_TRIGGER_ID` 携带触发器 ID,自动化动作执行期间设置,供 CostRecord
+// 关联到具体 trigger。
+//
+// 注意:这两个 static 故意保持私有(不加 `pub`),因为 `pub static` 在
+// `task_local!` 宏展开中会触发 rustc metadata encoder 的 ICE
+// (rmeta/encoder "no entry found for key")。外部通过 `with_source` /
+// `with_automation_trigger` 公共包装函数访问。
 tokio::task_local! {
     /// 当前费用来源。未设置时 `try_get` 返回 Err → 默认 Chat。
     static COST_SOURCE: CostSource;
