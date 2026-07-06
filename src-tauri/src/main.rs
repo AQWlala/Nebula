@@ -25,7 +25,7 @@ fn main() {
     let config = nebula_lib::AppConfig::from_env();
     tracing::info!(target: "nebula", db_path = ?config.db_path, "loaded configuration");
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
     rt.block_on(async {
         let state = match nebula_lib::AppState::bootstrap_headless(config).await {
             Ok(s) => s,

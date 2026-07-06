@@ -3,6 +3,7 @@
 //! 与 `SkillStore`（CRUD 持久化）和 `SkillImporter`（外部导入）配合，
 //! 提供：索引构建、全文搜索、一键安装、更新检查、发布协议。
 
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -257,8 +258,8 @@ fn term_frequencies(tokens: &[String]) -> Vec<(String, f32)> {
 pub struct SkillMarketplace {
     store: Arc<SkillStore>,
     importer: Arc<SkillImporter>,
-    index: std::sync::RwLock<InvertedIndex>,
-    entries: std::sync::RwLock<Vec<SkillEntry>>,
+    index: RwLock<InvertedIndex>,
+    entries: RwLock<Vec<SkillEntry>>,
 }
 
 impl SkillMarketplace {
@@ -266,8 +267,8 @@ impl SkillMarketplace {
         Self {
             store,
             importer,
-            index: std::sync::RwLock::new(InvertedIndex::new()),
-            entries: std::sync::RwLock::new(Vec::new()),
+            index: RwLock::new(InvertedIndex::new()),
+            entries: RwLock::new(Vec::new()),
         }
     }
 
@@ -301,8 +302,8 @@ impl SkillMarketplace {
 
         let mut index = InvertedIndex::new();
         index.build(entries.clone());
-        *self.index.write().unwrap() = index;
-        *self.entries.write().unwrap() = entries.clone();
+        *self.index.write() = index;
+        *self.entries.write() = entries.clone();
 
         let installed_count = installed_ids.len();
         let mut by_source = HashMap::new();
@@ -318,8 +319,8 @@ impl SkillMarketplace {
 
     /// Full-text search with filters and pagination.
     pub fn search(&self, query: &MarketplaceQuery) -> Result<MarketplaceResponse, anyhow::Error> {
-        let index = self.index.read().unwrap();
-        let entries = self.entries.read().unwrap();
+        let index = self.index.read();
+        let entries = self.entries.read();
 
         let mut candidates: Vec<(usize, f32)> = if let Some(ref text) = query.text {
             let hits = index.search(text, 200);
@@ -442,7 +443,7 @@ impl SkillMarketplace {
         // Refresh index after install.
         self.refresh()?;
 
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read();
         let skill_id = result
             .skill
             .as_ref()
@@ -486,7 +487,7 @@ impl SkillMarketplace {
     }
 
     pub fn all_tags(&self) -> Vec<(String, usize)> {
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read();
         let mut counts: HashMap<String, usize> = HashMap::new();
         for e in entries.iter() {
             for t in &e.tags {
@@ -499,7 +500,7 @@ impl SkillMarketplace {
     }
 
     pub fn stats(&self) -> MarketplaceStats {
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read();
         let installed = entries.iter().filter(|e| e.installed).count();
         let updates = entries.iter().filter(|e| e.update_available).count();
         let mut by_source = HashMap::new();
@@ -515,7 +516,7 @@ impl SkillMarketplace {
     }
 
     pub fn check_updates(&self) -> Vec<UpdateInfo> {
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read();
         entries
             .iter()
             .filter(|e| e.update_available)

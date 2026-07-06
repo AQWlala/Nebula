@@ -323,7 +323,7 @@ fn split_sql(sql: &str) -> Vec<String> {
             ('-', None) if chars.peek() == Some(&'-') => {
                 flush_word(&mut word_buf, &mut begin_depth);
                 buf.push('-');
-                buf.push(chars.next().unwrap()); // push second '-'
+                buf.push(chars.next().expect("peeked '-' must exist")); // push second '-'
                 for nc in chars.by_ref() {
                     buf.push(nc);
                     if nc == '\n' {
@@ -339,7 +339,7 @@ fn split_sql(sql: &str) -> Vec<String> {
                 while let Some(nc) = chars.next() {
                     buf.push(nc);
                     if nc == '*' && chars.peek() == Some(&'/') {
-                        buf.push(chars.next().unwrap());
+                        buf.push(chars.next().expect("peeked '/' must exist"));
                         break;
                     }
                 }
