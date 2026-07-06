@@ -1,4 +1,4 @@
-﻿{
+{
   "app.name": "Nebula",
   "app.tagline": "A multi-headed AI agent that grows with you",
   "app.slogan": "砍掉一个，长出两个",
@@ -23,7 +23,7 @@
   "diagnostics.title": "诊断",
   "diagnostics.openLogs": "打开日志目录",
   "diagnostics.empty": "暂无诊断事件",
-  "diagnostics.disabled": "诊断通道已禁用 (NINE_SNAKE_DIAGNOSTICS=0)",
+  "diagnostics.disabled": "诊断通道已禁用 (NEBULA_DIAGNOSTICS=0)",
 
   "mode.writing": "写作",
   "mode.work": "工作",

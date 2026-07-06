@@ -23,6 +23,10 @@ data/
 # Tauri
 src-tauri/gen/schemas/
 
+# v2.0: tonic-build generated proto types (built by `cargo build`,
+# output goes to src/grpc/proto/*.v1.rs based on proto package name).
+src-tauri/src/grpc/proto/*.v1.rs
+
 # v1.0 P0#11: locally generated Tauri updater signing keys.
 # Public key is tracked; private keys are always ignored.
 keys/updater_private.b64

@@ -1,4 +1,4 @@
-﻿{
+{
   "app.name": "nebula",
   "app.tagline": "A multi-headed AI agent that grows with you",
   "app.slogan": "Cut one, grow two",
@@ -23,7 +23,7 @@
   "diagnostics.title": "Diagnostics",
   "diagnostics.openLogs": "Open logs folder",
   "diagnostics.empty": "No diagnostic events yet",
-  "diagnostics.disabled": "Diagnostics channel disabled (NINE_SNAKE_DIAGNOSTICS=0)",
+  "diagnostics.disabled": "Diagnostics channel disabled (NEBULA_DIAGNOSTICS=0)",
 
   "mode.writing": "Writing",
   "mode.work": "Work",

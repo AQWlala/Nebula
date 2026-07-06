@@ -14,7 +14,7 @@ fn main() {
     // tonic-build and doesn't try to compile the .proto file.
     #[cfg(feature = "grpc")]
     {
-        let proto_path = "proto/nine_snake.proto";
+        let proto_path = "proto/nebula.proto";
         println!("cargo:rerun-if-changed={proto_path}");
 
         let mut config = tonic_build::configure()
