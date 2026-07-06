@@ -394,7 +394,7 @@ impl StorageBackend for WebDavBackend {
             let url = self.url(path);
             // PROPFIND with Depth: 0
             let resp = self
-                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").unwrap(), &url))
+                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").expect("PROPFIND is valid HTTP method"), &url))
                 .header("Depth", "0")
                 .header(
                     "Content-Type",
@@ -484,7 +484,7 @@ impl StorageBackend for WebDavBackend {
             let resp = self
                 .with_auth(
                     self.client
-                        .request(Method::from_bytes(b"MKCOL").unwrap(), &url),
+                        .request(Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"), &url),
                 )
                 .send()
                 .await?;
@@ -501,7 +501,7 @@ impl StorageBackend for WebDavBackend {
                         let resp = self
                             .with_auth(
                                 self.client
-                                    .request(Method::from_bytes(b"MKCOL").unwrap(), &url),
+                                    .request(Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"), &url),
                             )
                             .send()
                             .await?;
@@ -559,7 +559,7 @@ impl StorageBackend for WebDavBackend {
             let url = self.url(prefix);
             // PROPFIND with Depth: 1
             let resp = self
-                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").unwrap(), &url))
+                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").expect("PROPFIND is valid HTTP method"), &url))
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
                 .body(r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:getcontentlength/><D:getlastmodified/><D:resourcetype/><D:getetag/></D:prop></D:propfind>"#)

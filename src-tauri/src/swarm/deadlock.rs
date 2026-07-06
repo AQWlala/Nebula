@@ -79,7 +79,10 @@ impl WaitForGraph {
                         let mut cur = node;
                         while cur != nb {
                             cycle.push(cur.to_string());
-                            cur = parent.get(cur).unwrap().unwrap();
+                            cur = parent
+                                .get(cur)
+                                .and_then(|v| *v)
+                                .expect("parent node must exist in cycle path");
                         }
                         cycle.reverse();
                         return Some(cycle);

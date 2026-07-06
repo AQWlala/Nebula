@@ -1,4 +1,4 @@
-﻿//! SoulCompiler — 6 Step 编译管线（M1 任务 #20-22）。
+//! SoulCompiler — 6 Step 编译管线（M1 任务 #20-22）。
 //!
 //! 实现 ADR-003 §6.3 的 SoulCompiler 编译流程：
 //!
@@ -320,8 +320,7 @@ impl SoulCompiler {
             return None;
         }
         match result.max_severity {
-            Some(InjectionSeverity::Critical) | Some(InjectionSeverity::High) => {
-                let severity = result.max_severity.unwrap();
+            Some(severity @ (InjectionSeverity::Critical | InjectionSeverity::High)) => {
                 let hits_count = result.injection_hits.len();
                 warn!(target: "nebula.soul.compiler",
                     stage = stage,
