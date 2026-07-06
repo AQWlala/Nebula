@@ -113,7 +113,7 @@ mod tests {
     fn factory_webdav_stub() {
         let config = StorageConfig {
             kind: "webdav".to_string(),
-            webdav_url: Some("http://localhost:9999/".to_string()),
+            webdav_url: Some("https://example.com/dav/".to_string()),
             ..Default::default()
         };
         let backend = StorageBackendFactory::from_config(&config).expect("construct webdav backend");

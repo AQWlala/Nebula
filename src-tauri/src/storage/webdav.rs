@@ -584,7 +584,8 @@ mod tests {
     /// 测试:WebDavBackend stub(feature 关闭时返回 Err)。
     #[tokio::test]
     async fn webdav_stub_returns_err() {
-        let backend = WebDavBackend::new("http://localhost:9999/", None, None)
+        // 使用非 loopback 地址避免 SSRF 校验拒绝 (M7b #94)。
+        let backend = WebDavBackend::new("https://example.com/dav/", None, None)
             .expect("construct stub backend");
         assert_eq!(backend.kind(), "webdav");
 

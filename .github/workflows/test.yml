@@ -51,12 +51,30 @@ jobs:
       - name: Build tests
         # Split compile from test execution so that the cache post-step
         # can persist compiled artifacts even if a later step fails.
+        # v2.0: 捕获编译输出到 build-output.txt,即使失败也上传为
+        # artifact 以便查看 macOS 等平台的具体编译错误。
         working-directory: src-tauri
         timeout-minutes: 180
+        shell: bash
         env:
           RUST_BACKTRACE: 1
           CARGO_PROFILE_DEV_DEBUG: "0"
-        run: cargo build --tests --features grpc,channels
+        run: |
+          set +e
+          cargo build --tests --features grpc,channels > build-output.txt 2>&1
+          build_exit=$?
+          echo "build output size: $(wc -c < build-output.txt) bytes"
+          cat build-output.txt
+          exit $build_exit
+      - name: Upload build output
+        # 上传编译输出,即使 Build tests 失败也能查看错误
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ matrix.os }}
+          path: src-tauri/build-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Install cargo-nextest
         # nextest provides per-test timeouts (--timeout 120s) which
         # kill hanging tests instead of letting them block the entire
