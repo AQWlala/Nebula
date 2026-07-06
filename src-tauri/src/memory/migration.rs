@@ -1010,11 +1010,16 @@ mod tests {
         // Run the full bundled migration set against a clean
         // database.  The `e2ee_keys` table MUST NOT exist.
         let (db_path, conn) = temp_db();
-        run_migrations(&conn, bundled_migrations_dir()).unwrap_or_else(|e| {
-            // 把完整错误链嵌入 panic 消息,这样 nextest 输出和 GitHub
-            // annotations 都能直接看到具体失败的 migration 文件名 + SQL 语句,
-            // 不需要下载 artifact。
-            panic!("run_migrations failed (full error chain):\n{e:#}");
+        run_migrations(&conn, bundled_migrations_dir()).unwrap_or_else(|e: anyhow::Error| {
+            // 用 eprintln 输出完整错误链到 stderr,确保 nextest 捕获。
+            // panic 消息用单行格式 (不换行),避免 GitHub annotations 截断。
+            eprintln!("=== run_migrations failed (full error chain) ===");
+            for cause in e.chain() {
+                eprintln!("  cause: {cause}");
+            }
+            eprintln!("=== Debug ===");
+            eprintln!("{e:#}");
+            panic!("run_migrations failed: {}", format!("{e:#}").replace('\n', " | "));
         });
         let has: bool = conn
             .query_row(

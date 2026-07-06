@@ -53,6 +53,8 @@ jobs:
         # can persist compiled artifacts even if a later step fails.
         # v2.0: 捕获编译输出到 build-output.txt,即使失败也上传为
         # artifact 以便查看 macOS 等平台的具体编译错误。
+        # v2.1: 编译失败时提取 error[E####] 行作为 annotations,
+        # 这样不需要下载 artifact 就能在 GitHub UI 看到具体错误。
         working-directory: src-tauri
         timeout-minutes: 180
         shell: bash
@@ -65,6 +67,14 @@ jobs:
           build_exit=$?
           echo "build output size: $(wc -c < build-output.txt) bytes"
           cat build-output.txt
+          # 如果编译失败,提取错误消息作为 GitHub annotations
+          if [ $build_exit -ne 0 ]; then
+            echo "--- Compile errors (as annotations) ---"
+            # 提取 error[E####] 行和紧跟的 --> file:line:col 行
+            grep -E "^error\[E[0-9]+\]|^error:" build-output.txt | head -n 10 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
           exit $build_exit
       - name: Upload build output
         # 上传编译输出,即使 Build tests 失败也能查看错误

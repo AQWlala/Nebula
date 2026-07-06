@@ -102,6 +102,7 @@ async fn server_binds_and_accepts_tcp_connection() {
     let addr = tokio::time::timeout(Duration::from_secs(30), start_test_server())
         .await
         .expect("server start timed out (30s)");
+    eprintln!("[grpc_wire_test] server bound to {addr}");
 
     // Open a plain TCP connection. We don't send a gRPC preface
     // (the wire shim is a stub anyway); we just want to confirm
