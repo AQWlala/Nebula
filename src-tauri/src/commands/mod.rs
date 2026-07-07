@@ -98,6 +98,8 @@ pub mod im;
 pub mod prefetch;
 // T-E-B-01: LLM Wiki 编译引擎命令(compile/list/read/search/delete)。
 pub mod wiki;
+// T-E-B-16: MDRM 5 维关系图谱命令(trace_temporal/find_entities/trace_hierarchy/find_similar/get_graph)。
+pub mod mdrm;
 // T-E-S-29: Observability 命令(otel_status,内部 cfg 分支)。
 pub mod observability;
 // T-E-A-14: Arena A/B 测试命令(create_match / vote / leaderboard)。

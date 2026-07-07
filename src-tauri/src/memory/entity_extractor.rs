@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -105,11 +105,20 @@ impl EntityExtractor {
             .into_iter()
             .filter_map(|r| {
                 let relation = match r.relation.as_str() {
+                    // 因果维度
                     "causes" => RelationKind::Causes,
                     "supports" => RelationKind::Supports,
                     "contradicts" => RelationKind::Contradicts,
+                    // 实体维度
                     "references" => RelationKind::References,
+                    "same_entity" => RelationKind::SameEntity,
+                    // 层级维度
                     "derived_from" => RelationKind::DerivedFrom,
+                    "contains" => RelationKind::Contains,
+                    // 时序维度
+                    "before" => RelationKind::Before,
+                    // 相似度维度
+                    "similar" => RelationKind::Similar,
                     _ => return None,
                 };
                 Some(ExtractedRelation {

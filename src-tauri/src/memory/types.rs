@@ -1,4 +1,4 @@
-﻿//! Core data model for the nebula v7.0 memory system.
+//! Core data model for the nebula v7.0 memory system.
 //!
 //! These types are intentionally `Clone` + `Serialize`/`Deserialize` so
 //! they can flow freely through the Tauri command boundary, the swarm
@@ -193,14 +193,34 @@ impl Provenance {
 }
 
 /// Kind of edge in the memory knowledge graph.
+///
+/// # T-E-B-16 MDRM 5 维扩展
+///
+/// 原 v2.0 仅 5 种关系(Causes/Supports/Contradicts/References/DerivedFrom),
+/// T-E-B-16 扩展为 5 维关系图谱(MDRM),新增 4 种关系:
+/// - `Before` (时序维度):A 先于 B
+/// - `SameEntity` (实体维度):A 与 B 指向同一实体
+/// - `Contains` (层级维度):A 包含 B(与 DerivedFrom 互为反向)
+/// - `Similar` (相似度维度):A 相似 B
+///
+/// 关系列存储为 TEXT,新增 kind 不需要 migration。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RelationKind {
+    // 因果维度(Causal)
     Causes,
     Supports,
     Contradicts,
+    // 实体维度(Entity)
     References,
+    SameEntity,
+    // 层级维度(Hierarchical)
     DerivedFrom,
+    Contains,
+    // 时序维度(Temporal)
+    Before,
+    // 相似度维度(Similarity)
+    Similar,
 }
 
 impl RelationKind {
@@ -210,7 +230,11 @@ impl RelationKind {
             RelationKind::Supports => "supports",
             RelationKind::Contradicts => "contradicts",
             RelationKind::References => "references",
+            RelationKind::SameEntity => "same_entity",
             RelationKind::DerivedFrom => "derived_from",
+            RelationKind::Contains => "contains",
+            RelationKind::Before => "before",
+            RelationKind::Similar => "similar",
         }
     }
 }
@@ -223,7 +247,11 @@ impl FromStr for RelationKind {
             "supports" => Ok(RelationKind::Supports),
             "contradicts" => Ok(RelationKind::Contradicts),
             "references" => Ok(RelationKind::References),
+            "same_entity" => Ok(RelationKind::SameEntity),
             "derived_from" => Ok(RelationKind::DerivedFrom),
+            "contains" => Ok(RelationKind::Contains),
+            "before" => Ok(RelationKind::Before),
+            "similar" => Ok(RelationKind::Similar),
             other => Err(format!("unknown relation kind: {other}")),
         }
     }

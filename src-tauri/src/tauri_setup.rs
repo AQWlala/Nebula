@@ -574,6 +574,12 @@ pub fn run() {
             crate::commands::obsidian_scan_vault,
             crate::commands::obsidian_import_note,
             crate::commands::obsidian_export_note,
+            // T-E-B-16: MDRM 5 维关系图谱命令
+            crate::commands::mdrm::mdrm_trace_temporal,
+            crate::commands::mdrm::mdrm_find_entities,
+            crate::commands::mdrm::mdrm_trace_hierarchy,
+            crate::commands::mdrm::mdrm_find_similar,
+            crate::commands::mdrm::mdrm_get_graph,
             crate::commands::otel_status,
             crate::commands::db_encryption_status,
             crate::commands::db_encryption_enable,

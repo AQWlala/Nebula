@@ -1,4 +1,4 @@
-﻿//! `nebula::memory` — v7.0 layered memory system.
+//! `nebula::memory` — v7.0 layered memory system.
 //!
 //! The memory subsystem is the heart of nebula. It provides:
 //!
@@ -32,6 +32,8 @@ pub mod query_dsl;
 pub mod consistency;
 // v1.5: 因果图谱推理引擎。
 pub mod causal_graph;
+// T-E-B-16: MDRM 5 维关系图谱(因果/时序/实体/层级/相似度)。
+pub mod mdrm_graph;
 // T-S6-B-01: CLIP 多模态嵌入(图片向量化)。
 pub mod clip_embedder;
 // T-E-B-12: PDF/DOCX 文档文本提取。
@@ -81,6 +83,11 @@ pub use query_dsl::{translate as translate_dsl, Expr as DslExpr, Field as DslFie
 // T-E-S-64: 反幻觉一致性检查器类型透传。
 pub use consistency::{analyze, CitedMemory, ConsistencyReport, ConsistencyWarning};
 pub use causal_graph::{CausalChain, CausalGraphConfig, CausalGraphEngine, CausalNode};
+// T-E-B-16: MDRM 5 维关系图谱类型透传。
+pub use mdrm_graph::{
+    dimension_of, GraphEdge, GraphNode, GraphNodeRole, GraphSnapshot, MdrmConfig, MdrmEngine,
+    RelationDimension,
+};
 // T-S6-B-01: 多模态嵌入抽象与 CLIP 实现。
 pub use clip_embedder::ClipEmbedder;
 pub use embedder::{create_embedder, Embedder, EmbedderKind, EmbedderTrait};
