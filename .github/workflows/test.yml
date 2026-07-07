@@ -87,7 +87,7 @@ jobs:
       - name: Upload build output
         # 上传编译输出,即使 Build tests 失败也能查看错误
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-output-${{ matrix.os }}
           path: src-tauri/build-output.txt
@@ -233,7 +233,7 @@ jobs:
           fi
       - name: Upload test output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nextest-output-${{ matrix.os }}
           path: src-tauri/nextest-output.txt
@@ -281,7 +281,7 @@ jobs:
       - name: Upload clippy output
         # 上传 clippy 输出,即使 Lint 失败也能查看完整警告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: clippy-output-${{ runner.os }}
           path: src-tauri/clippy-output.txt
@@ -387,7 +387,7 @@ jobs:
           exit $audit_exit
       - name: Upload audit output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-output-${{ runner.os }}
           path: src-tauri/audit-output.txt
@@ -410,7 +410,7 @@ jobs:
         run: npm run test:coverage
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-coverage
           path: coverage/

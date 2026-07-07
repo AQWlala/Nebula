@@ -1,4 +1,4 @@
-﻿name: release
+name: release
 
 on:
   push:
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload build log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-log-${{ matrix.platform }}
           path: build-logs/
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nebula-${{ matrix.platform }}
           path: |
