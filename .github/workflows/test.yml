@@ -13,7 +13,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # 只跑 windows:项目仅发布 Windows 版本,mac/linux 的 Rust CI
+        # 不再跑(省 runner 时间,消除 mac/linux flaky)。
+        # 恢复:把下面数组改回 [ubuntu-latest, macos-latest, windows-latest]
+        # — 平台特定步骤(Install Linux deps / protoc 安装等)都有
+        # `if: matrix.os == ...` 守护,改 matrix 即可全部恢复。
+        # 注意:本文件末尾的 `web` job(前端测试)仍跑 ubuntu-latest,
+        # 那不是跨平台 Rust 验证,只是用便宜的 ubuntu runner 跑平台无关
+        # 的 npm test/typecheck,保持不变。
+        os: [windows-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable

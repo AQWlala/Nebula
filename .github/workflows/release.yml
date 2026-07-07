@@ -17,18 +17,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: linux-x86_64
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            bundles: appimage
-          - platform: macos-aarch64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            bundles: app,dmg
-          - platform: macos-x86_64
-            os: macos-latest
-            target: x86_64-apple-darwin
-            bundles: app,dmg
+          # 项目仅发布 Windows 版本,mac/linux 构建已移除。
+          # 恢复:取消下面三条注释即可,平台特定步骤(Apple 证书、
+          # protoc 安装、Linux deps)都有 `if` 守护,会自动生效。
+          # - platform: linux-x86_64
+          #   os: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
+          #   bundles: appimage
+          # - platform: macos-aarch64
+          #   os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   bundles: app,dmg
+          # - platform: macos-x86_64
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   bundles: app,dmg
           - platform: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -218,18 +221,6 @@ jobs:
             "notes": "See https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME",
             "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
             "platforms": {
-              "linux-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_amd64.AppImage"
-              },
-              "darwin-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_x64.dmg"
-              },
-              "darwin-aarch64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_aarch64.dmg"
-              },
               "windows-x86_64": {
                 "signature": "",
                 "url": "https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/nebula_${TAG_NAME#v}_x64-setup.exe"
