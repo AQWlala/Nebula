@@ -22,6 +22,10 @@ import {
 /** "ok" means the backend answered health with ollama reachable. */
 export type HealthStatus = 'unknown' | 'ok' | 'down';
 
+/** T-E-B-02: 顶层视图路由。移至 store 以便 ChatPanel `/journey` 等斜杠命令跨组件切换。
+ *  原 App.tsx 模块级 signal 重构为 store signal,语义不变。 */
+export type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics';
+
 class nebulaStoreClass {
   ready = signal(false);
   version = signal<string>('unknown');
@@ -53,6 +57,11 @@ class nebulaStoreClass {
   modeMisclassification = signal<number>(0);
   /** T-E-S-50: 自主度滑块 L0-L5(默认 L2 对话,与 modeRouter 正交)。 */
   autonomyLevel = signal<AutonomyLevel>(DEFAULT_AUTONOMY_LEVEL);
+  /** T-E-B-02: 记忆三视图切换('map'图谱 / 'list'Markdown列表 / 'timeline'时间轴)。
+   *  放在 store 而非 App local state,以便 ChatPanel `/journey` 命令跨组件触发。 */
+  memoryView = signal<'map' | 'list' | 'timeline'>('map');
+  /** T-E-B-02: 顶层视图路由(原 App.tsx currentMode)。 */
+  currentMode = signal<View>('code');
 
   async bootstrap(): Promise<void> {
     await nebulaAPI.bootstrap();

@@ -38,6 +38,7 @@ const ChatPanel = lazy(() => import('./components/ChatPanel').then((m) => ({ def
 const SwarmView = lazy(() => import('./components/SwarmView').then((m) => ({ default: m.SwarmView })));
 const MemoryInspector = lazy(() => import('./components/MemoryInspector').then((m) => ({ default: m.MemoryInspector })));
 const MemoryMap = lazy(() => import('./components/MemoryMap').then((m) => ({ default: m.MemoryMap })));
+const TimelineView = lazy(() => import('./components/TimelineView').then((m) => ({ default: m.TimelineView })));
 const SkillPanel = lazy(() => import('./components/SkillPanel'));
 const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })));
 const CreditsDashboard = lazy(() => import('./components/CreditsDashboard').then((m) => ({ default: m.CreditsDashboard })));
@@ -60,7 +61,8 @@ function LoadingFallback() {
 type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics';
 
 // 全局状态：当前模式 + 当前 view
-const currentMode = signal<View>('code');
+// T-E-B-02: currentMode 移至 nebulaStore 以便 ChatPanel `/journey` 跨组件切换。
+const currentMode = nebulaStore.currentMode;
 const paletteOpen = signal(false);
 const settingsOpen = signal(false);
 const appKey = signal(0);
@@ -78,8 +80,9 @@ export function App() {
   // when the user explicitly finishes the onboarding.
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // P1-6: memory view mode - 'list' or 'map'
-  const [memoryView, setMemoryView] = useState<'list' | 'map'>('map');
+  // P1-6 / T-E-B-02: memory view mode — 'map' / 'list' / 'timeline' 三视图。
+  // 改用 nebulaStore.memoryView signal,以便 ChatPanel `/journey` 命令跨组件切换。
+  const memoryView = nebulaStore.memoryView;
 
   // P0#3: read the locale signal once here so the entire App tree
   // re-renders whenever the user changes language.  Every
@@ -220,22 +223,31 @@ export function App() {
                 {currentMode.value === 'swarm' && <SwarmView />}
                 {currentMode.value === 'memory' && (
                   <div className="memory-view-container h-full flex flex-col">
-                    {/* P1-6: View mode toggle */}
+                    {/* P1-6 / T-E-B-02: 三视图切换 — 图谱 / Markdown列表 / 时间轴 */}
                     <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800">
                       <button
-                        className={`px-3 py-1 text-xs rounded ${memoryView === 'map' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-                        onClick={() => setMemoryView('map')}
+                        className={`px-3 py-1 text-xs rounded ${memoryView.value === 'map' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        onClick={() => (memoryView.value = 'map')}
                       >
                         {t('memoryMap.title')}
                       </button>
                       <button
-                        className={`px-3 py-1 text-xs rounded ${memoryView === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-                        onClick={() => setMemoryView('list')}
+                        className={`px-3 py-1 text-xs rounded ${memoryView.value === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        onClick={() => (memoryView.value = 'list')}
                       >
                         {t('memoryView.list')}
                       </button>
+                      <button
+                        data-testid="view-timeline-btn"
+                        className={`px-3 py-1 text-xs rounded ${memoryView.value === 'timeline' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        onClick={() => (memoryView.value = 'timeline')}
+                      >
+                        时间轴
+                      </button>
                     </div>
-                    {memoryView === 'map' ? <MemoryMap /> : <MemoryInspector />}
+                    {memoryView.value === 'map' && <MemoryMap />}
+                    {memoryView.value === 'list' && <MemoryInspector />}
+                    {memoryView.value === 'timeline' && <TimelineView />}
                   </div>
                 )}
                 {currentMode.value === 'skills' && <SkillPanel />}

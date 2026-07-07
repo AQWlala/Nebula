@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0.1: 对话面板 - 简洁的聊天界面
  *
  * P0#07:
@@ -325,6 +325,19 @@ export function ChatPanel() {
    *  - 支持通过"停止生成"按钮 abort */
   async function sendStream() {
     if (!input.trim() || loading) return;
+
+    // T-E-B-02: `/journey` 斜杠命令 — 切换到记忆时间轴视图。
+    // 输入 `/journey` + Enter 即可跳转,无需发送消息到 LLM。
+    // 支持 `/journey` 单独使用,或后接描述(描述当前忽略,未来可做语义筛选)。
+    const trimmed = input.trim();
+    if (trimmed === '/journey' || trimmed.startsWith('/journey ')) {
+      nebulaStore.currentMode.value = 'memory';
+      nebulaStore.memoryView.value = 'timeline';
+      setInput('');
+      toast.info('切换到记忆时间轴 · Journey');
+      return;
+    }
+
     // T-E-B-10: 解析 #filename token,内联文件内容。
     const resolvedText = await resolveFileTokens(input);
     const userMsg: Message = { role: 'user', content: resolvedText, timestamp: Date.now() };
