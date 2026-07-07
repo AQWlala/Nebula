@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tauri Command 封装 + 类型定义
  *
  * v0.3 新增 5 个 Skill CRUD 命令
@@ -435,6 +435,66 @@ export interface CommandError {
   code: ErrorCode;
   message: string;
   details?: string | null;
+}
+
+// -----------------------------------------------------------------------
+// T-E-B-16 / T-E-B-07: MDRM 5 维关系图谱类型
+// (镜像 src-tauri/src/memory/mdrm_graph.rs,serde snake_case)
+// -----------------------------------------------------------------------
+
+/** 5 维关系维度(与后端 `RelationDimension::as_str()` 一致)。 */
+export type RelationDimension =
+  | 'causal'
+  | 'temporal'
+  | 'entity'
+  | 'hierarchical'
+  | 'similarity';
+
+/** 节点角色(后端 `#[serde(rename_all = "snake_case")]`)。 */
+export type GraphNodeRole = 'root' | 'inner' | 'leaf';
+
+/** 图节点 — 前端可视化用。 */
+export interface GraphNode {
+  id: string;
+  depth: number;
+  role: GraphNodeRole;
+  layer: Layer;
+  summary: string;
+  importance: number;
+}
+
+/** 图边 — 描述两个记忆间的关系。 */
+export interface GraphEdge {
+  src_id: string;
+  dst_id: string;
+  /** 关系类型字符串(causes/supports/contradicts/references/same_entity/derived_from/contains/before/similar)。 */
+  kind: string;
+  /** 所属维度字符串(causal/temporal/entity/hierarchical/similarity)。 */
+  dimension: RelationDimension;
+  /** 边权重 0.0-1.0。 */
+  weight: number;
+}
+
+/** 图快照 — MDRM 查询结果,前端力导向图直接消费。 */
+export interface GraphSnapshot {
+  /** 查询起点 ID。 */
+  root_id: string;
+  /** 请求的维度列表。 */
+  dimensions: RelationDimension[];
+  /** 节点列表(去重,按 depth 升序)。 */
+  nodes: GraphNode[];
+  /** 边列表。 */
+  edges: GraphEdge[];
+  /** 是否因达到 max_nodes/max_edges 截断。 */
+  truncated: boolean;
+}
+
+/** MDRM 查询参数(可选字段,缺省用后端 default)。 */
+export interface MdrmQueryParams {
+  max_depth?: number;
+  max_nodes?: number;
+  max_edges?: number;
+  min_weight?: number;
 }
 
 export class nebulaAPI {
@@ -1699,6 +1759,64 @@ export class nebulaAPI {
    */
   static soulSystemSetEnabled(enabled: boolean): Promise<void> {
     return invoke('soul_system_set_enabled', { enabled });
+  }
+
+  // -----------------------------------------------------------------------
+  // T-E-B-16 / T-E-B-07: MDRM 5 维关系图谱命令
+  // -----------------------------------------------------------------------
+
+  /**
+   * T-E-B-07: 多维度组合查询(供 MemoryMap 力导向图视图)。
+   *
+   * `dims` 缺省或空数组 → 全 5 维遍历(等价 `get_full_graph`)。
+   * 返回 `GraphSnapshot`,前端直接渲染节点 + 边。
+   *
+   * @param memoryId 查询起点记忆 ID
+   * @param dims     维度过滤(空/缺省=全部)
+   * @param params   可选查询参数(深度/节点上限/边上限/权重下限)
+   */
+  static mdrmGetGraph(
+    memoryId: string,
+    dims?: RelationDimension[] | null,
+    params?: MdrmQueryParams | null,
+  ): Promise<GraphSnapshot> {
+    return invoke('mdrm_get_graph', {
+      memoryId,
+      dims: dims ?? null,
+      params: params ?? null,
+    });
+  }
+
+  /** T-E-B-16: 时序维度 — 沿 `Before` 边追溯时间链。 */
+  static mdrmTraceTemporal(
+    memoryId: string,
+    params?: MdrmQueryParams | null,
+  ): Promise<GraphSnapshot> {
+    return invoke('mdrm_trace_temporal', { memoryId, params: params ?? null });
+  }
+
+  /** T-E-B-16: 实体维度 — 查找同实体记忆簇(SameEntity/References)。 */
+  static mdrmFindEntities(
+    memoryId: string,
+    params?: MdrmQueryParams | null,
+  ): Promise<GraphSnapshot> {
+    return invoke('mdrm_find_entities', { memoryId, params: params ?? null });
+  }
+
+  /** T-E-B-16: 层级维度 — 追溯 Contains/DerivedFrom 层级。 */
+  static mdrmTraceHierarchy(
+    memoryId: string,
+    params?: MdrmQueryParams | null,
+  ): Promise<GraphSnapshot> {
+    return invoke('mdrm_trace_hierarchy', { memoryId, params: params ?? null });
+  }
+
+  /** T-E-B-16: 相似度维度 — 查找相似记忆(Similar)。 */
+  static mdrmFindSimilar(
+    memoryId: string,
+    params?: MdrmQueryParams | null,
+  ): Promise<GraphSnapshot> {
+    return invoke('mdrm_find_similar', { memoryId, params: params ?? null });
   }
 }
 
