@@ -24,6 +24,11 @@ use uuid::Uuid;
 
 use crate::llm::dispatcher::{UnifiedModelDispatcher, WorkType};
 use crate::llm::ollama::{ChatMessage, ChatResponse};
+// T-E-L-01: Loop 执行模式所需 import。
+use super::loop_def::LoopDef;
+use crate::long_task::{LongTaskEngine, StepInput};
+use crate::memory::values::risk_assessor::ActionKind;
+use crate::memory::values::Verdict;
 
 use super::dag::{FailureStrategy, SubTask, SubTaskResult, SubTaskResultMap, TaskDag};
 use super::events::EventEnvelope;
@@ -352,6 +357,24 @@ pub struct MasterReport {
     pub bypassed: bool,
 }
 
+/// T-E-L-01: `execute_loop()` 返回报告。
+///
+/// 与 [`MasterReport`]（Once 模式）平行，Loop 模式返回轻量级报告，
+/// 实际执行状态由 LongTaskEngine 持久化（可通过 `state_projection()` 投影到 STATE.md）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopRunReport {
+    /// 关联的 LongTask ID（denied / needs_confirmation 时为 None）。
+    pub task_id: Option<String>,
+    /// Loop 名称（来自 LOOP.md frontmatter）。
+    pub loop_name: String,
+    /// ValuesLayer 裁定：`"allow"` | `"deny"` | `"confirm"` | `"plan"`。
+    pub values_verdict: String,
+    /// 执行状态：`"started"` | `"denied"` | `"needs_confirmation"`。
+    pub status: String,
+    /// 人类可读消息（deny 理由 / confirm 提示 / 启动确认）。
+    pub message: String,
+}
+
 /// MasterAgent 任务拆解提示词模板。
 ///
 /// MasterAgent 通过 `dispatch(WorkType::MasterTask)` 调用 LLM,
@@ -534,6 +557,128 @@ impl MasterOrchestrator {
             elapsed_ms,
         ));
         Ok(report)
+    }
+
+    /// T-E-L-01: Loop 执行模式入口。
+    ///
+    /// 与 [`orchestrate()`]（Once 模式）并列。Loop 模式不拆解 DAG，
+    /// 而是将 LOOP.md 定义的 action 序列转为 LongTask 步骤，后台异步执行。
+    ///
+    /// 流程（与 NEBULA_LOOP_DESIGN.md §2.5 对齐）：
+    /// 1. **ValuesLayer 门禁**：对 `loop_def.action` 拼接为动作描述，
+    ///    调用 `self.swarm.values_layer().evaluate(desc, Generic)`：
+    ///    - `Deny` → 返回 `status="denied"`，不创建 LongTask
+    ///    - `Confirm` / `Plan` → 返回 `status="needs_confirmation"`
+    ///      （TODO: T-E-L-03 PlanEngine 集成，暂不阻塞）
+    ///    - `Allow` → 继续
+    /// 2. **构造 LongTask 步骤**：每条 action → `StepInput { program: "loop-action", args: [text] }`
+    /// 3. **创建 + 启动 LongTask**：`create_task(intent, steps, workspace_id, None)` + `start(id)`
+    /// 4. **返回报告**：`LoopRunReport { status: "started", task_id: Some(...) }`
+    ///
+    /// **不持有 LongTaskEngine**（避免循环依赖），通过参数传入。
+    /// **ValuesLayer 内部访问**：`self.swarm.values_layer()`（无需参数）。
+    #[instrument(skip(self, long_task_engine), fields(loop_name = %loop_def.name))]
+    pub async fn execute_loop(
+        &self,
+        loop_def: &LoopDef,
+        long_task_engine: &LongTaskEngine,
+        workspace_id: Option<String>,
+    ) -> Result<LoopRunReport> {
+        // ---- 1. ValuesLayer 门禁 ----
+        let action_desc = loop_def.action.join("; ");
+        let verdict = self
+            .swarm
+            .values_layer()
+            .evaluate(&action_desc, ActionKind::Generic);
+
+        match verdict {
+            Verdict::Deny { reason } => {
+                warn!(
+                    target: "nebula.master.loop",
+                    loop_name = %loop_def.name,
+                    reason = %reason,
+                    "loop denied by values layer"
+                );
+                return Ok(LoopRunReport {
+                    task_id: None,
+                    loop_name: loop_def.name.clone(),
+                    values_verdict: "deny".to_string(),
+                    status: "denied".to_string(),
+                    message: reason,
+                });
+            }
+            Verdict::Confirm { prompt } => {
+                // TODO(T-E-L-03): PlanEngine 集成 — 暂返回 needs_confirmation 不阻塞。
+                info!(
+                    target: "nebula.master.loop",
+                    loop_name = %loop_def.name,
+                    "loop requires confirmation"
+                );
+                return Ok(LoopRunReport {
+                    task_id: None,
+                    loop_name: loop_def.name.clone(),
+                    values_verdict: "confirm".to_string(),
+                    status: "needs_confirmation".to_string(),
+                    message: prompt,
+                });
+            }
+            Verdict::Plan { prompt } => {
+                // TODO(T-E-L-03): PlanEngine 集成 — 暂返回 needs_confirmation 不阻塞。
+                info!(
+                    target: "nebula.master.loop",
+                    loop_name = %loop_def.name,
+                    "loop requires plan"
+                );
+                return Ok(LoopRunReport {
+                    task_id: None,
+                    loop_name: loop_def.name.clone(),
+                    values_verdict: "plan".to_string(),
+                    status: "needs_confirmation".to_string(),
+                    message: prompt,
+                });
+            }
+            Verdict::Allow => {} // 继续
+        }
+
+        // ---- 2. 构造 LongTask 步骤 ----
+        let steps: Vec<StepInput> = loop_def
+            .action
+            .iter()
+            .map(|a| StepInput {
+                description: a.clone(),
+                program: "loop-action".to_string(),
+                args: vec![a.clone()],
+            })
+            .collect();
+
+        // ---- 3. 创建 + 启动 LongTask ----
+        let task = long_task_engine.create_task(
+            loop_def.intent.clone(),
+            steps,
+            workspace_id,
+            None, // plan_id — T-E-L-03 PlanEngine 集成后填充
+        )?;
+
+        // start() 会 spawn 后台 runner 异步执行步骤。
+        // runner 执行 "loop-action" 程序会失败（非真实命令），但不影响 execute_loop 返回。
+        // 实际 Loop 执行逻辑由 T-E-L-02/03 完善。
+        long_task_engine.start(&task.id)?;
+
+        info!(
+            target: "nebula.master.loop",
+            loop_name = %loop_def.name,
+            task_id = %task.id,
+            "loop started"
+        );
+
+        // ---- 4. 返回报告 ----
+        Ok(LoopRunReport {
+            task_id: Some(task.id),
+            loop_name: loop_def.name.clone(),
+            values_verdict: "allow".to_string(),
+            status: "started".to_string(),
+            message: format!("Loop '{}' started", loop_def.name),
+        })
     }
 
     /// 任务拆解阶段:调用 LLM 生成 TaskDag JSON,然后解析。
@@ -932,5 +1077,144 @@ mod tests {
             assert!(!envelope.event_type.is_empty());
             assert!(envelope.event_type.chars().next().unwrap().is_uppercase());
         }
+    }
+
+    // ---- T-E-L-01: execute_loop() 测试 ----
+
+    /// 构造测试用 MasterOrchestrator + LongTaskEngine + 临时 SQLite 路径。
+    ///
+    /// - LLM 端点指向不存在的 127.0.0.1:1（测试不依赖 LLM 调用）
+    /// - LongTaskEngine 用临时 SQLite + migration 037
+    /// - ShadowWorkspaceEngine 用默认（run_command 会失败但测试不依赖执行结果）
+    fn make_master_and_engine() -> (MasterOrchestrator, LongTaskEngine, std::path::PathBuf) {
+        use std::time::Duration;
+        let client = Arc::new(crate::llm::OllamaClient::new_with_timeout(
+            "http://127.0.0.1:1",
+            Duration::from_secs(2),
+        ));
+        let gw = Arc::new(crate::llm::LlmGateway::new(
+            client, "m", "ollama", None, None, None, None, None,
+        ));
+        let swarm = Arc::new(SwarmOrchestrator::new_without_memory(
+            gw,
+            Arc::new(crate::tools::ToolRegistry::new()),
+        ));
+        let master = MasterOrchestrator::new(swarm, None);
+
+        let tmp = std::env::temp_dir().join(format!("nebula-loop-test-{}", Uuid::new_v4()));
+        let _ = std::fs::remove_file(&tmp);
+        let sqlite =
+            Arc::new(crate::memory::sqlite_store::SqliteStore::open(&tmp).expect("open sqlite"));
+        {
+            let conn = sqlite.raw_connection();
+            let conn = conn.lock();
+            conn.execute_batch(include_str!("../../migrations/037_long_tasks.sql"))
+                .expect("apply migration 037");
+        }
+        let shadow = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
+        let engine = LongTaskEngine::new(sqlite, shadow);
+        (master, engine, tmp)
+    }
+
+    /// 构造测试用 LoopDef（直接构造字段，不走 from_markdown 解析）。
+    fn make_loop_def(name: &str, intent: &str, actions: Vec<&str>) -> LoopDef {
+        use crate::swarm::loop_def::AutonomyLevel;
+        LoopDef {
+            name: name.to_string(),
+            description: "test loop".to_string(),
+            cadence: "0 9 * * 1-5".to_string(),
+            autonomy: AutonomyLevel::L2,
+            budget_tokens: 50000,
+            budget_minutes: 10,
+            intent: intent.to_string(),
+            context: vec![],
+            action: actions.into_iter().map(String::from).collect(),
+            observation: vec![],
+            adjustment: vec![],
+            stop_condition: None,
+            connectors: vec![],
+            safety: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_loop_allow_path() {
+        let (master, engine, tmp) = make_master_and_engine();
+        let loop_def = make_loop_def(
+            "safe-read",
+            "读取并总结文档",
+            vec!["读取 README.md", "总结要点"],
+        );
+        let report = master
+            .execute_loop(&loop_def, &engine, None)
+            .await
+            .expect("execute_loop should succeed on safe action");
+        assert_eq!(report.status, "started");
+        assert_eq!(report.values_verdict, "allow");
+        assert!(report.task_id.is_some(), "task_id should be Some on allow");
+        // 验证 LongTask 确实被创建
+        let task_id = report.task_id.as_ref().unwrap();
+        let task = engine.get_task(task_id).expect("get_task should succeed");
+        assert!(task.is_some(), "task should exist in engine");
+        // 等待后台 runner 结束（loop-action 非真实命令会快速失败）
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_deny_path() {
+        let (master, engine, tmp) = make_master_and_engine();
+        // 身份证号触发 PrivacyGuard::Block → Verdict::Deny
+        let loop_def = make_loop_def(
+            "pii-leak",
+            "处理用户信息",
+            vec!["处理身份证号 11010119900307888X"],
+        );
+        let report = master
+            .execute_loop(&loop_def, &engine, None)
+            .await
+            .expect("execute_loop should not error on deny");
+        assert_eq!(report.status, "denied");
+        assert_eq!(report.values_verdict, "deny");
+        assert!(report.task_id.is_none(), "task_id must be None on deny");
+        assert!(!report.message.is_empty(), "deny reason should be present");
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_bulk_plan_path() {
+        let (master, engine, tmp) = make_master_and_engine();
+        // "批量更新所有配置" 触发 has_bulk_signal（"批量"+"所有"）→ NeedsPlan → Verdict::Plan。
+        // 注意：不能用"批量删除...文件"——宪法规则 `批量删除.*文件` 会直接 Deny。
+        let loop_def = make_loop_def("bulk-update", "批量更新配置", vec!["批量更新所有配置"]);
+        let report = master
+            .execute_loop(&loop_def, &engine, None)
+            .await
+            .expect("execute_loop should not error on plan");
+        assert_eq!(report.status, "needs_confirmation");
+        assert_eq!(report.values_verdict, "plan");
+        assert!(
+            report.task_id.is_none(),
+            "task_id must be None on plan (not yet started)"
+        );
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn loop_run_report_serde_round_trip() {
+        let report = LoopRunReport {
+            task_id: Some("task-123".to_string()),
+            loop_name: "daily-triage".to_string(),
+            values_verdict: "allow".to_string(),
+            status: "started".to_string(),
+            message: "Loop 'daily-triage' started".to_string(),
+        };
+        let json = serde_json::to_string(&report).expect("serialize");
+        let de: LoopRunReport = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(de.task_id, Some("task-123".to_string()));
+        assert_eq!(de.loop_name, "daily-triage");
+        assert_eq!(de.values_verdict, "allow");
+        assert_eq!(de.status, "started");
+        assert_eq!(de.message, "Loop 'daily-triage' started");
     }
 }
