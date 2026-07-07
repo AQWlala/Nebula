@@ -101,6 +101,13 @@ pub mod shadow_workspace;
 #[cfg(feature = "self-evolution")]
 pub mod evolution;
 
+// T-E-L-02: 5 字段 cron 表达式解析器 — 通用工具，无 feature gate。
+// 文件物理位置在 evolution/cron_expr.rs，但用 #[path] 绕过 evolution 模块的
+// #![cfg(feature = "self-evolution")] 门控，使 CI 用 --features grpc,channels
+// 即可编译测试。cron_scheduler.rs (self-evolution 门控) 通过 crate::cron_expr 引用。
+#[path = "evolution/cron_expr.rs"]
+pub mod cron_expr;
+
 // M1 里程碑：Soul 系统（SOUL.md + SoulCompiler + 注入防护 + 原子写入）。
 // 默认 off；启用需 `--features soul-system`。
 // 运行时还需环境变量 `SOUL_SYSTEM_ENABLED=1` 或 Settings UI 显式开启。

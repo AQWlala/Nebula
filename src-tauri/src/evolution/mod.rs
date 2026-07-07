@@ -38,6 +38,9 @@ pub mod engine;
 // P2-B: Cron 调度器 — 三计时机制(03:00合并/12:00自检/21:00回顾)。
 // 由 self-evolution feature 门控(与 honcho 一致)。
 pub mod cron_scheduler;
+// T-E-L-02: 5 字段 cron 表达式解析器声明在 lib.rs（用 #[path] 绕过本模块的
+// #![cfg(feature = "self-evolution")] 门控），使 CI 用 --features grpc,channels
+// 即可编译测试。路径: crate::cron_expr::CronExpr。
 
 use serde::{Deserialize, Serialize};
 
