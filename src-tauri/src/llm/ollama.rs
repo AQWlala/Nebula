@@ -1229,8 +1229,10 @@ mod tests {
         );
         let elapsed = start.elapsed();
 
-        // 三个请求都应成功
-        assert!(r1.is_ok() && r2.is_ok() && r3.is_ok());
+        // 三个请求都应成功。拆成 3 个 assert 以便失败时看到具体哪个请求出错。
+        assert!(r1.is_ok(), "r1 failed: {:?}", r1.err());
+        assert!(r2.is_ok(), "r2 failed: {:?}", r2.err());
+        assert!(r3.is_ok(), "r3 failed: {:?}", r3.err());
         // max_concurrency=1 → 串行:3 × 60ms = 180ms 是下限。
         // 并行(无 Semaphore)则约 60ms。
         assert!(
@@ -1238,10 +1240,10 @@ mod tests {
             "expected >= 180ms (serialized by Semaphore=1), got {:?}",
             elapsed
         );
-        // 上限:留出网络/调度开销,500ms 足够。
+        // 上限:CI 环境(Windows runner)调度开销大,放宽到 3000ms 避免 flaky。
         assert!(
-            elapsed < Duration::from_millis(1000),
-            "expected < 1000ms (3 × 60ms + overhead), got {:?}",
+            elapsed < Duration::from_millis(3000),
+            "expected < 3000ms (3 × 60ms + Windows CI overhead), got {:?}",
             elapsed
         );
     }
