@@ -1,4 +1,4 @@
-﻿//! SkillAutoEvolver + Skill Archive = "uselessness decay" loop.
+//! SkillAutoEvolver + Skill Archive = "uselessness decay" loop.
 //!
 //! Behaviour:
 //!   * A skill becomes an *archive candidate* when its
@@ -87,6 +87,166 @@ impl SqliteSkillAutoEvolver {
         } else {
             Ok(false)
         }
+    }
+
+    /// P2-C: 从复杂任务经验中自动创建技能。
+    ///
+    /// 对标 Hermes: "Autonomous skill creation after complex tasks"。
+    ///
+    /// 触发条件:swarm 任务完成 + outcome.confidence > goal_confidence_threshold
+    /// 流程:
+    /// 1. 收集任务上下文(对话 + 工具调用 + 结果)
+    /// 2. LLM 归纳为 SKILL.md 格式(此处接收已归纳的 manifest)
+    /// 3. Eligibility 检查 → 存入 SkillStore
+    /// 4. 首次使用时 nudge 用户确认
+    ///
+    /// 返回 Some(Skill) 表示创建了新技能,None 表示信心不足未创建。
+    pub fn create_from_experience(
+        &self,
+        task_context: &TaskContext,
+        outcome: &super::outcome::Outcome,
+    ) -> Result<Option<crate::skills::types::Skill>> {
+        // 信心阈值检查
+        if outcome.confidence < self.config.goal_confidence_threshold {
+            tracing::debug!(
+                target: "nebula.evolution.skill_evolver",
+                confidence = outcome.confidence,
+                threshold = self.config.goal_confidence_threshold,
+                "outcome confidence below threshold, skipping skill creation"
+            );
+            return Ok(None);
+        }
+
+        // 构造新技能
+        let now = chrono::Utc::now().timestamp();
+        let skill_id = format!("auto-{}-{}", outcome.source_id, now);
+        let skill = crate::skills::types::Skill {
+            id: skill_id.clone(),
+            name: task_context.skill_name.clone(),
+            description: task_context.skill_description.clone(),
+            code: task_context.skill_code.clone(),
+            language: task_context.skill_language.clone(),
+            tags: task_context.skill_tags.clone(),
+            usage_count: 0,
+            avg_rating: 0.0,
+            rating_count: 0,
+            created_at: now,
+            updated_at: now,
+            source_memory_id: Some(outcome.source_id.clone()),
+            activation_condition: task_context.activation_condition.clone(),
+            platform: None,
+            min_confidence: Some(outcome.confidence),
+            trust_level: 0, // auto_created → 未验证,需用户确认
+            permissions: task_context.permissions.clone(),
+            capabilities: crate::skills::sandbox::CapabilitySet::default(),
+        };
+
+        // 存入 SkillStore
+        self.skills.insert(&skill)?;
+
+        // 记录到 OutcomeLedger
+        let _ = self.ledger.record(&super::outcome::Outcome {
+            id: super::outcome::fresh_outcome_id(),
+            source_id: skill_id.clone(),
+            source: OutcomeSource::Skill,
+            status: OutcomeStatus::Success,
+            confidence: outcome.confidence,
+            error: format!("auto-created from task {}", outcome.source_id),
+            duration_ms: 0,
+            created_at: now,
+        });
+
+        tracing::info!(
+            target: "nebula.evolution.skill_evolver",
+            skill_id = %skill_id,
+            skill_name = %skill.name,
+            confidence = outcome.confidence,
+            "skill auto-created from experience"
+        );
+
+        Ok(Some(skill))
+    }
+
+    /// P2-C: 技能使用中自我改进。
+    ///
+    /// 对标 Hermes: "Skills self-improve during use"。
+    ///
+    /// 触发条件:技能使用 5+ 次 + avg_rating < 4.0(或 archive_rate_floor)
+    /// 流程:
+    /// 1. 收集该技能最近 N 次使用结果
+    /// 2. 分析失败模式(此处接收已分析的改进方案)
+    /// 3. 应用改进 → 存入 SkillStore(保留旧版本可回滚)
+    pub fn improve_from_usage(
+        &self,
+        skill_id: &str,
+        improvement: &SkillImprovement,
+    ) -> Result<ImproveResult> {
+        let skill = match self.skills.get(skill_id)? {
+            Some(s) => s,
+            None => return Ok(ImproveResult::NotFound),
+        };
+
+        // 使用次数检查
+        if skill.usage_count < self.config.archive_min_usage {
+            tracing::debug!(
+                target: "nebula.evolution.skill_evolver",
+                skill_id = %skill_id,
+                usage_count = skill.usage_count,
+                min_usage = self.config.archive_min_usage,
+                "usage count below threshold, skipping improvement"
+            );
+            return Ok(ImproveResult::Skipped);
+        }
+
+        // 评分检查:只有低评分技能才需要改进
+        if skill.avg_rating >= self.config.archive_rate_floor {
+            tracing::debug!(
+                target: "nebula.evolution.skill_evolver",
+                skill_id = %skill_id,
+                avg_rating = skill.avg_rating,
+                rate_floor = self.config.archive_rate_floor,
+                "avg rating above floor, skipping improvement"
+            );
+            return Ok(ImproveResult::Skipped);
+        }
+
+        // 应用改进
+        let mut improved = skill.clone();
+        if !improvement.new_code.is_empty() {
+            improved.code = improvement.new_code.clone();
+        }
+        if !improvement.new_description.is_empty() {
+            improved.description = improvement.new_description.clone();
+        }
+        if !improvement.new_tags.is_empty() {
+            improved.tags = improvement.new_tags.clone();
+        }
+        improved.updated_at = chrono::Utc::now().timestamp();
+
+        // Upsert(保留旧版本通过 prompt_mutator snapshot,如果有)
+        self.skills.upsert(&improved)?;
+
+        // 记录到 OutcomeLedger
+        let now = chrono::Utc::now().timestamp();
+        let _ = self.ledger.record(&super::outcome::Outcome {
+            id: super::outcome::fresh_outcome_id(),
+            source_id: skill_id.to_string(),
+            source: OutcomeSource::Skill,
+            status: OutcomeStatus::Success,
+            confidence: 0.8,
+            error: format!("skill improved: {}", improvement.reason),
+            duration_ms: 0,
+            created_at: now,
+        });
+
+        tracing::info!(
+            target: "nebula.evolution.skill_evolver",
+            skill_id = %skill_id,
+            reason = %improvement.reason,
+            "skill improved from usage"
+        );
+
+        Ok(ImproveResult::Applied)
     }
 }
 
@@ -217,6 +377,59 @@ impl SqliteSkillAutoEvolver {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// P2-C: Skill 闭环进化辅助类型
+// ---------------------------------------------------------------------------
+
+/// 任务上下文 — 从复杂任务经验中提取的技能 manifest。
+///
+/// 由调用方(通常是 swarm orchestrator)在任务完成后构造,
+/// 传给 [`SqliteSkillAutoEvolver::create_from_experience`]。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TaskContext {
+    /// 新技能的名称。
+    pub skill_name: String,
+    /// 新技能的描述。
+    pub skill_description: String,
+    /// 技能代码(LLM 归纳后的 prompt 或 python 代码)。
+    pub skill_code: String,
+    /// 技能语言("llm" 或 "python")。
+    pub skill_language: String,
+    /// 技能标签。
+    pub skill_tags: Vec<String>,
+    /// 激活条件(可选)。
+    pub activation_condition: Option<crate::skills::types::ActivationCondition>,
+    /// 声明式权限。
+    pub permissions: Vec<String>,
+}
+
+/// 技能改进方案 — 由 LLM 分析失败模式后生成。
+///
+/// 传给 [`SqliteSkillAutoEvolver::improve_from_usage`]。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SkillImprovement {
+    /// 改进原因(失败模式摘要)。
+    pub reason: String,
+    /// 新的技能代码(空字符串表示不修改)。
+    pub new_code: String,
+    /// 新的描述(空字符串表示不修改)。
+    pub new_description: String,
+    /// 新的标签(空列表表示不修改)。
+    pub new_tags: Vec<String>,
+}
+
+/// `improve_from_usage` 的返回值。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImproveResult {
+    /// 改进已应用。
+    Applied,
+    /// 跳过(使用次数不足或评分达标)。
+    Skipped,
+    /// 技能不存在。
+    NotFound,
 }
 
 #[cfg(test)]

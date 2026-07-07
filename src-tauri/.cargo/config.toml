@@ -4,3 +4,15 @@
 # DLL 导出符号解析失败。改用默认 MSVC link.exe 解决。
 # [target.x86_64-pc-windows-msvc]
 # linker = "rust-lld"
+
+# v2.0.1: 禁用增量编译以规避 Rust 1.96.1 (31fca3adb 2026-06-26)
+# 的 rmeta encoder ICE (Internal Compiler Error)。
+# 错误: thread 'rustc' panicked at rustc_metadata\src\rmeta\encoder.rs:2448:51
+#        "no entry found for key"
+# 该 bug 在编码 nebula_lib 的元数据时触发,可能与某些泛型类型
+# (如 Arc<UnifiedModelDispatcher>)在增量编译缓存中的处理有关。
+# 禁用增量编译后编译正常通过(代价是首次编译稍慢,但不影响开发
+# 体验——增量编译在大项目中收益有限,且容易触发此类编译器 bug)。
+# 参考: https://github.com/rust-lang/rust/issues?q=rmeta+encoder+ICE
+[build]
+incremental = false

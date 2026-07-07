@@ -1,4 +1,4 @@
-﻿//! `nebula::evolution` — self-evolution loop (v1.3).
+//! `nebula::evolution` — self-evolution loop (v1.3).
 //!
 //! Building blocks for the closed-loop, agent-level self-evolution
 //! promised by the README and `docs/ARCHITECTURE.md` §3.1 (planned).
@@ -24,6 +24,7 @@
 #![cfg(feature = "self-evolution")]
 
 pub mod goal_signal;
+pub mod honcho;
 pub mod outcome;
 pub mod outcome_collectors;
 pub mod prompt_mutator;
@@ -33,6 +34,10 @@ pub mod skill_evolver;
 // which implies self-evolution）。
 #[cfg(feature = "evolution-engine")]
 pub mod engine;
+
+// P2-B: Cron 调度器 — 三计时机制(03:00合并/12:00自检/21:00回顾)。
+// 由 self-evolution feature 门控(与 honcho 一致)。
+pub mod cron_scheduler;
 
 use serde::{Deserialize, Serialize};
 
