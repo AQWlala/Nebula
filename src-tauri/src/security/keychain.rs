@@ -495,6 +495,11 @@ mod tests {
             );
         }
         // 无论 keychain 是否可用,migrate 都不应 panic / Err。
+
+        // 清理 keychain slot,避免污染其他测试(如 migrate_skips_empty_env_var)。
+        let _ = delete(KEY_DEEPSEEK_API_KEY);
+        let _ = delete(KEY_ANTHROPIC_API_KEY);
+        let _ = delete(KEY_OPENAI_COMPAT_API_KEY);
     }
 
     /// T-E-S-23: migrate_env_to_keychain 在 env var 为空时不写入。

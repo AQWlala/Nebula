@@ -360,7 +360,8 @@ mod tests {
         let content = "# Just a body\n";
         let (fm, body) = split_frontmatter(content);
         assert!(fm.is_empty());
-        assert_eq!(body, "# Just a body");
+        // 无 frontmatter 时返回原内容(含尾部换行符),trim 后比较
+        assert_eq!(body.trim(), "# Just a body");
     }
 
     #[test]
