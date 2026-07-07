@@ -51,9 +51,9 @@ pub async fn shadow_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<ShadowWorkspace>, CommandError> {
     let engine = state.shadow_engine.clone();
-    Ok(tokio::task::spawn_blocking(move || engine.list())
+    tokio::task::spawn_blocking(move || engine.list())
         .await
-        .map_err(|e| CommandError::internal("shadow_list_blocking", &anyhow::anyhow!(e)))?)
+        .map_err(|e| CommandError::internal("shadow_list_blocking", &anyhow::anyhow!(e)))
 }
 
 /// 查询单个 workspace 状态。
@@ -64,9 +64,9 @@ pub async fn shadow_status(
     workspace_id: String,
 ) -> Result<Option<ShadowWorkspace>, CommandError> {
     let engine = state.shadow_engine.clone();
-    Ok(tokio::task::spawn_blocking(move || engine.get(&workspace_id))
+    tokio::task::spawn_blocking(move || engine.get(&workspace_id))
         .await
-        .map_err(|e| CommandError::internal("shadow_status_blocking", &anyhow::anyhow!(e)))?)
+        .map_err(|e| CommandError::internal("shadow_status_blocking", &anyhow::anyhow!(e)))
 }
 
 /// 获取 workspace 与 base_branch 的 diff。
@@ -226,9 +226,9 @@ pub async fn shadow_recording_list(
     workspace_id: String,
 ) -> Result<Vec<OperationRecord>, CommandError> {
     let engine = state.shadow_engine.clone();
-    Ok(tokio::task::spawn_blocking(move || engine.get_recording(&workspace_id))
+    tokio::task::spawn_blocking(move || engine.get_recording(&workspace_id))
         .await
-        .map_err(|e| CommandError::internal("shadow_recording_list_blocking", &anyhow::anyhow!(e)))?)
+        .map_err(|e| CommandError::internal("shadow_recording_list_blocking", &anyhow::anyhow!(e)))
 }
 
 /// 清除 workspace 的录屏(合并/丢弃后可选清理)。

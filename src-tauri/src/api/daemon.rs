@@ -16,11 +16,11 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-#[cfg(target_os = "windows")]
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use tracing::info;
+#[cfg(target_os = "windows")]
 use tracing::warn;
 
 /// Daemon installation options.

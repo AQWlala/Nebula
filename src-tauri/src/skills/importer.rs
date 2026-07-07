@@ -1,4 +1,4 @@
-﻿//! Skill importer — v1.2 P2 eco compatibility
+//! Skill importer — v1.2 P2 eco compatibility
 //!
 //! Imports skills from external ecosystems:
 //!
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_parse_yaml_front_matter() {
-        let importer = SkillImporter {
+        let _importer = SkillImporter {
             store: SkillStore::new(
                 crate::memory::sqlite_store::SqliteStore::open(":memory:").unwrap(),
             )

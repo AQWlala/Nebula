@@ -1,4 +1,4 @@
-﻿//! T-S6-B-03: CRDT op 传播与 LocalTransport 落盘。
+//! T-S6-B-03: CRDT op 传播与 LocalTransport 落盘。
 //!
 //! [`CrdtEngine`](super::crdt::CrdtEngine) 是零 Sized 纯计算单元,不与任何
 //! 传输层串联。本模块实现 CRDT op 落盘到 SQLite,并暴露 relay_client 可
@@ -381,7 +381,7 @@ mod tests {
         let log = make_log();
         let a = log.record_op(&make_version("m1", 1, 100)).unwrap();
         let b = log.record_op(&make_version("m2", 1, 200)).unwrap();
-        let c = log.record_op(&make_version("m3", 1, 300)).unwrap();
+        let _c = log.record_op(&make_version("m3", 1, 300)).unwrap();
 
         log.mark_consumed(&a).unwrap();
         log.mark_failed(&b).unwrap();
