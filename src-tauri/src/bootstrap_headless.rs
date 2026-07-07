@@ -141,6 +141,9 @@ impl AppState {
         let writing = Arc::new(WritingEngine::new(sqlite.clone(), Some(sponge.clone())));
         let work = Arc::new(WorkEngine::new(sqlite.clone()));
         let editor = Self::bootstrap_editor(&config);
+        // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root。
+        let shadow_engine = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
+        shadow_engine.set_repo_root(editor.workspace_root().to_path_buf());
         let clipboard = Self::bootstrap_clipboard();
         let shell = Arc::new(ShellExecutor::new());
         tool_registry.register(Arc::new(ShellTool::new((*shell).clone())));
@@ -395,6 +398,7 @@ impl AppState {
             #[cfg(feature = "unified-dispatcher")]
             dispatcher,
             oauth_manager: Arc::new(crate::identity::OAuthManager::new()),
+            shadow_engine,
         })
     }
 

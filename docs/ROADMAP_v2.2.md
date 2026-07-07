@@ -161,7 +161,7 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 | T-E-C-05 | **OS-Controller Sidecar**：独立进程运行，与主进程 IPC 通信 | P1 | L | T-S4-B-03 | A+B |
 | T-E-C-06 | **Hybrid Browser Agent**：GUI 视觉点击 + CDP 协议（existing-session 复用）+ DOM 选择器，自动选最优 | P1 | XL | 无 | B |
 | T-E-C-07 | **Remote Operator**：E2EE 加密通道远程控制另一台设备 | P3 | XL | T-E-C-05 | B |
-| T-E-C-08 | **Shadow Workspace**：任务在独立 git branch + 临时目录执行，不影响用户当前工作 | P1 | L | 无 | A |
+| T-E-C-08 | ✅ DONE (2026-07-07) — **Shadow Workspace**：`ShadowWorkspaceEngine`(RwLock<HashMap> 内存索引 + repo_root)管理 git worktree 隔离执行;`ShadowStatus` 六态机(Creating→Running→Completed→(Merged\|Aborted),Failed 异常终态);`ShadowWorkspace` DTO(id/branch=`agent/<id>`/path/task_description/status/created_at/finished_at/base_branch/error);`gen_id()` 纳秒时间戳低 40 位 base32 编码 8 字符;`create()`(git worktree add -b)、`diff()`(git diff <base> 工作树全量,含已提交+未提交进度)、`run_command()`(cwd=worktree)、`complete()/fail()`、`merge()`(git merge --no-ff + worktree remove + branch -d 清理)、`abort()`(force 清理 + branch -D);10 Tauri 命令(shadow_create/list/status/diff/run_command/complete/fail/merge/abort/cleanup)全部 `spawn_blocking` 包裹同步 git,`CommandError::internal` 统一错误;AppState 注入 `shadow_engine`,bootstrap.rs+bootstrap_headless.rs `set_repo_root(workspace_root)`;前端 tauri.ts 类型+10 nebulaAPI 方法,ShadowWorkspacePanel.tsx(创建表单+base 分支/列表状态色标/diff 内联展开/合并·丢弃二次确认对话框),App.tsx 挂载(View 'shadow'+Sidebar 🌑+lazy+switch-view 监听);13 Rust 单测(完整生命周期)+ 8 前端单测 | P1 | L | 无 | A |
 | T-E-C-09 | **任务录屏回放**：记录 Agent 操作序列（文件修改+命令执行），用户可回放审查 | P2 | M | T-E-C-08 | A |
 | T-E-C-10 | **异步长任务模式**：用户描述目标后后台分步执行（跨小时/跨天），与 PlanEngine 联动 | P2 | L | T-E-C-08 | A+B |
 | T-E-C-11 | **操作录制回放**：记录用户操作序列 → AI 可回放"看一遍就会" | P2 | M | T-E-C-04 | A |

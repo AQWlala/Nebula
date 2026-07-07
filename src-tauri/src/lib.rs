@@ -91,6 +91,8 @@ pub mod storage;
 pub mod im;
 // T-E-B-01: LLM Wiki 编译引擎(每次对话后异步编译结构化 Markdown 笔记)。
 pub mod wiki;
+// T-E-C-08: Shadow Workspace — Agent 隔离执行环境(git worktree + 临时分支)。
+pub mod shadow_workspace;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with

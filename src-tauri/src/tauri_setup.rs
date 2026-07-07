@@ -602,6 +602,17 @@ pub fn run() {
             crate::commands::arena_create_match,
             crate::commands::arena_vote,
             crate::commands::arena_leaderboard,
+            // T-E-C-08: Shadow Workspace 隔离执行环境命令
+            crate::shadow_workspace::commands::shadow_create,
+            crate::shadow_workspace::commands::shadow_list,
+            crate::shadow_workspace::commands::shadow_status,
+            crate::shadow_workspace::commands::shadow_diff,
+            crate::shadow_workspace::commands::shadow_run_command,
+            crate::shadow_workspace::commands::shadow_complete,
+            crate::shadow_workspace::commands::shadow_fail,
+            crate::shadow_workspace::commands::shadow_merge,
+            crate::shadow_workspace::commands::shadow_abort,
+            crate::shadow_workspace::commands::shadow_cleanup,
             #[cfg(feature = "openapi")]
             crate::commands::openapi_register_tools,
         ])

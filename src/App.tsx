@@ -47,6 +47,8 @@ const WritingMode = lazy(() => import('./components/WritingMode').then((m) => ({
 const WorkMode = lazy(() => import('./components/WorkMode').then((m) => ({ default: m.WorkMode })));
 // T-E-S-27: Trusted Diagnostics Channels 前端面板。
 const DiagnosticsView = lazy(() => import('./components/DiagnosticsView').then((m) => ({ default: m.DiagnosticsView })));
+// T-E-C-08: Shadow Workspace 隔离执行环境面板。
+const ShadowWorkspacePanel = lazy(() => import('./components/ShadowWorkspacePanel').then((m) => ({ default: m.ShadowWorkspacePanel })));
 
 /** T-S5-B-03: 懒加载 chunk 下载期间的统一 fallback。 */
 function LoadingFallback() {
@@ -58,7 +60,7 @@ function LoadingFallback() {
   );
 }
 
-type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics';
+type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics' | 'shadow';
 
 // 全局状态：当前模式 + 当前 view
 // T-E-B-02: currentMode 移至 nebulaStore 以便 ChatPanel `/journey` 跨组件切换。
@@ -128,7 +130,7 @@ export function App() {
         // view 切换
         const u1 = await listen<string>('nebula://switch-view', (event) => {
           const view = event.payload;
-          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard') {
+          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard' || view === 'shadow') {
             currentMode.value = view;
           }
         });
@@ -254,6 +256,7 @@ export function App() {
                 {currentMode.value === 'dashboard' && <Dashboard />}
                 {currentMode.value === 'credits' && <CreditsDashboard />}
                 {currentMode.value === 'diagnostics' && <DiagnosticsView />}
+                {currentMode.value === 'shadow' && <ShadowWorkspacePanel />}
               </>
             )}
           </Suspense>
@@ -320,6 +323,7 @@ function Sidebar() {
     { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
     { id: 'credits', icon: '💰', label: 'Credits' },
     { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
+    { id: 'shadow', icon: '🌑', label: 'Shadow' },
   ];
 
   return (

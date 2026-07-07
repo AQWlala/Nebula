@@ -24,7 +24,7 @@ export type HealthStatus = 'unknown' | 'ok' | 'down';
 
 /** T-E-B-02: 顶层视图路由。移至 store 以便 ChatPanel `/journey` 等斜杠命令跨组件切换。
  *  原 App.tsx 模块级 signal 重构为 store signal,语义不变。 */
-export type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics';
+export type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics' | 'shadow';
 
 class nebulaStoreClass {
   ready = signal(false);

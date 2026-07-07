@@ -178,4 +178,6 @@ pub struct AppState {
     pub dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>>,
     /// P1-B: OAuth 2.0 manager — aggregates providers, manages token lifecycle.
     pub oauth_manager: Arc<crate::identity::OAuthManager>,
+    /// T-E-C-08: Shadow Workspace 引擎 — Agent 隔离执行环境(git worktree)。
+    pub shadow_engine: Arc<crate::shadow_workspace::ShadowWorkspaceEngine>,
 }

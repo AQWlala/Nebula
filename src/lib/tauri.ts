@@ -497,6 +497,21 @@ export interface MdrmQueryParams {
   min_weight?: number;
 }
 
+// T-E-C-08: Shadow Workspace 类型(镜像 src-tauri/src/shadow_workspace/engine.rs)
+export type ShadowStatus = 'creating' | 'running' | 'completed' | 'failed' | 'merged' | 'aborted';
+
+export interface ShadowWorkspace {
+  id: string;
+  branch: string;
+  path: string;
+  task_description: string;
+  status: ShadowStatus;
+  created_at: number;
+  finished_at: number | null;
+  base_branch: string;
+  error: string | null;
+}
+
 export class nebulaAPI {
   static chat(req: ChatRequest): Promise<ChatResponse> {
     return invoke('chat', { request: { user_message: req.message, conversation_id: req.conversation_id } });
@@ -1817,6 +1832,60 @@ export class nebulaAPI {
     params?: MdrmQueryParams | null,
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_find_similar', { memoryId, params: params ?? null });
+  }
+
+  // -----------------------------------------------------------------------
+  // T-E-C-08: Shadow Workspace — Agent 隔离执行环境(git worktree)
+  // -----------------------------------------------------------------------
+
+  static shadowCreate(
+    taskDescription: string,
+    baseBranch?: string | null,
+  ): Promise<ShadowWorkspace> {
+    return invoke('shadow_create', {
+      taskDescription,
+      baseBranch: baseBranch ?? null,
+    });
+  }
+
+  static shadowList(): Promise<ShadowWorkspace[]> {
+    return invoke('shadow_list');
+  }
+
+  static shadowStatus(workspaceId: string): Promise<ShadowWorkspace | null> {
+    return invoke('shadow_status', { workspaceId });
+  }
+
+  static shadowDiff(workspaceId: string): Promise<string> {
+    return invoke('shadow_diff', { workspaceId });
+  }
+
+  static shadowRunCommand(
+    workspaceId: string,
+    program: string,
+    args: string[],
+  ): Promise<string> {
+    return invoke('shadow_run_command', { workspaceId, program, args });
+  }
+
+  static shadowComplete(workspaceId: string): Promise<ShadowWorkspace> {
+    return invoke('shadow_complete', { workspaceId });
+  }
+
+  static shadowFail(workspaceId: string, error: string): Promise<ShadowWorkspace> {
+    return invoke('shadow_fail', { workspaceId, error });
+  }
+
+  static shadowMerge(workspaceId: string): Promise<ShadowWorkspace> {
+    return invoke('shadow_merge', { workspaceId });
+  }
+
+  static shadowAbort(workspaceId: string): Promise<ShadowWorkspace> {
+    return invoke('shadow_abort', { workspaceId });
+  }
+
+  static shadowCleanup(workspaceId: string): Promise<void> {
+    return invoke('shadow_cleanup', { workspaceId });
   }
 }
 
