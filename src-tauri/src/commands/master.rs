@@ -188,6 +188,72 @@ pub async fn master_run(
     Ok(report)
 }
 
+/// T-E-L-01: 启动 Loop 执行模式。
+///
+/// 接收 LOOP.md 内容（YAML frontmatter + Markdown body），
+/// 解析为 LoopDef 后调用 MasterOrchestrator::execute_loop()。
+///
+/// 流程：
+/// 1. `LoopDef::from_markdown(loop_md)` 解析 + `validate()`
+/// 2. ValuesLayer 门禁（Deny/Confirm/Plan/Allow）
+/// 3. Allow → 创建 + 启动 LongTask，返回 LoopRunReport
+///
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "loop_run"))]
+pub async fn loop_run(
+    state: State<'_, AppState>,
+    loop_md: String,
+    workspace_id: Option<String>,
+) -> Result<crate::swarm::LoopRunReport, CommandError> {
+    use crate::swarm::loop_def::LoopDef;
+
+    let loop_def = LoopDef::from_markdown(&loop_md).map_err(|e| {
+        CommandError::validation("loop_run").with_details(format!("LOOP.md 解析失败: {e}"))
+    })?;
+    loop_def.validate().map_err(|e| {
+        CommandError::validation("loop_run").with_details(format!("LOOP.md 校验失败: {e}"))
+    })?;
+
+    let master = state.master_orchestrator.clone();
+    let engine = state.long_task_engine.clone();
+    let report = master
+        .execute_loop(&loop_def, &engine, workspace_id)
+        .await
+        .map_err(|e| CommandError::swarm("loop_run", &e))?;
+    Ok(report)
+}
+
+/// T-E-L-01: 生成 STATE.md 只读投影。
+///
+/// 调用 `LongTaskEngine::state_projection()`，将所有长任务状态
+/// 投影为 Markdown 文件（STATE.md），供 Loop Engine 观察当前状态。
+///
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "loop_state"))]
+pub async fn loop_state(
+    state: State<'_, AppState>,
+    output_path: String,
+) -> Result<String, CommandError> {
+    let engine = state.long_task_engine.clone();
+    let path = std::path::PathBuf::from(&output_path);
+    // state_projection 是同步方法（文件 I/O + SQLite 查询，通常 <100ms）。
+    // 用 spawn_blocking 避免阻塞 tokio executor。
+    let result = tokio::task::spawn_blocking(move || engine.state_projection(&path))
+        .await
+        .map_err(|e| {
+            CommandError::swarm(
+                "loop_state",
+                &anyhow::anyhow!("state_projection task panicked: {e}"),
+            )
+        })?
+        .map_err(|e| CommandError::swarm("loop_state", &e))?;
+    Ok(result.to_string_lossy().to_string())
+}
+
 /// M6 #82: 用户确认 L4 审批请求。
 ///
 /// 调用 `ConfirmationRegistry::mark_confirmed`:

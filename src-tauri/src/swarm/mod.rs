@@ -70,7 +70,9 @@ pub use dag::{
 };
 // M3 #44-45, #52: MasterOrchestrator 相关类型
 #[cfg(feature = "master-orchestrator")]
-pub use master::{MasterEvent, MasterEventEnvelope, MasterOrchestrator, MasterReport};
+pub use master::{
+    LoopRunReport, MasterEvent, MasterEventEnvelope, MasterOrchestrator, MasterReport,
+};
 // T-E-L-01: Loop 定义相关类型（LOOP.md 解析）。
 #[cfg(feature = "master-orchestrator")]
 pub use loop_def::{AutonomyLevel, LoopDef};

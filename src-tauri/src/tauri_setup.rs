@@ -456,6 +456,10 @@ pub fn run() {
             crate::commands::swarm_cancel,
             #[cfg(feature = "master-orchestrator")]
             crate::commands::master_run,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_run,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_state,
             crate::commands::master_confirm,
             crate::commands::master_confirmation_status,
             crate::commands::master_pending_confirmations,
