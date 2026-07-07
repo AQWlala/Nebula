@@ -142,13 +142,22 @@ impl ShadowWorkspaceEngine {
 
     /// 生成唯一 ID(8 字符 base32,足够区分且短)。
     fn gen_id() -> String {
+        use std::sync::atomic::{AtomicU64, Ordering};
         use std::time::{SystemTime, UNIX_EPOCH};
+        // 进程内单调递增计数器,保证连续调用绝不相同。
+        // 单纯依赖 SystemTime 纳秒在虚拟化 CI runner(macOS)上会因时钟
+        // 分辨率不足而在同一纳秒内返回相同值,导致 ID 碰撞。
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        // 取低 40 bit,base32 编码 → 8 字符
-        let bits = (nanos as u64) & 0xFF_FFFF_FFFF;
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        // 40 bit = 时间戳低 32 bit (高位, 提供时间序与跨进程唯一性)
+        //        | 计数器低 8 bit (低位, 提供同进程同纳秒内唯一性)
+        // base32 编码 → 8 字符 (8 × 5 bit = 40 bit)
+        let bits = (((nanos as u64) & 0xFFFF_FFFF) << 8) | (seq & 0xFF);
         const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz234567";
         let mut s = String::with_capacity(8);
         for i in (0..8).rev() {
