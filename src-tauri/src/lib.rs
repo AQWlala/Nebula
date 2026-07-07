@@ -93,6 +93,7 @@ pub mod im;
 pub mod wiki;
 // T-E-C-08: Shadow Workspace — Agent 隔离执行环境(git worktree + 临时分支)。
 pub mod shadow_workspace;
+pub mod long_task;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with

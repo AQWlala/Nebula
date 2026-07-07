@@ -185,6 +185,16 @@ impl AppState {
         // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root 以启用 git worktree 隔离。
         let shadow_engine = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
         shadow_engine.set_repo_root(editor.workspace_root().to_path_buf());
+        // T-E-C-10: 长任务引擎 — 复用 sqlite + shadow_engine,bootstrap 时恢复 Running→Paused。
+        let long_task_engine = Arc::new(crate::long_task::LongTaskEngine::new(
+            sqlite.clone(),
+            shadow_engine.clone(),
+        ));
+        if let Err(e) = long_task_engine.bootstrap() {
+            tracing::warn!(target: "nebula", error = %e, "long_task bootstrap failed");
+        } else {
+            tracing::info!(target: "nebula", "long_task engine bootstrapped");
+        }
         let clipboard = Self::bootstrap_clipboard();
         let shell = Arc::new(ShellExecutor::new());
         tool_registry.register(Arc::new(ShellTool::new((*shell).clone())));
@@ -487,6 +497,7 @@ impl AppState {
             dispatcher,
             oauth_manager: Arc::new(crate::identity::OAuthManager::new()),
             shadow_engine,
+            long_task_engine,
         })
     }
 

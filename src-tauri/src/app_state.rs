@@ -180,4 +180,6 @@ pub struct AppState {
     pub oauth_manager: Arc<crate::identity::OAuthManager>,
     /// T-E-C-08: Shadow Workspace 引擎 — Agent 隔离执行环境(git worktree)。
     pub shadow_engine: Arc<crate::shadow_workspace::ShadowWorkspaceEngine>,
+    /// T-E-C-10: 长任务引擎 — 后台分步执行跨小时/跨天的复杂任务。
+    pub long_task_engine: Arc<crate::long_task::LongTaskEngine>,
 }

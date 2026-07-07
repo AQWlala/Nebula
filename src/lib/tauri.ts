@@ -530,6 +530,55 @@ export interface OperationRecord {
   message: string;
 }
 
+// T-E-C-10: 异步长任务类型(镜像 src-tauri/src/long_task/engine.rs)
+export type LongTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
+
+export interface LongTask {
+  id: string;
+  goal: string;
+  status: LongTaskStatus;
+  /** 关联的 Shadow Workspace ID(可选)。 */
+  workspace_id: string | null;
+  /** 关联的 PlanEngine 请求 ID(可选)。 */
+  plan_id: string | null;
+  /** 0-100 完成百分比。 */
+  progress: number;
+  error: string | null;
+  created_at: number;
+  updated_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+}
+
+export interface LongTaskStep {
+  task_id: string;
+  seq: number;
+  description: string;
+  program: string;
+  args: string[];
+  status: StepStatus;
+  started_at: number | null;
+  finished_at: number | null;
+  exit_code: number | null;
+  output: string | null;
+  error: string | null;
+}
+
+/** 创建任务时的步骤输入。 */
+export interface StepInput {
+  description: string;
+  program: string;
+  args?: string[];
+}
+
 export class nebulaAPI {
   static chat(req: ChatRequest): Promise<ChatResponse> {
     return invoke('chat', { request: { user_message: req.message, conversation_id: req.conversation_id } });
@@ -1924,6 +1973,56 @@ export class nebulaAPI {
 
   static shadowRecordingClear(workspaceId: string): Promise<void> {
     return invoke('shadow_recording_clear', { workspaceId });
+  }
+
+  // -----------------------------------------------------------------------
+  // T-E-C-10: 异步长任务 — 后台分步执行跨小时/跨天的复杂任务
+  // -----------------------------------------------------------------------
+
+  static longTaskCreate(
+    goal: string,
+    steps: StepInput[],
+    workspaceId?: string | null,
+    planId?: string | null,
+  ): Promise<LongTask> {
+    return invoke('long_task_create', {
+      goal,
+      steps,
+      workspaceId: workspaceId ?? null,
+      planId: planId ?? null,
+    });
+  }
+
+  static longTaskGet(taskId: string): Promise<LongTask | null> {
+    return invoke('long_task_get', { taskId });
+  }
+
+  static longTaskList(status?: LongTaskStatus | null): Promise<LongTask[]> {
+    return invoke('long_task_list', { status: status ?? null });
+  }
+
+  static longTaskSteps(taskId: string): Promise<LongTaskStep[]> {
+    return invoke('long_task_steps', { taskId });
+  }
+
+  static longTaskStart(taskId: string): Promise<LongTask> {
+    return invoke('long_task_start', { taskId });
+  }
+
+  static longTaskPause(taskId: string): Promise<LongTask> {
+    return invoke('long_task_pause', { taskId });
+  }
+
+  static longTaskResume(taskId: string): Promise<LongTask> {
+    return invoke('long_task_resume', { taskId });
+  }
+
+  static longTaskCancel(taskId: string): Promise<LongTask> {
+    return invoke('long_task_cancel', { taskId });
+  }
+
+  static longTaskDelete(taskId: string): Promise<boolean> {
+    return invoke('long_task_delete', { taskId });
   }
 }
 

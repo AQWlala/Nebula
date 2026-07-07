@@ -617,6 +617,16 @@ pub fn run() {
             crate::shadow_workspace::commands::shadow_record,
             crate::shadow_workspace::commands::shadow_recording_list,
             crate::shadow_workspace::commands::shadow_recording_clear,
+            // T-E-C-10: 异步长任务
+            crate::long_task::commands::long_task_create,
+            crate::long_task::commands::long_task_get,
+            crate::long_task::commands::long_task_list,
+            crate::long_task::commands::long_task_steps,
+            crate::long_task::commands::long_task_start,
+            crate::long_task::commands::long_task_pause,
+            crate::long_task::commands::long_task_resume,
+            crate::long_task::commands::long_task_cancel,
+            crate::long_task::commands::long_task_delete,
             #[cfg(feature = "openapi")]
             crate::commands::openapi_register_tools,
         ])

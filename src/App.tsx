@@ -22,7 +22,7 @@ import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, buildDefaultCommands, buildMemoryItems, useCommandPaletteShortcut } from './components/CommandPalette';
 import { Toasts, toast } from './components/Toast';
-import { nebulaStore } from './stores/nebulaStore';
+import { nebulaStore, type View } from './stores/nebulaStore';
 import { t, currentLocale } from './i18n';
 import { loadTheme, applyTheme } from './theme';
 // T-E-A-11: Smart Prefetch — 打开文件时预取历史对话预热 SemanticCache。
@@ -49,6 +49,8 @@ const WorkMode = lazy(() => import('./components/WorkMode').then((m) => ({ defau
 const DiagnosticsView = lazy(() => import('./components/DiagnosticsView').then((m) => ({ default: m.DiagnosticsView })));
 // T-E-C-08: Shadow Workspace 隔离执行环境面板。
 const ShadowWorkspacePanel = lazy(() => import('./components/ShadowWorkspacePanel').then((m) => ({ default: m.ShadowWorkspacePanel })));
+// T-E-C-10: 异步长任务面板。
+const LongTaskPanel = lazy(() => import('./components/LongTaskPanel').then((m) => ({ default: m.LongTaskPanel })));
 
 /** T-S5-B-03: 懒加载 chunk 下载期间的统一 fallback。 */
 function LoadingFallback() {
@@ -60,7 +62,7 @@ function LoadingFallback() {
   );
 }
 
-type View = 'chat' | 'swarm' | 'memory' | 'code' | 'skills' | 'dashboard' | 'credits' | 'diagnostics' | 'shadow';
+// View 类型从 nebulaStore 导入(T-E-B-02 重构后统一来源)。
 
 // 全局状态：当前模式 + 当前 view
 // T-E-B-02: currentMode 移至 nebulaStore 以便 ChatPanel `/journey` 跨组件切换。
@@ -130,7 +132,7 @@ export function App() {
         // view 切换
         const u1 = await listen<string>('nebula://switch-view', (event) => {
           const view = event.payload;
-          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard' || view === 'shadow') {
+          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard' || view === 'shadow' || view === 'longtask') {
             currentMode.value = view;
           }
         });
@@ -257,6 +259,7 @@ export function App() {
                 {currentMode.value === 'credits' && <CreditsDashboard />}
                 {currentMode.value === 'diagnostics' && <DiagnosticsView />}
                 {currentMode.value === 'shadow' && <ShadowWorkspacePanel />}
+                {currentMode.value === 'longtask' && <LongTaskPanel />}
               </>
             )}
           </Suspense>
@@ -324,6 +327,7 @@ function Sidebar() {
     { id: 'credits', icon: '💰', label: 'Credits' },
     { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
     { id: 'shadow', icon: '🌑', label: 'Shadow' },
+    { id: 'longtask', icon: '⏳', label: '长任务' },
   ];
 
   return (
