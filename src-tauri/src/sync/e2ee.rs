@@ -1,4 +1,4 @@
-﻿//! v0.5: end-to-end encryption (real, not pseudo).
+//! v0.5: end-to-end encryption (real, not pseudo).
 //!
 //! ## Cryptographic design
 //!
@@ -369,7 +369,7 @@ fn compute_fingerprint(a: &PublicKey, b: &PublicKey) -> String {
     hasher.update(lo);
     hasher.update(hi);
     let digest = hasher.finalize();
-    let hex = format!("{:x}", digest);
+    let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
     // First 12 chars in 3 groups of 4.
     let groups: Vec<String> = (0..3)
         .map(|i| hex[i * 4..(i + 1) * 4].to_string())

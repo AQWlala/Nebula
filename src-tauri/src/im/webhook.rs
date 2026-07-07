@@ -23,7 +23,6 @@
 use anyhow::{anyhow, Result};
 use base64::Engine as _;
 use serde_json::{json, Value};
-use sha2::digest::generic_array::GenericArray;
 use sha2::{Digest, Sha256};
 use tracing::debug;
 
@@ -88,13 +87,13 @@ fn hmac_sha256_base64(key: &[u8], message: &[u8]) -> String {
     let mut inner = Sha256::new();
     inner.update(ipad);
     inner.update(message);
-    let inner_result: GenericArray<u8, _> = inner.finalize();
+    let inner_result = inner.finalize();
 
     // Step 4: outer = H( opad || inner )
     let mut outer = Sha256::new();
     outer.update(opad);
     outer.update(inner_result);
-    let outer_result: GenericArray<u8, _> = outer.finalize();
+    let outer_result = outer.finalize();
 
     // Step 5: base64 标准编码(含 padding)。
     base64::engine::general_purpose::STANDARD.encode(outer_result)

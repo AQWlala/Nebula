@@ -89,7 +89,7 @@ once_cell = "1.19"
 # v1.1 P1-4: regex for sensitive data detection patterns
 regex = "1.10"
 url = "2.5"
-lru = "0.12"
+lru = "0.16"
 # v3.1 ADR-002: DAG dependency management for MasterOrchestrator.
 # default-features = false to skip unnecessary quickcheck/serde deps.
 petgraph = { version = "0.6", default-features = false }
@@ -119,8 +119,8 @@ shell-words = "1.1"
 # v0.5: E2EE — AES-256-GCM AEAD, X25519 ECDH, HKDF-SHA256 key derivation.
 aes-gcm = "0.10"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
-hkdf = "0.12"
-sha2 = "0.10"
+hkdf = "0.13"
+sha2 = "0.11"
 rand = "0.8"
 base64 = "0.22"
 bs58 = "0.5"
@@ -217,7 +217,7 @@ keyring = { version = "3", features = ["sync-secret-service", "vendored"] }
 
 [dev-dependencies]
 # v1.0: criterion-based micro-benchmarks for hot paths.
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [[bench]]
 name = "startup"
