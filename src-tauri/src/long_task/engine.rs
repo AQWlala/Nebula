@@ -26,6 +26,8 @@
 //! - 任务完成后用户可审查 diff + 录屏回放(复用 T-E-C-08/09 基础设施)
 
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -597,6 +599,152 @@ impl LongTaskEngine {
             }
         })
     }
+
+    /// T-E-L-01: 生成 STATE.md 只读投影（SQLite → Markdown）。
+    ///
+    /// 将 long_tasks 表的内容投影为人类可读的 Markdown，供 Loop Agent
+    /// 和用户审视当前状态。**只读 SQLite，不修改任何状态**。
+    ///
+    /// 输出格式（参考 NEBULA_LOOP_DESIGN.md §2.4）：
+    /// - 头部：最后更新时间 + 数据源说明
+    /// - `## 进行中`：Running/Paused 任务
+    /// - `## 待处理`：Pending 任务
+    /// - `## 已完成`：Completed 任务（最近 20 个）
+    /// - `## 失败/取消`：Failed/Cancelled 任务（最近 20 个）
+    /// - 每个任务项含：goal + progress + provenance 占位
+    ///
+    /// 原子写入：先写 `output_path.tmp`，再 `rename` 到 `output_path`，
+    /// 避免读端看到半写文件。
+    ///
+    /// `provenance` 字段先用占位 `loop:unknown | autonomy:L2`，
+    /// 真实填充由 T-E-L-07（审计日志）实现。
+    #[instrument(skip(self, output_path))]
+    pub fn state_projection(&self, output_path: &Path) -> Result<PathBuf> {
+        // 1. 确保父目录存在
+        if let Some(parent) = output_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).context("creating STATE.md parent dir")?;
+            }
+        }
+
+        // 2. 读取所有任务
+        let all_tasks = self
+            .list_tasks(None)
+            .context("listing tasks for STATE.md")?;
+
+        // 3. 按状态分组
+        let mut in_progress: Vec<&LongTask> = Vec::new();
+        let mut pending: Vec<&LongTask> = Vec::new();
+        let mut completed: Vec<&LongTask> = Vec::new();
+        let mut failed_cancelled: Vec<&LongTask> = Vec::new();
+
+        for task in &all_tasks {
+            match task.status {
+                LongTaskStatus::Running | LongTaskStatus::Paused => in_progress.push(task),
+                LongTaskStatus::Pending => pending.push(task),
+                LongTaskStatus::Completed => completed.push(task),
+                LongTaskStatus::Failed | LongTaskStatus::Cancelled => {
+                    failed_cancelled.push(task);
+                }
+            }
+        }
+
+        // 4. 已完成 + 失败/取消 截断到最近 20 个（list_tasks 已按 created_at DESC 排序）
+        const MAX_HISTORY: usize = 20;
+        if completed.len() > MAX_HISTORY {
+            completed.truncate(MAX_HISTORY);
+        }
+        if failed_cancelled.len() > MAX_HISTORY {
+            failed_cancelled.truncate(MAX_HISTORY);
+        }
+
+        // 5. 生成 Markdown
+        let now_ts = Utc::now().timestamp();
+        let now_str = chrono::DateTime::<chrono::Utc>::from_timestamp(now_ts, 0)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_else(|| now_ts.to_string());
+
+        let mut md = String::new();
+        md.push_str("# STATE.md — Nebula 长任务只读投影\n\n");
+        md.push_str(&format!("> 最后更新：{now_str}  \n"));
+        md.push_str("> 数据源：SQLite long_tasks 表（只读投影，请勿手动编辑）\n\n");
+
+        // 进行中
+        md.push_str("## 进行中\n\n");
+        if in_progress.is_empty() {
+            md.push_str("_无_\n\n");
+        } else {
+            for t in &in_progress {
+                push_task_item(&mut md, t);
+            }
+        }
+
+        // 待处理
+        md.push_str("## 待处理\n\n");
+        if pending.is_empty() {
+            md.push_str("_无_\n\n");
+        } else {
+            for t in &pending {
+                push_task_item(&mut md, t);
+            }
+        }
+
+        // 已完成
+        md.push_str("## 已完成\n\n");
+        if completed.is_empty() {
+            md.push_str("_无_\n\n");
+        } else {
+            for t in &completed {
+                push_task_item(&mut md, t);
+            }
+        }
+
+        // 失败/取消
+        md.push_str("## 失败/取消\n\n");
+        if failed_cancelled.is_empty() {
+            md.push_str("_无_\n\n");
+        } else {
+            for t in &failed_cancelled {
+                push_task_item(&mut md, t);
+            }
+        }
+
+        // 6. 原子写入：.tmp + rename
+        let tmp_path = output_path.with_extension("md.tmp");
+        fs::write(&tmp_path, &md).context("writing STATE.md.tmp")?;
+        fs::rename(&tmp_path, output_path).context("renaming STATE.md.tmp → STATE.md")?;
+
+        info!(
+            target: "nebula.long_task",
+            path = %output_path.display(),
+            total = all_tasks.len(),
+            "STATE.md projection written"
+        );
+
+        Ok(output_path.to_path_buf())
+    }
+}
+
+/// T-E-L-01: 向 STATE.md Markdown 追加单个任务项。
+///
+/// 格式：
+/// ```text
+/// - **[status]** goal (progress%)
+///   - provenance: loop:unknown | autonomy:L2
+///   - error: <error> (仅 Failed 时)
+/// ```
+fn push_task_item(md: &mut String, task: &LongTask) {
+    md.push_str(&format!(
+        "- **[{}]** {} ({}%)\n",
+        task.status.as_str(),
+        task.goal,
+        task.progress
+    ));
+    md.push_str("  - provenance: loop:unknown | autonomy:L2\n");
+    if let Some(err) = &task.error {
+        md.push_str(&format!("  - error: {err}\n"));
+    }
+    md.push('\n');
 }
 
 /// 后台 runner 主循环(独立 async fn,便于 spawn)。
@@ -1234,5 +1382,185 @@ mod tests {
         assert!(t.ends_with('…'));
         let short = "hello";
         assert_eq!(truncate_output(short), "hello");
+    }
+
+    // ---- T-E-L-01: state_projection 测试 ----
+
+    /// 直接在 SQLite 中设置任务状态（测试辅助）。
+    fn set_task_status(engine: &LongTaskEngine, task_id: &str, status: &str) {
+        let conn = engine.sqlite.raw_connection();
+        let conn = conn.lock();
+        conn.execute(
+            "UPDATE long_tasks SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![status, Utc::now().timestamp(), task_id],
+        )
+        .expect("update status");
+    }
+
+    #[test]
+    fn state_projection_empty() {
+        let (engine, tmp) = make_engine();
+        let out = std::env::temp_dir().join(format!("nebula-state-empty-{}.md", Uuid::new_v4()));
+        let result = engine.state_projection(&out).expect("projection");
+        assert_eq!(result, out);
+
+        let content = fs::read_to_string(&out).expect("read");
+        assert!(content.contains("# STATE.md"));
+        assert!(content.contains("## 进行中"));
+        assert!(content.contains("## 待处理"));
+        assert!(content.contains("## 已完成"));
+        assert!(content.contains("## 失败/取消"));
+        // 空列表应显示 _无_
+        assert!(content.contains("_无_"));
+
+        let _ = fs::remove_file(&out);
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn state_projection_pending() {
+        let (engine, tmp) = make_engine();
+        let task = engine
+            .create_task(
+                "pending goal".into(),
+                vec![StepInput {
+                    description: "s1".into(),
+                    program: "echo".into(),
+                    args: vec![],
+                }],
+                None,
+                None,
+            )
+            .expect("create");
+
+        let out = std::env::temp_dir().join(format!("nebula-state-pending-{}.md", Uuid::new_v4()));
+        engine.state_projection(&out).expect("projection");
+        let content = fs::read_to_string(&out).expect("read");
+
+        // Pending 任务应出现在 ## 待处理
+        assert!(content.contains("## 待处理"));
+        assert!(content.contains("pending goal"));
+        assert!(content.contains("[pending]"));
+        assert!(content.contains("provenance: loop:unknown | autonomy:L2"));
+
+        // 不应出现在已完成
+        let completed_section = content.split("## 已完成").nth(1).unwrap_or("");
+        assert!(!completed_section.contains("pending goal"));
+
+        let _ = fs::remove_file(&out);
+        let _ = engine.delete_task(&task.id);
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn state_projection_completed() {
+        let (engine, tmp) = make_engine();
+        let task = engine
+            .create_task(
+                "completed goal".into(),
+                vec![StepInput {
+                    description: "s1".into(),
+                    program: "echo".into(),
+                    args: vec![],
+                }],
+                None,
+                None,
+            )
+            .expect("create");
+        set_task_status(&engine, &task.id, "completed");
+
+        let out = std::env::temp_dir().join(format!("nebula-state-done-{}.md", Uuid::new_v4()));
+        engine.state_projection(&out).expect("projection");
+        let content = fs::read_to_string(&out).expect("read");
+
+        // Completed 任务应出现在 ## 已完成
+        let completed_section = content.split("## 已完成").nth(1).unwrap_or("");
+        assert!(completed_section.contains("completed goal"));
+        assert!(completed_section.contains("[completed]"));
+
+        let _ = fs::remove_file(&out);
+        let _ = engine.delete_task(&task.id);
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn state_projection_atomic_write() {
+        let (engine, tmp) = make_engine();
+        let out = std::env::temp_dir().join(format!("nebula-state-atomic-{}.md", Uuid::new_v4()));
+        engine.state_projection(&out).expect("projection");
+
+        // .tmp 文件不应残留
+        let tmp_file = out.with_extension("md.tmp");
+        assert!(!tmp_file.exists(), "tmp file should not linger");
+
+        // 目标文件应存在
+        assert!(out.exists());
+
+        let _ = fs::remove_file(&out);
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn state_projection_creates_parent_dir() {
+        let (engine, tmp) = make_engine();
+        let nested = std::env::temp_dir().join(format!(
+            "nebula-state-nested-{}/sub/dir/STATE.md",
+            Uuid::new_v4()
+        ));
+        engine
+            .state_projection(&nested)
+            .expect("projection with nested dirs");
+        assert!(nested.exists(), "nested STATE.md should be created");
+
+        // 清理整个嵌套目录
+        let parent = nested.ancestors().nth(3).unwrap().to_path_buf();
+        let _ = fs::remove_dir_all(&parent);
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn state_projection_truncates() {
+        let (engine, tmp) = make_engine();
+
+        // 创建 100 个 Completed 任务
+        let mut ids = Vec::new();
+        for i in 0..100 {
+            let task = engine
+                .create_task(
+                    format!("goal-{i}").into(),
+                    vec![StepInput {
+                        description: "s".into(),
+                        program: "echo".into(),
+                        args: vec![],
+                    }],
+                    None,
+                    None,
+                )
+                .expect("create");
+            set_task_status(&engine, &task.id, "completed");
+            ids.push(task.id);
+        }
+
+        let out = std::env::temp_dir().join(format!("nebula-state-trunc-{}.md", Uuid::new_v4()));
+        engine.state_projection(&out).expect("projection");
+        let content = fs::read_to_string(&out).expect("read");
+
+        // ## 已完成 段落应最多 20 个任务项
+        let completed_section = content
+            .split("## 已完成")
+            .nth(1)
+            .unwrap_or("")
+            .split("## 失败/取消")
+            .next()
+            .unwrap_or("");
+        let count = completed_section.matches("- **[completed]**").count();
+        assert!(count <= 20, "should truncate to <= 20, got {count}");
+
+        // 清理
+        for id in &ids {
+            let _ = engine.delete_task(id);
+        }
+        let _ = fs::remove_file(&out);
+        cleanup(tmp);
     }
 }
