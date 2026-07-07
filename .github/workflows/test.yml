@@ -15,21 +15,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy,rustfmt
       - name: Cache cargo
-        # Pin to v2.7.7 — the moving `@v2` tag resolved to a version
-        # that skipped the post-step on timeout (see run #82), leaving
-        # no cache behind and causing an infinite cold-compile loop.
-        # v2.7.7 does NOT support `save-always` (that was added in a
-        # later major); the correct option here is `cache-on-failure`.
-        # `prefix-key: v2-` invalidates the old (possibly partial)
-        # caches from runs #81–#85 that were saved without the test
-        # binaries — this is the "clean cache" step.
-        uses: Swatinem/rust-cache@v2.7.7
+        # v2.9.1 (2026-03-12) — 升级到 node24 运行时,解决 Node.js 20
+        # 弃用警告 (https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runner)。
+        # 之前固定 v2.7.7 是因为 moving @v2 tag 曾跳过 post-step on timeout
+        # (run #82),v2.9.1 是固定 tag 不受此影响。
+        # `cache-on-failure` 让编译失败时也保存缓存(部分依赖已编译)。
+        # `prefix-key: v2-` 沿用旧前缀,复用 v2.7.7 时代的缓存。
+        uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: src-tauri -> target
           cache-on-failure: true
@@ -87,7 +85,7 @@ jobs:
       - name: Upload build output
         # 上传编译输出,即使 Build tests 失败也能查看错误
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-output-${{ matrix.os }}
           path: src-tauri/build-output.txt
@@ -233,7 +231,7 @@ jobs:
           fi
       - name: Upload test output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nextest-output-${{ matrix.os }}
           path: src-tauri/nextest-output.txt
@@ -281,7 +279,7 @@ jobs:
       - name: Upload clippy output
         # 上传 clippy 输出,即使 Lint 失败也能查看完整警告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: clippy-output-${{ runner.os }}
           path: src-tauri/clippy-output.txt
@@ -387,7 +385,7 @@ jobs:
           exit $audit_exit
       - name: Upload audit output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-output-${{ runner.os }}
           path: src-tauri/audit-output.txt
@@ -397,7 +395,7 @@ jobs:
     name: web-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -410,7 +408,7 @@ jobs:
         run: npm run test:coverage
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-coverage
           path: coverage/

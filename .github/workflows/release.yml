@@ -1,4 +1,4 @@
-﻿name: release
+name: release
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
             bundles: nsis,msi
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,7 +52,7 @@ jobs:
           EOF
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: src-tauri -> target
 
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload build log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-log-${{ matrix.platform }}
           path: build-logs/
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nebula-${{ matrix.platform }}
           path: |
@@ -190,8 +190,8 @@ jobs:
     if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
       - name: Collect release assets

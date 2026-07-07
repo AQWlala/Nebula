@@ -1,4 +1,4 @@
-﻿name: release-minimal
+name: release-minimal
 
 # v1.1: stripped release build that disables the heaviest optional
 # crates (gRPC server + LanceDB vector store) so the installer can
@@ -66,7 +66,7 @@ jobs:
 
     steps:
       - name: Set up job
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -74,7 +74,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.1
         with:
           workspaces: src-tauri -> target
 
@@ -136,14 +136,14 @@ jobs:
 
       - name: Upload build log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-log-minimal-${{ matrix.platform }}
           path: build-logs/
           if-no-files-found: ignore
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nebula-minimal-${{ matrix.platform }}
           path: |
@@ -159,8 +159,8 @@ jobs:
     # workflow. The condition now matches any tag containing `-minimal`.
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-minimal')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
       - name: Generate latest.json for Tauri updater
