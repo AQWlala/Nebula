@@ -23,6 +23,8 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
+use super::recording::{OperationKind, OperationRecord, RecordingLog};
+
 /// Shadow Workspace 状态机。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -103,6 +105,9 @@ pub struct ShadowWorkspaceEngine {
     /// None 时引擎不可用(无 git repo 场景 graceful degrade)。
     repo_root: RwLock<Option<PathBuf>>,
     workspaces: RwLock<HashMap<String, ShadowWorkspace>>,
+    /// T-E-C-09: 操作录屏日志(每个 workspace 一条时间线)。
+    /// 不随 merge/abort 清除,仅显式 clear_recording() 清理。
+    recordings: RecordingLog,
 }
 
 impl ShadowWorkspaceEngine {
@@ -111,6 +116,7 @@ impl ShadowWorkspaceEngine {
             config,
             repo_root: RwLock::new(None),
             workspaces: RwLock::new(HashMap::new()),
+            recordings: RecordingLog::new(),
         }
     }
 
@@ -236,6 +242,9 @@ impl ShadowWorkspaceEngine {
     /// 命令在 worktree 的 cwd 下执行,stdout+stderr 合并返回。
     /// 这里的命令执行不经过 ShellExecutor 白名单——Shadow Workspace
     /// 的调用方(PlanEngine/SwarmOrchestrator)本身已受自主度门禁约束。
+    ///
+    /// T-E-C-09: 每次执行(无论成败)自动写入录屏日志,
+    /// 供用户在合并前回放审查 Agent 执行了哪些命令。
     #[instrument(skip(self, args))]
     pub fn run_command(&self, id: &str, program: &str, args: &[String]) -> Result<String> {
         let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
@@ -253,15 +262,58 @@ impl ShadowWorkspaceEngine {
             .with_context(|| format!("spawning {program} in shadow workspace {id}"))?;
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-        if !out.status.success() {
+        let success = out.status.success();
+        // 合并 stdout + stderr(stderr 追加在后面,供 Agent 排错)
+        let combined = if stderr.is_empty() {
+            stdout.clone()
+        } else {
+            format!("{stdout}\n--- stderr ---\n{stderr}")
+        };
+        // T-E-C-09: 自动记录命令执行(成功/失败均记录)
+        let detail = args.join(" ");
+        let message = if success {
+            combined.clone()
+        } else {
+            format!("exited {:?}: {stderr}", out.status.code())
+        };
+        self.recordings
+            .record(id, OperationKind::Command, program.to_string(), detail, success, message);
+        if !success {
             return Err(anyhow!("{program} exited {:?}: {stderr}", out.status.code()));
         }
-        // 合并 stdout + stderr(stderr 追加在后面,供 Agent 排错)
-        if stderr.is_empty() {
-            Ok(stdout)
-        } else {
-            Ok(format!("{stdout}\n--- stderr ---\n{stderr}"))
+        Ok(combined)
+    }
+
+    // ---- T-E-C-09: 任务录屏回放 ----
+
+    /// 手动记录一条操作(文件修改/备注等)。
+    ///
+    /// 命令执行由 `run_command()` 自动记录,无需调用此方法;
+    /// 此方法供 Agent 显式记录文件操作和备注。
+    pub fn record_operation(
+        &self,
+        id: &str,
+        kind: OperationKind,
+        target: String,
+        detail: String,
+        success: bool,
+        message: String,
+    ) -> Result<OperationRecord> {
+        // 校验 workspace 存在(避免记录到不存在的 workspace)
+        if self.get(id).is_none() {
+            return Err(anyhow!("workspace {id} not found"));
         }
+        Ok(self.recordings.record(id, kind, target, detail, success, message))
+    }
+
+    /// 获取 workspace 的完整操作时间线(按 seq 升序)。
+    pub fn get_recording(&self, id: &str) -> Vec<OperationRecord> {
+        self.recordings.list(id)
+    }
+
+    /// 清除 workspace 的录屏(合并/丢弃后可选清理)。
+    pub fn clear_recording(&self, id: &str) {
+        self.recordings.clear(id);
     }
 
     /// 标记 workspace 已完成(Agent 工作结束,等待用户审查)。
@@ -543,6 +595,98 @@ mod tests {
         let out = engine.run_command(&ws.id, program, &args).expect("run_command");
         // 输出应包含 worktree 路径
         assert!(out.contains(&ws.id), "output should be in worktree dir: {out}");
+
+        cleanup_test_repo(&repo);
+    }
+
+    #[test]
+    fn run_command_auto_records_to_timeline() {
+        let repo = make_test_repo().expect("make_test_repo");
+        let engine = ShadowWorkspaceEngine::with_default();
+        engine.set_repo_root(repo.clone());
+
+        let ws = engine.create("recorded task".into(), None).unwrap();
+        // 执行两条命令
+        let (program, args) = if cfg!(windows) {
+            ("cmd", vec!["/C".to_string(), "echo".to_string(), "hello".to_string()])
+        } else {
+            ("echo", vec!["hello".to_string()])
+        };
+        let _ = engine.run_command(&ws.id, program, &args).unwrap();
+        let (program2, args2) = if cfg!(windows) {
+            ("cmd", vec!["/C".to_string(), "cd".to_string()])
+        } else {
+            ("pwd", vec![])
+        };
+        let _ = engine.run_command(&ws.id, program2, &args2).unwrap();
+
+        // 录屏应包含 2 条 Command 记录,seq 连续
+        let ops = engine.get_recording(&ws.id);
+        assert_eq!(ops.len(), 2, "should have 2 recorded commands");
+        assert_eq!(ops[0].seq, 1);
+        assert_eq!(ops[1].seq, 2);
+        assert_eq!(ops[0].kind, OperationKind::Command);
+        assert_eq!(ops[1].kind, OperationKind::Command);
+        assert!(ops[0].success, "first command should be recorded as success");
+        // target 是程序名
+        assert!(!ops[0].target.is_empty());
+        // message 应包含输出(hello)
+        assert!(ops[0].message.contains("hello"), "message should contain stdout: {}", ops[0].message);
+
+        cleanup_test_repo(&repo);
+    }
+
+    #[test]
+    fn record_operation_rejects_unknown_workspace() {
+        let engine = ShadowWorkspaceEngine::with_default();
+        let res = engine.record_operation("nope", OperationKind::Note, String::new(), "x".into(), true, String::new());
+        assert!(res.is_err(), "recording to unknown workspace should fail");
+    }
+
+    #[test]
+    fn recording_survives_merge() {
+        let repo = make_test_repo().expect("make_test_repo");
+        let engine = ShadowWorkspaceEngine::with_default();
+        engine.set_repo_root(repo.clone());
+
+        let ws = engine.create("merge + replay".into(), None).unwrap();
+        // 记录一条备注 + 执行一条命令
+        engine
+            .record_operation(&ws.id, OperationKind::Note, String::new(), "starting".into(), true, String::new())
+            .unwrap();
+        let (program, args) = if cfg!(windows) {
+            ("cmd", vec!["/C".to_string(), "echo".to_string(), "done".to_string()])
+        } else {
+            ("echo", vec!["done".to_string()])
+        };
+        let _ = engine.run_command(&ws.id, program, &args).unwrap();
+
+        // 合并(会清除 workspace 索引,但录屏保留)
+        engine.complete(&ws.id).unwrap();
+        engine.merge(&ws.id).unwrap();
+
+        // 录屏仍可查询(Note + Command = 2 条)
+        let ops = engine.get_recording(&ws.id);
+        assert_eq!(ops.len(), 2, "recording should survive merge for replay");
+        assert_eq!(ops[0].kind, OperationKind::Note);
+        assert_eq!(ops[1].kind, OperationKind::Command);
+
+        cleanup_test_repo(&repo);
+    }
+
+    #[test]
+    fn clear_recording_removes_timeline() {
+        let repo = make_test_repo().expect("make_test_repo");
+        let engine = ShadowWorkspaceEngine::with_default();
+        engine.set_repo_root(repo.clone());
+
+        let ws = engine.create("clear me".into(), None).unwrap();
+        engine
+            .record_operation(&ws.id, OperationKind::Note, String::new(), "x".into(), true, String::new())
+            .unwrap();
+        assert_eq!(engine.get_recording(&ws.id).len(), 1);
+        engine.clear_recording(&ws.id);
+        assert!(engine.get_recording(&ws.id).is_empty());
 
         cleanup_test_repo(&repo);
     }

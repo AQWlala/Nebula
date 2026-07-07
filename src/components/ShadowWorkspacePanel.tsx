@@ -1,19 +1,21 @@
 /**
- * T-E-C-08: Shadow Workspace 面板。
+ * T-E-C-08 / T-E-C-09: Shadow Workspace 面板。
  *
  * 管理 Agent 隔离执行环境:
  * - 创建新 workspace(任务描述 + 可选 base 分支)
  * - 列出所有 workspace(状态/分支/时间戳)
  * - 查看 diff(与 base_branch 对比)
+ * - ▶ 回放操作录屏(T-E-C-09):查看 Agent 执行的每步操作时间线
  * - 合并(merge 回 base)或丢弃(abort)
  *
  * 设计要点:
  * - 状态色标:running 蓝/completed 绿/failed 红/merged 灰/aborted 黄
- * - diff 在内联展开(不弹窗,长 diff 用 pre-wrap + max-height 滚动)
+ * - diff / 录屏均在内联展开(不弹窗,长内容用 pre-wrap + max-height 滚动)
  * - 合并/丢弃需二次确认(不可逆操作)
+ * - 录屏在合并/丢弃后仍可查看(引擎保留录屏供事后审查)
  */
 import { useState, useEffect, useCallback } from 'preact/hooks';
-import { nebulaAPI, type ShadowWorkspace, type ShadowStatus } from '../lib/tauri';
+import { nebulaAPI, type ShadowWorkspace, type ShadowStatus, type OperationKind, type OperationRecord } from '../lib/tauri';
 import { toast } from './Toast';
 import { t } from '../i18n';
 
@@ -35,12 +37,40 @@ const STATUS_LABELS: Record<ShadowStatus, string> = {
   aborted: '已丢弃',
 };
 
+// T-E-C-09: 操作种类图标 + 标签(供录屏时间线渲染)
+const OP_ICONS: Record<OperationKind, string> = {
+  file_create: '📄✚',
+  file_write: '✏️',
+  file_delete: '🗑️',
+  command: '⌘',
+  note: '📝',
+};
+
+const OP_LABELS: Record<OperationKind, string> = {
+  file_create: '新建文件',
+  file_write: '修改文件',
+  file_delete: '删除文件',
+  command: '执行命令',
+  note: '备注',
+};
+
 function formatTime(unixSec: number): string {
   return new Date(unixSec * 1000).toLocaleString('zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+/** 录屏时间戳格式化(毫秒 → 时:分:秒.毫秒)。 */
+function formatRecTime(tsMs: number): string {
+  return new Date(tsMs).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
 }
 
@@ -53,6 +83,11 @@ export function ShadowWorkspacePanel() {
   const [diffFor, setDiffFor] = useState<string | null>(null);
   const [diffText, setDiffText] = useState('');
   const [diffLoading, setDiffLoading] = useState(false);
+  // T-E-C-09: 录屏回放状态
+  const [recFor, setRecFor] = useState<string | null>(null);
+  const [recOps, setRecOps] = useState<OperationRecord[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
+  const [recExpanded, setRecExpanded] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ id: string; kind: 'merge' | 'abort' } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -107,6 +142,30 @@ export function ShadowWorkspacePanel() {
       setDiffText(`获取 diff 失败: ${e}`);
     } finally {
       setDiffLoading(false);
+    }
+  };
+
+  // T-E-C-09: 加载/切换录屏时间线
+  const handleViewRecording = async (id: string) => {
+    if (recFor === id) {
+      // 切换关闭
+      setRecFor(null);
+      setRecOps([]);
+      setRecExpanded(null);
+      return;
+    }
+    setRecFor(id);
+    setRecLoading(true);
+    setRecOps([]);
+    setRecExpanded(null);
+    try {
+      const ops = await nebulaAPI.shadowRecordingList(id);
+      setRecOps(ops);
+    } catch (e) {
+      console.error('shadow recording list failed:', e);
+      setRecOps([]);
+    } finally {
+      setRecLoading(false);
     }
   };
 
@@ -199,6 +258,7 @@ export function ShadowWorkspacePanel() {
         )}
         {workspaces.map((ws) => {
           const isExpanded = diffFor === ws.id;
+          const isRecExpanded = recFor === ws.id;
           const canMerge = ws.status === 'completed' || ws.status === 'running';
           const canAbort = ws.status === 'running' || ws.status === 'completed' || ws.status === 'failed';
           const canComplete = ws.status === 'running';
@@ -244,6 +304,14 @@ export function ShadowWorkspacePanel() {
                 >
                   {isExpanded ? '隐藏 diff' : '查看 diff'}
                 </button>
+                <button
+                  onClick={() => handleViewRecording(ws.id)}
+                  className="text-xs px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
+                  data-testid={`shadow-replay-btn-${ws.id}`}
+                  title="查看 Agent 操作录屏"
+                >
+                  {isRecExpanded ? '隐藏回放' : '▶ 回放'}
+                </button>
                 {canComplete && (
                   <button
                     onClick={() => handleComplete(ws.id)}
@@ -278,6 +346,66 @@ export function ShadowWorkspacePanel() {
                     <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded p-2 overflow-auto max-h-80 whitespace-pre-wrap">
                       {diffText}
                     </pre>
+                  )}
+                </div>
+              )}
+              {/* T-E-C-09: 录屏回放时间线 */}
+              {isRecExpanded && (
+                <div className="mt-2" data-testid={`shadow-recording-view-${ws.id}`}>
+                  {recLoading ? (
+                    <div className="text-xs text-gray-500">加载录屏…</div>
+                  ) : recOps.length === 0 ? (
+                    <div className="text-xs text-gray-600" data-testid={`shadow-recording-empty-${ws.id}`}>
+                      暂无操作记录(命令执行会自动记录,文件操作需 Agent 显式记录)
+                    </div>
+                  ) : (
+                    <div className="border border-gray-800 rounded">
+                      <div className="text-xs text-gray-500 px-2 py-1 border-b border-gray-800 bg-gray-900/50">
+                        操作录屏 · {recOps.length} 步
+                      </div>
+                      <ul className="divide-y divide-gray-800 max-h-96 overflow-y-auto">
+                        {recOps.map((op) => (
+                          <li
+                            key={op.seq}
+                            className="px-2 py-1.5 hover:bg-gray-900/50 cursor-pointer"
+                            data-testid={`shadow-recording-op-${ws.id}-${op.seq}`}
+                            onClick={() => setRecExpanded(recExpanded === op.seq ? null : op.seq)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-600 font-mono w-6 flex-shrink-0">#{op.seq}</span>
+                              <span className="text-sm flex-shrink-0">{OP_ICONS[op.kind]}</span>
+                              <span className="text-xs text-gray-400 flex-shrink-0">{OP_LABELS[op.kind]}</span>
+                              {op.target && (
+                                <span className="text-xs text-gray-300 font-mono truncate flex-1">{op.target}</span>
+                              )}
+                              <span className={`text-xs flex-shrink-0 ${op.success ? 'text-green-400' : 'text-red-400'}`}>
+                                {op.success ? '✓' : '✗'}
+                              </span>
+                              <span className="text-xs text-gray-600 flex-shrink-0">{formatRecTime(op.ts_ms)}</span>
+                            </div>
+                            {op.detail && recExpanded !== op.seq && (
+                              <div className="text-xs text-gray-600 mt-0.5 ml-8 truncate">{op.detail}</div>
+                            )}
+                            {recExpanded === op.seq && (
+                              <div className="mt-1 ml-8 space-y-1" data-testid={`shadow-recording-detail-${ws.id}-${op.seq}`}>
+                                {op.detail && (
+                                  <div>
+                                    <span className="text-xs text-gray-500">详情: </span>
+                                    <code className="text-xs text-gray-300">{op.detail}</code>
+                                  </div>
+                                )}
+                                {op.message && (
+                                  <div>
+                                    <span className="text-xs text-gray-500">消息: </span>
+                                    <pre className="text-xs text-gray-400 bg-gray-900 border border-gray-800 rounded p-1 mt-0.5 overflow-auto max-h-40 whitespace-pre-wrap inline-block w-full">{op.message}</pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
               )}

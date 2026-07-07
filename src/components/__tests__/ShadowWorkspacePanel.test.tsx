@@ -1,12 +1,12 @@
 /**
- * T-E-C-08: ShadowWorkspacePanel 前端测试。
+ * T-E-C-08 / T-E-C-09: ShadowWorkspacePanel 前端测试。
  *
- * 覆盖:渲染/空状态/创建/列表/diff 展开/合并确认/丢弃确认/状态色标。
+ * 覆盖:渲染/空状态/创建/列表/diff 展开/合并确认/丢弃确认/状态色标/录屏回放。
  * mock nebulaAPI 的 shadow_* 方法。
  */
 import { describe, it, expect, beforeAll, beforeEach, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor } from '@testing-library/preact';
-import type { ShadowWorkspace } from '../../lib/tauri';
+import type { ShadowWorkspace, OperationRecord } from '../../lib/tauri';
 
 beforeAll(() => {
   if (typeof globalThis.ResizeObserver === 'undefined') {
@@ -18,12 +18,13 @@ beforeAll(() => {
   }
 });
 
-const { mockShadowList, mockShadowCreate, mockShadowDiff, mockShadowMerge, mockShadowAbort } = vi.hoisted(() => ({
+const { mockShadowList, mockShadowCreate, mockShadowDiff, mockShadowMerge, mockShadowAbort, mockShadowRecordingList } = vi.hoisted(() => ({
   mockShadowList: vi.fn(),
   mockShadowCreate: vi.fn(),
   mockShadowDiff: vi.fn(),
   mockShadowMerge: vi.fn(),
   mockShadowAbort: vi.fn(),
+  mockShadowRecordingList: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri', async () => {
@@ -37,6 +38,7 @@ vi.mock('../../lib/tauri', async () => {
       shadowDiff: mockShadowDiff,
       shadowMerge: mockShadowMerge,
       shadowAbort: mockShadowAbort,
+      shadowRecordingList: mockShadowRecordingList,
     },
   };
 });
@@ -186,5 +188,91 @@ describe('ShadowWorkspacePanel', () => {
     await findByTestId('shadow-empty');
     const btn = await findByTestId('shadow-create-btn') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+
+  // ---- T-E-C-09: 录屏回放 ----
+
+  it('replay_button_toggles_recording_view_and_calls_list', async () => {
+    mockShadowList.mockResolvedValue([makeWs({ id: 'rec00001', status: 'completed' })]);
+    mockShadowRecordingList.mockResolvedValue([]);
+    const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
+    const { findByTestId, queryByTestId } = render(<ShadowWorkspacePanel />);
+    const replayBtn = await findByTestId('shadow-replay-btn-rec00001');
+
+    // 初始无录屏视图
+    expect(queryByTestId('shadow-recording-view-rec00001')).toBeFalsy();
+
+    // 点击展开
+    fireEvent.click(replayBtn);
+    await waitFor(() => {
+      expect(mockShadowRecordingList).toHaveBeenCalledWith('rec00001');
+      expect(queryByTestId('shadow-recording-view-rec00001')).toBeTruthy();
+    });
+
+    // 再次点击关闭
+    fireEvent.click(replayBtn);
+    await waitFor(() => {
+      expect(queryByTestId('shadow-recording-view-rec00001')).toBeFalsy();
+    });
+  });
+
+  it('recording_view_shows_empty_state_when_no_ops', async () => {
+    mockShadowList.mockResolvedValue([makeWs({ id: 'emp00001', status: 'completed' })]);
+    mockShadowRecordingList.mockResolvedValue([]);
+    const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
+    const { findByTestId } = render(<ShadowWorkspacePanel />);
+    fireEvent.click(await findByTestId('shadow-replay-btn-emp00001'));
+    expect(await findByTestId('shadow-recording-empty-emp00001')).toBeTruthy();
+  });
+
+  it('recording_view_renders_operation_timeline', async () => {
+    const ops: OperationRecord[] = [
+      { seq: 1, ts_ms: Date.now(), kind: 'note', target: '', detail: '开始任务', success: true, message: '' },
+      { seq: 2, ts_ms: Date.now(), kind: 'command', target: 'cargo', detail: 'build', success: true, message: 'Compiling nebula...\nFinished' },
+      { seq: 3, ts_ms: Date.now(), kind: 'file_write', target: 'src/main.rs', detail: 'fn main() {}', success: true, message: '' },
+    ];
+    mockShadowList.mockResolvedValue([makeWs({ id: 'ops00001', status: 'completed' })]);
+    mockShadowRecordingList.mockResolvedValue(ops);
+    const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
+    const { findByTestId, getByText } = render(<ShadowWorkspacePanel />);
+    fireEvent.click(await findByTestId('shadow-replay-btn-ops00001'));
+
+    // 3 步操作均渲染
+    await findByTestId('shadow-recording-op-ops00001-1');
+    await findByTestId('shadow-recording-op-ops00001-2');
+    await findByTestId('shadow-recording-op-ops00001-3');
+    // 步骤计数
+    expect(getByText(/操作录屏 · 3 步/)).toBeTruthy();
+    // 操作标签 + 目标渲染
+    expect(getByText('执行命令')).toBeTruthy();
+    expect(getByText('cargo')).toBeTruthy();
+    expect(getByText('src/main.rs')).toBeTruthy();
+  });
+
+  it('clicking_op_expands_detail', async () => {
+    const ops: OperationRecord[] = [
+      { seq: 1, ts_ms: Date.now(), kind: 'command', target: 'cargo', detail: 'test', success: true, message: 'test result: ok. 3 passed' },
+    ];
+    mockShadowList.mockResolvedValue([makeWs({ id: 'det00001', status: 'completed' })]);
+    mockShadowRecordingList.mockResolvedValue(ops);
+    const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
+    const { findByTestId, queryByTestId } = render(<ShadowWorkspacePanel />);
+    fireEvent.click(await findByTestId('shadow-replay-btn-det00001'));
+    const opItem = await findByTestId('shadow-recording-op-det00001-1');
+
+    // 初始无展开详情
+    expect(queryByTestId('shadow-recording-detail-det00001-1')).toBeFalsy();
+
+    // 点击展开
+    fireEvent.click(opItem);
+    await waitFor(() => {
+      expect(queryByTestId('shadow-recording-detail-det00001-1')).toBeTruthy();
+    });
+
+    // 再次点击收起
+    fireEvent.click(opItem);
+    await waitFor(() => {
+      expect(queryByTestId('shadow-recording-detail-det00001-1')).toBeFalsy();
+    });
   });
 });

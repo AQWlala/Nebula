@@ -512,6 +512,24 @@ export interface ShadowWorkspace {
   error: string | null;
 }
 
+// T-E-C-09: 任务录屏回放类型(镜像 src-tauri/src/shadow_workspace/recording.rs)
+export type OperationKind = 'file_create' | 'file_write' | 'file_delete' | 'command' | 'note';
+
+export interface OperationRecord {
+  /** workspace 内自增序号(从 1 开始)。 */
+  seq: number;
+  /** 操作时间(Unix 毫秒)。 */
+  ts_ms: number;
+  kind: OperationKind;
+  /** 操作目标:File* 为相对路径,Command 为程序名,Note 为空。 */
+  target: string;
+  /** 详情:File* 为内容摘要,Command 为参数,Note 为备注全文。 */
+  detail: string;
+  success: boolean;
+  /** 附加消息:Command 为输出摘要,失败时为错误描述。 */
+  message: string;
+}
+
 export class nebulaAPI {
   static chat(req: ChatRequest): Promise<ChatResponse> {
     return invoke('chat', { request: { user_message: req.message, conversation_id: req.conversation_id } });
@@ -1886,6 +1904,26 @@ export class nebulaAPI {
 
   static shadowCleanup(workspaceId: string): Promise<void> {
     return invoke('shadow_cleanup', { workspaceId });
+  }
+
+  // T-E-C-09: 任务录屏回放
+  static shadowRecord(
+    workspaceId: string,
+    kind: OperationKind,
+    target: string,
+    detail: string,
+    success: boolean,
+    message: string,
+  ): Promise<OperationRecord> {
+    return invoke('shadow_record', { workspaceId, kind, target, detail, success, message });
+  }
+
+  static shadowRecordingList(workspaceId: string): Promise<OperationRecord[]> {
+    return invoke('shadow_recording_list', { workspaceId });
+  }
+
+  static shadowRecordingClear(workspaceId: string): Promise<void> {
+    return invoke('shadow_recording_clear', { workspaceId });
   }
 }
 

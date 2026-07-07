@@ -1,15 +1,21 @@
-//! T-E-C-08: Shadow Workspace Tauri 命令。
+//! T-E-C-08 / T-E-C-09: Shadow Workspace Tauri 命令。
 //!
+//! 生命周期(T-E-C-08):
 //! - `shadow_create`        — 创建隔离 worktree + 分支
 //! - `shadow_list`          — 列出所有 workspace
 //! - `shadow_status`        — 查询单个 workspace 状态
 //! - `shadow_diff`          — 获取 workspace 与 base 的 diff
-//! - `shadow_run_command`   — 在 worktree 内执行命令(供 Agent)
+//! - `shadow_run_command`   — 在 worktree 内执行命令(供 Agent,自动录屏)
 //! - `shadow_complete`      — 标记任务完成
 //! - `shadow_fail`          — 标记任务失败
 //! - `shadow_merge`         — 合并回 base + 清理
 //! - `shadow_abort`         — 丢弃 + 清理
 //! - `shadow_cleanup`       — 清理已完结的 worktree 目录
+//!
+//! 录屏回放(T-E-C-09):
+//! - `shadow_record`            — 手动记录一条操作(文件修改/备注)
+//! - `shadow_recording_list`    — 获取 workspace 操作时间线
+//! - `shadow_recording_clear`   — 清除录屏
 //!
 //! 所有命令返回 `CommandError`,引擎操作通过 `AppState.shadow_engine` 访问。
 
@@ -17,7 +23,7 @@ use tauri::State;
 use tracing::instrument;
 
 use crate::commands::error::CommandError;
-use crate::shadow_workspace::ShadowWorkspace;
+use crate::shadow_workspace::{OperationKind, OperationRecord, ShadowWorkspace};
 use crate::AppState;
 
 /// 创建 Shadow Workspace。
@@ -183,4 +189,58 @@ pub async fn shadow_cleanup(
     })
     .await
     .map_err(|e| CommandError::internal("shadow_cleanup_blocking", &anyhow::anyhow!(e)))?
+}
+
+// ---- T-E-C-09: 任务录屏回放 ----
+
+/// 手动记录一条操作(文件修改/备注)。
+///
+/// 命令执行由 `shadow_run_command` 自动记录,无需调用此方法;
+/// 此命令供 Agent 显式记录文件操作和备注。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "shadow_record"))]
+pub async fn shadow_record(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    kind: OperationKind,
+    target: String,
+    detail: String,
+    success: bool,
+    message: String,
+) -> Result<OperationRecord, CommandError> {
+    let engine = state.shadow_engine.clone();
+    tokio::task::spawn_blocking(move || {
+        engine
+            .record_operation(&workspace_id, kind, target, detail, success, message)
+            .map_err(|e| CommandError::internal("shadow_record", &e))
+    })
+    .await
+    .map_err(|e| CommandError::internal("shadow_record_blocking", &anyhow::anyhow!(e)))?
+}
+
+/// 获取 workspace 的完整操作时间线(按 seq 升序,供前端回放)。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "shadow_recording_list"))]
+pub async fn shadow_recording_list(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<OperationRecord>, CommandError> {
+    let engine = state.shadow_engine.clone();
+    Ok(tokio::task::spawn_blocking(move || engine.get_recording(&workspace_id))
+        .await
+        .map_err(|e| CommandError::internal("shadow_recording_list_blocking", &anyhow::anyhow!(e)))?)
+}
+
+/// 清除 workspace 的录屏(合并/丢弃后可选清理)。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "shadow_recording_clear"))]
+pub async fn shadow_recording_clear(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<(), CommandError> {
+    let engine = state.shadow_engine.clone();
+    tokio::task::spawn_blocking(move || engine.clear_recording(&workspace_id))
+        .await
+        .map_err(|e| CommandError::internal("shadow_recording_clear_blocking", &anyhow::anyhow!(e)))?;
+    Ok(())
 }

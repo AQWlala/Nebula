@@ -613,6 +613,10 @@ pub fn run() {
             crate::shadow_workspace::commands::shadow_merge,
             crate::shadow_workspace::commands::shadow_abort,
             crate::shadow_workspace::commands::shadow_cleanup,
+            // T-E-C-09: 任务录屏回放
+            crate::shadow_workspace::commands::shadow_record,
+            crate::shadow_workspace::commands::shadow_recording_list,
+            crate::shadow_workspace::commands::shadow_recording_clear,
             #[cfg(feature = "openapi")]
             crate::commands::openapi_register_tools,
         ])
