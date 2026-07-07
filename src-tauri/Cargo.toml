@@ -89,7 +89,7 @@ once_cell = "1.19"
 # v1.1 P1-4: regex for sensitive data detection patterns
 regex = "1.10"
 url = "2.5"
-lru = "0.16"
+lru = "0.18"
 # v3.1 ADR-002: DAG dependency management for MasterOrchestrator.
 # default-features = false to skip unnecessary quickcheck/serde deps.
 petgraph = { version = "0.6", default-features = false }
