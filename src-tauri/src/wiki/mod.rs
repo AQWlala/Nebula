@@ -18,6 +18,10 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use rusqlite::params;
+
+// T-E-B-08: Obsidian vault 兼容模块。
+pub mod obsidian_sync;
+pub use obsidian_sync::{ImportedNote, ObsidianSyncConfig, ObsidianVaultSync, SyncDirection};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 

@@ -568,6 +568,12 @@ pub fn run() {
             crate::commands::wiki_backlinks,
             crate::commands::wiki_get_card,
             crate::commands::wiki_update_from_user,
+            // T-E-B-08: Obsidian vault 兼容命令
+            crate::commands::obsidian_detect_vault,
+            crate::commands::obsidian_read_config,
+            crate::commands::obsidian_scan_vault,
+            crate::commands::obsidian_import_note,
+            crate::commands::obsidian_export_note,
             crate::commands::otel_status,
             crate::commands::db_encryption_status,
             crate::commands::db_encryption_enable,

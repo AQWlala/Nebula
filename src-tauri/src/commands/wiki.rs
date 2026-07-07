@@ -208,3 +208,97 @@ pub async fn wiki_get_card(
 fn compiler_enabled(state: &State<'_, AppState>) -> bool {
     state.wiki.is_enabled()
 }
+
+// ---------------------------------------------------------------------------
+// T-E-B-08: Obsidian vault 兼容命令
+// ---------------------------------------------------------------------------
+
+/// 检测指定路径是否为有效的 Obsidian vault。
+///
+/// 前端用户选择文件夹后调用本命令验证。返回 `true` 表示存在 `.obsidian/` 目录。
+#[tauri::command]
+#[instrument(fields(otel.kind = "obsidian_detect_vault"))]
+pub async fn obsidian_detect_vault(
+    vault_path: String,
+) -> Result<bool, CommandError> {
+    let path = std::path::PathBuf::from(&vault_path);
+    Ok(crate::wiki::ObsidianVaultSync::is_obsidian_vault(&path).await)
+}
+
+/// 读取 `.obsidian/app.json` 配置。
+///
+/// 返回 `null` 表示文件不存在(新 vault 正常)。前端可读取主题、附件路径等配置。
+#[tauri::command]
+#[instrument(fields(otel.kind = "obsidian_read_config"))]
+pub async fn obsidian_read_config(
+    vault_path: String,
+) -> Result<Option<serde_json::Value>, CommandError> {
+    let path = std::path::PathBuf::from(&vault_path);
+    crate::wiki::ObsidianVaultSync::read_app_config(&path)
+        .await
+        .map_err(|e| CommandError::validation(format!("obsidian_read_config: {e}")))
+}
+
+/// 扫描 vault 中所有 `.md` 文件(排除 `.obsidian/`、Nebula 子目录、隐藏文件)。
+///
+/// 返回相对路径列表,供前端展示导入选择列表。
+#[tauri::command]
+#[instrument(fields(otel.kind = "obsidian_scan_vault"))]
+pub async fn obsidian_scan_vault(
+    vault_path: String,
+) -> Result<Vec<String>, CommandError> {
+    let path = std::path::PathBuf::from(&vault_path);
+    let config = crate::wiki::ObsidianSyncConfig::new(path);
+    crate::wiki::ObsidianVaultSync::scan_vault(&config)
+        .await
+        .map_err(|e| CommandError::db("obsidian_scan_vault", &e))
+}
+
+/// 从 Obsidian vault 导入 Markdown 文件。
+///
+/// 解析 frontmatter + body,返回 `ImportedNote`(含 WikiNote 元数据 + 正文 + 源路径)。
+/// 前端可选择将导入的笔记写入 Nebula Wiki(调 `wiki_compile` raw 模式)。
+#[tauri::command]
+#[instrument(fields(otel.kind = "obsidian_import_note"))]
+pub async fn obsidian_import_note(
+    vault_path: String,
+    relative_path: String,
+) -> Result<crate::wiki::ImportedNote, CommandError> {
+    let path = std::path::PathBuf::from(&vault_path);
+    let config = crate::wiki::ObsidianSyncConfig::new(path);
+    crate::wiki::ObsidianVaultSync::import_from_obsidian(&config, &relative_path)
+        .await
+        .map_err(|e| CommandError::validation(format!("obsidian_import_note: {e}")))
+}
+
+/// 导出 Nebula Wiki 笔记到 Obsidian vault。
+///
+/// 将笔记写入 `{vault}/Nebula/{slug}.md`,包含 frontmatter 和正文。
+/// 自动创建 Nebula 子目录。返回写入的文件路径。
+#[tauri::command]
+#[instrument(skip(state), fields(otel.kind = "obsidian_export_note"))]
+pub async fn obsidian_export_note(
+    state: State<'_, AppState>,
+    vault_path: String,
+    note_id: String,
+) -> Result<String, CommandError> {
+    let compiler = state.wiki.clone();
+    if !compiler_enabled(&state) {
+        return Err(CommandError::validation("wiki compiler disabled"));
+    }
+
+    // 读取笔记元数据 + 正文
+    let (note, markdown) = compiler
+        .read(&note_id)
+        .await
+        .map_err(|e| CommandError::not_found(format!("wiki note {note_id}: {e}")))?;
+
+    let path = std::path::PathBuf::from(&vault_path);
+    let config = crate::wiki::ObsidianSyncConfig::new(path);
+    let written = crate::wiki::ObsidianVaultSync::export_to_obsidian(&config, &note, &markdown)
+        .await
+        .map_err(|e| CommandError::db("obsidian_export_note", &e))?;
+
+    Ok(written.to_string_lossy().into_owned())
+}
+
