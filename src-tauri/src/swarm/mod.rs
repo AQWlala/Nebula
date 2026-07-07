@@ -27,6 +27,9 @@ pub mod leader_elector;
 // M3 #44-45, #52: MasterOrchestrator + ExecuteMode + MasterEvent
 #[cfg(feature = "master-orchestrator")]
 pub mod master;
+// T-E-L-01: Loop 定义解析层（LOOP.md YAML frontmatter + Markdown body）。
+#[cfg(feature = "master-orchestrator")]
+pub mod loop_def;
 pub mod negotiator;
 pub mod orchestrator;
 pub mod tool_loop;
@@ -68,3 +71,6 @@ pub use dag::{
 // M3 #44-45, #52: MasterOrchestrator 相关类型
 #[cfg(feature = "master-orchestrator")]
 pub use master::{MasterEvent, MasterEventEnvelope, MasterOrchestrator, MasterReport};
+// T-E-L-01: Loop 定义相关类型（LOOP.md 解析）。
+#[cfg(feature = "master-orchestrator")]
+pub use loop_def::{AutonomyLevel, LoopDef};
