@@ -98,7 +98,7 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 
 ---
 
-## 2. Stage 7 任务清单（68 个 T-E-* 任务）
+## 2. Stage 7 任务清单（77 个 T-E-* 任务）
 
 > **Stage 7 P0 进度(2026-07-03)**:12 个 P0 任务全部完成 ✅ — 批次 1(5 个):T-E-S-20 (exec fail-closed)、T-E-S-21 (assemble_context ACL)、T-E-A-01 (SemanticCache L0.5)、T-E-A-06 (Token 费用追踪)、T-E-B-11 (BM25 混合搜索),详见 [wire-stage7-p0-quickwins spec](../.trae/specs/wire-stage7-p0-quickwins/spec.md);批次 2(2 个):T-E-S-01 (Agent 角色专业化)、T-E-S-30 (MCP 工具接入补完),详见 [wire-stage7-p0-batch2 spec](../.trae/specs/wire-stage7-p0-batch2/spec.md);批次 3(1 个):T-E-S-02 (LLM Function Calling),详见 [wire-stage7-p0-batch3-fc spec](../.trae/specs/wire-stage7-p0-batch3-fc/spec.md);批次 4(4 个并行):T-E-S-35 (5 层插件模型)、T-E-S-50 (自主度滑块 L0-L5)、T-E-S-51 (Level 0 内联补全)、T-E-S-59 (统一收件箱),详见 [wire-stage7-p0-plugin-model spec](../.trae/specs/wire-stage7-p0-plugin-model/spec.md)、[wire-stage7-p0-autonomy-slider spec](../.trae/specs/wire-stage7-p0-autonomy-slider/spec.md)、[wire-stage7-p0-inline-completion spec](../.trae/specs/wire-stage7-p0-inline-completion/spec.md)、[wire-stage7-p0-unified-inbox spec](../.trae/specs/wire-stage7-p0-unified-inbox/spec.md)。剩余 0 个 P0,Stage 7 P0 阶段完成。
 
@@ -192,7 +192,7 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 | T-E-D-09 | **UI 性能基准 CI**：1000/5000/10000 节点 fps 基线，回归报警 | P2 | M | T-E-D-08 | B |
 | T-E-D-10 | ✅ DONE (2026-07-04) — **多 Agent 并行流式渲染**：SwarmEvent 新增 AgentToolCall/AgentOutputChunk 事件,tool_loop 埋点计时,SwarmView 分栏视图 AgentColumn + ToolCallCard,AgentOutputChunk 为未来流式预留 | P2 | M | T-S1-B-02 | B |
 
-### 2.5 贯穿层：蜂群 + 安全 + 协议 + 自动化 + 自主度（26 个任务）
+### 2.5 贯穿层：蜂群 + 安全 + 协议 + 自动化 + 自主度 + Loop Engineering（35 个任务）
 
 #### 2.5.1 蜂群与协作（6 个）
 
@@ -277,6 +277,38 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 | T-E-S-63 | **三定时机制**：Consolidation（03:00）+ Self-check（12:00）+ Retrospection（21:00） | P1 | L | 无 | B |
 | T-E-S-64 | ✅ DONE (2026-07-03) — **反幻觉 [来源:工具] badge**：`memory/consistency.rs` 定义 `CitedMemory`/`ConsistencyWarning`(SourceConflict/SingleToolNegation/EmptyCitation)/`ConsistencyReport` + `analyze()` 启发式检查,`ContextBundle.cited_memories` 收集 provenance,`chat_stream` 流结束注入 `ChatComplete.consistency`,ChatPanel `ConsistencyBadge` 组件(绿色 ✓ 引用 N 条 / 橙色 ⚠ 折叠详情),6 个单元测试 | P1 | M | T-E-B-04 | B |
 
+#### 2.5.7 Loop Engineering（9 个）
+
+> **来源**：Loop Engineering 内化技能（`docs/skills/loop-engineering/`），由 7 专家评审完成 4 个致命风险消除（v1.1 评审修订版）。
+> **设计权威**：[NEBULA_LOOP_DESIGN.md](../skills/loop-engineering/NEBULA_LOOP_DESIGN.md) §3.2
+> **评审报告**：[REVIEW_v1.0.md](../skills/loop-engineering/REVIEW_v1.0.md)
+>
+> 评审关键决策（写入实现约束）：
+> 1. **LoopEngine 不是独立模块**——内化为 MasterAgent 的 `execute_loop()` 方法，避免三套编排器并存
+> 2. **自主度统一 L0-L5**——不自建 L1-L4，复用 `AutonomySlider.tsx`
+> 3. **Checker 强制本地 Ollama**——闭源模型为数据主权红线
+> 4. **STATE.md 是 SQLite 只读投影**——禁止 Agent 直接写，避免双写状态漂移
+> 5. **Checker 升级现有 reviewer.rs**——不新建 maker_checker.rs
+> 6. **Loop 经验进 L3 事实层**——不进星魂（persona 层）
+
+| 任务 ID | 描述 | 优先级 | 复杂度 | 依赖 | 来源 |
+|---------|------|--------|--------|------|------|
+| T-E-L-01 | **MasterAgent Loop 执行模式**：master.rs 新增 `execute_loop()` 方法 + loop_def.rs（LOOP.md YAML 解析）+ StateMgr（STATE.md 只读投影，从 SQLite 生成）+ 复用 `master_*` Tauri 命令。Loop 执行模式与现有 Once/Plan 模式并列。 | P1 | L | T-E-C-10 | Loop 内化 |
+| T-E-L-02 | **CronTask 扩展**：扩展现有 `evolution/cron_scheduler.rs` 支持完整 5 字段 cron 表达式（不引入 tokio-cron-scheduler）+ Token/时间预算（AtomicU64 内存累加，异步落库）+ L0-L5 自主度字段 | P1 | M | T-E-L-01 | Loop 内化 |
+| T-E-L-03 | **ReviewerAgent 升级为 CheckerAgent**：升级现有 `swarm/agents/reviewer.rs`（加 worktree 隔离 + 对抗 prompt + 独立 Context 通道 + 模型同质检测 + 自动降级 L4→L2），不新建 maker_checker.rs | P1 | L | T-E-S-01, T-E-C-08 | Loop 内化 |
+| T-E-L-04 | **GitHub MCP 连接器（pull-only）**：读取 Actions 失败 + Issue + PR（**默认 pull-only，写操作人工触发**），为 CI Sweeper / PR Babysitter / Daily Triage 提供 Observation 信号 | P2 | L | T-E-C-18 | Loop 内化 |
+| T-E-L-05 | **Loop 模板库**：7 种 Loop 模式的 LOOP.md 模板 + 复用 TemplatesDialog（新增 automation 类别，默认只露 2 个入口） | P2 | M | T-E-L-01 | Loop 内化 |
+| T-E-L-06 | **Loop 预算管理 + 安全防护**：loop-budget.md（拆分本地 $0 / 云端两列）+ loop-cost 估算 + 超预算自动暂停 + loop-safety-guards.md（模型同质检测口径定义 + 自动降级触发条件） | P2 | M | T-E-L-02 | Loop 内化 |
+| T-E-L-07 | **Loop 审计日志**：loop-run-log.md（人类可读 Markdown，每次运行的 cadence/token/结果 + provenance）+ 异常告警（IM webhook 通知） | P3 | S | T-E-L-01 | Loop 内化 |
+| T-E-L-08a | **Loop 运行时阶段环**（评审拆分）：复用 SwarmView 的 AgentColumn + ToolCallCard，加五阶段高亮环（Intent→Context→Action→Observation→Adjustment），不等 WorkflowCanvas | P2 | M | T-E-S-11 | Loop 内化 |
+| T-E-L-08b | **Loop 设计节点**（评审拆分）：WorkflowCanvas 集成 Loop 节点（Intent/Context/Action/Observation/Adjustment 五阶段节点 + 停止条件边），依赖 T-E-S-10 | P3 | XL | T-E-S-10 | Loop 内化 |
+
+**优先级排序逻辑**（NEBULA_LOOP_DESIGN.md §3.3）：
+1. **T-E-L-01 + T-E-L-02 + T-E-L-03**（P1）构成最小可用 Loop：能定义、能调度、能 Maker-Checker 验证
+2. **T-E-L-04 + T-E-L-05 + T-E-L-08a**（P2）让 Loop 有真实信号源、模板和运行时可视化
+3. **T-E-L-06 + T-E-L-07**（P2/P3）控制成本和可观测性
+4. **T-E-L-08b**（P3）设计时编排，非阻塞
+
 ---
 
 ## 3. Stage 7 优先级矩阵
@@ -324,6 +356,16 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 **Wave 5（v3.0 全自主革命）**：
 - T-E-C-13~20（场景模板 + 多端 + OAuth + Docker）
 - T-E-S-53~58（Cron + Trigger + Watch + Calendar + 统一收件箱）
+
+**Wave Loop（v2.5+ Loop Engineering 内化，跨波推进）**：
+
+> Loop Engineering 是内化的工程方法论，跨多个 Wave 推进。P1 三任务（最小可用 Loop）依赖 Wave 3 的 T-E-C-10（异步长任务）已 ✅ 完成，可在 Wave 3 之后立即启动。
+
+- **阶段一（最小可用 Loop）**：T-E-L-01（MasterAgent Loop 模式）+ T-E-L-02（CronTask 扩展）+ T-E-L-03（ReviewerAgent 升级 CheckerAgent）
+- **阶段二（信号源 + 模板 + 可视化）**：T-E-L-04（GitHub MCP pull-only）+ T-E-L-05（Loop 模板库）+ T-E-L-08a（运行时阶段环）
+- **阶段三（成本 + 可观测 + 设计时编排）**：T-E-L-06（预算 + 安全防护）+ T-E-L-07（审计日志）+ T-E-L-08b（设计节点）
+
+详见 [NEBULA_LOOP_DESIGN.md](../skills/loop-engineering/NEBULA_LOOP_DESIGN.md) §4 实施路线图。
 
 ### 3.3 P2/P3 任务（增强体验，可延后）
 
@@ -383,13 +425,16 @@ Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 
 ### 6.1 与 COMPREHENSIVE_EVOLUTION_v3.0.md 的映射
 
-本文档所有 68 个 T-E-\* 任务均来自 `COMPREHENSIVE_EVOLUTION_v3.0.md` §4，任务编号一致，可直接交叉引用。
+本文档前 68 个 T-E-\* 任务（T-E-A/B/C/D/S 系列）均来自 `COMPREHENSIVE_EVOLUTION_v3.0.md` §4，任务编号一致，可直接交叉引用。
+
+新增 9 个 T-E-L-\* 任务（T-E-L-01~08b）来自 Loop Engineering 内化技能（`docs/skills/loop-engineering/`），由 7 专家评审完成 4 个致命风险消除（v1.1 评审修订版）。详见 [NEBULA_LOOP_DESIGN.md](../skills/loop-engineering/NEBULA_LOOP_DESIGN.md) §3.2 与 [REVIEW_v1.0.md](../skills/loop-engineering/REVIEW_v1.0.md)。
 
 ### 6.2 来源标记说明
 
 - **来源 A**：报告 A（`EXPERT_REVIEW_v3.0_INNOVATION.md`，7 专家 + 大厂趋势）
 - **来源 B**：报告 B（GLM-5.2 对话分析，OpenAkita 校准 + UI-TARS/CoPaw/LLM Wiki 深度对标）
 - **来源 A+B**：双报告共同提出，互补合并
+- **来源 Loop 内化**：Loop Engineering 公开资料内化（`docs/skills/loop-engineering/`），7 专家评审通过
 
 ### 6.3 测试策略（Stage 7 新增）
 
@@ -400,6 +445,7 @@ Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 | Wave 3 形象 | 悬浮球多窗口生命周期测试；Shadow Workspace 隔离性测试；冷启动性能基准 |
 | Wave 4 可视 | WorkflowCanvas 拖拽编排集成测试；OS-Controller 视觉识别准确率测试；Event Stream 协议一致性测试 |
 | Wave 5 全自主 | Cron 定时任务准确性测试；多端 E2EE 同步测试；场景闭环端到端测试 |
+| Wave Loop | LOOP.md YAML 解析测试；STATE.md 只读投影一致性测试；Maker-Checker 对抗验证测试；Cron 表达式扩展测试；模型同质检测+自动降级测试 |
 
 ---
 
