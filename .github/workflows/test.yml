@@ -349,28 +349,42 @@ jobs:
         # - lopdf v0.34 (1 advisory, high): PDF 处理库
         # - protobuf v2.28 (1 advisory): 旧版 protobuf 生态
         # - crossbeam-epoch v0.9.18 (1 advisory): tokio/crossbeam 依赖链
+        #
+        # 重试 3 次:advisory-db 从 GitHub 拉取,Ubuntu runner 偶发网络
+        # 超时 (530efc3 #20 Audit dependencies flaky 失败,macOS/Windows
+        # 同 Cargo.lock 均通过)。真正的 vulnerability 在重试间不会变化。
         shell: bash
         run: |
-          cargo audit \
-            --ignore RUSTSEC-2026-0086 \
-            --ignore RUSTSEC-2026-0088 \
-            --ignore RUSTSEC-2026-0089 \
-            --ignore RUSTSEC-2026-0094 \
-            --ignore RUSTSEC-2026-0095 \
-            --ignore RUSTSEC-2026-0096 \
-            --ignore RUSTSEC-2026-0194 \
-            --ignore RUSTSEC-2026-0195 \
-            --ignore RUSTSEC-2026-0098 \
-            --ignore RUSTSEC-2026-0099 \
-            --ignore RUSTSEC-2026-0104 \
-            --ignore RUSTSEC-2026-0187 \
-            --ignore RUSTSEC-2024-0437 \
-            --ignore RUSTSEC-2026-0204 \
-            > audit-output.txt 2>&1 || {
+          audit_exit=1
+          for attempt in 1 2 3; do
+            cargo audit \
+              --ignore RUSTSEC-2026-0086 \
+              --ignore RUSTSEC-2026-0088 \
+              --ignore RUSTSEC-2026-0089 \
+              --ignore RUSTSEC-2026-0094 \
+              --ignore RUSTSEC-2026-0095 \
+              --ignore RUSTSEC-2026-0096 \
+              --ignore RUSTSEC-2026-0194 \
+              --ignore RUSTSEC-2026-0195 \
+              --ignore RUSTSEC-2026-0098 \
+              --ignore RUSTSEC-2026-0099 \
+              --ignore RUSTSEC-2026-0104 \
+              --ignore RUSTSEC-2026-0187 \
+              --ignore RUSTSEC-2024-0437 \
+              --ignore RUSTSEC-2026-0204 \
+              > audit-output.txt 2>&1
+            audit_exit=$?
+            if [ $audit_exit -eq 0 ]; then
+              break
+            fi
+            echo "--- audit attempt $attempt failed (exit $audit_exit), retrying in 15s ---"
             cat audit-output.txt
-            exit 1
-          }
+            if [ $attempt -lt 3 ]; then
+              sleep 15
+            fi
+          done
           cat audit-output.txt
+          exit $audit_exit
       - name: Upload audit output
         if: always()
         uses: actions/upload-artifact@v4
