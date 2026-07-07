@@ -177,7 +177,11 @@ pub fn hash_text(text: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
-    hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>()
 }
 
 /// 简化版选择器:提取首个 `<tag>...</tag>` 的文本内容。
