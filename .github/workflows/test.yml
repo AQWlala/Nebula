@@ -243,12 +243,11 @@ jobs:
         # GitHub annotations 里看到具体错误(之前 exit 101 但具体 warning
         # 被日志截断丢失)。
         #
-        # macOS 临时 continue-on-error: macOS toolchain 上某些 clippy lint
-        # 触发 exit 101(具体原因待 annotations 暴露后修复)。Ubuntu/Windows
-        # 仍然 -D warnings 严格模式。修复 macOS clippy 后移除此 continue-on-error。
+        # macOS clippy 已修复 (daemon.rs render_launchd_plist 的 useless_format)。
+        # 保留输出捕获作为防御: 如果未来再出现 clippy warning, annotations 会
+        # 暴露具体错误, 无需下载日志。
         id: lint
         working-directory: src-tauri
-        continue-on-error: ${{ matrix.os == 'macos-latest' }}
         shell: bash
         run: |
           set +e

@@ -379,7 +379,7 @@ impl DaemonInstaller {
         }
         out.push_str("\t<key>RunAtLoad</key>\n\t<true/>\n");
         out.push_str("\t<key>KeepAlive</key>\n\t<dict>\n");
-        out.push_str(&format!("\t\t<key>SuccessfulExit</key>\n\t\t<false/>\n"));
+        out.push_str("\t\t<key>SuccessfulExit</key>\n\t\t<false/>\n");
         out.push_str("\t</dict>\n");
         if !self.config.environment.is_empty() {
             out.push_str("\t<key>EnvironmentVariables</key>\n\t<dict>\n");
