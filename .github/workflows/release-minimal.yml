@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Set up job
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -90,7 +90,7 @@ jobs:
             patchelf build-essential file
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -162,8 +162,8 @@ jobs:
     # workflow. The condition now matches any tag containing `-minimal`.
     if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-minimal')
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Generate latest.json for Tauri updater
@@ -185,7 +185,7 @@ jobs:
           EOF
           cat latest.json
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/**/*
