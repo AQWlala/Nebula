@@ -233,8 +233,8 @@ fn resolve_key(slot: &str, env_var: &str) -> Option<String> {
             // T-E-C-20: 文件卷兜底 — 从 NEBULA_KEYCHAIN_DIR/<env_var> 读取。
             // Docker headless 模式下,entrypoint.sh 将环境变量写入 /keychain/ 目录,
             // 此处读取对应的文件。env_var 同时作为文件名(如 DEEPSEEK_API_KEY)。
-            let keychain_dir = std::env::var("NEBULA_KEYCHAIN_DIR")
-                .unwrap_or_else(|_| "/keychain".to_string());
+            let keychain_dir =
+                std::env::var("NEBULA_KEYCHAIN_DIR").unwrap_or_else(|_| "/keychain".to_string());
             let file_path = format!("{}/{}", keychain_dir, env_var);
             if let Ok(val) = std::fs::read_to_string(&file_path) {
                 let trimmed = val.trim().to_string();
@@ -697,7 +697,10 @@ mod tests {
         // 运行时仅验证三级 fallback 路径存在(不依赖 keyring 后端)。
         let result = resolve_key("nonexistent_slot_tec20", "NONEXISTENT_ENV_VAR_TEC20");
         // 无 keyring 条目 + 无 env var + 无文件 → None
-        assert_eq!(result, None, "headless resolve_key should return None when all sources absent");
+        assert_eq!(
+            result, None,
+            "headless resolve_key should return None when all sources absent"
+        );
     }
 
     /// T-E-C-20: entrypoint.sh 语法检查 — 验证脚本关键语法特征存在。
@@ -706,10 +709,22 @@ mod tests {
     fn test_entrypoint_script() {
         let script = include_str!("../../entrypoint.sh");
         // 验证关键语法特征
-        assert!(script.contains("#!/bin/bash"), "entrypoint.sh must have bash shebang");
+        assert!(
+            script.contains("#!/bin/bash"),
+            "entrypoint.sh must have bash shebang"
+        );
         assert!(script.contains("set -e"), "entrypoint.sh must have set -e");
-        assert!(script.contains("mkdir -p /data /keychain /logs"), "entrypoint.sh must create volume dirs");
-        assert!(script.contains("exec \"$@\""), "entrypoint.sh must exec CMD");
-        assert!(script.contains("/keychain/"), "entrypoint.sh must write to /keychain/ volume");
+        assert!(
+            script.contains("mkdir -p /data /keychain /logs"),
+            "entrypoint.sh must create volume dirs"
+        );
+        assert!(
+            script.contains("exec \"$@\""),
+            "entrypoint.sh must exec CMD"
+        );
+        assert!(
+            script.contains("/keychain/"),
+            "entrypoint.sh must write to /keychain/ volume"
+        );
     }
 }

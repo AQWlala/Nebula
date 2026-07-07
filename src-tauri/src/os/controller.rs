@@ -73,7 +73,9 @@ impl OsControllerService {
     #[cfg(target_os = "windows")]
     #[instrument(skip(self))]
     pub fn get_foreground_window(&self) -> Result<Option<WindowInfo>> {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, GetWindowThreadProcessId,
+        };
 
         // SAFETY: `GetForegroundWindow` 无参数,返回 HWND(可能为 null,空指针表示无前台窗口)。
         // `GetWindowThreadProcessId` 的第二个参数是 `&mut process_id`(栈上 u32 out-param),

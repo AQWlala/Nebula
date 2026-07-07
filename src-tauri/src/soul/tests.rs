@@ -34,20 +34,24 @@ fn end_to_end_structure_parse_and_serialize_roundtrip() {
     // 再次解析，验证 roundtrip
     let structure2 = parse_soul_md(&serialized).unwrap();
     assert_eq!(structure2.sections.len(), 2);
-    assert_eq!(structure2.immutable_content(), structure.immutable_content());
-    assert_eq!(structure2.evolution_content(), structure.evolution_content());
+    assert_eq!(
+        structure2.immutable_content(),
+        structure.immutable_content()
+    );
+    assert_eq!(
+        structure2.evolution_content(),
+        structure.evolution_content()
+    );
 }
 
 #[test]
 fn atomic_write_then_read_back() {
-    let dir = std::env::temp_dir().join(format!(
-        "nebula_soul_e2e_atomic_{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("nebula_soul_e2e_atomic_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let path = dir.join("SOUL.md");
 
-    let content = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->";
+    let content =
+        "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->";
 
     // 原子写入
     atomic_write::atomic_write(&path, content).unwrap();

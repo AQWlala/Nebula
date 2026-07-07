@@ -72,12 +72,7 @@ fn phase_serialize_deserialize_roundtrip() {
 
 #[test]
 fn evolution_log_entry_to_markdown_contains_all_fields() {
-    let entry = EvolutionLogEntry::new(
-        EvolutionPhase::Reflect,
-        "agent_test",
-        "mem-abc-123",
-        2048,
-    );
+    let entry = EvolutionLogEntry::new(EvolutionPhase::Reflect, "agent_test", "mem-abc-123", 2048);
     let md = entry.to_markdown();
     assert!(md.starts_with("## [evolve_"));
     assert!(md.contains("Phase: reflect"));

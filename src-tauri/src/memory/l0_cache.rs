@@ -117,11 +117,18 @@ impl L0Cache {
     }
 
     /// 自定义容量。
-    pub fn with_capacity(hot_cap: usize, session_token_budget: usize, session_entry_limit: usize) -> Self {
+    pub fn with_capacity(
+        hot_cap: usize,
+        session_token_budget: usize,
+        session_entry_limit: usize,
+    ) -> Self {
         let cap = NonZeroUsize::new(hot_cap.max(1)).expect("hot_cap must be non-zero");
         Self {
             hot: Mutex::new(LruCache::new(cap)),
-            session: Mutex::new(SessionWindow::new(session_token_budget, session_entry_limit)),
+            session: Mutex::new(SessionWindow::new(
+                session_token_budget,
+                session_entry_limit,
+            )),
             prefetch_queue: Mutex::new(VecDeque::new()),
             hot_hits: AtomicU64::new(0),
             hot_misses: AtomicU64::new(0),
@@ -243,7 +250,12 @@ mod tests {
     use crate::memory::types::{MemoryLayer, SourceKind};
 
     fn make_mem(id: &str, content: &str, mt: MemoryType) -> Memory {
-        let mut m = Memory::new(mt, MemoryLayer::L1, content.to_string(), SourceKind::UserInput);
+        let mut m = Memory::new(
+            mt,
+            MemoryLayer::L1,
+            content.to_string(),
+            SourceKind::UserInput,
+        );
         m.id = id.to_string();
         m
     }
@@ -299,10 +311,17 @@ mod tests {
         c.insert(make_mem("2", "bbbbbbbbbb", MemoryType::Semantic));
         c.insert(make_mem("3", "cccccccccc", MemoryType::Semantic));
         let snap = c.session_snapshot();
-        assert!(snap.len() <= 3, "session should evict, got {} entries", snap.len());
+        assert!(
+            snap.len() <= 3,
+            "session should evict, got {} entries",
+            snap.len()
+        );
         // 最旧的应被淘汰
         let ids: Vec<_> = snap.iter().map(|m| m.id.as_str()).collect();
-        assert!(!ids.contains(&"1") || snap.len() <= 2, "oldest should be evicted");
+        assert!(
+            !ids.contains(&"1") || snap.len() <= 2,
+            "oldest should be evicted"
+        );
     }
 
     #[test]
@@ -363,7 +382,10 @@ mod tests {
         // 2. 新建空 L0Cache,验证初始 stats 全零。
         let cache = L0Cache::new();
         let before = cache.stats();
-        assert_eq!(before.session_entries, 0, "cache must be empty before prewarm");
+        assert_eq!(
+            before.session_entries, 0,
+            "cache must be empty before prewarm"
+        );
 
         // 3. 调用 prewarm_from_store(limit=64)。
         cache.prewarm_from_store(&store, 64).await;
@@ -393,7 +415,10 @@ mod tests {
         use std::env;
 
         let mut db_path = env::temp_dir();
-        db_path.push(format!("nebula_l0_prewarm_limit_{}.db", uuid::Uuid::new_v4()));
+        db_path.push(format!(
+            "nebula_l0_prewarm_limit_{}.db",
+            uuid::Uuid::new_v4()
+        ));
         let store = SqliteStore::open(&db_path).unwrap();
         for i in 0..5 {
             let mut m = Memory::new(

@@ -1,4 +1,4 @@
-﻿//! T-S6-B-02: 云端中继同步客户端 — 把本地 CRDT op log 推送到云端中继,
+//! T-S6-B-02: 云端中继同步客户端 — 把本地 CRDT op log 推送到云端中继,
 //! 并从云端拉取其他设备的 op。
 //!
 //! ## 设计说明
@@ -238,10 +238,7 @@ impl RelayClient {
             anyhow::bail!("relay pull rejected with status {}", resp.status());
         }
 
-        let parsed: PullResponse = resp
-            .json()
-            .await
-            .context("parsing relay pull response")?;
+        let parsed: PullResponse = resp.json().await.context("parsing relay pull response")?;
 
         // TODO(T-S6-B-02): echo 风险 — record_op 写入的 op 会以 pending
         // 状态出现在下一次 push 队列中,可能把远端 op 回推给中继。
@@ -312,9 +309,7 @@ impl RelayClient {
                     }
                 };
                 rt.block_on(async move {
-                    let interval = Duration::from_secs(
-                        this.config.pull_interval_secs.max(1),
-                    );
+                    let interval = Duration::from_secs(this.config.pull_interval_secs.max(1));
                     info!(
                         target: "nebula.relay",
                         interval_secs = interval.as_secs(),

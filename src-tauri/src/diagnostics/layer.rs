@@ -1,4 +1,4 @@
-﻿//! T-E-S-27: DiagnosticsLayer — 把 `nebula.diagnostic` target
+//! T-E-S-27: DiagnosticsLayer — 把 `nebula.diagnostic` target
 //! 的 tracing 事件转发到 [`crate::diagnostics::bus::DiagnosticsBus`]。
 //!
 //! 设计参考 `observability/otel.rs::try_build_layer`:实现
@@ -40,7 +40,9 @@ impl DiagnosticsLayer {
     pub fn new() -> Self {
         // global() 返回 &'static Arc<DiagnosticsBus>,双重解引用拿到
         // &'static DiagnosticsBus。
-        Self { bus: &**bus::global() }
+        Self {
+            bus: &**bus::global(),
+        }
     }
 
     /// 构造一个使用指定 bus 引用的 layer。主要用于单元测试,
@@ -145,7 +147,9 @@ mod tests {
             .expect("recv timed out")
             .expect("channel closed");
         match evt {
-            DiagnosticEvent::TracingWarn { target, message, .. } => {
+            DiagnosticEvent::TracingWarn {
+                target, message, ..
+            } => {
                 assert_eq!(target, "nebula.diagnostic");
                 assert!(message.contains("test warn message"));
             }
@@ -175,6 +179,9 @@ mod tests {
         let _guard = tracing_subscriber::registry().with(layer).set_default();
         tracing::warn!(target: "nebula.other", "should be skipped");
         let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;
-        assert!(result.is_err(), "other-target event should not be forwarded");
+        assert!(
+            result.is_err(),
+            "other-target event should not be forwarded"
+        );
     }
 }

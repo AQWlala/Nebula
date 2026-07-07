@@ -1,4 +1,4 @@
-﻿//! Generic agent — task-driven, no preset role.
+//! Generic agent — task-driven, no preset role.
 //!
 //! Models the jiuwenswarm task_tool pattern: each agent is a
 //! general-purpose worker that independently processes the task
@@ -64,8 +64,7 @@ impl GenericAgent {
         id: u32,
         tool_registry: Arc<crate::tools::ToolRegistry>,
     ) -> Self {
-        let name: &'static str =
-            Box::leak(format!("Agent-{id}").into_boxed_str());
+        let name: &'static str = Box::leak(format!("Agent-{id}").into_boxed_str());
         Self {
             llm,
             id,
@@ -144,8 +143,7 @@ impl GenericAgent {
         }
 
         let has_tool_invoke = tool_set.contains(&"tool_invoke");
-        let exact_set: std::collections::HashSet<&str> =
-            tool_set.iter().copied().collect();
+        let exact_set: std::collections::HashSet<&str> = tool_set.iter().copied().collect();
 
         self.tool_registry
             .list_all()
@@ -215,9 +213,7 @@ impl Agent for GenericAgent {
             {
                 let dispatcher_opt = self.dispatcher.lock().await.clone();
                 if let Some(dispatcher) = dispatcher_opt {
-                    let resp = dispatcher
-                        .dispatch(WorkType::SwarmWorker, msgs)
-                        .await?;
+                    let resp = dispatcher.dispatch(WorkType::SwarmWorker, msgs).await?;
                     resp.message.content
                 } else {
                     let resp = self.llm.chat(msgs).await?;
@@ -252,13 +248,8 @@ impl Agent for GenericAgent {
                 .await?
             } else {
                 // 不在 swarm 上下文中，使用默认的 tool_loop（向后兼容）
-                crate::swarm::run_tool_loop_default(
-                    &self.llm,
-                    &self.tool_registry,
-                    msgs,
-                    tools,
-                )
-                .await?
+                crate::swarm::run_tool_loop_default(&self.llm, &self.tool_registry, msgs, tools)
+                    .await?
             }
         };
 
@@ -285,10 +276,7 @@ impl Agent for GenericAgent {
     }
 
     /// T-E-S-39: 覆写 set_persona，缓存 persona Arc 供 run() 使用。
-    fn set_persona(
-        &self,
-        persona: Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>,
-    ) {
+    fn set_persona(&self, persona: Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>) {
         if let Ok(mut guard) = self.persona.try_lock() {
             *guard = Some(persona);
         }

@@ -1,4 +1,4 @@
-﻿//! T-E-B-09: 文件夹监控索引引擎。
+//! T-E-B-09: 文件夹监控索引引擎。
 //!
 //! [`FileWatcherEngine`] 监控用户指定的一组目录,当受支持扩展名的
 //! 文件被创建或修改时,通过 [`SpongeEngine::absorb_file`] 把内容
@@ -50,7 +50,9 @@ const SKIP_DIRS: &[&str] = &[
 ];
 
 /// 受支持的白名单扩展名。二进制 / 大文件 / 未知扩展名会被跳过。
-const ALLOWED_EXTENSIONS: &[&str] = &["md", "txt", "rst", "org", "code", "json", "yaml", "toml", "pdf", "docx"];
+const ALLOWED_EXTENSIONS: &[&str] = &[
+    "md", "txt", "rst", "org", "code", "json", "yaml", "toml", "pdf", "docx",
+];
 
 /// 同一路径的去抖窗口:在 300ms 内的多次事件只处理一次。
 const DEBOUNCE: Duration = Duration::from_millis(300);
@@ -309,20 +311,21 @@ fn build_watchers(paths: &[PathBuf], tx: mpsc::Sender<PathBuf>) -> Vec<Recommend
     let mut watchers: Vec<RecommendedWatcher> = Vec::with_capacity(paths.len());
     for path in paths {
         let tx_clone = tx.clone();
-        let mut watcher: RecommendedWatcher = match notify::recommended_watcher(move |res: notify::Result<Event>| {
-            handle_event(&res, &tx_clone);
-        }) {
-            Ok(w) => w,
-            Err(e) => {
-                warn!(
-                    target: "nebula.file_watcher",
-                    path = %path.display(),
-                    error = ?e,
-                    "failed to create watcher"
-                );
-                continue;
-            }
-        };
+        let mut watcher: RecommendedWatcher =
+            match notify::recommended_watcher(move |res: notify::Result<Event>| {
+                handle_event(&res, &tx_clone);
+            }) {
+                Ok(w) => w,
+                Err(e) => {
+                    warn!(
+                        target: "nebula.file_watcher",
+                        path = %path.display(),
+                        error = ?e,
+                        "failed to create watcher"
+                    );
+                    continue;
+                }
+            };
         if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
             warn!(
                 target: "nebula.file_watcher",
@@ -423,7 +426,12 @@ async fn process_path(sponge: &SpongeEngine, path: &Path) {
 
     // 4. 吸收到记忆系统
     match sponge
-        .absorb_file(path, MemoryType::Semantic, MemoryLayer::L3, SourceKind::External)
+        .absorb_file(
+            path,
+            MemoryType::Semantic,
+            MemoryLayer::L3,
+            SourceKind::External,
+        )
         .await
     {
         Ok(result) => {

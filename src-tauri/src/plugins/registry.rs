@@ -1,4 +1,4 @@
-﻿//! T-E-S-35: PluginRegistry + 5 个子注册表。
+//! T-E-S-35: PluginRegistry + 5 个子注册表。
 //!
 //! 5 层:
 //! - `FilterChain` — 有序 filter 链,两阶段(request/response)
@@ -525,7 +525,10 @@ mod tests {
             .unwrap();
         assert_eq!(req.prompt, "hi");
 
-        let out = reg.invoke_action("echo", serde_json::json!({})).await.unwrap();
+        let out = reg
+            .invoke_action("echo", serde_json::json!({}))
+            .await
+            .unwrap();
         assert!(out.success);
     }
 }

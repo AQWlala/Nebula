@@ -21,11 +21,7 @@
 
 #![cfg(feature = "otel")]
 
-use opentelemetry::{
-    global,
-    trace::TracerProvider as _,
-    KeyValue,
-};
+use opentelemetry::{global, trace::TracerProvider as _, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
     runtime::Tokio,
@@ -166,7 +162,12 @@ pub fn redact_endpoint_basic_auth(endpoint: &str) -> String {
     // 有 userinfo:替换为 "***"。
     let userinfo = &authority[..at_pos];
     let host = &authority[at_pos + 1..];
-    let redacted = format!("{}://***@{}{}", &endpoint[..scheme_end], host, &after_scheme[auth_end..]);
+    let redacted = format!(
+        "{}://***@{}{}",
+        &endpoint[..scheme_end],
+        host,
+        &after_scheme[auth_end..]
+    );
     debug_assert_eq!(redacted.len(), endpoint.len() - userinfo.len() + 3);
     redacted
 }
@@ -291,7 +292,10 @@ mod tests {
     #[test]
     fn bootstrap_otel_returns_some_when_enabled() {
         let result = bootstrap_otel("http://127.0.0.1:4317", "test-service", true);
-        assert!(result.is_some(), "enabled + valid endpoint should build layer");
+        assert!(
+            result.is_some(),
+            "enabled + valid endpoint should build layer"
+        );
     }
 
     /// 单测:otel_status.feature_compiled 与 cfg!(feature="otel") 一致。

@@ -1,4 +1,4 @@
-﻿//! T-E-A-02 TokenJuice: 三级压缩编排器。
+//! T-E-A-02 TokenJuice: 三级压缩编排器。
 //!
 //! 在 `LlmGateway::chat()` 入口处、L0 cache_key 计算之前对消息列表
 //! 做三级压缩,目标 -85% token 消耗:
@@ -45,9 +45,8 @@ static RE_P_OPEN: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)<p[^>]*>").expect(
 static RE_H: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>").expect("valid regex"));
 static RE_LI: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)<li[^>]*>").expect("valid regex"));
-static RE_A: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?is)<a\s+href="([^"]+)"[^>]*>(.*?)</a>"#).expect("valid regex")
-});
+static RE_A: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?is)<a\s+href="([^"]+)"[^>]*>(.*?)</a>"#).expect("valid regex"));
 static RE_B: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?is)<b[^>]*>(.*?)</b>").expect("valid regex"));
 static RE_STRONG: Lazy<Regex> =
@@ -303,14 +302,17 @@ mod tests {
 
     fn make_compressor() -> TokenJuiceCompressor {
         let ollama = Arc::new(OllamaClient::new("http://127.0.0.1:1".to_string()));
-        TokenJuiceCompressor::new(ollama, "test-model".to_string(), TokenJuiceConfig::default())
+        TokenJuiceCompressor::new(
+            ollama,
+            "test-model".to_string(),
+            TokenJuiceConfig::default(),
+        )
     }
 
     #[test]
     fn test_l1_redact_replaces_api_key() {
         let compressor = make_compressor();
-        let redacted =
-            compressor.l1_redact("api_key=sk-abcdefghijklmnopqrstuvwxyz1234567890");
+        let redacted = compressor.l1_redact("api_key=sk-abcdefghijklmnopqrstuvwxyz1234567890");
         assert!(
             redacted.contains("[REDACTED]"),
             "expected [REDACTED] in: {}",
@@ -347,8 +349,8 @@ mod tests {
     #[test]
     fn test_l2_html_to_md_strips_script_style() {
         let compressor = make_compressor();
-        let out = compressor
-            .l2_compress_html("<script>alert(1)</script><style>x{}</style><p>ok</p>");
+        let out =
+            compressor.l2_compress_html("<script>alert(1)</script><style>x{}</style><p>ok</p>");
         assert!(!out.contains("alert"));
         assert!(!out.contains("style"));
         assert_eq!(out.trim(), "ok");
@@ -387,10 +389,7 @@ mod tests {
 
     #[test]
     fn test_estimate_tokens_multiple() {
-        let msgs = vec![
-            ChatMessage::user("hello"),
-            ChatMessage::assistant("hi"),
-        ];
+        let msgs = vec![ChatMessage::user("hello"), ChatMessage::assistant("hi")];
         assert_eq!(TokenJuiceCompressor::estimate_tokens(&msgs), 3);
     }
 

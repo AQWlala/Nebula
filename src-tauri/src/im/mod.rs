@@ -1,4 +1,4 @@
-﻿//! T-E-C-17: IM 扫码绑定引擎 — Phase 1 Webhook 优先。
+//! T-E-C-17: IM 扫码绑定引擎 — Phase 1 Webhook 优先。
 //!
 //! 核心数据结构(ImPlatform / BindingKind / ImBinding / ImMessage)与三平台
 //! webhook 发送器(Feishu/WeCom/DingTalk)的实现位于子模块:
@@ -22,10 +22,10 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
-use crate::security::ssrf_guard::SsrfGuard;
 use crate::memory::sqlite_store::SqliteStore;
+use crate::security::ssrf_guard::SsrfGuard;
 
-pub use store::{ImBindingStore, ImBindingRow};
+pub use store::{ImBindingRow, ImBindingStore};
 pub use webhook::{send_webhook, DingtalkSignResult};
 
 // ---------------------------------------------------------------------------
@@ -70,7 +70,9 @@ impl ImPlatform {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BindingKind {
-    Webhook { url: String },
+    Webhook {
+        url: String,
+    },
     /// Phase 2 预留:OAuth 扫码绑定用户。
     #[serde(rename = "oauth_user")]
     OAuthUser {
@@ -332,9 +334,18 @@ mod tests {
 
     #[test]
     fn im_platform_serde_lowercase_strings() {
-        assert_eq!(serde_json::to_string(&ImPlatform::Feishu).unwrap(), "\"feishu\"");
-        assert_eq!(serde_json::to_string(&ImPlatform::Wecom).unwrap(), "\"wecom\"");
-        assert_eq!(serde_json::to_string(&ImPlatform::Dingtalk).unwrap(), "\"dingtalk\"");
+        assert_eq!(
+            serde_json::to_string(&ImPlatform::Feishu).unwrap(),
+            "\"feishu\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ImPlatform::Wecom).unwrap(),
+            "\"wecom\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ImPlatform::Dingtalk).unwrap(),
+            "\"dingtalk\""
+        );
     }
 
     #[test]
@@ -360,7 +371,10 @@ mod tests {
         let json = serde_json::to_string(&kind).unwrap();
         // tag = "kind", rename_all = "snake_case"
         assert!(json.contains("\"kind\":\"webhook\""), "json={json}");
-        assert!(json.contains("\"url\":\"https://open.feishu.cn"), "json={json}");
+        assert!(
+            json.contains("\"url\":\"https://open.feishu.cn"),
+            "json={json}"
+        );
         let back: BindingKind = serde_json::from_str(&json).unwrap();
         assert_eq!(kind, back);
     }
@@ -380,7 +394,9 @@ mod tests {
 
     #[test]
     fn binding_kind_target_and_kind_str() {
-        let w = BindingKind::Webhook { url: "https://x.com".into() };
+        let w = BindingKind::Webhook {
+            url: "https://x.com".into(),
+        };
         assert_eq!(w.target(), "https://x.com");
         assert_eq!(w.kind_str(), "webhook");
         let o = BindingKind::OAuthUser {
@@ -396,14 +412,27 @@ mod tests {
 
     #[test]
     fn im_message_level_serde_lowercase() {
-        for l in [ImMessageLevel::Info, ImMessageLevel::Warning, ImMessageLevel::Error] {
+        for l in [
+            ImMessageLevel::Info,
+            ImMessageLevel::Warning,
+            ImMessageLevel::Error,
+        ] {
             let json = serde_json::to_string(&l).unwrap();
             let back: ImMessageLevel = serde_json::from_str(&json).unwrap();
             assert_eq!(l, back);
         }
-        assert_eq!(serde_json::to_string(&ImMessageLevel::Info).unwrap(), "\"info\"");
-        assert_eq!(serde_json::to_string(&ImMessageLevel::Warning).unwrap(), "\"warning\"");
-        assert_eq!(serde_json::to_string(&ImMessageLevel::Error).unwrap(), "\"error\"");
+        assert_eq!(
+            serde_json::to_string(&ImMessageLevel::Info).unwrap(),
+            "\"info\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ImMessageLevel::Warning).unwrap(),
+            "\"warning\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ImMessageLevel::Error).unwrap(),
+            "\"error\""
+        );
     }
 
     #[test]

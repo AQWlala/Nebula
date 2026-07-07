@@ -178,8 +178,7 @@ impl Metrics {
     pub fn record_chat_latency(&self, us: u64) {
         self.llm_chat_latency_us_total
             .fetch_add(us, Ordering::Relaxed);
-        self.llm_chat_latency_count
-            .fetch_add(1, Ordering::Relaxed);
+        self.llm_chat_latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
     // ---- T-S1-B-03: 5 项新指标采集方法 ----
@@ -187,7 +186,8 @@ impl Metrics {
     /// T-S1-B-03: 记录一次 LLM 调用的 token 用量（来自 provider usage 字段）。
     pub fn record_token_usage(&self, prompt: u64, completion: u64) {
         self.token_prompt_total.fetch_add(prompt, Ordering::Relaxed);
-        self.token_completion_total.fetch_add(completion, Ordering::Relaxed);
+        self.token_completion_total
+            .fetch_add(completion, Ordering::Relaxed);
     }
     /// T-S1-B-03: 记录一次 L0 热缓存命中。
     pub fn record_l0_hit(&self) {
@@ -250,7 +250,8 @@ impl Metrics {
     }
     /// T-E-A-04: 记录 Prefix-Cache 命中的 token 数。
     pub fn record_prefix_cache_cached_tokens(&self, tokens: u64) {
-        self.prefix_cache_cached_tokens.fetch_add(tokens, Ordering::Relaxed);
+        self.prefix_cache_cached_tokens
+            .fetch_add(tokens, Ordering::Relaxed);
     }
 
     /// T-E-A-10: 记录一次 Prefix-Cache 命中节省的金额（USD）。
@@ -281,7 +282,10 @@ impl Metrics {
     /// T-E-D-02: 平均首响时间（微秒）。无数据时返回 0（避免除零）。
     pub fn ttft_avg_us(&self) -> u64 {
         let n = self.ttft_count.load(Ordering::Relaxed);
-        self.ttft_us_total.load(Ordering::Relaxed).checked_div(n).unwrap_or(0)
+        self.ttft_us_total
+            .load(Ordering::Relaxed)
+            .checked_div(n)
+            .unwrap_or(0)
     }
 
     /// Atomically snapshots all counters into a transport-friendly
@@ -296,7 +300,9 @@ impl Metrics {
             reflections_generated_total: self.reflections_generated_total.load(Ordering::Relaxed),
             swarm_executions_total: self.swarm_executions_total.load(Ordering::Relaxed),
             chat_total: self.chat_total.load(Ordering::Relaxed),
-            memory_search_latency_us_total: self.memory_search_latency_us_total.load(Ordering::Relaxed),
+            memory_search_latency_us_total: self
+                .memory_search_latency_us_total
+                .load(Ordering::Relaxed),
             memory_search_latency_count: self.memory_search_latency_count.load(Ordering::Relaxed),
             llm_chat_latency_us_total: self.llm_chat_latency_us_total.load(Ordering::Relaxed),
             llm_chat_latency_count: self.llm_chat_latency_count.load(Ordering::Relaxed),
@@ -392,7 +398,9 @@ impl MetricsSnapshot {
         if self.memory_search_latency_count == 0 {
             0.0
         } else {
-            (self.memory_search_latency_us_total as f64) / (self.memory_search_latency_count as f64) / 1000.0
+            (self.memory_search_latency_us_total as f64)
+                / (self.memory_search_latency_count as f64)
+                / 1000.0
         }
     }
     /// LLM chat 平均延迟（毫秒），无数据返回 0.0。
@@ -430,7 +438,8 @@ impl MetricsSnapshot {
     /// T-S1-B-03: L4 价值层拦截率 = (Confirm + Plan + Deny) / 总裁定数。
     /// "拦截"定义为"非直接放行",即需要用户介入或被禁止。
     pub fn l4_block_ratio(&self) -> f32 {
-        let total = self.l4_allow_total + self.l4_confirm_total + self.l4_plan_total + self.l4_deny_total;
+        let total =
+            self.l4_allow_total + self.l4_confirm_total + self.l4_plan_total + self.l4_deny_total;
         if total == 0 {
             0.0
         } else {

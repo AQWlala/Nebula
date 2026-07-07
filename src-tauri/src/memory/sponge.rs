@@ -1,4 +1,4 @@
-﻿//! Sponge absorption engine.
+//! Sponge absorption engine.
 //!
 //! The sponge is the *entry point* for new memories. When a new
 //! [`Memory`] is absorbed it is:
@@ -26,7 +26,9 @@ use super::entity_extractor::EntityExtractor;
 use super::graph_search::{GraphSearchConfig, GraphSearchEngine};
 use super::hybrid_search::{HybridSearchConfig, HybridSearcher};
 use super::sqlite_store::SqliteStore;
-use super::types::{Memory, MemoryRelation, MemoryType, MultiGranularity, RelationKind, SourceKind};
+use super::types::{
+    Memory, MemoryRelation, MemoryType, MultiGranularity, RelationKind, SourceKind,
+};
 // T-E-S-42: SpongeEngine 面向 VectorStore trait 编程,可接受任意后端。
 use super::vector_store::VectorStore;
 use crate::llm::cost_tracker::CostTracker;
@@ -117,13 +119,48 @@ impl KeywordActivator {
 fn default_activation_keywords() -> Vec<String> {
     [
         // 中文重要信号词
-        "重要", "记住", "注意", "关键", "必须", "不要忘记", "切记", "重点",
-        "紧急", "优先", "核心", "结论", "决定", "发现", "问题", "错误",
-        "教训", "经验", "规则", "约定", "偏好", "目标", "计划",
+        "重要",
+        "记住",
+        "注意",
+        "关键",
+        "必须",
+        "不要忘记",
+        "切记",
+        "重点",
+        "紧急",
+        "优先",
+        "核心",
+        "结论",
+        "决定",
+        "发现",
+        "问题",
+        "错误",
+        "教训",
+        "经验",
+        "规则",
+        "约定",
+        "偏好",
+        "目标",
+        "计划",
         // 英文重要信号词
-        "important", "remember", "note", "key", "must", "critical",
-        "warning", "error", "bug", "fix", "todo", "decision", "conclusion",
-        "lesson", "rule", "preference", "goal", "plan",
+        "important",
+        "remember",
+        "note",
+        "key",
+        "must",
+        "critical",
+        "warning",
+        "error",
+        "bug",
+        "fix",
+        "todo",
+        "decision",
+        "conclusion",
+        "lesson",
+        "rule",
+        "preference",
+        "goal",
+        "plan",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -180,7 +217,11 @@ pub struct SpongeEngine {
 }
 
 impl SpongeEngine {
-    pub fn new(sqlite: Arc<SqliteStore>, lance: Arc<dyn VectorStore>, embedder: Arc<Embedder>) -> Self {
+    pub fn new(
+        sqlite: Arc<SqliteStore>,
+        lance: Arc<dyn VectorStore>,
+        embedder: Arc<Embedder>,
+    ) -> Self {
         Self {
             sqlite,
             lance,
@@ -209,11 +250,7 @@ impl SpongeEngine {
     /// [`Memory`] entries (hydrated from SQLite) rather than just
     /// `(id, score)` tuples, and it combines keyword-exact recall
     /// (BM25) with semantic recall (vector) for better coverage.
-    pub async fn search_hybrid(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<(Memory, f64)>> {
+    pub async fn search_hybrid(&self, query: &str, limit: usize) -> Result<Vec<(Memory, f64)>> {
         let searcher = HybridSearcher::new(
             self.sqlite.clone(),
             self.lance.clone(),
@@ -515,15 +552,9 @@ impl SpongeEngine {
         // tool 优先取 absorb_text 写入的 `provenance_tool`(若存在),
         // 否则 None。保留上方 absorbed_at/absorbed_via 以向后兼容。
         if mem.metadata.get("provenance").is_none() {
-            let tool = mem
-                .metadata
-                .get("provenance_tool")
-                .and_then(|v| v.as_str());
-            let provenance = crate::memory::types::Provenance::new(
-                mem.source.as_str(),
-                tool,
-                &mem.content,
-            );
+            let tool = mem.metadata.get("provenance_tool").and_then(|v| v.as_str());
+            let provenance =
+                crate::memory::types::Provenance::new(mem.source.as_str(), tool, &mem.content);
             if let serde_json::Value::Object(ref mut map) = mem.metadata {
                 map.insert(
                     "provenance".to_string(),
@@ -635,9 +666,7 @@ impl SpongeEngine {
         // 过滤：只保留同类型候选
         let filtered: Vec<(String, f32)> = raw
             .into_iter()
-            .filter(|(id, _)| {
-                type_map.get(id.as_str()) == Some(&target_type)
-            })
+            .filter(|(id, _)| type_map.get(id.as_str()) == Some(&target_type))
             .collect();
 
         Ok(filtered)
@@ -1158,7 +1187,10 @@ mod tests {
             (Some(b), Some(a)) => Some(a - b),
             _ => None,
         };
-        assert!(ingest_cost.is_none(), "ingest_cost should be None when tracker absent");
+        assert!(
+            ingest_cost.is_none(),
+            "ingest_cost should be None when tracker absent"
+        );
     }
 
     /// tracker 存在但无 LLM 调用时(Duplicate/Merged 分支),差值应为 0.0。

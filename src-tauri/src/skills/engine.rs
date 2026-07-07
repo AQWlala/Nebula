@@ -124,16 +124,14 @@ use tracing::{debug, error, warn};
 
 use crate::llm::{ChatMessage, LlmGateway};
 // base64::Engine trait 在 vision feature 下使用,默认编译未用到。
-#[cfg_attr(not(feature = "vision"), allow(unused_imports))]
-use base64::Engine;
 use crate::memory::sqlite_store::SqliteStore;
 use crate::security::SsrfGuard;
+#[cfg_attr(not(feature = "vision"), allow(unused_imports))]
+use base64::Engine;
 
 use super::audit::{redact_if_sensitive, truncate_summary, SkillAuditEntry, SkillAuditLogger};
 use super::capability::{Capability, CapabilityRegistry};
-use super::exec_approval::{
-    ExecApprovalRequest, ExecApprovalTracker, TIMEOUT_FAIL_CLOSED_REASON,
-};
+use super::exec_approval::{ExecApprovalRequest, ExecApprovalTracker, TIMEOUT_FAIL_CLOSED_REASON};
 use super::executor::{LocalExecutor, SkillExecutor};
 use super::protocol::{SkillRequest, SkillResponse};
 use super::store::SkillStore;
@@ -394,7 +392,11 @@ impl SkillEngine {
                         error = %e,
                         "SSRF guard rejected URL in skill params"
                     );
-                    return Err(anyhow!("SSRF validation failed for parameter '{}': {}", key, e));
+                    return Err(anyhow!(
+                        "SSRF validation failed for parameter '{}': {}",
+                        key,
+                        e
+                    ));
                 }
             }
         }
@@ -733,22 +735,14 @@ impl SkillEngine {
     /// 返回克隆的 [`Capability`] 列表(避免锁守卫泄漏)。
     pub fn match_capabilities_by_intent(&self, intent: &str) -> Vec<Capability> {
         let guard = self.capability_registry.read();
-        guard
-            .match_by_intent(intent)
-            .into_iter()
-            .cloned()
-            .collect()
+        guard.match_by_intent(intent).into_iter().cloned().collect()
     }
 
     /// T-E-S-36: 按 input schema 兼容性匹配能力
     /// (委派 [`CapabilityRegistry::match_by_input`])。
     pub fn match_capabilities_by_input(&self, input: &serde_json::Value) -> Vec<Capability> {
         let guard = self.capability_registry.read();
-        guard
-            .match_by_input(input)
-            .into_iter()
-            .cloned()
-            .collect()
+        guard.match_by_input(input).into_iter().cloned().collect()
     }
 
     /// T-E-S-36: 列出所有已注册能力(委派 [`CapabilityRegistry::list_all`])。
@@ -1155,7 +1149,9 @@ mod tests {
             "http://127.0.0.1:1",
             std::time::Duration::from_secs(2),
         ));
-        Arc::new(LlmGateway::new(client, "m", "ollama", None, None, None, None, None))
+        Arc::new(LlmGateway::new(
+            client, "m", "ollama", None, None, None, None, None,
+        ))
     }
 
     fn cleanup(p: &Path) {
@@ -1587,7 +1583,11 @@ mod tests {
             assert!(t.approve(&id));
         });
         let result = wait_for_approval(&tracker, &req, notify, None).await;
-        assert!(result.is_ok(), "approved path should continue: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "approved path should continue: {:?}",
+            result.err()
+        );
     }
 
     /// T-E-S-20: 超时后 wait_for_approval 必须返回 Err 且状态为 TimeoutFailClosed。
@@ -1638,7 +1638,10 @@ mod tests {
                 ..Default::default()
             })
             .unwrap();
-        assert!(listed.iter().any(|x| x.id == s.id), "old list_skills must work");
+        assert!(
+            listed.iter().any(|x| x.id == s.id),
+            "old list_skills must work"
+        );
 
         // 2. 新委派方法:register_capability + match_capabilities_by_intent。
         eng.register_capability(Capability {

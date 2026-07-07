@@ -115,7 +115,9 @@ impl TokenAuthInterceptor {
         let token = std::env::var("NEBULA_SIDECAR_TOKEN")
             .ok()
             .filter(|t| !t.is_empty());
-        Self { expected_token: token }
+        Self {
+            expected_token: token,
+        }
     }
 
     #[allow(clippy::result_large_err)]
@@ -134,7 +136,9 @@ impl TokenAuthInterceptor {
                 return Ok(());
             }
         }
-        Err(tonic::Status::unauthenticated("invalid or missing bearer token"))
+        Err(tonic::Status::unauthenticated(
+            "invalid or missing bearer token",
+        ))
     }
 }
 
@@ -150,8 +154,8 @@ async fn main() -> Result<()> {
     let args = SidecarArgs::parse();
 
     // 初始化日志
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&args.log_level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&args.log_level));
     tracing_subscriber::registry()
         .with(filter)
         .with(fmt::layer().with_target(true))
@@ -228,7 +232,9 @@ mod tests {
 
     #[test]
     fn token_auth_interceptor_no_token_allows_all() {
-        let interceptor = TokenAuthInterceptor { expected_token: None };
+        let interceptor = TokenAuthInterceptor {
+            expected_token: None,
+        };
         let req = tonic::Request::new(());
         assert!(interceptor.validate(&req).is_ok());
     }
@@ -244,18 +250,14 @@ mod tests {
 
         // 正确 Bearer token → 通过
         let mut req = tonic::Request::new(());
-        req.metadata_mut().insert(
-            "authorization",
-            "Bearer secret123".parse().unwrap(),
-        );
+        req.metadata_mut()
+            .insert("authorization", "Bearer secret123".parse().unwrap());
         assert!(interceptor.validate(&req).is_ok());
 
         // 错误 token → 拒绝
         let mut req = tonic::Request::new(());
-        req.metadata_mut().insert(
-            "authorization",
-            "Bearer wrong".parse().unwrap(),
-        );
+        req.metadata_mut()
+            .insert("authorization", "Bearer wrong".parse().unwrap());
         assert!(interceptor.validate(&req).is_err());
     }
 }

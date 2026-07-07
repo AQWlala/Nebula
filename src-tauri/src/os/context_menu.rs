@@ -72,9 +72,7 @@ mod win {
     pub(super) fn open_key_read(parent: HKEY, subkey: &str) -> Result<HKEY, String> {
         let subkey_w = wide(subkey);
         let mut hkey: HKEY = std::ptr::null_mut();
-        let ret = unsafe {
-            RegOpenKeyExW(parent, subkey_w.as_ptr(), 0, KEY_READ, &mut hkey)
-        };
+        let ret = unsafe { RegOpenKeyExW(parent, subkey_w.as_ptr(), 0, KEY_READ, &mut hkey) };
         if ret != ERROR_SUCCESS {
             return Err(format!("RegOpenKeyExW failed: error code {ret}"));
         }

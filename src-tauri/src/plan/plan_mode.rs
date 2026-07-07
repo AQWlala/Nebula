@@ -67,12 +67,7 @@ impl PlanTracker {
     ///
     /// v1.3：`steps` / `expected_outcome` / `rollback_strategy` 留空，
     /// 由前端或后续 LLM 拆解填充（通过 [`PlanTracker::update_plan`]）。
-    pub fn create(
-        &self,
-        task: &str,
-        rationale: &str,
-        action_kind: ActionKind,
-    ) -> PlanRequest {
+    pub fn create(&self, task: &str, rationale: &str, action_kind: ActionKind) -> PlanRequest {
         let req = PlanRequest {
             id: new_id(),
             task: task.to_string(),

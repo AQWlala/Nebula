@@ -1,4 +1,4 @@
-﻿//! T-E-S-54: Webhook 触发器 — axum HTTP server,默认绑 127.0.0.1:8088。
+//! T-E-S-54: Webhook 触发器 — axum HTTP server,默认绑 127.0.0.1:8088。
 //!
 //! 设计要点:
 //! * `axum::Router::route("/webhooks/:trigger_id", post(handle_webhook))`
@@ -103,11 +103,7 @@ async fn handle_webhook(
 ) -> Response {
     // 1. body 大小校验。
     if body.len() > MAX_BODY_BYTES {
-        return (
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "body exceeds 1MiB limit",
-        )
-            .into_response();
+        return (StatusCode::PAYLOAD_TOO_LARGE, "body exceeds 1MiB limit").into_response();
     }
 
     // 2. 取 trigger 配置(必须是 webhook 类型且 enabled)。
@@ -126,7 +122,11 @@ async fn handle_webhook(
     }
 
     // 3. method 校验(可选,默认 POST)。
-    let TriggerCondition::Webhook { ref secret, ref method } = cfg.condition else {
+    let TriggerCondition::Webhook {
+        ref secret,
+        ref method,
+    } = cfg.condition
+    else {
         return (StatusCode::INTERNAL_SERVER_ERROR, "invalid condition").into_response();
     };
     if let Some(ref m) = method {
@@ -160,11 +160,7 @@ async fn handle_webhook(
 }
 
 /// 构造 webhook payload。body 尝试解析为 JSON;失败则包装为字符串。
-fn build_payload(
-    trigger_id: &str,
-    body: &[u8],
-    _headers: &HeaderMap,
-) -> serde_json::Value {
+fn build_payload(trigger_id: &str, body: &[u8], _headers: &HeaderMap) -> serde_json::Value {
     let body_json: serde_json::Value = serde_json::from_slice(body).unwrap_or_else(|_| {
         serde_json::json!({
             "body": String::from_utf8_lossy(body).to_string(),
@@ -182,7 +178,11 @@ fn build_payload(
 ///
 /// 客户端通过 `X-Signature` header 携带 hex 编码的 HMAC-SHA256 签名。
 /// 本函数用 secret 重新计算签名并常量时间比对。
-fn verify_signature(secret: &str, body: &[u8], headers: &HeaderMap) -> Result<(), (StatusCode, &'static str)> {
+fn verify_signature(
+    secret: &str,
+    body: &[u8],
+    headers: &HeaderMap,
+) -> Result<(), (StatusCode, &'static str)> {
     let signature = headers
         .get("X-Signature")
         .and_then(|v| v.to_str().ok())

@@ -56,21 +56,19 @@ impl Skill for SkillEngineBridge {
         tag: Option<String>,
         limit: u32,
     ) -> Result<Vec<SkillRecord>> {
-        self.engine
-            .list_skills(ListSkillsRequest {
-                language,
-                tag,
-                limit,
-                ..Default::default()
-            })
+        self.engine.list_skills(ListSkillsRequest {
+            language,
+            tag,
+            limit,
+            ..Default::default()
+        })
     }
 
     async fn search_skills(&self, query: &str, limit: u32) -> Result<Vec<SkillRecord>> {
-        self.engine
-            .search_skills(SkillSearchRequest {
-                query: query.to_string(),
-                limit,
-            })
+        self.engine.search_skills(SkillSearchRequest {
+            query: query.to_string(),
+            limit,
+        })
     }
 }
 

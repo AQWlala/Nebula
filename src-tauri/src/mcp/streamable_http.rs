@@ -1,4 +1,4 @@
-﻿//! T-E-S-34: MCPO (MCP over HTTP) — Streamable HTTP Transport.
+//! T-E-S-34: MCPO (MCP over HTTP) — Streamable HTTP Transport.
 //!
 //! 实现 MCP 2025-03-26 规范的 Streamable HTTP transport:
 //!
@@ -211,7 +211,11 @@ impl StreamableHttpTransport {
         };
 
         // 提取 Mcp-Session-Id 头(首次响应或后续更新)。
-        if let Some(sid) = resp.headers().get("mcp-session-id").and_then(|v| v.to_str().ok()) {
+        if let Some(sid) = resp
+            .headers()
+            .get("mcp-session-id")
+            .and_then(|v| v.to_str().ok())
+        {
             debug!(target: "nebula.mcp.streamable_http", session_id = %sid, "Mcp-Session-Id received");
             *self.session_id.write().await = Some(sid.to_string());
         }
@@ -331,11 +335,17 @@ impl StreamableHttpTransport {
             }
             Ok(Err(_)) => {
                 self.pending.lock().remove(&target_id);
-                anyhow::bail!("StreamableHttp SSE response channel closed for id {}", target_id)
+                anyhow::bail!(
+                    "StreamableHttp SSE response channel closed for id {}",
+                    target_id
+                )
             }
             Err(_) => {
                 self.pending.lock().remove(&target_id);
-                anyhow::bail!("StreamableHttp SSE response timeout (30s) for id {}", target_id)
+                anyhow::bail!(
+                    "StreamableHttp SSE response timeout (30s) for id {}",
+                    target_id
+                )
             }
         }
     }
@@ -505,10 +515,12 @@ mod tests {
         .await;
         // 测试需连 localhost mock,绕过 SSRF 校验;connect() 是 SSRF 严格路径,
         // 因此改用 new(allow_private=true) + send_initialize()。
-        let transport =
-            StreamableHttpTransport::new(url.clone(), HashMap::new(), None, true)
-                .expect("new should succeed");
-        transport.send_initialize().await.expect("initialize should succeed");
+        let transport = StreamableHttpTransport::new(url.clone(), HashMap::new(), None, true)
+            .expect("new should succeed");
+        transport
+            .send_initialize()
+            .await
+            .expect("initialize should succeed");
         let sid = transport.session_id().await;
         assert_eq!(sid.as_deref(), Some("session-abc-123"));
         transport.close().await;
@@ -525,10 +537,12 @@ mod tests {
             )
         })
         .await;
-        let transport =
-            StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
         let req = JsonRpcRequest::new("tools/list", 1);
-        let resp = transport.post_request(&req).await.expect("post should succeed");
+        let resp = transport
+            .post_request(&req)
+            .await
+            .expect("post should succeed");
         assert_eq!(resp.id, serde_json::json!(1));
         assert!(resp.result.is_some());
         assert!(resp.error.is_none());
@@ -549,10 +563,12 @@ mod tests {
             )
         })
         .await;
-        let transport =
-            StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
         let req = JsonRpcRequest::new("tools/list", 42);
-        let resp = transport.post_request(&req).await.expect("post SSE should succeed");
+        let resp = transport
+            .post_request(&req)
+            .await
+            .expect("post SSE should succeed");
         assert_eq!(resp.id, serde_json::json!(42));
         let result = resp.result_value().unwrap();
         assert!(result.get("tools").is_some());
@@ -578,8 +594,7 @@ mod tests {
         })
         .await;
         // new(不发送 initialize)
-        let mut transport =
-            StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
+        let mut transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
         // 首次 send_initialize 失败(500)
         let first = transport.send_initialize().await;
         assert!(first.is_err(), "first initialize should fail with 500");
@@ -616,16 +631,21 @@ mod tests {
             )
         })
         .await;
-        let transport =
-            StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).unwrap();
         // 第一次请求:响应带 Mcp-Session-Id → session_id 被回填。
         let req1 = JsonRpcRequest::new("initialize", 1);
-        let _ = transport.post_request(&req1).await.expect("first post should succeed");
+        let _ = transport
+            .post_request(&req1)
+            .await
+            .expect("first post should succeed");
         let sid = transport.session_id().await;
         assert_eq!(sid.as_deref(), Some("session-persist-99"));
         // 第二次请求:应在 header 中带 Mcp-Session-Id。
         let req2 = JsonRpcRequest::new("tools/list", 2);
-        let _ = transport.post_request(&req2).await.expect("second post should succeed");
+        let _ = transport
+            .post_request(&req2)
+            .await
+            .expect("second post should succeed");
         // 检查捕获的头:第一次请求不应有 session_id,第二次应有。
         {
             let captured = captured_headers.lock();
@@ -715,7 +735,10 @@ mod tests {
         assert!(result.is_err(), "connect to localhost should fail (SSRF)");
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
-            err_msg.contains("SSRF") || err_msg.contains("loopback") || err_msg.contains("private") || err_msg.contains("StreamableHttp"),
+            err_msg.contains("SSRF")
+                || err_msg.contains("loopback")
+                || err_msg.contains("private")
+                || err_msg.contains("StreamableHttp"),
             "error should indicate SSRF or StreamableHttp path, got: {}",
             err_msg
         );

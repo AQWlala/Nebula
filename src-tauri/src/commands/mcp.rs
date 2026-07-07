@@ -9,10 +9,10 @@
 use tauri::State;
 use tracing::instrument;
 
-use crate::AppState;
 use crate::mcp::client::{McpTool, McpToolResult};
 use crate::mcp::config::McpServerConfig;
 use crate::mcp::registry::{McpServerInfo, McpServerStatus};
+use crate::AppState;
 
 use super::error::{CommandError, ErrorCode};
 
@@ -132,10 +132,7 @@ pub async fn mcp_server_start(
 /// 停止指定的 MCP server(kill 子进程 + disconnect client)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "mcp_server_stop"))]
-pub async fn mcp_server_stop(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<(), CommandError> {
+pub async fn mcp_server_stop(state: State<'_, AppState>, name: String) -> Result<(), CommandError> {
     state
         .mcp_registry
         .stop(&name)

@@ -331,7 +331,11 @@ mod tests {
         ann.created_at = 2000;
         upsert_via_conn(&conn, &ann);
         let rows = list_via_conn(&conn);
-        assert_eq!(rows.len(), 1, "UNIQUE(turn_id) + REPLACE must not duplicate");
+        assert_eq!(
+            rows.len(),
+            1,
+            "UNIQUE(turn_id) + REPLACE must not duplicate"
+        );
         assert_eq!(rows[0].annotation, "bad");
         assert_eq!(rows[0].created_at, 2000);
     }

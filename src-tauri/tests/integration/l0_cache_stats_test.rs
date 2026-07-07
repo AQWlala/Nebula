@@ -1,4 +1,4 @@
-﻿//! T-S1-A-01: L0Cache 命中率统计集成测试。
+//! T-S1-A-01: L0Cache 命中率统计集成测试。
 //!
 //! 对应 ROADMAP_v2.1.md §4.4 Stage 1 测试策略要求的
 //! `tests/integration/l0_cache_stats_test.rs`。
@@ -11,8 +11,8 @@
 use std::sync::Arc;
 use std::thread;
 
-use nebula_lib::memory::L0Cache;
 use nebula_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
+use nebula_lib::memory::L0Cache;
 
 fn make_mem(id: &str, content: &str) -> Memory {
     let mut m = Memory::new(
@@ -114,7 +114,10 @@ fn stats_not_hardcoded_zero() {
 
     let after = cache.stats();
     assert_ne!(after.hot_hits, 0, "hot_hits must not stay at hardcoded 0");
-    assert_ne!(after.hot_misses, 0, "hot_misses must not stay at hardcoded 0");
+    assert_ne!(
+        after.hot_misses, 0,
+        "hot_misses must not stay at hardcoded 0"
+    );
     assert_eq!(after.hot_hits, 1);
     assert_eq!(after.hot_misses, 1);
 }

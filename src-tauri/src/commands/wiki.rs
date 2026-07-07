@@ -110,10 +110,7 @@ pub async fn wiki_search(
 /// 删除 wiki 笔记(幂等)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "wiki_delete"))]
-pub async fn wiki_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn wiki_delete(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     let compiler = state.wiki.clone();
     compiler
         .delete(&id)
@@ -218,9 +215,7 @@ fn compiler_enabled(state: &State<'_, AppState>) -> bool {
 /// 前端用户选择文件夹后调用本命令验证。返回 `true` 表示存在 `.obsidian/` 目录。
 #[tauri::command]
 #[instrument(fields(otel.kind = "obsidian_detect_vault"))]
-pub async fn obsidian_detect_vault(
-    vault_path: String,
-) -> Result<bool, CommandError> {
+pub async fn obsidian_detect_vault(vault_path: String) -> Result<bool, CommandError> {
     let path = std::path::PathBuf::from(&vault_path);
     Ok(crate::wiki::ObsidianVaultSync::is_obsidian_vault(&path).await)
 }
@@ -244,9 +239,7 @@ pub async fn obsidian_read_config(
 /// 返回相对路径列表,供前端展示导入选择列表。
 #[tauri::command]
 #[instrument(fields(otel.kind = "obsidian_scan_vault"))]
-pub async fn obsidian_scan_vault(
-    vault_path: String,
-) -> Result<Vec<String>, CommandError> {
+pub async fn obsidian_scan_vault(vault_path: String) -> Result<Vec<String>, CommandError> {
     let path = std::path::PathBuf::from(&vault_path);
     let config = crate::wiki::ObsidianSyncConfig::new(path);
     crate::wiki::ObsidianVaultSync::scan_vault(&config)
@@ -301,4 +294,3 @@ pub async fn obsidian_export_note(
 
     Ok(written.to_string_lossy().into_owned())
 }
-

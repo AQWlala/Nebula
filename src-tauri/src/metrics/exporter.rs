@@ -81,16 +81,10 @@ impl MetricsRegistry {
             "Embedder cache misses since process start",
         )
         .unwrap();
-        let memory_stores_total = IntCounter::new(
-            "nebula_memory_stores_total",
-            "Total memory_store calls",
-        )
-        .unwrap();
-        let memory_searches_total = IntCounter::new(
-            "nebula_memory_searches_total",
-            "Total memory_search calls",
-        )
-        .unwrap();
+        let memory_stores_total =
+            IntCounter::new("nebula_memory_stores_total", "Total memory_store calls").unwrap();
+        let memory_searches_total =
+            IntCounter::new("nebula_memory_searches_total", "Total memory_search calls").unwrap();
         let blackhole_compressions_total = IntCounter::new(
             "nebula_blackhole_compressions_total",
             "Rows compressed by the black-hole engine",
@@ -101,16 +95,9 @@ impl MetricsRegistry {
             "L5 reflections produced",
         )
         .unwrap();
-        let swarm_executions_total = IntCounter::new(
-            "nebula_swarm_executions_total",
-            "swarm_execute invocations",
-        )
-        .unwrap();
-        let chat_total = IntCounter::new(
-            "nebula_chat_total",
-            "chat invocations",
-        )
-        .unwrap();
+        let swarm_executions_total =
+            IntCounter::new("nebula_swarm_executions_total", "swarm_execute invocations").unwrap();
+        let chat_total = IntCounter::new("nebula_chat_total", "chat invocations").unwrap();
         let memory_search_latency_us = IntCounter::new(
             "nebula_memory_search_latency_us_total",
             "Cumulative memory_search latency in microseconds",
@@ -147,21 +134,10 @@ impl MetricsRegistry {
             "Cumulative LLM completion tokens (from provider usage field)",
         )
         .unwrap();
-        let l0_hits = IntCounter::new(
-            "nebula_l0_hits_total",
-            "L0 hot cache hits",
-        )
-        .unwrap();
-        let l0_misses = IntCounter::new(
-            "nebula_l0_misses_total",
-            "L0 hot cache misses",
-        )
-        .unwrap();
-        let l4_allow_total = IntCounter::new(
-            "nebula_l4_allow_total",
-            "L4 values layer Allow verdicts",
-        )
-        .unwrap();
+        let l0_hits = IntCounter::new("nebula_l0_hits_total", "L0 hot cache hits").unwrap();
+        let l0_misses = IntCounter::new("nebula_l0_misses_total", "L0 hot cache misses").unwrap();
+        let l4_allow_total =
+            IntCounter::new("nebula_l4_allow_total", "L4 values layer Allow verdicts").unwrap();
         let l4_confirm_total = IntCounter::new(
             "nebula_l4_confirm_total",
             "L4 values layer Confirm verdicts (needs user approval)",
@@ -177,16 +153,9 @@ impl MetricsRegistry {
             "L4 values layer Deny verdicts (blocked)",
         )
         .unwrap();
-        let acl_allow_total = IntCounter::new(
-            "nebula_acl_allow_total",
-            "ACL allow verdicts",
-        )
-        .unwrap();
-        let acl_deny_total = IntCounter::new(
-            "nebula_acl_deny_total",
-            "ACL deny verdicts",
-        )
-        .unwrap();
+        let acl_allow_total =
+            IntCounter::new("nebula_acl_allow_total", "ACL allow verdicts").unwrap();
+        let acl_deny_total = IntCounter::new("nebula_acl_deny_total", "ACL deny verdicts").unwrap();
         let reflections_skipped_total = IntCounter::new(
             "nebula_reflections_skipped_total",
             "Reflection passes skipped by RoundGuard (cooldown window saturated)",
@@ -319,28 +288,21 @@ fn refresh_gauges(reg: &MetricsRegistry, perf: &PerfMonitor) {
     let m = crate::metrics::global().snapshot();
     let p = perf.latest();
 
-    reg.embedding_cache_hits
-        .reset();
+    reg.embedding_cache_hits.reset();
     reg.embedding_cache_hits.inc_by(m.embedding_cache_hits);
-    reg.embedding_cache_misses
-        .reset();
+    reg.embedding_cache_misses.reset();
     reg.embedding_cache_misses.inc_by(m.embedding_cache_misses);
-    reg.memory_stores_total
-        .reset();
+    reg.memory_stores_total.reset();
     reg.memory_stores_total.inc_by(m.memory_stores_total);
-    reg.memory_searches_total
-        .reset();
+    reg.memory_searches_total.reset();
     reg.memory_searches_total.inc_by(m.memory_searches_total);
-    reg.blackhole_compressions_total
-        .reset();
+    reg.blackhole_compressions_total.reset();
     reg.blackhole_compressions_total
         .inc_by(m.blackhole_compressions_total);
-    reg.reflections_generated_total
-        .reset();
+    reg.reflections_generated_total.reset();
     reg.reflections_generated_total
         .inc_by(m.reflections_generated_total);
-    reg.swarm_executions_total
-        .reset();
+    reg.swarm_executions_total.reset();
     reg.swarm_executions_total.inc_by(m.swarm_executions_total);
     reg.chat_total.reset();
     reg.chat_total.inc_by(m.chat_total);
@@ -351,18 +313,15 @@ fn refresh_gauges(reg: &MetricsRegistry, perf: &PerfMonitor) {
     reg.memory_search_latency_count
         .inc_by(m.memory_search_latency_count);
     reg.llm_chat_latency_us.reset();
-    reg.llm_chat_latency_us
-        .inc_by(m.llm_chat_latency_us_total);
+    reg.llm_chat_latency_us.inc_by(m.llm_chat_latency_us_total);
     reg.llm_chat_latency_count.reset();
-    reg.llm_chat_latency_count
-        .inc_by(m.llm_chat_latency_count);
+    reg.llm_chat_latency_count.inc_by(m.llm_chat_latency_count);
 
     // T-S1-B-03: 同步 11 个新 counter。
     reg.token_prompt_total.reset();
     reg.token_prompt_total.inc_by(m.token_prompt_total);
     reg.token_completion_total.reset();
-    reg.token_completion_total
-        .inc_by(m.token_completion_total);
+    reg.token_completion_total.inc_by(m.token_completion_total);
     reg.l0_hits.reset();
     reg.l0_hits.inc_by(m.l0_hits);
     reg.l0_misses.reset();
@@ -392,9 +351,12 @@ fn refresh_gauges(reg: &MetricsRegistry, perf: &PerfMonitor) {
     reg.embedding_cache_hit_ratio.set(ratio_scaled);
 
     // T-S1-B-03: 3 个新 ratio gauge。
-    reg.l0_hit_ratio.set((m.l0_hit_ratio() as f64 * 10000.0) as i64);
-    reg.l4_block_ratio.set((m.l4_block_ratio() as f64 * 10000.0) as i64);
-    reg.acl_deny_ratio.set((m.acl_deny_ratio() as f64 * 10000.0) as i64);
+    reg.l0_hit_ratio
+        .set((m.l0_hit_ratio() as f64 * 10000.0) as i64);
+    reg.l4_block_ratio
+        .set((m.l4_block_ratio() as f64 * 10000.0) as i64);
+    reg.acl_deny_ratio
+        .set((m.acl_deny_ratio() as f64 * 10000.0) as i64);
 
     if let Some(rss) = p.rss_bytes {
         reg.process_rss_bytes.set(rss as i64);
@@ -405,8 +367,7 @@ fn refresh_gauges(reg: &MetricsRegistry, perf: &PerfMonitor) {
     if let Some(cpu) = p.cpu_pct {
         reg.process_cpu_pct.set((cpu * 100.0) as i64);
     }
-    reg.over_rss_budget
-        .set(if p.over_budget { 1 } else { 0 });
+    reg.over_rss_budget.set(if p.over_budget { 1 } else { 0 });
 }
 
 /// Handler for `GET /metrics`.

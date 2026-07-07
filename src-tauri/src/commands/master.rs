@@ -14,9 +14,9 @@
 use tauri::State;
 use tracing::instrument;
 
-use crate::autonomy::{ConfirmationStatus, PendingConfirmation};
 #[cfg(feature = "master-orchestrator")]
 use crate::autonomy; // for autonomy::get_level() / autonomy::CONFIRMATION_TIMEOUT_MS
+use crate::autonomy::{ConfirmationStatus, PendingConfirmation};
 use crate::commands::error::CommandError;
 #[cfg(feature = "master-orchestrator")]
 use crate::memory::values::risk_assessor::ActionKind;
@@ -75,9 +75,10 @@ pub async fn master_run(
     // 复用 ApprovalGate + ConfirmationRegistry + master_confirm 命令。
     // RemoteLlmDispatch 在 WorkerRiskMap 中强制 High,不受 autonomy 影响(隐私硬约束)。
     let autonomy_level = autonomy::get_level();
-    let verdict = state
-        .approval_gate
-        .assess(ActionKind::RemoteLlmDispatch, &input, autonomy_level, None);
+    let verdict =
+        state
+            .approval_gate
+            .assess(ActionKind::RemoteLlmDispatch, &input, autonomy_level, None);
     if let crate::autonomy::ApprovalVerdict::ConfirmRequired {
         confirmation_id,
         created_at,
@@ -105,15 +106,14 @@ pub async fn master_run(
             timestamp: crate::swarm::MasterEvent::now_ts(),
         };
         if on_master_event.send(privacy_event).is_err() {
-            return Err(CommandError::validation("master_run").with_details(
-                "前端通道已关闭,无法推送隐私确认请求".to_string(),
-            ));
+            return Err(CommandError::validation("master_run")
+                .with_details("前端通道已关闭,无法推送隐私确认请求".to_string()));
         }
 
         // 轮询等待 master_confirm(5min 超时)。
         // 用 tokio::time::interval 每 500ms 检查一次 confirmation 状态。
-        let deadline = chrono::Utc::now().timestamp_millis()
-            + crate::autonomy::CONFIRMATION_TIMEOUT_MS;
+        let deadline =
+            chrono::Utc::now().timestamp_millis() + crate::autonomy::CONFIRMATION_TIMEOUT_MS;
         let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
         let mut confirmed = false;
         loop {
@@ -124,9 +124,8 @@ pub async fn master_run(
                     break;
                 }
                 ConfirmationStatus::Expired | ConfirmationStatus::NotFound => {
-                    return Err(CommandError::validation("master_run").with_details(
-                        "隐私确认超时或失效,请重新发起任务".to_string(),
-                    ));
+                    return Err(CommandError::validation("master_run")
+                        .with_details("隐私确认超时或失效,请重新发起任务".to_string()));
                 }
                 ConfirmationStatus::AlreadyUsed => {
                     // 不应发生(check 不消费),防御性处理
@@ -135,15 +134,13 @@ pub async fn master_run(
                 }
             }
             if chrono::Utc::now().timestamp_millis() > deadline {
-                return Err(CommandError::validation("master_run").with_details(
-                    "隐私确认超时(5 分钟未响应),请重新发起任务".to_string(),
-                ));
+                return Err(CommandError::validation("master_run")
+                    .with_details("隐私确认超时(5 分钟未响应),请重新发起任务".to_string()));
             }
         }
         if !confirmed {
-            return Err(CommandError::validation("master_run").with_details(
-                "隐私确认未通过,任务已取消".to_string(),
-            ));
+            return Err(CommandError::validation("master_run")
+                .with_details("隐私确认未通过,任务已取消".to_string()));
         }
         tracing::info!(
             target: "nebula.master.privacy",
@@ -161,9 +158,8 @@ pub async fn master_run(
     // orchestrate 在独立 tokio task 中运行(不阻塞当前命令 future)
     let master_clone = master.clone();
     let input_clone = input.clone();
-    let orch_handle = tokio::spawn(async move {
-        master_clone.orchestrate(&input_clone, mode).await
-    });
+    let orch_handle =
+        tokio::spawn(async move { master_clone.orchestrate(&input_clone, mode).await });
 
     // 事件转发:用 spawn_blocking 阻塞 recv(避免阻塞 tokio executor),
     // 收到事件即同步调用 `on_master_event.send()`(Tauri Channel.send 是同步方法)。
@@ -180,7 +176,10 @@ pub async fn master_run(
     let report = orch_handle
         .await
         .map_err(|e| {
-            CommandError::swarm("master_run", &anyhow::anyhow!("orchestrate task panicked: {}", e))
+            CommandError::swarm(
+                "master_run",
+                &anyhow::anyhow!("orchestrate task panicked: {}", e),
+            )
         })?
         .map_err(|e| CommandError::swarm("master_run", &e))?;
 

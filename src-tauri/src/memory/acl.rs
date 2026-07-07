@@ -408,7 +408,10 @@ mod tests {
     #[test]
     fn principal_domain_map_resolves_evolution_prefix() {
         let map = PrincipalDomainMap::new();
-        assert_eq!(map.resolve("evolution:agent_a"), Some("agent_a".to_string()));
+        assert_eq!(
+            map.resolve("evolution:agent_a"),
+            Some("agent_a".to_string())
+        );
         assert_eq!(map.resolve("evolution:writer"), Some("writer".to_string()));
         // 空前缀剩余 → None
         assert_eq!(map.resolve("evolution:"), None);
@@ -455,21 +458,9 @@ mod tests {
     fn check_with_domain_cross_domain_denies_even_for_system() {
         let acl = MemoryAcl::new();
         // system 解析到 shared 域,记忆在 agent_a 域 → 拒绝
-        assert!(!acl.check_with_domain(
-            "system",
-            "mem-1",
-            AclPermission::Read,
-            "agent_a",
-            None
-        ));
+        assert!(!acl.check_with_domain("system", "mem-1", AclPermission::Read, "agent_a", None));
         // 同域(shared)允许
-        assert!(acl.check_with_domain(
-            "system",
-            "mem-1",
-            AclPermission::Read,
-            "shared",
-            None
-        ));
+        assert!(acl.check_with_domain("system", "mem-1", AclPermission::Read, "shared", None));
     }
 
     /// M2b #34: 跨域访问拒绝(非可信主体)。
@@ -544,13 +535,7 @@ mod tests {
             None
         ));
         // 但 system 在旧路径中放行(回退行为)
-        assert!(acl.check_with_domain(
-            "system",
-            "mem-1",
-            AclPermission::Read,
-            "shared",
-            None
-        ));
+        assert!(acl.check_with_domain("system", "mem-1", AclPermission::Read, "shared", None));
     }
 
     /// M2b #39: filter_memories_with_domain 跨域过滤。
@@ -563,20 +548,12 @@ mod tests {
             ("mem-3".to_string(), "content-3", "agent_b"),
         ];
         // agent_a 主体:只能看 agent_a 域 → 1 条
-        let filtered = acl.filter_memories_with_domain(
-            "evolution:agent_a",
-            None,
-            mems.clone(),
-        );
+        let filtered = acl.filter_memories_with_domain("evolution:agent_a", None, mems.clone());
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].0, "mem-2");
 
         // system 主体:只能看 shared 域 → 1 条
-        let filtered = acl.filter_memories_with_domain(
-            "system",
-            None,
-            mems,
-        );
+        let filtered = acl.filter_memories_with_domain("system", None, mems);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].0, "mem-1");
     }

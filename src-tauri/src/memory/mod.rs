@@ -40,9 +40,9 @@ pub mod clip_embedder;
 pub mod document_extractor;
 pub mod embedder;
 // T-E-B-09: 文件夹监控索引(自动吸收文件到记忆系统)。
-pub mod file_watcher;
 pub mod entity_extractor;
 pub mod export;
+pub mod file_watcher;
 pub mod forgetting;
 pub mod graph_search;
 pub mod importance;
@@ -50,9 +50,9 @@ pub mod importance;
 pub mod l0_cache;
 pub mod lance_store;
 // v1.4: Memory Orchestrator（5 类记忆协调 + 上下文组装）。
-pub mod orchestrator;
 pub mod layers;
 pub mod migration;
+pub mod orchestrator;
 pub mod reflect;
 pub mod sponge;
 // v2.0: 真正的 Self-Reflection — L5 元认知层升级。
@@ -79,10 +79,12 @@ pub use annotations::{Annotation, AnnotationStats, AnnotationStore};
 pub use blackhole::BlackholeEngine;
 pub use bm25::Bm25Searcher;
 // T-E-B-14: Dataview 式查询 DSL 顶层类型透传。
-pub use query_dsl::{translate as translate_dsl, Expr as DslExpr, Field as DslField, LayerSpec, QueryAst};
+pub use query_dsl::{
+    translate as translate_dsl, Expr as DslExpr, Field as DslField, LayerSpec, QueryAst,
+};
 // T-E-S-64: 反幻觉一致性检查器类型透传。
-pub use consistency::{analyze, CitedMemory, ConsistencyReport, ConsistencyWarning};
 pub use causal_graph::{CausalChain, CausalGraphConfig, CausalGraphEngine, CausalNode};
+pub use consistency::{analyze, CitedMemory, ConsistencyReport, ConsistencyWarning};
 // T-E-B-16: MDRM 5 维关系图谱类型透传。
 pub use mdrm_graph::{
     dimension_of, GraphEdge, GraphNode, GraphNodeRole, GraphSnapshot, MdrmConfig, MdrmEngine,
@@ -100,8 +102,8 @@ pub use importance::ImportanceScorer;
 pub use l0_cache::{L0Cache, L0Stats};
 pub use lance_store::LanceStore;
 pub use layers::LayerPolicy;
-pub use orchestrator::{ContextBundle, MemoryOrchestrator, TaskHint};
 pub use migration::{Migration, MigrationState, MigrationStatus};
+pub use orchestrator::{ContextBundle, MemoryOrchestrator, TaskHint};
 pub use reflect::{ReflectConfig, Reflection, ReflectionEngine, RoundGuard};
 pub use sponge::SpongeEngine;
 pub use sqlite_store::SqliteStore;

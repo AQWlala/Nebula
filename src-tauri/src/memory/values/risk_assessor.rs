@@ -189,9 +189,18 @@ fn has_bulk_signal(desc: &str) -> bool {
 /// 检测描述中是否含破坏性 Shell 信号。
 fn has_destructive_signal(desc: &str) -> bool {
     let lower = desc.to_lowercase();
-    ["rm -rf", "del /", "format", "mkfs", "dd if", "shutdown", "reboot", "> /dev/sd"]
-        .iter()
-        .any(|k| lower.contains(k))
+    [
+        "rm -rf",
+        "del /",
+        "format",
+        "mkfs",
+        "dd if",
+        "shutdown",
+        "reboot",
+        "> /dev/sd",
+    ]
+    .iter()
+    .any(|k| lower.contains(k))
 }
 
 #[cfg(test)]
@@ -207,13 +216,19 @@ mod tests {
     #[test]
     fn delete_needs_confirm() {
         let a = RiskAssessor::new();
-        assert_eq!(a.assess(ActionKind::Delete, "x").level, RiskLevel::NeedsConfirm);
+        assert_eq!(
+            a.assess(ActionKind::Delete, "x").level,
+            RiskLevel::NeedsConfirm
+        );
     }
 
     #[test]
     fn transfer_needs_plan() {
         let a = RiskAssessor::new();
-        assert_eq!(a.assess(ActionKind::Transfer, "x").level, RiskLevel::NeedsPlan);
+        assert_eq!(
+            a.assess(ActionKind::Transfer, "x").level,
+            RiskLevel::NeedsPlan
+        );
     }
 
     #[test]

@@ -62,9 +62,7 @@ impl PlanEngine {
         match verdict {
             Verdict::Allow | Verdict::Deny { .. } => None,
             Verdict::Confirm { prompt } => {
-                let req = self
-                    .confirmations
-                    .create(task, prompt, action_kind);
+                let req = self.confirmations.create(task, prompt, action_kind);
                 Some(PendingGate::Confirm(req))
             }
             Verdict::Plan { prompt } => {

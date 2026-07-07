@@ -73,28 +73,65 @@ impl ConstitutionalRules {
     pub fn default_rules() -> Self {
         let deny = [
             // 磁盘/数据破坏
-            ("disk_format", "格式化磁盘", r"格式化.*(磁盘|硬盘|[cd]\s*盘|系统盘)|(format|mkfs)\s+/"),
-            ("db_drop", "删除/清空数据库", r"(drop|truncate)\s+(database|table|schema)|清空(数据库|全部数据)|删除(所有|全部).*(记忆|数据)"),
+            (
+                "disk_format",
+                "格式化磁盘",
+                r"格式化.*(磁盘|硬盘|[cd]\s*盘|系统盘)|(format|mkfs)\s+/",
+            ),
+            (
+                "db_drop",
+                "删除/清空数据库",
+                r"(drop|truncate)\s+(database|table|schema)|清空(数据库|全部数据)|删除(所有|全部).*(记忆|数据)",
+            ),
             // 不可逆批量删除
-            ("bulk_delete", "批量删除用户数据", r"(rm\s+-rf|del\s+/[sqa]|删除).*(\/|\\).*\*|批量删除.*文件"),
+            (
+                "bulk_delete",
+                "批量删除用户数据",
+                r"(rm\s+-rf|del\s+/[sqa]|删除).*(\/|\\).*\*|批量删除.*文件",
+            ),
             // 转账/支付红线
-            ("transfer_untrusted", "向不受信任地址转账/支付", r"(转账|付款|支付|汇款).*(陌生|未知|不受信任|untrusted).*地址|向.*钱包.*转账"),
+            (
+                "transfer_untrusted",
+                "向不受信任地址转账/支付",
+                r"(转账|付款|支付|汇款).*(陌生|未知|不受信任|untrusted).*地址|向.*钱包.*转账",
+            ),
             // 隐私外泄
-            ("exfiltrate_pii", "外泄敏感数据", r"(上传|发送|上传到|提交到).*(身份证|银行卡|密码|私钥|secret|private key).*(云端|服务器|第三方)"),
+            (
+                "exfiltrate_pii",
+                "外泄敏感数据",
+                r"(上传|发送|上传到|提交到).*(身份证|银行卡|密码|私钥|secret|private key).*(云端|服务器|第三方)",
+            ),
             // 系统破坏
-            ("system_wipe", "破坏操作系统", r"(删除|清空|覆盖).*(系统|system|注册表|registry|bootloader|引导)"),
+            (
+                "system_wipe",
+                "破坏操作系统",
+                r"(删除|清空|覆盖).*(系统|system|注册表|registry|bootloader|引导)",
+            ),
         ];
         let warn = [
-            ("network_external", "访问外部网络", r"(curl|wget|http|https|fetch).*(api|endpoint|远程|external)"),
-            ("shell_exec", "执行 Shell 命令", r"(执行|运行)\s*(shell|bash|cmd|powershell|脚本)"),
-            ("large_batch", "大批量操作（>100 项）", r"(批量|batch).*(100|千|万|所有|all)"),
+            (
+                "network_external",
+                "访问外部网络",
+                r"(curl|wget|http|https|fetch).*(api|endpoint|远程|external)",
+            ),
+            (
+                "shell_exec",
+                "执行 Shell 命令",
+                r"(执行|运行)\s*(shell|bash|cmd|powershell|脚本)",
+            ),
+            (
+                "large_batch",
+                "大批量操作（>100 项）",
+                r"(批量|batch).*(100|千|万|所有|all)",
+            ),
         ];
         let rules = deny
             .iter()
             .map(|(n, d, p)| ConstitutionalRule::new(*n, *d, RuleSeverity::Deny, p))
-            .chain(warn.iter().map(|(n, d, p)| {
-                ConstitutionalRule::new(*n, *d, RuleSeverity::Warn, p)
-            }))
+            .chain(
+                warn.iter()
+                    .map(|(n, d, p)| ConstitutionalRule::new(*n, *d, RuleSeverity::Warn, p)),
+            )
             .collect();
         Self { rules }
     }

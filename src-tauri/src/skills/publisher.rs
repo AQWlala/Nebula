@@ -97,10 +97,7 @@ impl GistPublisher {
     ///
     /// 测试可见:便于断言 body 格式而不发真实 HTTP 请求。
     pub fn build_request_body(skill_md: &str, manifest: &PublishManifest) -> serde_json::Value {
-        let description = format!(
-            "nebula skill: {} (v{})",
-            manifest.name, manifest.version
-        );
+        let description = format!("nebula skill: {} (v{})", manifest.name, manifest.version);
         serde_json::json!({
             "description": description,
             "public": true,
@@ -155,10 +152,8 @@ impl SkillPublisher for GistPublisher {
             return Err(anyhow!("gist publish failed: HTTP {status}: {text}"));
         }
 
-        let resp_json: serde_json::Value = resp
-            .json()
-            .await
-            .context("parsing gist response JSON")?;
+        let resp_json: serde_json::Value =
+            resp.json().await.context("parsing gist response JSON")?;
         let url = resp_json
             .get("html_url")
             .and_then(|v| v.as_str())
@@ -207,9 +202,8 @@ impl SkillPublisher for FilePublisher {
         manifest: &PublishManifest,
         _token: Option<&str>,
     ) -> Result<PublishResult> {
-        std::fs::create_dir_all(&self.out_dir).with_context(|| {
-            format!("creating out_dir: {}", self.out_dir.display())
-        })?;
+        std::fs::create_dir_all(&self.out_dir)
+            .with_context(|| format!("creating out_dir: {}", self.out_dir.display()))?;
 
         let safe_id = sanitize_filename(&manifest.id);
         let file_name = format!("{safe_id}.md");
@@ -264,7 +258,10 @@ struct SkillFrontMatter<'a> {
 /// `"file:read"` / `"network"` 等 —— 与 `importer.rs` 的字符串匹配项
 /// 完全对称。
 fn capabilities_to_strings(caps: &CapabilitySet) -> Vec<String> {
-    caps.granted().iter().map(|c: &Capability| c.to_string()).collect()
+    caps.granted()
+        .iter()
+        .map(|c: &Capability| c.to_string())
+        .collect()
 }
 
 /// 内联 SKILL.md 生成(T-E-S-45 协调:不依赖 exporter.rs)。
@@ -435,10 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_publisher_writes_file() {
-        let out_dir = std::env::temp_dir().join(format!(
-            "nebula_pub_dir_{}",
-            uuid::Uuid::new_v4()
-        ));
+        let out_dir = std::env::temp_dir().join(format!("nebula_pub_dir_{}", uuid::Uuid::new_v4()));
         let publisher = FilePublisher::new(&out_dir);
         let manifest = sample_manifest();
         let skill_md = skill_to_skill_md(&sample_skill()).unwrap();

@@ -7,7 +7,16 @@ use serde::{Deserialize, Serialize};
 // EXPERT_REVIEW §2.4.5 指出原列表不足：Windows 需要 SYSTEMROOT/TEMP/TMP，
 // 跨平台需要 TZ/LOCALE/LC_ALL 用于 locale/时区相关功能。
 const SAFE_ENV_VARS: &[&str] = &[
-    "PATH", "HOME", "USER", "LANG", "SYSTEMROOT", "TEMP", "TMP", "TZ", "LOCALE", "LC_ALL",
+    "PATH",
+    "HOME",
+    "USER",
+    "LANG",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "TZ",
+    "LOCALE",
+    "LC_ALL",
 ];
 
 pub fn filter_safe_env_vars(

@@ -18,7 +18,10 @@ use tauri::State;
 use tracing::instrument;
 
 use crate::commands::error::CommandError;
-use crate::triggers::watch::{WatchSource, WebFetcher, SystemProbe, hash_text, apply_selector, parse_ics, find_upcoming_events};
+use crate::triggers::watch::{
+    apply_selector, find_upcoming_events, hash_text, parse_ics, SystemProbe, WatchSource,
+    WebFetcher,
+};
 use crate::triggers::{FireLogRow, TriggerConfig};
 use crate::AppState;
 
@@ -35,9 +38,7 @@ pub async fn trigger_create(
         config.id = uuid_v4_string();
     }
     if config.name.is_empty() {
-        return Err(CommandError::validation(
-            "trigger name must not be empty",
-        ));
+        return Err(CommandError::validation("trigger name must not be empty"));
     }
     let id = config.id.clone();
     state
@@ -60,10 +61,7 @@ pub async fn trigger_list(state: State<'_, AppState>) -> Result<Vec<TriggerConfi
 /// 删除触发器(停止 worker + 内存 map 移除 + DB 删除)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "trigger_delete"))]
-pub async fn trigger_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn trigger_delete(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     state
         .trigger_engine
         .delete(&id)
@@ -109,9 +107,11 @@ pub async fn watch_test(
 ) -> Result<serde_json::Value, CommandError> {
     let result = match source {
         WatchSource::Web { url, selector, .. } => {
-            let fetcher = WebFetcher::new()
-                .map_err(|e| CommandError::internal("watch_test", &e))?;
-            let fetched = fetcher.fetch(&url).await
+            let fetcher =
+                WebFetcher::new().map_err(|e| CommandError::internal("watch_test", &e))?;
+            let fetched = fetcher
+                .fetch(&url)
+                .await
                 .map_err(|e| CommandError::internal("watch_test", &e))?;
             let content = selector
                 .as_ref()
@@ -125,7 +125,12 @@ pub async fn watch_test(
                 "content_preview": content.chars().take(500).collect::<String>(),
             })
         }
-        WatchSource::System { metric, threshold, op, .. } => {
+        WatchSource::System {
+            metric,
+            threshold,
+            op,
+            ..
+        } => {
             let value = SystemProbe::read_metric(metric)
                 .map_err(|e| CommandError::internal("watch_test", &e))?;
             let matches = SystemProbe::compare(value, op, threshold);
@@ -138,7 +143,10 @@ pub async fn watch_test(
                 "matches": matches,
             })
         }
-        WatchSource::Calendar { ics_path, lead_minutes } => {
+        WatchSource::Calendar {
+            ics_path,
+            lead_minutes,
+        } => {
             let content = std::fs::read_to_string(&ics_path)
                 .map_err(|e| CommandError::internal("watch_test", &anyhow::anyhow!(e)))?;
             let events = parse_ics(&content);

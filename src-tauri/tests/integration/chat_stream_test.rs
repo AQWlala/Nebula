@@ -1,4 +1,4 @@
-﻿//! T-S1-B-01c: `chat_stream` 流式集成测试。
+//! T-S1-B-01c: `chat_stream` 流式集成测试。
 //!
 //! 覆盖路径：
 //! 1. 正常 Ollama NDJSON 流式
@@ -231,7 +231,10 @@ async fn deepseek_without_api_key_falls_back_to_ollama() {
     let body = b"{\"message\":{\"content\":\"fallback\"},\"done\":true}\n".to_vec();
     let url = mock_http_server(body, "application/x-ndjson").await;
 
-    let client = Arc::new(OllamaClient::new_with_timeout(url.clone(), Duration::from_secs(5)));
+    let client = Arc::new(OllamaClient::new_with_timeout(
+        url.clone(),
+        Duration::from_secs(5),
+    ));
     let gw = LlmGateway::new(
         client,
         "test-model",
@@ -245,10 +248,7 @@ async fn deepseek_without_api_key_falls_back_to_ollama() {
 
     let stream = gw.chat_stream(user_msg());
     let (tokens, full) = collect_stream(stream).await;
-    assert_eq!(
-        full, "fallback",
-        "should fall back to ollama NDJSON path"
-    );
+    assert_eq!(full, "fallback", "should fall back to ollama NDJSON path");
     assert!(tokens.last().map(|t| t.done).unwrap_or(false));
 }
 

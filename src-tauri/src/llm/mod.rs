@@ -1,4 +1,4 @@
-﻿//! `nebula::llm` — model gateway and concrete clients.
+//! `nebula::llm` — model gateway and concrete clients.
 //!
 //! Two responsibilities live here:
 //!
@@ -45,14 +45,20 @@ pub mod dispatcher;
 
 pub use anthropic::{AnthropicClient, Role as AnthropicRole};
 pub use arena::{ArenaLeaderboard, ArenaMatch};
-pub use cost_tracker::{CostRecord, CostTracker, DailyAggregate, MonthlyAggregate, ProviderBucket, WeeklyAggregate};
+pub use cost_tracker::{
+    CostRecord, CostTracker, DailyAggregate, MonthlyAggregate, ProviderBucket, WeeklyAggregate,
+};
 // M5 #71: CostPolicy 统一预算门禁
 pub use cost_policy::{CostDecision, CostPolicy};
 // ADR-003: CircuitBreaker 重新导出，供 dispatcher.rs 使用。
 pub use gateway::{CircuitBreaker, LlmGateway, StreamToken};
 pub use model_router::{ModelRouter, Route};
-pub use models_config::{ModelConfig, ModelsConfig, Pricing, ProviderConfig, ProviderKind, WorkTypeOverrideEntry};
-pub use ollama::{ChatMessage, ChatResponse, FunctionCall, FunctionSpec, OllamaClient, Role, ToolCall, ToolSpec};
+pub use models_config::{
+    ModelConfig, ModelsConfig, Pricing, ProviderConfig, ProviderKind, WorkTypeOverrideEntry,
+};
+pub use ollama::{
+    ChatMessage, ChatResponse, FunctionCall, FunctionSpec, OllamaClient, Role, ToolCall, ToolSpec,
+};
 pub use openai_compat::OpenAICompatClient;
 pub use persona::PersonaConfig;
 pub use prefetch::{ChatTurnPair, PrefetchConfig, PrefetchEngine, PrefetchStats};

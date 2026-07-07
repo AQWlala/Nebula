@@ -121,12 +121,7 @@ mod tests {
             SourceKind::UserInput,
         );
         m.id = id.to_string();
-        m.summary = MultiGranularity::new(
-            content,
-            content,
-            content,
-            content,
-        );
+        m.summary = MultiGranularity::new(content, content, content, content);
         m
     }
 
@@ -139,7 +134,10 @@ mod tests {
 
         // Insert three memories with distinct content.
         let m1 = make_memory("bm25-fox", "the quick brown fox jumps over the lazy dog");
-        let m2 = make_memory("bm25-rust", "rust is a systems programming language focused on safety");
+        let m2 = make_memory(
+            "bm25-rust",
+            "rust is a systems programming language focused on safety",
+        );
         let m3 = make_memory("bm25-mixed", "fox in rust the lazy dog programming");
         store.insert(&m1).await.unwrap();
         store.insert(&m2).await.unwrap();
@@ -150,10 +148,19 @@ mod tests {
 
         // Both m1 and m3 contain "fox".
         let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
-        assert!(ids.contains(&"bm25-fox"), "expected bm25-fox in results: {hits:?}");
-        assert!(ids.contains(&"bm25-mixed"), "expected bm25-mixed in results: {hits:?}");
+        assert!(
+            ids.contains(&"bm25-fox"),
+            "expected bm25-fox in results: {hits:?}"
+        );
+        assert!(
+            ids.contains(&"bm25-mixed"),
+            "expected bm25-mixed in results: {hits:?}"
+        );
         // m2 does not contain "fox".
-        assert!(!ids.contains(&"bm25-rust"), "bm25-rust should not match 'fox'");
+        assert!(
+            !ids.contains(&"bm25-rust"),
+            "bm25-rust should not match 'fox'"
+        );
 
         // Scores are positive (negated bm25 output) and sorted desc.
         for (_, score) in &hits {

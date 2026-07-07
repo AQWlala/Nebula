@@ -1,4 +1,4 @@
-﻿//! T-E-S-54: 消息触发器 — 监听 `AgentBus::subscribe_events()` 广播的
+//! T-E-S-54: 消息触发器 — 监听 `AgentBus::subscribe_events()` 广播的
 //! `SwarmEvent`,按 `TriggerCondition::Message` 匹配后调用
 //! `TriggerEngine::dispatch(trigger_id, payload)`。
 //!
@@ -19,9 +19,7 @@ use tracing::{debug, info, warn};
 use crate::swarm::bus::AgentBus;
 use crate::swarm::events::SwarmEvent;
 
-use super::{
-    message_condition_matches, swarm_event_to_payload, TriggerCondition, TriggerKind,
-};
+use super::{message_condition_matches, swarm_event_to_payload, TriggerCondition, TriggerKind};
 
 /// 启动消息订阅 worker。
 ///

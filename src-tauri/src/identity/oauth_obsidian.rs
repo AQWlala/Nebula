@@ -153,11 +153,7 @@ impl ObsidianVaultAdapter {
     ///
     /// Writes/updates `<vault>/<relative_path>`, preserving any existing
     /// frontmatter and appending the update under a `## Nebula` section.
-    pub async fn push_update(
-        &self,
-        relative_path: &str,
-        update: &str,
-    ) -> Result<PathBuf> {
+    pub async fn push_update(&self, relative_path: &str, update: &str) -> Result<PathBuf> {
         let target = self.vault_path.join(relative_path);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).await?;

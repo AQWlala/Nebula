@@ -208,7 +208,10 @@ mod tests {
             depth: 1,
         };
         let json = serde_json::to_string(&s).unwrap();
-        assert!(json.contains("\"kind\":\"tree_of_thoughts\""), "got: {json}");
+        assert!(
+            json.contains("\"kind\":\"tree_of_thoughts\""),
+            "got: {json}"
+        );
         assert!(json.contains("\"branches\":4"));
         assert!(json.contains("\"depth\":1"));
         let de: ReasoningStrategy = serde_json::from_str(&json).unwrap();
@@ -364,7 +367,10 @@ mod tests {
     fn factory_config_system_prompt_prefix_matches_strategy() {
         let configs = build_thought_agent_configs(4);
         for cfg in &configs {
-            assert_eq!(cfg.system_prompt_prefix, cfg.strategy.system_prompt_prefix());
+            assert_eq!(
+                cfg.system_prompt_prefix,
+                cfg.strategy.system_prompt_prefix()
+            );
         }
     }
 

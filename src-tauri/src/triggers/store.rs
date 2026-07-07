@@ -245,8 +245,11 @@ impl TriggerStore {
     /// 删除 Watch 触发器的轮询状态(触发器删除时调用)。
     pub fn delete_watch_state(&self, trigger_id: &str) -> Result<()> {
         let conn = self.conn.lock();
-        conn.execute("DELETE FROM watch_state WHERE trigger_id = ?1", params![trigger_id])
-            .map_err(|e| anyhow!("sqlite delete_watch_state error: {e}"))?;
+        conn.execute(
+            "DELETE FROM watch_state WHERE trigger_id = ?1",
+            params![trigger_id],
+        )
+        .map_err(|e| anyhow!("sqlite delete_watch_state error: {e}"))?;
         Ok(())
     }
 }
@@ -384,9 +387,7 @@ mod tests {
     fn test_trigger_store_failed_fire_logs_error() {
         let (store, path) = temp_store();
         store.insert(&sample_row("t1")).unwrap();
-        store
-            .record_fire("t1", 1, 0, Some("boom"), None)
-            .unwrap();
+        store.record_fire("t1", 1, 0, Some("boom"), None).unwrap();
         let logs = store.list_fire_log("t1").unwrap();
         assert_eq!(logs.len(), 1);
         assert!(!logs[0].success);

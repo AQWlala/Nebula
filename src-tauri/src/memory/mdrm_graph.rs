@@ -480,7 +480,7 @@ struct NodeMeta {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::types::{Memory, MemoryLayer, MemoryType, MemoryRelation, SourceKind};
+    use crate::memory::types::{Memory, MemoryLayer, MemoryRelation, MemoryType, SourceKind};
 
     fn temp_db_path() -> std::path::PathBuf {
         let mut p = std::env::temp_dir();
@@ -591,13 +591,22 @@ mod tests {
 
     #[test]
     fn dimension_of_all_kinds() {
-        assert_eq!(dimension_of(RelationKind::Causes), RelationDimension::Causal);
-        assert_eq!(dimension_of(RelationKind::Supports), RelationDimension::Causal);
+        assert_eq!(
+            dimension_of(RelationKind::Causes),
+            RelationDimension::Causal
+        );
+        assert_eq!(
+            dimension_of(RelationKind::Supports),
+            RelationDimension::Causal
+        );
         assert_eq!(
             dimension_of(RelationKind::Contradicts),
             RelationDimension::Causal
         );
-        assert_eq!(dimension_of(RelationKind::Before), RelationDimension::Temporal);
+        assert_eq!(
+            dimension_of(RelationKind::Before),
+            RelationDimension::Temporal
+        );
         assert_eq!(
             dimension_of(RelationKind::SameEntity),
             RelationDimension::Entity
@@ -646,7 +655,11 @@ mod tests {
         ] {
             all.extend_from_slice(d.kinds());
         }
-        assert_eq!(all.len(), 9, "5 dims should cover all 9 RelationKind variants");
+        assert_eq!(
+            all.len(),
+            9,
+            "5 dims should cover all 9 RelationKind variants"
+        );
     }
 
     // ---- 单维度查询测试 ----
@@ -702,7 +715,9 @@ mod tests {
         let engine = MdrmEngine::new(store);
 
         // 从 D 出发:D --contains--> E --derived_from--> F
-        let snap = engine.trace_hierarchy(&ids[3], &MdrmConfig::default()).await;
+        let snap = engine
+            .trace_hierarchy(&ids[3], &MdrmConfig::default())
+            .await;
         assert!(snap.nodes.len() >= 3, "should include D, E, F");
         let node_ids: Vec<&str> = snap.nodes.iter().map(|n| n.id.as_str()).collect();
         assert!(node_ids.contains(&ids[3].as_str()));
@@ -848,7 +863,10 @@ mod tests {
         let snap = engine.get_full_graph(&ids[0], &cfg).await;
         assert!(snap.truncated, "should be truncated due to max_nodes");
         // max_nodes 检查在 BFS 开始时,根节点已加入,所以 nodes 可能略超 max_nodes
-        assert!(snap.nodes.len() <= 4, "nodes should not greatly exceed max_nodes");
+        assert!(
+            snap.nodes.len() <= 4,
+            "nodes should not greatly exceed max_nodes"
+        );
     }
 
     #[tokio::test]
@@ -931,7 +949,10 @@ mod tests {
         let engine = MdrmEngine::new(store);
         // 环图应正常返回,不死循环
         let snap = engine.find_similar(&a.id, &MdrmConfig::default()).await;
-        assert!(snap.nodes.len() <= 2, "visited set should prevent re-visiting");
+        assert!(
+            snap.nodes.len() <= 2,
+            "visited set should prevent re-visiting"
+        );
         assert!(!snap.truncated);
     }
 

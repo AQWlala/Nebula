@@ -1,4 +1,4 @@
-﻿//! T-S4-A-01: 领导轮值制 — 加权随机轮值算法。
+//! T-S4-A-01: 领导轮值制 — 加权随机轮值算法。
 //!
 //! 根据 EXPERT_REVIEW §4.3 决议，不引入 Raft 共识算法，改用加权随机
 //! 轮值。每个任务开始时根据 agent 的能力评分、历史成功率和当前负载
@@ -132,10 +132,7 @@ impl LeaderElector {
     /// 获取 agent 的当前分数。
     pub fn get_score(&self, agent_name: &str) -> f64 {
         let stats = self.stats.lock();
-        stats
-            .get(agent_name)
-            .map(|s| s.score())
-            .unwrap_or(0.0)
+        stats.get(agent_name).map(|s| s.score()).unwrap_or(0.0)
     }
 
     /// 获取所有已注册 agent 的名称和分数。
@@ -289,7 +286,10 @@ mod tests {
         // M7b #90 分类 A: 加权随机算法 score(high)=1.0, score(low)=0.505,
         // P(high)=1.0/1.505≈66.4%。原阈值 >900 假设绝对垄断,不符合加权随机语义。
         // 改为 >600(留 6.4% 余量),验证 high 确实更常被选中。
-        assert!(high_count > 600, "high was only elected {high_count}/1000 times");
+        assert!(
+            high_count > 600,
+            "high was only elected {high_count}/1000 times"
+        );
     }
 
     #[test]

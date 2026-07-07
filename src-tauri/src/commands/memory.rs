@@ -179,8 +179,7 @@ pub async fn memory_query_dsl(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<Memory>, CommandError> {
-    let ast = crate::memory::query_dsl::parse_str(&query)
-        .map_err(CommandError::validation)?;
+    let ast = crate::memory::query_dsl::parse_str(&query).map_err(CommandError::validation)?;
     let sqlite = state.sqlite.clone();
     tokio::task::spawn(async move { sqlite.query_dsl(&ast).await })
         .await
@@ -273,9 +272,7 @@ pub async fn summary_generate(
     content: String,
 ) -> Result<crate::memory::types::MultiGranularity, CommandError> {
     let engine = state.summary_engine.clone();
-    let mg = engine
-        .generate(&content)
-        .await;
+    let mg = engine.generate(&content).await;
     Ok(mg)
 }
 
@@ -473,8 +470,8 @@ pub async fn embed_image(
         .decode(&image_base64)
         .map_err(|e| format!("invalid base64 image: {e}"))?;
 
-    let model = std::env::var("NEBULA_CLIP_MODEL")
-        .unwrap_or_else(|_| DEFAULT_CLIP_MODEL.to_string());
+    let model =
+        std::env::var("NEBULA_CLIP_MODEL").unwrap_or_else(|_| DEFAULT_CLIP_MODEL.to_string());
 
     let embedder = ClipEmbedder::new(
         OllamaClient::new(state.config.ollama_url.clone()),
@@ -510,7 +507,9 @@ pub fn is_absorb_file_allowed(path: &std::path::Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => {
             let lower = ext.to_ascii_lowercase();
-            ABSORB_FILE_ALLOWED_EXTS.iter().any(|allowed| *allowed == lower)
+            ABSORB_FILE_ALLOWED_EXTS
+                .iter()
+                .any(|allowed| *allowed == lower)
         }
         None => false,
     }
@@ -595,13 +594,18 @@ mod sponge_absorb_file_tests {
 
     #[test]
     fn whitelist_accepts_text_extensions_case_insensitive() {
-        for ext in &["txt", "md", "json", "yaml", "toml", "csv", "py", "js", "ts",
-                     "rs", "go", "java", "c", "cpp", "h", "sql", "xml", "html", "css"] {
+        for ext in &[
+            "txt", "md", "json", "yaml", "toml", "csv", "py", "js", "ts", "rs", "go", "java", "c",
+            "cpp", "h", "sql", "xml", "html", "css",
+        ] {
             let p = PathBuf::from(format!("foo.{ext}"));
             assert!(is_absorb_file_allowed(&p), "expected {ext} to be allowed");
             // 大写也允许
             let p_upper = PathBuf::from(format!("foo.{}", ext.to_uppercase()));
-            assert!(is_absorb_file_allowed(&p_upper), "expected {ext} (upper) to be allowed");
+            assert!(
+                is_absorb_file_allowed(&p_upper),
+                "expected {ext} (upper) to be allowed"
+            );
         }
     }
 
@@ -615,7 +619,9 @@ mod sponge_absorb_file_tests {
 
     #[test]
     fn whitelist_rejects_binary_extensions() {
-        for ext in &["png", "jpg", "jpeg", "gif", "mp4", "mov", "exe", "bin", "zip", "tar", "gz"] {
+        for ext in &[
+            "png", "jpg", "jpeg", "gif", "mp4", "mov", "exe", "bin", "zip", "tar", "gz",
+        ] {
             let p = PathBuf::from(format!("binary.{ext}"));
             assert!(!is_absorb_file_allowed(&p), "expected {ext} to be rejected");
         }

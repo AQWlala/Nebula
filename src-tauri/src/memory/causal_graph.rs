@@ -220,11 +220,7 @@ impl CausalGraphEngine {
     ///
     /// 从 `memory_id` 出发，沿 `Causes`（正向）边向下查找所有效果。
     /// 返回的链按 confidence 降序排列。
-    pub fn find_effects(
-        &self,
-        memory_id: &str,
-        config: &CausalGraphConfig,
-    ) -> Vec<CausalChain> {
+    pub fn find_effects(&self, memory_id: &str, config: &CausalGraphConfig) -> Vec<CausalChain> {
         let mut chains: Vec<CausalChain> = Vec::new();
         let mut visited: HashSet<String> = HashSet::new();
         visited.insert(memory_id.to_string());
@@ -371,8 +367,8 @@ impl CausalGraphEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::types::{MemoryLayer, MemoryType, MemoryRelation, SourceKind};
     use crate::memory::types::Memory;
+    use crate::memory::types::{MemoryLayer, MemoryRelation, MemoryType, SourceKind};
 
     // M7b #90 分类 C:原实现返回 `file:causal_test_<nanos>?mode=memory&cache=shared`
     // URI 字符串,但 `SqliteStore::open()` 用的是 `Connection::open(path)`(非 URI
@@ -380,18 +376,30 @@ mod tests {
     // 测试模式:真实临时文件 + UUID,每个测试独立 DB 文件。
     fn temp_db_path() -> std::path::PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!(
-            "nebula_causal_test_{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("nebula_causal_test_{}.db", uuid::Uuid::new_v4()));
         p
     }
 
     fn seed_chain(store: &SqliteStore) -> (String, String, String) {
         // A → Causes → B → Causes → C
-        let a = Memory::new(MemoryType::Episodic, MemoryLayer::L2, "root cause A", SourceKind::UserInput);
-        let b = Memory::new(MemoryType::Episodic, MemoryLayer::L2, "intermediate B", SourceKind::AgentOutput);
-        let c = Memory::new(MemoryType::Episodic, MemoryLayer::L2, "effect C", SourceKind::System);
+        let a = Memory::new(
+            MemoryType::Episodic,
+            MemoryLayer::L2,
+            "root cause A",
+            SourceKind::UserInput,
+        );
+        let b = Memory::new(
+            MemoryType::Episodic,
+            MemoryLayer::L2,
+            "intermediate B",
+            SourceKind::AgentOutput,
+        );
+        let c = Memory::new(
+            MemoryType::Episodic,
+            MemoryLayer::L2,
+            "effect C",
+            SourceKind::System,
+        );
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -423,7 +431,10 @@ mod tests {
         let chains = engine.trace_root_causes(&c_id, &config);
 
         // 应至少找到一条链: C → B → A
-        assert!(!chains.is_empty(), "should find at least one root cause chain");
+        assert!(
+            !chains.is_empty(),
+            "should find at least one root cause chain"
+        );
         let best = &chains[0];
         // M7b #90 分类 A: trace_root_causes 语义是从 memory_id(C)反向追踪到根因(A)。
         // 链 nodes 顺序 = [C, B, A],root_id = C(被查询节点/效果),
@@ -433,8 +444,14 @@ mod tests {
         assert!(best.len() >= 2, "chain should have at least 2 nodes");
         // 路径中应包含 B 和 A
         let path_ids: Vec<&str> = best.path_ids();
-        assert!(path_ids.contains(&a_id.as_str()), "chain should include root A");
-        assert!(path_ids.contains(&b_id.as_str()), "chain should include intermediate B");
+        assert!(
+            path_ids.contains(&a_id.as_str()),
+            "chain should include root A"
+        );
+        assert!(
+            path_ids.contains(&b_id.as_str()),
+            "chain should include intermediate B"
+        );
     }
 
     #[test]
@@ -468,8 +485,14 @@ mod tests {
         assert!(chain.is_some(), "explain should return a chain");
         let ch = chain.unwrap();
         let path_ids: Vec<&str> = ch.path_ids();
-        assert!(path_ids.contains(&a_id.as_str()), "explain should include root A");
-        assert!(path_ids.contains(&c_id.as_str()), "explain should include C");
+        assert!(
+            path_ids.contains(&a_id.as_str()),
+            "explain should include root A"
+        );
+        assert!(
+            path_ids.contains(&c_id.as_str()),
+            "explain should include C"
+        );
     }
 
     #[test]

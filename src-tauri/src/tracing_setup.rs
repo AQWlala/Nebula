@@ -6,7 +6,9 @@
 
 use std::path::PathBuf;
 
-use tracing_subscriber::{fmt, layer::SubscriberExt as _, registry, util::SubscriberInitExt as _, EnvFilter};
+use tracing_subscriber::{
+    fmt, layer::SubscriberExt as _, registry, util::SubscriberInitExt as _, EnvFilter,
+};
 
 /// Installs the `tracing` subscriber. Safe to call multiple times.
 ///
@@ -56,7 +58,8 @@ pub fn init_tracing() {
             .ok()
             .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
             .unwrap_or(true);
-        let diagnostics_layer: Option<crate::diagnostics::DiagnosticsLayer> = if diagnostics_enabled {
+        let diagnostics_layer: Option<crate::diagnostics::DiagnosticsLayer> = if diagnostics_enabled
+        {
             Some(crate::diagnostics::DiagnosticsLayer::new())
         } else {
             None
@@ -66,32 +69,33 @@ pub fn init_tracing() {
         let log_dir = std::env::var("NEBULA_LOG_DIR").ok().map(PathBuf::from);
         let log_dir = log_dir.or_else(default_log_dir);
 
-        let nb_writer: Option<tracing_appender::non_blocking::NonBlocking> = if let Some(dir) = &log_dir {
-            let _ = std::fs::create_dir_all(dir);
-            // 安装 panic hook:将 panic 信息写入日志文件,避免
-            // `windows_subsystem = "windows"` 下 panic 被静默吞掉。
-            let panic_dir = dir.clone();
-            std::panic::set_hook(Box::new(move |info| {
-                let panic_file = panic_dir.join("nebula-panic.log");
-                let msg = format!(
-                    "[{}] PANIC: {}\n",
-                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                    info
-                );
-                let _ = std::fs::OpenOptions::new()
-                    .append(true)
-                    .create(true)
-                    .open(&panic_file)
-                    .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
-                eprintln!("{msg}");
-            }));
-            let appender = tracing_appender::rolling::daily(dir, "nebula.log");
-            let (nb, _guard) = tracing_appender::non_blocking(appender);
-            let _ = Box::leak(Box::new(_guard));
-            Some(nb)
-        } else {
-            None
-        };
+        let nb_writer: Option<tracing_appender::non_blocking::NonBlocking> =
+            if let Some(dir) = &log_dir {
+                let _ = std::fs::create_dir_all(dir);
+                // 安装 panic hook:将 panic 信息写入日志文件,避免
+                // `windows_subsystem = "windows"` 下 panic 被静默吞掉。
+                let panic_dir = dir.clone();
+                std::panic::set_hook(Box::new(move |info| {
+                    let panic_file = panic_dir.join("nebula-panic.log");
+                    let msg = format!(
+                        "[{}] PANIC: {}\n",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                        info
+                    );
+                    let _ = std::fs::OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(&panic_file)
+                        .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+                    eprintln!("{msg}");
+                }));
+                let appender = tracing_appender::rolling::daily(dir, "nebula.log");
+                let (nb, _guard) = tracing_appender::non_blocking(appender);
+                let _ = Box::leak(Box::new(_guard));
+                Some(nb)
+            } else {
+                None
+            };
 
         // 用 match 方式分别构建 subscriber 再 try_init。
         // OTel 层必须先加到 bare Registry 上

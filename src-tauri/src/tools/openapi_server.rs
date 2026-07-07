@@ -119,9 +119,7 @@ impl OpenApiToolServer {
             Some(OpenApiAuth::Bearer(t)) => {
                 Some(("Authorization".to_string(), format!("Bearer {t}")))
             }
-            Some(OpenApiAuth::ApiKey { header, value }) => {
-                Some((header.clone(), value.clone()))
-            }
+            Some(OpenApiAuth::ApiKey { header, value }) => Some((header.clone(), value.clone())),
             None => None,
         }
     }
@@ -173,11 +171,7 @@ impl OpenApiToolServer {
                     .clone()
                     .unwrap_or_else(|| format!("{}_{}", method, path.replace('/', "_")));
                 if name == tool_name {
-                    return Ok((
-                        method.to_string(),
-                        path.clone(),
-                        op.clone(),
-                    ));
+                    return Ok((method.to_string(), path.clone(), op.clone()));
                 }
             }
         }
@@ -265,10 +259,7 @@ impl OpenApiToolServer {
         }
 
         // POST/PUT/PATCH:剩余 args 作为 JSON body
-        let is_body_method = matches!(
-            method_str.as_str(),
-            "post" | "put" | "patch"
-        );
+        let is_body_method = matches!(method_str.as_str(), "post" | "put" | "patch");
         if is_body_method {
             let body: serde_json::Value = obj
                 .iter()
@@ -289,7 +280,10 @@ impl OpenApiToolServer {
         }
 
         // 发送请求(30s 超时)
-        let resp = req.timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS)).send().await?;
+        let resp = req
+            .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await?;
 
@@ -616,9 +610,7 @@ paths:
         let server = OpenApiToolServer::from_spec(&spec).unwrap();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(async {
-            server.execute("getUser", &json!({"userId": 42})).await
-        });
+        let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(result.is_err(), "should block 127.0.0.1");
         let err = result.unwrap_err().to_string();
@@ -711,9 +703,7 @@ paths:
             .with_allow_private(true);
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(async {
-            server.execute("getUser", &json!({"userId": 42})).await
-        });
+        let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(result.is_ok(), "execute should succeed");
         let body = result.unwrap();
@@ -735,11 +725,13 @@ paths:
             .with_auth(OpenApiAuth::Bearer("test-bearer-xyz".into()));
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(async {
-            server.execute("getUser", &json!({"userId": 42})).await
-        });
+        let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
-        assert!(result.is_ok(), "execute should succeed, err: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "execute should succeed, err: {:?}",
+            result.err()
+        );
         let echoed = result.unwrap();
         // reqwest/hyper 默认将 header 名小写化(HTTP/2 规范要求,HTTP/1.1 大小写不敏感),
         // 所以这里用大小写不敏感比较验证 Bearer header 注入。
@@ -766,11 +758,13 @@ paths:
             });
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(async {
-            server.execute("getUser", &json!({"userId": 42})).await
-        });
+        let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
-        assert!(result.is_ok(), "execute should succeed, err: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "execute should succeed, err: {:?}",
+            result.err()
+        );
         let echoed = result.unwrap();
         // reqwest 会把 header 名小写化(如 `x-api-key: key-abc-123`),
         // 所以用大小写不敏感比较验证 API key header 注入。

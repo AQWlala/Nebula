@@ -1,4 +1,4 @@
-﻿//! T-E-S-41: models.json 动态配置 Tauri 命令。
+//! T-E-S-41: models.json 动态配置 Tauri 命令。
 //!
 //! 5 个命令:
 //! * `models_config_load` — 读取当前 ModelsConfig(优先用 AppState 里的
@@ -26,9 +26,7 @@ use crate::AppState;
 /// 读取当前 ModelsConfig。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "models_config_load"))]
-pub async fn models_config_load(
-    state: State<'_, AppState>,
-) -> Result<ModelsConfig, CommandError> {
+pub async fn models_config_load(state: State<'_, AppState>) -> Result<ModelsConfig, CommandError> {
     Ok(state.models_config.read().clone())
 }
 
@@ -268,24 +266,19 @@ pub async fn models_config_test_provider(
     provider_id: String,
 ) -> Result<ProviderTestResult, CommandError> {
     let config = state.models_config.read().clone();
-    let provider = config
-        .find_provider(&provider_id)
-        .ok_or_else(|| CommandError::internal(
+    let provider = config.find_provider(&provider_id).ok_or_else(|| {
+        CommandError::internal(
             "models_config_test_provider",
             &anyhow::anyhow!("provider not found: {}", provider_id),
-        ))?;
+        )
+    })?;
 
     let start = std::time::Instant::now();
 
     // Ollama:用内置 OllamaClient ping。
     if provider.kind == crate::llm::models_config::ProviderKind::Ollama {
         let ollama_client = state.llm.ollama_client();
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            ollama_client.ping(),
-        )
-        .await
-        {
+        match tokio::time::timeout(std::time::Duration::from_secs(2), ollama_client.ping()).await {
             Ok(true) => {
                 return Ok(ProviderTestResult {
                     ok: true,
@@ -346,10 +339,12 @@ pub async fn models_config_test_provider(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()
-        .map_err(|e| CommandError::internal(
-            "models_config_test_provider",
-            &anyhow::anyhow!("http client build failed: {e}"),
-        ))?;
+        .map_err(|e| {
+            CommandError::internal(
+                "models_config_test_provider",
+                &anyhow::anyhow!("http client build failed: {e}"),
+            )
+        })?;
 
     match client.get(&test_url).send().await {
         Ok(resp) => {

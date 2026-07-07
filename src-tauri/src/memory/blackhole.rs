@@ -437,8 +437,7 @@ mod tests {
         use std::thread;
         use std::time::Duration;
 
-        let tmp =
-            std::env::temp_dir().join(format!("nebula_lock_test_{}.db", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("nebula_lock_test_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         let store = Arc::new(SqliteStore::open(&tmp).unwrap());
         let store2 = store.clone();

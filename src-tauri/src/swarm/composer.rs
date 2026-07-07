@@ -1,4 +1,4 @@
-﻿//! Skill composer — v1.2 P1 orchestration upgrade
+//! Skill composer — v1.2 P1 orchestration upgrade
 //!
 //! Moves the swarm from *manual skill assignment* to *semantic auto-composition*.
 //! When a task is submitted, the composer analyses its description (with LLM
@@ -124,13 +124,17 @@ impl SkillComposer {
         let mut scored: Vec<SkillMatch> = Vec::new();
 
         // Load all skills from the store.
-        let skills = match self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 100) {
-            Ok(s) => s,
-            Err(e) => {
-                warn!(target: "nebula.composer", error = %e, "failed to list skills");
-                return Vec::new();
-            }
-        };
+        let skills =
+            match self
+                .store
+                .list(None, None, &[], crate::skills::types::TagMatch::Any, 100)
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!(target: "nebula.composer", error = %e, "failed to list skills");
+                    return Vec::new();
+                }
+            };
 
         if skills.is_empty() {
             return Vec::new();
@@ -186,10 +190,14 @@ impl SkillComposer {
     ) -> anyhow::Result<Vec<SkillMatch>> {
         // Build a prompt that lists all available skills and asks the LLM
         // to select the most relevant ones.
-        let all_skills = match self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 100) {
-            Ok(s) => s,
-            Err(e) => anyhow::bail!("failed to list skills: {e}"),
-        };
+        let all_skills =
+            match self
+                .store
+                .list(None, None, &[], crate::skills::types::TagMatch::Any, 100)
+            {
+                Ok(s) => s,
+                Err(e) => anyhow::bail!("failed to list skills: {e}"),
+            };
 
         if all_skills.is_empty() {
             return Ok(Vec::new());

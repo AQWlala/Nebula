@@ -60,10 +60,7 @@ impl PrivacyGuard {
                 summarize(&redacted)
             ));
         }
-        PrivacyVerdict::Warn(format!(
-            "检测到敏感数据（{}），已脱敏",
-            names.join(", ")
-        ))
+        PrivacyVerdict::Warn(format!("检测到敏感数据（{}），已脱敏", names.join(", ")))
     }
 
     /// 发送给 LLM 之前脱敏，返回脱敏后的内容。

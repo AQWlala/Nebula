@@ -62,9 +62,9 @@ impl WebDavBackend {
         })?;
         #[cfg(feature = "storage-webdav")]
         {
-            let client = reqwest::Client::builder()
-                .build()
-                .map_err(|e| StorageError::Unavailable(format!("reqwest client build failed: {e}")))?;
+            let client = reqwest::Client::builder().build().map_err(|e| {
+                StorageError::Unavailable(format!("reqwest client build failed: {e}"))
+            })?;
             Ok(Self {
                 client,
                 base_url,
@@ -110,17 +110,17 @@ impl WebDavBackend {
 
     /// 检查 HTTP 状态码,2xx 返回 Ok,404 返回 NotFound,其他返回 Http 错误。
     #[cfg(feature = "storage-webdav")]
-    async fn check_status(response: reqwest::Response, path: &str) -> StorageResult<reqwest::Response> {
+    async fn check_status(
+        response: reqwest::Response,
+        path: &str,
+    ) -> StorageResult<reqwest::Response> {
         let status = response.status();
         if status.is_success() {
             Ok(response)
         } else if status == StatusCode::NOT_FOUND {
             Err(StorageError::NotFound(path.to_string()))
         } else {
-            let body = response
-                .text()
-                .await
-                .unwrap_or_default();
+            let body = response.text().await.unwrap_or_default();
             Err(StorageError::Http {
                 status: status.as_u16(),
                 body,
@@ -299,10 +299,7 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
-            let resp = self
-                .with_auth(self.client.get(&url))
-                .send()
-                .await?;
+            let resp = self.with_auth(self.client.get(&url)).send().await?;
             let resp = Self::check_status(resp, path).await?;
             let bytes = resp.bytes().await?;
             Ok(bytes.to_vec())
@@ -337,10 +334,7 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
-            let resp = self
-                .with_auth(self.client.delete(&url))
-                .send()
-                .await?;
+            let resp = self.with_auth(self.client.delete(&url)).send().await?;
             // 幂等:404 视为 Ok
             match resp.status() {
                 s if s.is_success() => Ok(()),
@@ -365,10 +359,7 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
-            let resp = self
-                .with_auth(self.client.head(&url))
-                .send()
-                .await?;
+            let resp = self.with_auth(self.client.head(&url)).send().await?;
             match resp.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::NOT_FOUND => Ok(false),
@@ -413,9 +404,7 @@ impl StorageBackend for WebDavBackend {
                 .cloned()
                 .or_else(|| entries.first().cloned())
                 .ok_or_else(|| {
-                    StorageError::Unavailable(format!(
-                        "PROPFIND returned no entries for {path}"
-                    ))
+                    StorageError::Unavailable(format!("PROPFIND returned no entries for {path}"))
                 })
         }
     }
@@ -432,10 +421,7 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
-            let resp = self
-                .with_auth(self.client.get(&url))
-                .send()
-                .await?;
+            let resp = self.with_auth(self.client.get(&url)).send().await?;
             let resp = Self::check_status(resp, path).await?;
             // 将 reqwest 的 bytes_stream 转换为 StorageResult<Bytes> 流
             let stream = resp
@@ -460,7 +446,9 @@ impl StorageBackend for WebDavBackend {
         {
             let url = self.url(path);
             // 将 StorageResult<Bytes> 流转换为 reqwest::Body
-            let byte_stream = stream.map(|result| result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())));
+            let byte_stream = stream.map(|result| {
+                result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            });
             let body = reqwest::Body::wrap_stream(byte_stream);
             let resp = self
                 .with_auth(self.client.put(&url))
@@ -482,10 +470,10 @@ impl StorageBackend for WebDavBackend {
         {
             let url = self.url(path);
             let resp = self
-                .with_auth(
-                    self.client
-                        .request(Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"), &url),
-                )
+                .with_auth(self.client.request(
+                    Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"),
+                    &url,
+                ))
                 .send()
                 .await?;
             // 幂等:405 Method Not Allowed 通常表示 collection 已存在
@@ -499,10 +487,10 @@ impl StorageBackend for WebDavBackend {
                         self.create_dir(parent_path).await?;
                         // 重试
                         let resp = self
-                            .with_auth(
-                                self.client
-                                    .request(Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"), &url),
-                            )
+                            .with_auth(self.client.request(
+                                Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"),
+                                &url,
+                            ))
                             .send()
                             .await?;
                         Self::check_status(resp, path).await?;
@@ -529,10 +517,7 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
-            let resp = self
-                .with_auth(self.client.delete(&url))
-                .send()
-                .await?;
+            let resp = self.with_auth(self.client.delete(&url)).send().await?;
             // 幂等:404 视为 Ok
             match resp.status() {
                 s if s.is_success() => Ok(()),
@@ -652,10 +637,7 @@ mod tests {
         // 验证服务器侧存储了内容
         {
             let store_guard = store.lock().await;
-            assert_eq!(
-                store_guard.get("test.txt"),
-                Some(&b"hello webdav".to_vec())
-            );
+            assert_eq!(store_guard.get("test.txt"), Some(&b"hello webdav".to_vec()));
         }
 
         // GET
@@ -696,7 +678,9 @@ mod tests {
         let request_line = lines.next().unwrap_or("");
         let parts: Vec<&str> = request_line.split_whitespace().collect();
         if parts.len() < 2 {
-            let _ = socket.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n").await;
+            let _ = socket
+                .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n")
+                .await;
             return;
         }
         let method = parts[0];
@@ -708,7 +692,10 @@ mod tests {
             if line.is_empty() {
                 break;
             }
-            if let Some(val) = line.strip_prefix("Content-Length:").or_else(|| line.strip_prefix("content-length:")) {
+            if let Some(val) = line
+                .strip_prefix("Content-Length:")
+                .or_else(|| line.strip_prefix("content-length:"))
+            {
                 content_length = val.trim().parse().unwrap_or(0);
             }
         }
@@ -733,10 +720,8 @@ mod tests {
             "GET" => {
                 let store_guard = store.lock().await;
                 if let Some(data) = store_guard.get(path) {
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                        data.len()
-                    );
+                    let response =
+                        format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", data.len());
                     let _ = socket.write_all(response.as_bytes()).await;
                     let _ = socket.write_all(data).await;
                 } else {

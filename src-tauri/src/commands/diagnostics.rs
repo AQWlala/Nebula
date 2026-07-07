@@ -135,9 +135,7 @@ pub async fn diagnostics_open_logs(
     #[cfg(target_os = "windows")]
     {
         if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
-            let dir = PathBuf::from(local_appdata)
-                .join("nebula")
-                .join("logs");
+            let dir = PathBuf::from(local_appdata).join("nebula").join("logs");
             return Ok(Some(dir.to_string_lossy().to_string()));
         }
     }
@@ -154,7 +152,11 @@ pub async fn diagnostics_open_logs(
     #[cfg(target_os = "linux")]
     {
         if let Ok(home) = std::env::var("HOME") {
-            let dir = PathBuf::from(home).join(".local").join("share").join("nebula").join("logs");
+            let dir = PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("nebula")
+                .join("logs");
             return Ok(Some(dir.to_string_lossy().to_string()));
         }
     }

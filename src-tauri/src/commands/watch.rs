@@ -69,4 +69,3 @@ pub async fn watch_status(state: State<'_, AppState>) -> Result<WatchStatus, Com
 pub async fn watch_list_paths(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
     Ok(state.file_watcher.list_paths())
 }
-

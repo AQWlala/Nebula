@@ -130,21 +130,9 @@ pub struct CompiledNote {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum LogEvent {
-    Created {
-        id: String,
-        title: String,
-        ts: i64,
-    },
-    Updated {
-        id: String,
-        title: String,
-        ts: i64,
-    },
-    Deleted {
-        id: String,
-        title: String,
-        ts: i64,
-    },
+    Created { id: String, title: String, ts: i64 },
+    Updated { id: String, title: String, ts: i64 },
+    Deleted { id: String, title: String, ts: i64 },
 }
 
 impl LogEvent {
@@ -328,19 +316,14 @@ impl WikiCompiler {
             .await
             .context("wiki compile_turn LLM chat failed")?;
         let compiled = parse_llm_output(&response.message.content);
-        self.persist_note(Some(turn_id.to_string()), compiled)
-            .await
+        self.persist_note(Some(turn_id.to_string()), compiled).await
     }
 
     /// 编译原始内容(无对话上下文)。
     ///
     /// - `title_hint = Some(title)`:直接用 title 作为标题,content 作为正文(不调 LLM)。
     /// - `title_hint = None`:调 LLM 编译 content 为结构化笔记。
-    pub async fn compile_raw(
-        &self,
-        title_hint: Option<&str>,
-        content: &str,
-    ) -> Result<WikiNote> {
+    pub async fn compile_raw(&self, title_hint: Option<&str>, content: &str) -> Result<WikiNote> {
         let compiled = if let Some(title) = title_hint {
             CompiledNote {
                 title: title.to_string(),
@@ -403,8 +386,8 @@ impl WikiCompiler {
             .read(&note.path)
             .await
             .map_err(|e| anyhow!("storage read {} error: {e}", note.path))?;
-        let markdown = String::from_utf8(bytes)
-            .map_err(|e| anyhow!("note content not utf8: {e}"))?;
+        let markdown =
+            String::from_utf8(bytes).map_err(|e| anyhow!("note content not utf8: {e}"))?;
         Ok((note, markdown))
     }
 
@@ -492,7 +475,8 @@ impl WikiCompiler {
             let mut stmt = g
                 .prepare("SELECT source_id FROM wiki_note_links WHERE target_id = ?1")
                 .map_err(|e| anyhow!("sqlite prepare error: {e}"))?;
-            let x = stmt.query_map(params![note_id], |r| r.get(0))
+            let x = stmt
+                .query_map(params![note_id], |r| r.get(0))
                 .map_err(|e| anyhow!("sqlite query error: {e}"))?
                 .collect::<rusqlite::Result<Vec<_>>>()
                 .map_err(|e| anyhow!("sqlite row error: {e}"))?;
@@ -545,8 +529,7 @@ impl WikiCompiler {
             .read(&note.path)
             .await
             .map_err(|e| anyhow!("storage read {} error: {e}", note.path))?;
-        let body = String::from_utf8(bytes)
-            .map_err(|e| anyhow!("note content not utf8: {e}"))?;
+        let body = String::from_utf8(bytes).map_err(|e| anyhow!("note content not utf8: {e}"))?;
 
         // 3. 定义 = 正文第一行。
         let definition = body.lines().next().map(String::from);
@@ -646,11 +629,7 @@ impl WikiCompiler {
     /// 3. 文件重写 `write_note_file(note_id, &new_body)`。
     /// 4. 版本记录 — 若 `version_control` 注入则 `vc.commit(...)`(best-effort)。
     /// 5. 触发 `LogEvent::Updated` 追加到 `_log.md`。
-    pub async fn update_note_from_user(
-        &self,
-        note_id: &str,
-        new_body: String,
-    ) -> Result<()> {
+    pub async fn update_note_from_user(&self, note_id: &str, new_body: String) -> Result<()> {
         let now = chrono::Utc::now().timestamp_millis();
 
         // 1. SQLite UPDATE + 顺带查 title / path(块作用域锁)。
@@ -797,10 +776,7 @@ impl WikiCompiler {
             // 补偿删除:best-effort,失败仅 warn。
             let conn = self.sqlite.raw_connection();
             let conn_guard = conn.lock();
-            let _ = conn_guard.execute(
-                "DELETE FROM wiki_notes WHERE id = ?1",
-                params![&note.id],
-            );
+            let _ = conn_guard.execute("DELETE FROM wiki_notes WHERE id = ?1", params![&note.id]);
             return Err(anyhow!("storage write {} error: {e}", path));
         }
 
@@ -871,8 +847,9 @@ impl WikiCompiler {
 
         // 1. 读现有内容(NotFound → 用 H1 头初始化)。
         let existing = match self.storage.read(&path).await {
-            Ok(bytes) => String::from_utf8(bytes)
-                .unwrap_or_else(|_| "# Wiki Update Log\n\n".to_string()),
+            Ok(bytes) => {
+                String::from_utf8(bytes).unwrap_or_else(|_| "# Wiki Update Log\n\n".to_string())
+            }
             Err(StorageError::NotFound(_)) => "# Wiki Update Log\n\n".to_string(),
             Err(e) => {
                 warn!(
@@ -1005,10 +982,8 @@ impl WikiCompiler {
                 md.push_str("_(no tags)_\n\n");
             } else {
                 for (tag, group) in topics {
-                    let links: Vec<String> = group
-                        .iter()
-                        .map(|n| format!("[[{}]]", n.slug))
-                        .collect();
+                    let links: Vec<String> =
+                        group.iter().map(|n| format!("[[{}]]", n.slug)).collect();
                     md.push_str(&format!("- #{tag}: {}\n", links.join(" ")));
                 }
                 md.push('\n');
@@ -1239,11 +1214,8 @@ mod tests {
         Vec<std::path::PathBuf>,
     ) {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_wiki_test_{}_{}",
-            std::process::id(),
-            n
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_wiki_test_{}_{}", std::process::id(), n));
         std::fs::create_dir_all(&dir).unwrap();
 
         let db_path = dir.join("test.db");
@@ -1253,7 +1225,8 @@ mod tests {
         let backend = LocalBackend::new(&storage_root).expect("create local backend");
         let storage: DynStorageBackend = Arc::new(backend);
         let llm = Arc::new(LlmGateway::new_test());
-        let compiler = WikiCompiler::new(llm, storage.clone(), sqlite.clone(), WikiConfig::default());
+        let compiler =
+            WikiCompiler::new(llm, storage.clone(), sqlite.clone(), WikiConfig::default());
 
         let paths = vec![db_path, dir.join("test.db-wal"), dir.join("test.db-shm")];
         (compiler, sqlite, storage, dir, paths)
@@ -1313,7 +1286,10 @@ mod tests {
     fn extract_links_empty() {
         let md = "无链接的文本 [[UPPER]] [[特殊字符!]]";
         let links = extract_links(md);
-        assert!(links.is_empty(), "uppercase/special should not match: {links:?}");
+        assert!(
+            links.is_empty(),
+            "uppercase/special should not match: {links:?}"
+        );
     }
 
     #[test]
@@ -1327,7 +1303,8 @@ mod tests {
 
     #[test]
     fn parse_llm_output_normal() {
-        let raw = "---\ntitle: Rust 笔记\ntags: [rust, programming]\n---\n## 概述\n这是 [[rust]] 笔记。";
+        let raw =
+            "---\ntitle: Rust 笔记\ntags: [rust, programming]\n---\n## 概述\n这是 [[rust]] 笔记。";
         let compiled = parse_llm_output(raw);
         assert_eq!(compiled.title, "Rust 笔记");
         assert_eq!(compiled.tags, vec!["rust", "programming"]);
@@ -1380,7 +1357,10 @@ mod tests {
             version_control: None,
         };
         assert_eq!(compiler.resolve_note_path("test"), "wiki/test.md");
-        assert_eq!(compiler.resolve_note_path("rust-basics"), "wiki/rust-basics.md");
+        assert_eq!(
+            compiler.resolve_note_path("rust-basics"),
+            "wiki/rust-basics.md"
+        );
     }
 
     // --- 集成测试:compile_raw + read + delete + search ---
@@ -1455,10 +1435,7 @@ mod tests {
     #[tokio::test]
     async fn delete_idempotent() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let note = compiler
-            .compile_raw(Some("待删除"), "内容")
-            .await
-            .unwrap();
+        let note = compiler.compile_raw(Some("待删除"), "内容").await.unwrap();
 
         // 第一次删除成功。
         compiler.delete(&note.id).await.expect("delete first");
@@ -1467,7 +1444,10 @@ mod tests {
         assert!(compiler.read(&note.id).await.is_err());
 
         // 第二次删除幂等(不报错)。
-        compiler.delete(&note.id).await.expect("delete again idempotent");
+        compiler
+            .delete(&note.id)
+            .await
+            .expect("delete again idempotent");
 
         cleanup(paths, dir);
     }
@@ -1828,7 +1808,10 @@ mod tests {
         let c_line = created.to_markdown_line();
         let u_line = updated.to_markdown_line();
         let d_line = deleted.to_markdown_line();
-        assert!(c_line.starts_with("- ["), "created should start with '- [': {c_line}");
+        assert!(
+            c_line.starts_with("- ["),
+            "created should start with '- [': {c_line}"
+        );
         assert!(c_line.contains("✨ Created"), "created icon: {c_line}");
         assert!(c_line.contains("`[[id-c]]`"), "created id link: {c_line}");
         assert!(c_line.contains("— TC"), "created title: {c_line}");
@@ -1841,7 +1824,10 @@ mod tests {
         assert!(d_line.contains("🗑️ Deleted"), "deleted icon: {d_line}");
         assert!(d_line.contains("`id-d`"), "deleted id code: {d_line}");
         assert!(d_line.contains("— TD"), "deleted title: {d_line}");
-        assert!(!d_line.contains("[[id-d]]"), "deleted should NOT use [[]]: {d_line}");
+        assert!(
+            !d_line.contains("[[id-d]]"),
+            "deleted should NOT use [[]]: {d_line}"
+        );
 
         // 时间戳应可解析为 RFC3339。
         let ts_str = c_line
@@ -1849,8 +1835,8 @@ mod tests {
             .split(']')
             .next()
             .expect("ts bracket");
-        let _ = chrono::DateTime::parse_from_rfc3339(ts_str)
-            .expect("ts should be RFC3339 parseable");
+        let _ =
+            chrono::DateTime::parse_from_rfc3339(ts_str).expect("ts should be RFC3339 parseable");
     }
 
     /// 包装 LocalBackend,write 永远失败,其余方法透传 inner。
@@ -1876,11 +1862,7 @@ mod tests {
             self.inner.read(path).await
         }
 
-        async fn write(
-            &self,
-            _path: &str,
-            _bytes: &[u8],
-        ) -> crate::storage::StorageResult<()> {
+        async fn write(&self, _path: &str, _bytes: &[u8]) -> crate::storage::StorageResult<()> {
             Err(crate::storage::StorageError::Unavailable(
                 "FailingWriteBackend: write always fails (test)".to_string(),
             ))
@@ -1905,7 +1887,11 @@ mod tests {
             &self,
             path: &str,
         ) -> crate::storage::StorageResult<
-            Box<dyn futures::Stream<Item = crate::storage::StorageResult<bytes::Bytes>> + Send + Unpin>,
+            Box<
+                dyn futures::Stream<Item = crate::storage::StorageResult<bytes::Bytes>>
+                    + Send
+                    + Unpin,
+            >,
         > {
             self.inner.read_stream(path).await
         }
@@ -1960,7 +1946,10 @@ mod tests {
             )
             .map(|n| n > 0)
             .unwrap_or(false);
-        assert!(has_table, "wiki_note_links table should exist after migration");
+        assert!(
+            has_table,
+            "wiki_note_links table should exist after migration"
+        );
         // 检查 idx_wiki_note_links_target 索引存在。
         let has_index: bool = g
             .query_row(
@@ -2224,8 +2213,14 @@ mod tests {
         assert_eq!(card.note.title, "B Target");
 
         // body 字段(从 storage 读取的正文)。
-        assert!(card.body.contains("B 的定义行"), "body should contain first line");
-        assert!(card.body.contains("[[rust]]"), "body should contain wiki link");
+        assert!(
+            card.body.contains("B 的定义行"),
+            "body should contain first line"
+        );
+        assert!(
+            card.body.contains("[[rust]]"),
+            "body should contain wiki link"
+        );
 
         // definition = 正文第一行。
         assert_eq!(
@@ -2296,8 +2291,7 @@ mod tests {
 
     /// 给 compiler 注入 sponge mock + version_control,返回增强版 compiler +
     /// mock + vc 引用 + (dir, paths) 用于 cleanup。
-    fn harness_with_sync(
-    ) -> (
+    fn harness_with_sync() -> (
         WikiCompiler,
         Arc<MockRevectorizer>,
         Arc<MemoryVersionControl>,
@@ -2323,8 +2317,9 @@ mod tests {
 
         let sponge_mock = Arc::new(MockRevectorizer::new());
         let vc = Arc::new(MemoryVersionControl::new(sqlite.clone()));
-        let compiler = WikiCompiler::new(llm, storage.clone(), sqlite.clone(), WikiConfig::default())
-            .with_memory_sync(sponge_mock.clone(), vc.clone());
+        let compiler =
+            WikiCompiler::new(llm, storage.clone(), sqlite.clone(), WikiConfig::default())
+                .with_memory_sync(sponge_mock.clone(), vc.clone());
 
         let paths = vec![db_path, dir.join("sync.db-wal"), dir.join("sync.db-shm")];
         (compiler, sponge_mock, vc, sqlite, storage, dir, paths)
@@ -2433,10 +2428,7 @@ mod tests {
     async fn test_update_note_from_user_version_recorded() {
         let (compiler, _sponge, vc, _sqlite, _storage, dir, paths) = harness_with_sync();
 
-        let note = compiler
-            .compile_raw(Some("版本测试"), "v1")
-            .await
-            .unwrap();
+        let note = compiler.compile_raw(Some("版本测试"), "v1").await.unwrap();
 
         compiler
             .update_note_from_user(&note.id, "v2 内容".to_string())
@@ -2539,10 +2531,7 @@ mod tests {
         // 直接用 test_harness(未注入 sponge / vc)。
         let (compiler, sqlite, storage, dir, paths) = test_harness();
 
-        let note = compiler
-            .compile_raw(Some("降级测试"), "原")
-            .await
-            .unwrap();
+        let note = compiler.compile_raw(Some("降级测试"), "原").await.unwrap();
 
         // 调用应成功,不报错。
         compiler

@@ -281,7 +281,10 @@ impl McpServerRegistry {
                     rt.status = McpServerStatus::Running;
                     rt.started_at = Some(Instant::now());
                     info!(target: "nebula.mcp.registry", server = %name, "MCP server is running");
-                    self.write_log(name, &format!("[{}] server started (running)", chrono::Local::now()));
+                    self.write_log(
+                        name,
+                        &format!("[{}] server started (running)", chrono::Local::now()),
+                    );
                 } else {
                     rt.status = McpServerStatus::Crashed {
                         reason: "handshake failed".to_string(),
@@ -289,7 +292,13 @@ impl McpServerRegistry {
                     rt.last_crash = Some(Instant::now());
                     warn!(target: "nebula.mcp.registry", server = %name,
                         "MCP server failed to start (handshake failed)");
-                    self.write_log(name, &format!("[{}] server crashed: handshake failed", chrono::Local::now()));
+                    self.write_log(
+                        name,
+                        &format!(
+                            "[{}] server crashed: handshake failed",
+                            chrono::Local::now()
+                        ),
+                    );
                 }
             }
         }
@@ -352,14 +361,13 @@ impl McpServerRegistry {
                 let rt = runtimes.get(&name);
                 McpServerInfo {
                     name: name.clone(),
-                    status: rt.map(|r| r.status.clone()).unwrap_or(McpServerStatus::Stopped),
+                    status: rt
+                        .map(|r| r.status.clone())
+                        .unwrap_or(McpServerStatus::Stopped),
                     pid: rt.and_then(|r| r.pid),
                     uptime_secs: rt.and_then(|r| r.started_at.map(|t| t.elapsed().as_secs())),
                     restart_count: rt.map(|r| r.restart_count).unwrap_or(0),
-                    log_path: self
-                        .log_path_for(&name)
-                        .to_string_lossy()
-                        .to_string(),
+                    log_path: self.log_path_for(&name).to_string_lossy().to_string(),
                 }
             })
             .collect()
@@ -434,10 +442,11 @@ impl McpServerRegistry {
     /// - Err(其他) → 传输错误(可能已崩溃)
     /// - 超时 5s → 视为未连接
     async fn check_connected(&self, name: &str) -> bool {
-        let ping = self
-            .inner
-            .mcp_manager
-            .invoke_tool(name, "__mcp_health_check_ping__", serde_json::json!({}));
+        let ping = self.inner.mcp_manager.invoke_tool(
+            name,
+            "__mcp_health_check_ping__",
+            serde_json::json!({}),
+        );
         match tokio::time::timeout(Duration::from_secs(5), ping).await {
             Ok(Ok(_)) => true,
             Ok(Err(e)) => {
@@ -452,10 +461,10 @@ impl McpServerRegistry {
     ///
     /// 成功(Ok)→ 更新 last_health_check;失败 → 置 Crashed。
     pub async fn health_check(&self, name: &str) -> Result<()> {
-        let ping = self
-            .inner
-            .mcp_manager
-            .invoke_tool(name, "__mcp_health_check__", serde_json::json!({}));
+        let ping =
+            self.inner
+                .mcp_manager
+                .invoke_tool(name, "__mcp_health_check__", serde_json::json!({}));
         match tokio::time::timeout(Duration::from_secs(5), ping).await {
             Ok(Ok(_)) => {
                 let mut runtimes = self.inner.runtimes.lock();
@@ -549,8 +558,10 @@ impl McpServerRegistry {
                             };
                             rt.last_crash = Some(Instant::now());
                         }
-                        self.write_log(name, &format!(
-                            "[{}] health check failed: {}", chrono::Local::now(), e));
+                        self.write_log(
+                            name,
+                            &format!("[{}] health check failed: {}", chrono::Local::now(), e),
+                        );
                     }
                 }
             }
@@ -576,17 +587,19 @@ impl McpServerRegistry {
                             restarts = rt.restart_timestamps.len(),
                             "exceeded max_restarts_per_hour, disabling");
                         rt.status = McpServerStatus::Disabled;
-                        self.write_log(name, &format!(
-                            "[{}] disabled (restart limit exceeded)", chrono::Local::now()));
+                        self.write_log(
+                            name,
+                            &format!(
+                                "[{}] disabled (restart limit exceeded)",
+                                chrono::Local::now()
+                            ),
+                        );
                         return;
                     }
 
                     // 指数退避:距上次崩溃需过 min(2^n, 30)s
                     let backoff = Self::restart_backoff_delay(rt.restart_count);
-                    let elapsed = rt
-                        .last_crash
-                        .map(|t| t.elapsed())
-                        .unwrap_or(Duration::ZERO);
+                    let elapsed = rt.last_crash.map(|t| t.elapsed()).unwrap_or(Duration::ZERO);
                     if elapsed >= backoff {
                         rt.status = McpServerStatus::Restarting;
                         rt.restart_count += 1;
@@ -604,8 +617,10 @@ impl McpServerRegistry {
                             runtimes.get(name).map(|rt| rt.restart_count).unwrap_or(0)
                         },
                         "supervisor: restarting server (after exponential backoff)");
-                    self.write_log(name, &format!(
-                        "[{}] supervisor restarting server", chrono::Local::now()));
+                    self.write_log(
+                        name,
+                        &format!("[{}] supervisor restarting server", chrono::Local::now()),
+                    );
 
                     // 重新 start
                     if let Err(e) = self.start(name).await {
@@ -685,17 +700,38 @@ mod tests {
 
     #[test]
     fn restart_backoff_delay_exponential() {
-        assert_eq!(McpServerRegistry::restart_backoff_delay(0), Duration::from_secs(1));
-        assert_eq!(McpServerRegistry::restart_backoff_delay(1), Duration::from_secs(2));
-        assert_eq!(McpServerRegistry::restart_backoff_delay(2), Duration::from_secs(4));
-        assert_eq!(McpServerRegistry::restart_backoff_delay(3), Duration::from_secs(8));
-        assert_eq!(McpServerRegistry::restart_backoff_delay(4), Duration::from_secs(16));
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(0),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(1),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(2),
+            Duration::from_secs(4)
+        );
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(3),
+            Duration::from_secs(8)
+        );
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(4),
+            Duration::from_secs(16)
+        );
     }
 
     #[test]
     fn restart_backoff_delay_capped_at_30s() {
-        assert_eq!(McpServerRegistry::restart_backoff_delay(5), Duration::from_secs(30));
-        assert_eq!(McpServerRegistry::restart_backoff_delay(10), Duration::from_secs(30));
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(5),
+            Duration::from_secs(30)
+        );
+        assert_eq!(
+            McpServerRegistry::restart_backoff_delay(10),
+            Duration::from_secs(30)
+        );
     }
 
     /// 单测 1:registry start/stop 生命周期。
@@ -711,7 +747,10 @@ mod tests {
         // 添加配置
         {
             let mut configs = registry.inner.configs.write();
-            configs.insert("test-mock".to_string(), test_config("test-mock", short_lived_command()));
+            configs.insert(
+                "test-mock".to_string(),
+                test_config("test-mock", short_lived_command()),
+            );
         }
         {
             let mut runtimes = registry.inner.runtimes.lock();
@@ -795,7 +834,11 @@ mod tests {
         // 验证 restart_count 增加
         let runtimes = registry.inner.runtimes.lock();
         let rt = runtimes.get("crash-test").unwrap();
-        assert!(rt.restart_count >= 1, "expected restart_count >= 1, got {}", rt.restart_count);
+        assert!(
+            rt.restart_count >= 1,
+            "expected restart_count >= 1, got {}",
+            rt.restart_count
+        );
     }
 
     /// 单测 3:重启限流 3 次/小时。
@@ -891,7 +934,10 @@ mod tests {
 
         // 调用 health_check(应失败,因为 client 未连接)
         let result = registry.health_check("health-test").await;
-        assert!(result.is_err(), "health_check should fail for unconnected server");
+        assert!(
+            result.is_err(),
+            "health_check should fail for unconnected server"
+        );
 
         // supervisor_tick 应将 Running + health_check 失败 → Crashed
         registry.supervisor_tick("health-test").await;
@@ -943,8 +989,14 @@ mod tests {
         // 添加 2 个配置
         {
             let mut configs = registry.inner.configs.write();
-            configs.insert("server-a".to_string(), test_config("server-a", short_lived_command()));
-            configs.insert("server-b".to_string(), test_config("server-b", short_lived_command()));
+            configs.insert(
+                "server-a".to_string(),
+                test_config("server-a", short_lived_command()),
+            );
+            configs.insert(
+                "server-b".to_string(),
+                test_config("server-b", short_lived_command()),
+            );
         }
 
         let info = registry.list();

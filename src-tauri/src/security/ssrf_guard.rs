@@ -1,4 +1,4 @@
-﻿use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Debug, Clone)]
@@ -64,10 +64,7 @@ impl SsrfGuard {
                 if is_loopback_v4(v4) {
                     // M7b #94: allow_loopback 豁免 loopback(本地 LLM 端点)。
                     if !self.allow_loopback {
-                        return Err(anyhow!(
-                            "SSRF: loopback address {} is not allowed",
-                            v4
-                        ));
+                        return Err(anyhow!("SSRF: loopback address {} is not allowed", v4));
                     }
                     return Ok(());
                 }
@@ -75,10 +72,7 @@ impl SsrfGuard {
                     return Err(anyhow!("SSRF: private address {} is not allowed", v4));
                 }
                 if is_link_local_v4(v4) {
-                    return Err(anyhow!(
-                        "SSRF: link-local address {} is not allowed",
-                        v4
-                    ));
+                    return Err(anyhow!("SSRF: link-local address {} is not allowed", v4));
                 }
                 if is_cgnat(v4) {
                     return Err(anyhow!("SSRF: CGNAT address {} is not allowed", v4));
@@ -91,20 +85,14 @@ impl SsrfGuard {
                 if v6.is_loopback() {
                     // M7b #94: allow_loopback 豁免 IPv6 loopback(::1)。
                     if !self.allow_loopback {
-                        return Err(anyhow!(
-                            "SSRF: loopback address {} is not allowed",
-                            v6
-                        ));
+                        return Err(anyhow!("SSRF: loopback address {} is not allowed", v6));
                     }
                     return Ok(());
                 }
                 // M7b #94: 增强 IPv6 检测 — ULA(fc00::/7)+ link-local(fe80::/10)
                 // + IPv4-mapped(::ffff:0:0/96)。
                 if is_ula_v6(v6) {
-                    return Err(anyhow!(
-                        "SSRF: IPv6 ULA address {} is not allowed",
-                        v6
-                    ));
+                    return Err(anyhow!("SSRF: IPv6 ULA address {} is not allowed", v6));
                 }
                 if is_link_local_v6(v6) {
                     return Err(anyhow!(

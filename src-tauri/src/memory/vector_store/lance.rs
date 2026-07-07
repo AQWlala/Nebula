@@ -87,8 +87,7 @@ mod tests {
     use std::sync::Arc;
 
     fn temp_lance_path() -> std::path::PathBuf {
-        std::env::temp_dir()
-            .join(format!("nebula_vs_lance_{}", uuid::Uuid::new_v4()))
+        std::env::temp_dir().join(format!("nebula_vs_lance_{}", uuid::Uuid::new_v4()))
     }
 
     // ---- trait 契约:upsert/search/delete/len ----

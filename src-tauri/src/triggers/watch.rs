@@ -1,4 +1,4 @@
-﻿//! T-E-S-55: 条件监控 Watch — WatchWorker + WebFetcher + SystemProbe + IcsParser。
+//! T-E-S-55: 条件监控 Watch — WatchWorker + WebFetcher + SystemProbe + IcsParser。
 //!
 //! 三种监控源:
 //! * **Web** — 定时抓取 URL,SHA-256 Diff 检测变化触发(reqwest + SsrfGuard)
@@ -59,10 +59,7 @@ pub enum WatchSource {
         interval_secs: u32,
     },
     /// 日历事件监控:解析 `.ics` 文件,在事件开始前 `lead_minutes` 分钟触发。
-    Calendar {
-        ics_path: String,
-        lead_minutes: u32,
-    },
+    Calendar { ics_path: String, lead_minutes: u32 },
 }
 
 impl WatchSource {
@@ -122,8 +119,7 @@ impl WebFetcher {
     /// M7b #94: 用 SsrfGuard::build_safe_client 构建客户端,
     /// 重定向链每跳校验目标 URL,防止 302 → 内网 SSRF。
     pub fn new() -> Result<Self> {
-        let client = crate::security::ssrf_guard::SsrfGuard::new()
-            .build_safe_client()?;
+        let client = crate::security::ssrf_guard::SsrfGuard::new().build_safe_client()?;
         Ok(Self { client })
     }
 
@@ -155,14 +151,19 @@ impl WebFetcher {
         // 4. Content-Length 预检
         if let Some(len) = resp.content_length() {
             if len as usize > MAX_BODY_BYTES {
-                return Err(anyhow!("response body too large: {len} bytes (limit {MAX_BODY_BYTES})"));
+                return Err(anyhow!(
+                    "response body too large: {len} bytes (limit {MAX_BODY_BYTES})"
+                ));
             }
         }
 
         // 5. 读取 body + 二次大小校验
         let body = resp.bytes().await?;
         if body.len() > MAX_BODY_BYTES {
-            return Err(anyhow!("response body exceeds 1MiB limit: {} bytes", body.len()));
+            return Err(anyhow!(
+                "response body exceeds 1MiB limit: {} bytes",
+                body.len()
+            ));
         }
 
         let text = String::from_utf8_lossy(&body).to_string();
@@ -319,8 +320,12 @@ fn read_disk_free_percent() -> Result<f32> {
     // 指针在同步返回前有效。该 API 仅通过提供的指针写入标量,返回 0 表示失败。
     // `path` 内容固定为 `C:\\`,编码后不含嵌入 null。
     unsafe {
-        if GetDiskFreeSpaceExW(path.as_ptr(), &mut free_to_caller, &mut total, &mut total_free)
-            != 0
+        if GetDiskFreeSpaceExW(
+            path.as_ptr(),
+            &mut free_to_caller,
+            &mut total,
+            &mut total_free,
+        ) != 0
         {
             if total == 0 {
                 return Ok(100.0);
@@ -425,7 +430,9 @@ fn parse_ics_datetime(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 
 /// ICS 文本转义还原:`\n` → 换行,`\,` → 逗号,`\\` → 反斜杠。
 fn unescape_ics(s: &str) -> String {
-    s.replace("\\n", "\n").replace("\\,", ",").replace("\\\\", "\\")
+    s.replace("\\n", "\n")
+        .replace("\\,", ",")
+        .replace("\\\\", "\\")
 }
 
 /// 查找临近事件:返回 `start` 在 `[now, now + lead_minutes]` 范围内的事件。
@@ -844,10 +851,7 @@ END:VEVENT";
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].summary, "TimeZoned");
         // 视为 UTC(简化处理)
-        assert_eq!(
-            events[0].start.format("%H:%M:%S").to_string(),
-            "09:00:00"
-        );
+        assert_eq!(events[0].start.format("%H:%M:%S").to_string(), "09:00:00");
     }
 
     // ---- Calendar 临近事件触发 ----

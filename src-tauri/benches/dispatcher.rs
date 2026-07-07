@@ -1,4 +1,4 @@
-﻿//! M7b #93: ADR-003 性能回归基准(dispatch 延迟 + 流式延迟 + 并发限流)。
+//! M7b #93: ADR-003 性能回归基准(dispatch 延迟 + 流式延迟 + 并发限流)。
 //!
 //! 3 个 criterion 基准覆盖 UnifiedModelDispatcher 的核心热路径:
 //!
@@ -70,13 +70,7 @@ fn bench_dispatcher_construct(c: &mut Criterion) {
 
     c.bench_function("dispatcher_construct", |b| {
         b.iter(|| {
-            let _d = UnifiedModelDispatcher::new(
-                gw.clone(),
-                policy.clone(),
-                None,
-                None,
-                2,
-            );
+            let _d = UnifiedModelDispatcher::new(gw.clone(), policy.clone(), None, None, 2);
             black_box(());
         });
     });

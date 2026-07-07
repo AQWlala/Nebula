@@ -33,9 +33,9 @@ use crate::llm::semantic_cache::SemanticCache;
 use crate::memory::bm25::Bm25Searcher;
 use crate::memory::embedder::Embedder;
 // T-E-S-42: PrefetchEngine 面向 VectorStore trait 编程,可接受任意后端。
-use crate::memory::vector_store::VectorStore;
 use crate::memory::sqlite_store::SqliteStore;
 use crate::memory::types::Memory;
+use crate::memory::vector_store::VectorStore;
 
 /// 默认去重窗口:5 分钟。
 pub const DEFAULT_DEDUP_WINDOW: Duration = Duration::from_secs(300);
@@ -156,7 +156,13 @@ impl PrefetchEngine {
         embedder: Arc<Embedder>,
         semantic_cache: Arc<SemanticCache>,
     ) -> Self {
-        Self::new(sqlite, lance, embedder, semantic_cache, PrefetchConfig::default())
+        Self::new(
+            sqlite,
+            lance,
+            embedder,
+            semantic_cache,
+            PrefetchConfig::default(),
+        )
     }
 
     /// 当前配置(只读引用)。
@@ -568,28 +574,20 @@ pub fn pair_turns(memories: Vec<Memory>, window_secs: i64) -> Vec<ChatTurnPair> 
 mod tests {
     use super::*;
     // T-E-S-42: 测试中直接构造 LanceStore 作为 VectorStore trait 对象。
-    use crate::memory::lance_store::LanceStore;
     use crate::llm::ollama::OllamaClient;
-    use crate::memory::types::{
-        MemoryLayer, MemoryType, MultiGranularity, SourceKind,
-    };
+    use crate::memory::lance_store::LanceStore;
+    use crate::memory::types::{MemoryLayer, MemoryType, MultiGranularity, SourceKind};
     use std::env;
 
     fn temp_db_path() -> std::path::PathBuf {
         let mut p = env::temp_dir();
-        p.push(format!(
-            "nebula_prefetch_test_{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("nebula_prefetch_test_{}.db", uuid::Uuid::new_v4()));
         p
     }
 
     fn temp_lance_path() -> std::path::PathBuf {
         let mut p = env::temp_dir();
-        p.push(format!(
-            "nebula_prefetch_lance_{}",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("nebula_prefetch_lance_{}", uuid::Uuid::new_v4()));
         p
     }
 
@@ -719,7 +717,10 @@ mod tests {
         // 对存在的路径,canonicalize 返回绝对规范路径
         let temp = env::temp_dir();
         let canon = PrefetchEngine::canonicalize(&temp);
-        assert!(canon.is_absolute(), "canonicalized temp dir should be absolute");
+        assert!(
+            canon.is_absolute(),
+            "canonicalized temp dir should be absolute"
+        );
 
         // 对不存在的路径,canonicalize 回退到原路径(不 panic)
         let fake = std::path::PathBuf::from("/definitely/not/exist/path.txt");
@@ -755,9 +756,7 @@ mod tests {
 
         // SQL 注入尝试:参数化绑定应将其视为字面量,不执行注入
         let injection = "'; DROP TABLE memories; --";
-        let rows = engine
-            .search_by_path_substring(injection)
-            .await;
+        let rows = engine.search_by_path_substring(injection).await;
         assert!(
             rows.is_empty(),
             "SQL injection string should not match any row"
@@ -770,10 +769,7 @@ mod tests {
         // 另一种注入尝试:OR 1=1
         let injection2 = "' OR '1'='1";
         let rows = engine.search_by_path_substring(injection2).await;
-        assert!(
-            rows.is_empty(),
-            "OR 1=1 injection should not match any row"
-        );
+        assert!(rows.is_empty(), "OR 1=1 injection should not match any row");
 
         cleanup(db, lance);
     }
@@ -843,25 +839,11 @@ mod tests {
         // 预填充 embedder 缓存:file_name → 固定向量
         let file_name = "test_vector_file.txt";
         let vec = vec![1.0, 0.0, 0.0, 0.0];
-        engine
-            .embedder
-            .seed_cache_for_test(file_name, vec.clone());
+        engine.embedder.seed_cache_for_test(file_name, vec.clone());
 
         // 插入三条 memory 到 sqlite + lance(同一向量)
-        let m_user = make_chat_memory(
-            "vec-user",
-            "用户问题",
-            "chat.user",
-            None,
-            1000,
-        );
-        let m_asst = make_chat_memory(
-            "vec-asst",
-            "助手回答",
-            "chat.assistant",
-            None,
-            1001,
-        );
+        let m_user = make_chat_memory("vec-user", "用户问题", "chat.user", None, 1000);
+        let m_asst = make_chat_memory("vec-asst", "助手回答", "chat.assistant", None, 1001);
         let m_other = make_other_memory("vec-other", "系统记忆", "system");
         engine.sqlite.insert(&m_user).await.unwrap();
         engine.sqlite.insert(&m_asst).await.unwrap();
@@ -872,11 +854,7 @@ mod tests {
 
         // 向量检索:应返回 2 条(chat.user + chat.assistant),过滤掉 system
         let ids = engine.search_by_vector(file_name).await;
-        assert_eq!(
-            ids.len(),
-            2,
-            "should return 2 chat.* memories, got {ids:?}"
-        );
+        assert_eq!(ids.len(), 2, "should return 2 chat.* memories, got {ids:?}");
         assert!(ids.contains(&"vec-user".to_string()));
         assert!(ids.contains(&"vec-asst".to_string()));
         assert!(!ids.contains(&"vec-other".to_string()));
@@ -889,34 +867,10 @@ mod tests {
     // =====================================================================
     #[test]
     fn test_pair_by_turn_id_exact() {
-        let user1 = make_chat_memory(
-            "u1",
-            "问题1",
-            "chat.user",
-            Some("turn-aaa"),
-            1000,
-        );
-        let asst1 = make_chat_memory(
-            "a1",
-            "回答1",
-            "chat.assistant",
-            Some("turn-aaa"),
-            1001,
-        );
-        let user2 = make_chat_memory(
-            "u2",
-            "问题2",
-            "chat.user",
-            Some("turn-bbb"),
-            2000,
-        );
-        let asst2 = make_chat_memory(
-            "a2",
-            "回答2",
-            "chat.assistant",
-            Some("turn-bbb"),
-            2001,
-        );
+        let user1 = make_chat_memory("u1", "问题1", "chat.user", Some("turn-aaa"), 1000);
+        let asst1 = make_chat_memory("a1", "回答1", "chat.assistant", Some("turn-aaa"), 1001);
+        let user2 = make_chat_memory("u2", "问题2", "chat.user", Some("turn-bbb"), 2000);
+        let asst2 = make_chat_memory("a2", "回答2", "chat.assistant", Some("turn-bbb"), 2001);
 
         let memories = vec![user1, asst1, user2, asst2];
         let pairs = pair_turns(memories, CREATED_AT_WINDOW_SECS);
@@ -969,12 +923,8 @@ mod tests {
 
         // 预填充 embedder 缓存:每个 user_query 都返回固定向量
         let vec = vec![1.0, 0.0, 0.0, 0.0];
-        engine
-            .embedder
-            .seed_cache_for_test("query-A", vec.clone());
-        engine
-            .embedder
-            .seed_cache_for_test("query-B", vec.clone());
+        engine.embedder.seed_cache_for_test("query-A", vec.clone());
+        engine.embedder.seed_cache_for_test("query-B", vec.clone());
 
         let pairs = vec![
             ChatTurnPair {
@@ -1003,8 +953,7 @@ mod tests {
 
         let after = engine.semantic_cache.len();
         assert_eq!(
-            after,
-            2,
+            after, 2,
             "cache len should increase by 2 after filling 2 pairs"
         );
 
@@ -1082,7 +1031,11 @@ mod tests {
 
         let written = engine.fill_semantic_cache(&truncated).await;
         assert_eq!(written, 3);
-        assert_eq!(engine.semantic_cache.len(), 3, "cache should have 3 entries");
+        assert_eq!(
+            engine.semantic_cache.len(),
+            3,
+            "cache should have 3 entries"
+        );
 
         cleanup(db, lance);
     }
@@ -1120,13 +1073,7 @@ mod tests {
         let (engine, db, lance) = make_engine_with_config(4, config).await;
 
         // 即使数据库有历史,disabled 时也应返回 0
-        let m = make_chat_memory(
-            "u1",
-            "问题 /tmp/foo.txt",
-            "chat.user",
-            None,
-            1000,
-        );
+        let m = make_chat_memory("u1", "问题 /tmp/foo.txt", "chat.user", None, 1000);
         engine.sqlite.insert(&m).await.unwrap();
 
         let stats = engine.prefetch("/tmp/foo.txt").await;
@@ -1169,7 +1116,10 @@ mod tests {
 
         // 第二次预取(5 分钟内,应跳过)
         let stats2 = engine.prefetch("/nonexistent/dedup-test.txt").await;
-        assert!(stats2.skipped_dedup, "second call within window should skip");
+        assert!(
+            stats2.skipped_dedup,
+            "second call within window should skip"
+        );
         assert_eq!(stats2.pairs_prefetched, 0);
 
         cleanup(db, lance);

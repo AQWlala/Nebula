@@ -161,14 +161,20 @@ fn row_to_binding(row: &rusqlite::Row<'_>) -> rusqlite::Result<ImBinding> {
         rusqlite::Error::FromSqlConversionFailure(
             1,
             rusqlite::types::Type::Text,
-            Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())),
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                e.to_string(),
+            )),
         )
     })?;
     let kind: BindingKind = serde_json::from_str(&config_json).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(
             6,
             rusqlite::types::Type::Text,
-            Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())),
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                e.to_string(),
+            )),
         )
     })?;
     Ok(ImBinding {
@@ -197,11 +203,7 @@ mod tests {
     fn temp_store() -> (ImBindingTestHarness, Vec<std::path::PathBuf>) {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir();
-        let path = dir.join(format!(
-            "nebula_im_test_{}_{}.db",
-            std::process::id(),
-            n
-        ));
+        let path = dir.join(format!("nebula_im_test_{}_{}.db", std::process::id(), n));
         let conn = Connection::open(&path).unwrap();
         conn.execute_batch(
             "CREATE TABLE im_bindings (
@@ -383,7 +385,9 @@ mod tests {
         ImBinding {
             id: id.to_string(),
             platform,
-            kind: BindingKind::Webhook { url: url.to_string() },
+            kind: BindingKind::Webhook {
+                url: url.to_string(),
+            },
             display_name: format!("test-{id}"),
             enabled,
             created_at: 1700000000000i64,
@@ -415,7 +419,12 @@ mod tests {
         // 验证反序列化字段正确。
         let got1 = harness.get("id-1").unwrap().unwrap();
         assert_eq!(got1.platform, ImPlatform::Feishu);
-        assert_eq!(got1.kind, BindingKind::Webhook { url: "https://a.example.com/h1".into() });
+        assert_eq!(
+            got1.kind,
+            BindingKind::Webhook {
+                url: "https://a.example.com/h1".into()
+            }
+        );
         assert_eq!(got1.display_name, "test-id-1");
         assert!(got1.enabled);
         assert_eq!(got1.last_used_at, None);
@@ -437,7 +446,12 @@ mod tests {
     #[test]
     fn store_set_enabled_toggles_state() {
         let (harness, paths) = temp_store();
-        let b = sample_binding("id-x", ImPlatform::Dingtalk, "https://c.example.com/h3", true);
+        let b = sample_binding(
+            "id-x",
+            ImPlatform::Dingtalk,
+            "https://c.example.com/h3",
+            true,
+        );
         harness.insert(&b).unwrap();
         assert!(harness.get("id-x").unwrap().unwrap().enabled);
 
@@ -468,7 +482,11 @@ mod tests {
         harness.insert(&b3).unwrap();
 
         let enabled = harness.list_enabled().unwrap();
-        assert_eq!(enabled.len(), 2, "expected 2 enabled bindings, got {enabled:?}");
+        assert_eq!(
+            enabled.len(),
+            2,
+            "expected 2 enabled bindings, got {enabled:?}"
+        );
         let ids: Vec<_> = enabled.iter().map(|b| b.id.as_str()).collect();
         assert!(ids.contains(&"e1"));
         assert!(ids.contains(&"e2"));

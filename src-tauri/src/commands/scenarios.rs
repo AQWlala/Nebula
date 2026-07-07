@@ -25,11 +25,7 @@ pub async fn scenario_list(
 ) -> Result<Vec<ScenarioTemplate>, CommandError> {
     let engine = &state.scenario_templates;
     let result: Vec<ScenarioTemplate> = match category {
-        Some(cat) => engine
-            .list_by_category(cat)
-            .into_iter()
-            .cloned()
-            .collect(),
+        Some(cat) => engine.list_by_category(cat).into_iter().cloned().collect(),
         None => engine.list().to_vec(),
     };
     Ok(result)

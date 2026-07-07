@@ -56,10 +56,7 @@ impl CipherMigrator {
 
         // 1. 重命名明文 DB 为 .plain.bak。
         std::fs::rename(plain_path, &backup_path).with_context(|| {
-            format!(
-                "renaming plaintext db to backup: {}",
-                backup_path.display()
-            )
+            format!("renaming plaintext db to backup: {}", backup_path.display())
         })?;
 
         // 2. 用 key 打开新 DB(空,位于原位置)。
@@ -107,10 +104,7 @@ impl CipherMigrator {
 
         // 1. 重命名加密 DB 为 .enc.bak。
         std::fs::rename(enc_path, &backup_path).with_context(|| {
-            format!(
-                "renaming encrypted db to backup: {}",
-                backup_path.display()
-            )
+            format!("renaming encrypted db to backup: {}", backup_path.display())
         })?;
 
         // 2. 打开新明文 DB(空,位于原位置,无 key)。
@@ -159,10 +153,7 @@ mod tests {
 
     fn temp_db_path() -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!(
-            "nebula_test_cipher_{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("nebula_test_cipher_{}.db", uuid::Uuid::new_v4()));
         p
     }
 

@@ -1,4 +1,4 @@
-﻿//! Concrete agent implementations.
+//! Concrete agent implementations.
 //!
 //! Every agent implements the [`Agent`] trait and reads from / writes
 //! to a shared [`TeamContext`]. The trait is intentionally small so
@@ -168,11 +168,7 @@ pub trait Agent: Send + Sync {
     }
     /// T-E-S-39: 注入 persona 缓存(SOUL.md/AGENTS.md/TOOLS.md)。
     /// 默认空实现;GenericAgent 覆盖以在 run() 中拼接到 system prompt 前缀。
-    fn set_persona(
-        &self,
-        _persona: Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>,
-    ) {
-    }
+    fn set_persona(&self, _persona: Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>) {}
     /// T-E-D-10: 设置 swarm 上下文（事件发射器、任务 ID、agent 角色）。
     /// 默认空实现;GenericAgent 和角色 agent 覆盖以在 tool_loop 中 emit 事件。
     fn set_swarm_context(
@@ -311,8 +307,11 @@ pub fn build_agent_pool_by_kinds(
                 "reviewer" => Arc::new(ReviewerAgent::new(llm.clone())) as Arc<dyn Agent>,
                 "planner" => Arc::new(PlannerAgent::new(llm.clone())) as Arc<dyn Agent>,
                 "researcher" => Arc::new(ResearcherAgent::new(llm.clone())) as Arc<dyn Agent>,
-                _ => Arc::new(GenericAgent::new(llm.clone(), (i + 1) as u32, tool_registry.clone()))
-                    as Arc<dyn Agent>,
+                _ => Arc::new(GenericAgent::new(
+                    llm.clone(),
+                    (i + 1) as u32,
+                    tool_registry.clone(),
+                )) as Arc<dyn Agent>,
             };
             info!(
                 target: "nebula.swarm",
@@ -558,7 +557,11 @@ impl DynamicAgentPool {
             ChatMessage::user(task_desc.to_string()),
         ];
 
-        let resp = match self.classifier_ollama.chat(&self.classifier_model, &prompt).await {
+        let resp = match self
+            .classifier_ollama
+            .chat(&self.classifier_model, &prompt)
+            .await
+        {
             Ok(r) => r,
             // Ollama 不可达 / 网络错误 / 超时(2s 由 OllamaClient 配置)→ 降级 Medium。
             Err(_) => return TaskComplexity::Medium,
@@ -723,13 +726,15 @@ mod tests {
         }"#;
         let out: AgentOutput = serde_json::from_str(old_json).expect("old JSON must deserialize");
         assert_eq!(out.author, "a");
-        assert!(out.path_id.is_none(), "missing path_id must default to None");
+        assert!(
+            out.path_id.is_none(),
+            "missing path_id must default to None"
+        );
     }
 
     #[test]
     fn agent_output_path_id_roundtrip_with_path_id() {
-        let out = AgentOutput::new(AgentKind::Generic, "a", "body")
-            .with_path_id("path-0");
+        let out = AgentOutput::new(AgentKind::Generic, "a", "body").with_path_id("path-0");
         let json = serde_json::to_string(&out).unwrap();
         assert!(json.contains("\"path_id\":\"path-0\""), "got: {json}");
         // skip_serializing_if = Option::is_none 保证 None 不出现在 JSON 中。
@@ -822,10 +827,9 @@ mod tests {
         // 模拟 Ollama 不可达:用 port 1 + 短超时,确保快速失败。
         // 任何 Ollama 失败(连接拒绝/超时)都应降级为 Medium。
         let llm = Arc::new(LlmGateway::new_test());
-        let pool = DynamicAgentPool::new(llm).with_classifier_ollama(OllamaClient::new_with_timeout(
-            "http://127.0.0.1:1",
-            Duration::from_millis(100),
-        ));
+        let pool = DynamicAgentPool::new(llm).with_classifier_ollama(
+            OllamaClient::new_with_timeout("http://127.0.0.1:1", Duration::from_millis(100)),
+        );
         let complexity = pool.estimate_complexity("write a rust web server").await;
         assert_eq!(
             complexity,
@@ -840,10 +844,9 @@ mod tests {
         // 由于我们无法在不引入 mock server 的情况下注入可返回任意文本的 Ollama,
         // 此处复用不可达端点 — 行为与上一测试一致(均降级 Medium)。
         let llm = Arc::new(LlmGateway::new_test());
-        let pool = DynamicAgentPool::new(llm).with_classifier_ollama(OllamaClient::new_with_timeout(
-            "http://127.0.0.1:1",
-            Duration::from_millis(100),
-        ));
+        let pool = DynamicAgentPool::new(llm).with_classifier_ollama(
+            OllamaClient::new_with_timeout("http://127.0.0.1:1", Duration::from_millis(100)),
+        );
         // 空字符串任务描述也不应 panic,仍返回 Medium。
         let complexity = pool.estimate_complexity("").await;
         assert_eq!(complexity, TaskComplexity::Medium);
@@ -885,7 +888,10 @@ mod tests {
         let mut out = AgentOutput::new(AgentKind::Generic, "agent-a", "I'll read the file");
         out.tool_calls = Some(tc.clone());
         assert_eq!(out.tool_calls.as_ref().unwrap().len(), 1);
-        assert_eq!(out.tool_calls.as_ref().unwrap()[0].function_name, "read_file");
+        assert_eq!(
+            out.tool_calls.as_ref().unwrap()[0].function_name,
+            "read_file"
+        );
 
         // 3. 序列化 round-trip
         let json = serde_json::to_string(&out).unwrap();
@@ -903,12 +909,19 @@ mod tests {
             "reasoning_chain": [],
             "path_id": null
         }"#;
-        let out_old: AgentOutput = serde_json::from_str(old_json).expect("old JSON must deserialize");
-        assert!(out_old.tool_calls.is_none(), "missing tool_calls must default to None");
+        let out_old: AgentOutput =
+            serde_json::from_str(old_json).expect("old JSON must deserialize");
+        assert!(
+            out_old.tool_calls.is_none(),
+            "missing tool_calls must default to None"
+        );
 
         // 5. tool_calls = None 时不出现在 JSON 中(skip_serializing_if)
         let out_none = AgentOutput::new(AgentKind::Generic, "b", "body");
         let json_none = serde_json::to_string(&out_none).unwrap();
-        assert!(!json_none.contains("tool_calls"), "None tool_calls must be omitted from JSON");
+        assert!(
+            !json_none.contains("tool_calls"),
+            "None tool_calls must be omitted from JSON"
+        );
     }
 }

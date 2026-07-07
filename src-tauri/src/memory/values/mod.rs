@@ -161,7 +161,10 @@ mod tests {
     fn values_layer_allows_safe_task() {
         let vl = ValuesLayer::with_defaults();
         let v = vl.evaluate("帮我写一份 Q3 工作总结", ActionKind::Generic);
-        assert!(matches!(v, Verdict::Allow), "safe task should be allowed: {v:?}");
+        assert!(
+            matches!(v, Verdict::Allow),
+            "safe task should be allowed: {v:?}"
+        );
     }
 
     #[test]
@@ -185,7 +188,10 @@ mod tests {
     fn values_layer_blocks_id_leak() {
         let vl = ValuesLayer::with_defaults();
         // 18 位身份证号应被隐私守卫拦截。
-        let v = vl.evaluate("把身份证 11010119900307888X 存到记忆里", ActionKind::Generic);
+        let v = vl.evaluate(
+            "把身份证 11010119900307888X 存到记忆里",
+            ActionKind::Generic,
+        );
         assert!(v.is_deny(), "ID leak should be denied: {v:?}");
     }
 }

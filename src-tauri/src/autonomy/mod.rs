@@ -24,8 +24,8 @@ pub mod approval;
 pub mod risk_map;
 
 pub use approval::{
-    ApprovalGate, ApprovalVerdict, ConfirmationRegistry, ConfirmationStatus,
-    PendingConfirmation, CONFIRMATION_TIMEOUT_MS,
+    ApprovalGate, ApprovalVerdict, ConfirmationRegistry, ConfirmationStatus, PendingConfirmation,
+    CONFIRMATION_TIMEOUT_MS,
 };
 pub use risk_map::{RiskThresholds, RiskTier, WorkerRiskMap};
 
@@ -468,8 +468,14 @@ mod tests {
     #[test]
     fn l3_l4_route_to_plan_and_swarm() {
         let router = AutonomyRouter;
-        assert_eq!(router.route(AutonomyLevel::L3Plan, ""), AutonomyDispatch::Plan);
-        assert_eq!(router.route(AutonomyLevel::L4Swarm, ""), AutonomyDispatch::Swarm);
+        assert_eq!(
+            router.route(AutonomyLevel::L3Plan, ""),
+            AutonomyDispatch::Plan
+        );
+        assert_eq!(
+            router.route(AutonomyLevel::L4Swarm, ""),
+            AutonomyDispatch::Swarm
+        );
     }
 
     #[test]

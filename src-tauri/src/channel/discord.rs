@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -39,14 +39,12 @@ impl DiscordBotAdapter {
                  but requests to this URL will be blocked by redirect policy"
             );
         }
-        let client = guard
-            .build_safe_client()
-            .unwrap_or_else(|_| {
-                Client::builder()
-                    .timeout(Duration::from_secs(30))
-                    .build()
-                    .expect("reqwest Client::build is infallible")
-            });
+        let client = guard.build_safe_client().unwrap_or_else(|_| {
+            Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("reqwest Client::build is infallible")
+        });
         Self {
             webhook_url: webhook_url.to_string(),
             client,

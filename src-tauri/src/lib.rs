@@ -92,8 +92,8 @@ pub mod im;
 // T-E-B-01: LLM Wiki 编译引擎(每次对话后异步编译结构化 Markdown 笔记)。
 pub mod wiki;
 // T-E-C-08: Shadow Workspace — Agent 隔离执行环境(git worktree + 临时分支)。
-pub mod shadow_workspace;
 pub mod long_task;
+pub mod shadow_workspace;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with
@@ -120,10 +120,10 @@ pub mod app_state;
 pub mod bootstrap;
 /// Headless bootstrap variant (no `AppHandle`).
 pub mod bootstrap_headless;
-/// Tracing subscriber setup (`init_tracing`, `default_log_dir`).
-pub mod tracing_setup;
 /// Tauri entry — `run()` and `build_state_for_tests`.
 pub mod tauri_setup;
+/// Tracing subscriber setup (`init_tracing`, `default_log_dir`).
+pub mod tracing_setup;
 
 // ── public re-exports (stable API surface) ─────────────────────────
 pub use app_config::AppConfig;

@@ -1,4 +1,4 @@
-﻿//! T-S1-A-04: MemoryAcl 接入 sponge search 集成测试。
+//! T-S1-A-04: MemoryAcl 接入 sponge search 集成测试。
 //!
 //! 对应 ROADMAP_v2.1.md §4.4 Stage 1 测试策略要求的
 //! `tests/integration/acl_sponge_test.rs`。
@@ -15,9 +15,7 @@
 
 use std::sync::Arc;
 
-use nebula_lib::memory::acl::{
-    AclEffect, AclPermission, AclRule, MemoryAcl,
-};
+use nebula_lib::memory::acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
 use nebula_lib::memory::sponge::AclFilteredSearch;
 
 /// T-S1-PRE-02 回归保护：默认策略对可信主体（system/owner/local）放行。
@@ -181,13 +179,43 @@ fn acl_filtered_search_enforced_semantics() {
 fn acl_string_to_enum_parse_resilience() {
     // 模拟从 SQLite list_acl() 返回的行
     let rows: Vec<(String, String, String, String, String)> = vec![
-        ("r1".into(), "skill-1".into(), "mem-1".into(), "read".into(), "allow".into()),
-        ("r2".into(), "skill-2".into(), "mem-2".into(), "write".into(), "deny".into()),
-        ("r3".into(), "skill-3".into(), "mem-3".into(), "delete".into(), "allow".into()),
+        (
+            "r1".into(),
+            "skill-1".into(),
+            "mem-1".into(),
+            "read".into(),
+            "allow".into(),
+        ),
+        (
+            "r2".into(),
+            "skill-2".into(),
+            "mem-2".into(),
+            "write".into(),
+            "deny".into(),
+        ),
+        (
+            "r3".into(),
+            "skill-3".into(),
+            "mem-3".into(),
+            "delete".into(),
+            "allow".into(),
+        ),
         // 非法 permission
-        ("r4".into(), "skill-4".into(), "mem-4".into(), "execute".into(), "allow".into()),
+        (
+            "r4".into(),
+            "skill-4".into(),
+            "mem-4".into(),
+            "execute".into(),
+            "allow".into(),
+        ),
         // 非法 effect
-        ("r5".into(), "skill-5".into(), "mem-5".into(), "read".into(), "block".into()),
+        (
+            "r5".into(),
+            "skill-5".into(),
+            "mem-5".into(),
+            "read".into(),
+            "block".into(),
+        ),
     ];
 
     let mut acl = MemoryAcl::new();

@@ -30,11 +30,7 @@ impl NotionOAuthProvider {
     ///
     /// Notion's public integrations require a client secret for the
     /// token exchange.
-    pub fn new(
-        client_id: String,
-        client_secret: Option<String>,
-        redirect_uri: String,
-    ) -> Self {
+    pub fn new(client_id: String, client_secret: Option<String>, redirect_uri: String) -> Self {
         let config = OAuthProviderConfig {
             id: "notion".to_string(),
             name: "Notion".to_string(),
@@ -84,10 +80,7 @@ impl NotionOAuthProvider {
                         title: extract_plain_text(&d["title"]),
                         url: d["url"].as_str().unwrap_or("").to_string(),
                         created_time: d["created_time"].as_str().unwrap_or("").to_string(),
-                        last_edited_time: d["last_edited_time"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string(),
+                        last_edited_time: d["last_edited_time"].as_str().unwrap_or("").to_string(),
                     })
                     .collect()
             })
@@ -95,11 +88,7 @@ impl NotionOAuthProvider {
     }
 
     /// Fetches the text content of a single page (block tree, depth-1).
-    pub async fn fetch_page_content(
-        &self,
-        token: &OAuthToken,
-        page_id: &str,
-    ) -> Result<String> {
+    pub async fn fetch_page_content(&self, token: &OAuthToken, page_id: &str) -> Result<String> {
         let url = format!("{NOTION_API_BASE}/blocks/{page_id}/children");
         let resp = self
             .http
@@ -214,16 +203,11 @@ impl OAuthProvider for NotionOAuthProvider {
         );
         use base64::Engine as _;
         let b64 = base64::engine::general_purpose::STANDARD.encode(creds);
-        let body = vec![(
-            "grant_type".to_string(),
-            "authorization_code".to_string(),
-        ), (
-            "code".to_string(),
-            code.to_string(),
-        ), (
-            "redirect_uri".to_string(),
-            self.config.redirect_uri.clone(),
-        )];
+        let body = vec![
+            ("grant_type".to_string(), "authorization_code".to_string()),
+            ("code".to_string(), code.to_string()),
+            ("redirect_uri".to_string(), self.config.redirect_uri.clone()),
+        ];
         let resp = self
             .http
             .post(&self.config.token_url)

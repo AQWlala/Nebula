@@ -178,7 +178,8 @@ mod tests {
 
     #[test]
     fn response_error_propagates() {
-        let raw = r#"{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"method not found"}}"#;
+        let raw =
+            r#"{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"method not found"}}"#;
         let resp = parse_frame(raw).unwrap();
         let err = resp.result_value().unwrap_err();
         assert!(format!("{}", err).contains("-32601"));

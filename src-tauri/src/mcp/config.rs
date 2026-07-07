@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -154,10 +154,7 @@ impl McpServersConfig {
             match &s.transport_type {
                 McpTransportType::Stdio => {
                     if s.command.is_none() {
-                        anyhow::bail!(
-                            "MCP server '{}' has stdio transport but no command",
-                            s.name
-                        );
+                        anyhow::bail!("MCP server '{}' has stdio transport but no command", s.name);
                     }
                 }
                 McpTransportType::Http | McpTransportType::Sse => {
@@ -389,7 +386,10 @@ mod tests {
                 session_id,
             } => {
                 assert_eq!(url, "https://example.com/mcp");
-                assert_eq!(headers.get("Authorization").map(|s| s.as_str()), Some("Bearer tok"));
+                assert_eq!(
+                    headers.get("Authorization").map(|s| s.as_str()),
+                    Some("Bearer tok")
+                );
                 assert_eq!(session_id.as_deref(), Some("sid-123"));
             }
             other => panic!("expected StreamableHttp, got {:?}", other),
@@ -407,7 +407,11 @@ mod tests {
         }"#;
         let parsed: McpServerConfig = serde_json::from_str(json).unwrap();
         match parsed.transport_type {
-            McpTransportType::StreamableHttp { url, headers, session_id } => {
+            McpTransportType::StreamableHttp {
+                url,
+                headers,
+                session_id,
+            } => {
                 assert_eq!(url, "https://example.com/mcp");
                 assert!(headers.is_empty());
                 assert!(session_id.is_none());

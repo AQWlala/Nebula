@@ -1,4 +1,4 @@
-﻿//! `nebula::swarm` — multi-agent orchestration.
+//! `nebula::swarm` — multi-agent orchestration.
 //!
 //! The swarm subsystem coordinates a small team of specialised agents
 //! that collaborate on every non-trivial task. The key invariants are:
@@ -38,7 +38,9 @@ pub use agents::{canonical_team, CoderAgent, ReviewerAgent, WriterAgent};
 pub use bus::{AgentBus, BusMessage, BusMessageType};
 pub use composer::{SkillComposer, SkillContext, SkillMatch};
 pub use context::{ContextEntry, TeamContext};
-pub use context_pool::{start_gc_worker, start_gc_worker_with_interval, PoolEntry, TeamContextPool};
+pub use context_pool::{
+    start_gc_worker, start_gc_worker_with_interval, PoolEntry, TeamContextPool,
+};
 pub use crdt_sync::SwarmCrdtSync;
 pub use deadlock::{DeadlockDetector, DeadlockStatus, WaitForGraph};
 pub use event_bus::EventBus;

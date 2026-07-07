@@ -1,4 +1,4 @@
-﻿//! Swarm integration test: pipeline validation + output contract.
+//! Swarm integration test: pipeline validation + output contract.
 //!
 //! Validates the v2.0 swarm: single-agent and empty-pipeline tasks
 //! execute gracefully (they no longer return errors — the orchestrator
@@ -18,7 +18,9 @@ fn mock_gateway() -> Arc<LlmGateway> {
         "http://127.0.0.1:1",
         Duration::from_secs(2),
     ));
-    Arc::new(LlmGateway::new(client, "m", "ollama", None, None, None, None, None))
+    Arc::new(LlmGateway::new(
+        client, "m", "ollama", None, None, None, None, None,
+    ))
 }
 
 /// M7b #91: 构造空 ToolRegistry 供 new_without_memory 第二参数使用。
@@ -39,7 +41,10 @@ async fn swarm_single_agent_by_kind_executes() {
     let res = orch.execute(task).await;
     assert!(res.is_ok(), "single-agent by kind should execute");
     let report = res.unwrap();
-    assert_eq!(report.failure_count, 2, "coder + Generic padding = 2 agents");
+    assert_eq!(
+        report.failure_count, 2,
+        "coder + Generic padding = 2 agents"
+    );
 }
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-﻿//! Integration tests for the v0.3 skills subsystem.
+//! Integration tests for the v0.3 skills subsystem.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,10 +11,7 @@ use nebula_lib::skills::types as skill_types;
 
 fn temp_sqlite() -> (std::path::PathBuf, Arc<SqliteStore>) {
     let mut p = std::env::temp_dir();
-    p.push(format!(
-        "nebula_skills_test_{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    p.push(format!("nebula_skills_test_{}.db", uuid::Uuid::new_v4()));
     let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
     {
         let conn = sqlite.raw_connection();
@@ -33,7 +30,9 @@ fn llm() -> Arc<LlmGateway> {
         "http://127.0.0.1:1",
         std::time::Duration::from_secs(2),
     ));
-    Arc::new(LlmGateway::new(client, "m", "ollama", None, None, None, None, None))
+    Arc::new(LlmGateway::new(
+        client, "m", "ollama", None, None, None, None, None,
+    ))
 }
 
 fn cleanup(p: &std::path::Path) {

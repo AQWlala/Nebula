@@ -155,10 +155,7 @@ pub enum TriggerAction {
         agents: Vec<String>,
     },
     /// 弹出系统通知(走 NotificationService)。
-    Notify {
-        title: String,
-        body: String,
-    },
+    Notify { title: String, body: String },
 }
 
 impl TriggerAction {
@@ -478,16 +475,12 @@ impl TriggerEngine {
             max_fires: cfg.max_fires.map(|n| n as i64),
         };
         self.store.insert(&row)?;
-        let needs_worker = cfg.enabled && matches!(cfg.kind, TriggerKind::File | TriggerKind::Watch);
+        let needs_worker =
+            cfg.enabled && matches!(cfg.kind, TriggerKind::File | TriggerKind::Watch);
         let id = cfg.id.clone();
         self.config.write().insert(cfg.id.clone(), cfg);
         if needs_worker {
-            let cfg_snap = self
-                .config
-                .read()
-                .get(&id)
-                .cloned()
-                .expect("just inserted");
+            let cfg_snap = self.config.read().get(&id).cloned().expect("just inserted");
             match cfg_snap.kind {
                 TriggerKind::File => self.start_file_worker(&id, &cfg_snap),
                 TriggerKind::Watch => self.start_watch_worker(&id, &cfg_snap),
@@ -659,12 +652,9 @@ impl TriggerEngine {
         // 避免直接引用私有 task_local static(会触发 rustc metadata ICE)。
         let trigger_id_for_scope = trigger_id_owned.clone();
         tokio::spawn(async move {
-            let result = with_automation_trigger(
-                Some(trigger_id_for_scope),
-                async move {
-                    execute_action(&action, &skills, &swarm, &notify, &payload).await
-                },
-            )
+            let result = with_automation_trigger(Some(trigger_id_for_scope), async move {
+                execute_action(&action, &skills, &swarm, &notify, &payload).await
+            })
             .await;
             let (success, error_msg) = match result {
                 Ok(_) => (1i64, None),
@@ -679,7 +669,13 @@ impl TriggerEngine {
                 }
             };
             // 更新 DB:fire_count + last_fired_at,并写 fire_log。
-            if let Err(e) = store.record_fire(&trigger_id_owned, fired_at, success, error_msg.as_deref(), payload_str.as_deref()) {
+            if let Err(e) = store.record_fire(
+                &trigger_id_owned,
+                fired_at,
+                success,
+                error_msg.as_deref(),
+                payload_str.as_deref(),
+            ) {
                 warn!(
                     target: "nebula.triggers",
                     trigger_id = %trigger_id_owned,
@@ -853,7 +849,10 @@ pub fn swarm_event_to_payload(event: &SwarmEvent) -> serde_json::Value {
     let kind = swarm_event_kind_str(event);
     let mut payload = serde_json::to_value(event).unwrap_or(serde_json::json!({}));
     if let Some(obj) = payload.as_object_mut() {
-        obj.insert("event_kind".to_string(), serde_json::Value::String(kind.to_string()));
+        obj.insert(
+            "event_kind".to_string(),
+            serde_json::Value::String(kind.to_string()),
+        );
     }
     payload
 }
@@ -991,7 +990,8 @@ mod tests {
         let ok = SwarmEvent::agent_completed(AgentKind::Coder, "t1", true, None);
         assert!(message_condition_matches(&condition, &ok));
 
-        let fail = SwarmEvent::agent_completed(AgentKind::Coder, "t1", false, Some("err".to_string()));
+        let fail =
+            SwarmEvent::agent_completed(AgentKind::Coder, "t1", false, Some("err".to_string()));
         assert!(!message_condition_matches(&condition, &fail));
     }
 
@@ -1084,7 +1084,12 @@ mod tests {
             "agent_started"
         );
         assert_eq!(
-            swarm_event_kind_str(&SwarmEvent::agent_completed(AgentKind::Coder, "t", true, None)),
+            swarm_event_kind_str(&SwarmEvent::agent_completed(
+                AgentKind::Coder,
+                "t",
+                true,
+                None
+            )),
             "agent_completed"
         );
         assert_eq!(

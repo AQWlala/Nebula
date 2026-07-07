@@ -131,10 +131,14 @@ pub async fn evolution_run(
     app: tauri::AppHandle,
     master_id: Option<String>,
 ) -> Result<crate::evolution::engine::EvolutionResult, CommandError> {
-    let engine = state
-        .evolution_engine
-        .as_ref()
-        .ok_or_else(|| CommandError::internal("evolution_run", &anyhow::anyhow!("evolution engine not initialized — enable 'evolution-engine' feature")))?;
+    let engine = state.evolution_engine.as_ref().ok_or_else(|| {
+        CommandError::internal(
+            "evolution_run",
+            &anyhow::anyhow!(
+                "evolution engine not initialized — enable 'evolution-engine' feature"
+            ),
+        )
+    })?;
 
     let mid = master_id.unwrap_or_else(|| "default".to_string());
 

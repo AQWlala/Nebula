@@ -21,8 +21,7 @@ pub struct OAuthToken {
 impl OAuthToken {
     /// Returns `true` if the token has expired (with a 30s safety margin).
     pub fn is_expired(&self) -> bool {
-        chrono::Utc::now()
-            > self.expires_at - chrono::Duration::seconds(30)
+        chrono::Utc::now() > self.expires_at - chrono::Duration::seconds(30)
     }
 }
 
@@ -125,13 +124,8 @@ pub fn parse_token_response(json: &serde_json::Value) -> anyhow::Result<OAuthTok
         .ok_or_else(|| anyhow::anyhow!("token response missing access_token"))?
         .to_string();
     let refresh_token = json["refresh_token"].as_str().map(|s| s.to_string());
-    let scope = json["scope"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
-    let expires_in = json["expires_in"]
-        .as_u64()
-        .unwrap_or(3600);
+    let scope = json["scope"].as_str().unwrap_or("").to_string();
+    let expires_in = json["expires_in"].as_u64().unwrap_or(3600);
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(expires_in as i64);
     Ok(OAuthToken {
         access_token,

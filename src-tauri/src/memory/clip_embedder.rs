@@ -1,4 +1,4 @@
-﻿//! T-S6-B-01: CLIP 多模态嵌入 — 支持图片向量化和跨模态检索。
+//! T-S6-B-01: CLIP 多模态嵌入 — 支持图片向量化和跨模态检索。
 //!
 //! CLIP (Contrastive Language-Image Pre-training) 模型可以同时嵌入
 //! 文本和图片到同一个向量空间,实现"以图搜文"和"以文搜图"。
@@ -239,8 +239,7 @@ mod tests {
     #[test]
     fn trait_dim_and_model_name_via_box() {
         let client = OllamaClient::new("http://127.0.0.1:11434");
-        let emb: Box<dyn EmbedderTrait> =
-            Box::new(ClipEmbedder::new(client, "clip", 512));
+        let emb: Box<dyn EmbedderTrait> = Box::new(ClipEmbedder::new(client, "clip", 512));
         assert_eq!(emb.dim(), 512);
         assert_eq!(emb.model_name(), "clip");
     }

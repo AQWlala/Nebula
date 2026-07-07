@@ -1,4 +1,4 @@
-﻿//! T-E-S-27: Diagnostic events schema.
+//! T-E-S-27: Diagnostic events schema.
 //!
 //! 镜像 `swarm::events::SwarmEvent` 的设计:结构化枚举 + serde tag,
 //! 供前端通过 `tauri::ipc::Channel<DiagnosticEvent>` 订阅。
@@ -76,10 +76,7 @@ pub enum DiagnosticEvent {
         seq: u64,
     },
     /// 消费端 Lagged 时发出的元事件(容量 512 满了之后丢消息)。
-    Dropped {
-        count: u64,
-        seq: u64,
-    },
+    Dropped { count: u64, seq: u64 },
 }
 
 impl DiagnosticEvent {
@@ -228,9 +225,6 @@ mod tests {
             .seq(),
             42
         );
-        assert_eq!(
-            DiagnosticEvent::Dropped { count: 1, seq: 99 }.seq(),
-            99
-        );
+        assert_eq!(DiagnosticEvent::Dropped { count: 1, seq: 99 }.seq(), 99);
     }
 }

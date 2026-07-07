@@ -1,4 +1,4 @@
-﻿//! Swarm orchestrator — v2.0 jiuwenswarm-style dynamic agent dispatch.
+//! Swarm orchestrator — v2.0 jiuwenswarm-style dynamic agent dispatch.
 //!
 //! ## v2.0 redesign
 //!
@@ -36,7 +36,9 @@ use crate::memory::vector_store::VectorStore;
 use crate::memory::values::{ActionKind, ValuesLayer, Verdict};
 use crate::plan::{PendingGate, PlanEngine};
 
-use super::agents::{build_agent_pool, build_agent_pool_by_kinds, Agent, AgentKind, AgentOutput, DynamicAgentPool};
+use super::agents::{
+    build_agent_pool, build_agent_pool_by_kinds, Agent, AgentKind, AgentOutput, DynamicAgentPool,
+};
 use super::bus::AgentBus;
 use super::composer::SkillComposer;
 use super::context::TeamContext;
@@ -129,24 +131,60 @@ pub enum PreCheckResult {
 fn infer_action_kind(description: &str) -> ActionKind {
     let lower = description.to_lowercase();
     if lower.contains("删除") || lower.contains("delete") || lower.contains("remove") {
-        if lower.contains("批量") || lower.contains("全部") || lower.contains("所有") || lower.contains("all") {
+        if lower.contains("批量")
+            || lower.contains("全部")
+            || lower.contains("所有")
+            || lower.contains("all")
+        {
             ActionKind::BulkDelete
         } else {
             ActionKind::Delete
         }
-    } else if lower.contains("发送") || lower.contains("邮件") || lower.contains("send") || lower.contains("邮件") {
+    } else if lower.contains("发送")
+        || lower.contains("邮件")
+        || lower.contains("send")
+        || lower.contains("邮件")
+    {
         ActionKind::Send
-    } else if lower.contains("转账") || lower.contains("支付") || lower.contains("付款") || lower.contains("transfer") || lower.contains("pay") {
+    } else if lower.contains("转账")
+        || lower.contains("支付")
+        || lower.contains("付款")
+        || lower.contains("transfer")
+        || lower.contains("pay")
+    {
         ActionKind::Transfer
-    } else if lower.contains("执行") || lower.contains("shell") || lower.contains("bash") || lower.contains("cmd") || lower.contains("脚本") {
+    } else if lower.contains("执行")
+        || lower.contains("shell")
+        || lower.contains("bash")
+        || lower.contains("cmd")
+        || lower.contains("脚本")
+    {
         ActionKind::Execute
-    } else if lower.contains("curl") || lower.contains("wget") || lower.contains("http") || lower.contains("api") {
+    } else if lower.contains("curl")
+        || lower.contains("wget")
+        || lower.contains("http")
+        || lower.contains("api")
+    {
         ActionKind::Network
-    } else if lower.contains("读取") || lower.contains("查询") || lower.contains("read") || lower.contains("search") || lower.contains("查看") {
+    } else if lower.contains("读取")
+        || lower.contains("查询")
+        || lower.contains("read")
+        || lower.contains("search")
+        || lower.contains("查看")
+    {
         ActionKind::Read
-    } else if lower.contains("修改") || lower.contains("更新") || lower.contains("编辑") || lower.contains("update") || lower.contains("modify") {
+    } else if lower.contains("修改")
+        || lower.contains("更新")
+        || lower.contains("编辑")
+        || lower.contains("update")
+        || lower.contains("modify")
+    {
         ActionKind::Modify
-    } else if lower.contains("写入") || lower.contains("创建") || lower.contains("write") || lower.contains("create") {
+    } else if lower.contains("写入")
+        || lower.contains("创建")
+        || lower.contains("write")
+        || lower.contains("create")
+    {
         ActionKind::Write
     } else {
         ActionKind::Generic
@@ -224,7 +262,8 @@ pub struct SwarmOrchestrator {
     tool_registry: Arc<crate::tools::ToolRegistry>,
     /// T-E-S-39: persona 缓存(SOUL.md/AGENTS.md/TOOLS.md),供 execute()
     /// 注入到每个 agent 的 system prompt 前缀。由 set_persona 注入。
-    persona: parking_lot::Mutex<Option<Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>>>,
+    persona:
+        parking_lot::Mutex<Option<Arc<parking_lot::RwLock<crate::llm::persona::PersonaConfig>>>>,
     /// T-E-D-07: 按 task_id 索引的取消令牌,供 `swarm_cancel` 命令中断
     /// 正在执行的 swarm 任务。execute() 创建令牌并存入此表,任务结束
     /// (正常完成/失败/取消)后移除。用 parking_lot::Mutex(非重入)避免
@@ -575,7 +614,12 @@ impl SwarmOrchestrator {
         if !pool_history.is_empty() {
             let history_render = pool_history
                 .iter()
-                .map(|p| format!("- [{}] {}: {}", p.published_at, p.entry.author, p.entry.body))
+                .map(|p| {
+                    format!(
+                        "- [{}] {}: {}",
+                        p.published_at, p.entry.author, p.entry.body
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             ctx.push_str("system", "team_context_pool_history", &history_render);
@@ -588,7 +632,10 @@ impl SwarmOrchestrator {
         let count = if task.agent_count != default_agent_count() {
             task.agent_count.clamp(MIN_AGENTS, MAX_AGENTS) as usize
         } else {
-            let complexity = self.dynamic_pool.estimate_complexity(&task.description).await;
+            let complexity = self
+                .dynamic_pool
+                .estimate_complexity(&task.description)
+                .await;
             DynamicAgentPool::target_count_for(complexity)
         };
         let kinds: Vec<AgentKind> = if !task.agents.is_empty() {
@@ -685,11 +732,7 @@ impl SwarmOrchestrator {
                 ctx.push_str(
                     "system",
                     &format!("agent.{}.tool_set", agent.name()),
-                    &format!(
-                        "Available tools for {}: {}",
-                        agent.name(),
-                        tool_set_str
-                    ),
+                    &format!("Available tools for {}: {}", agent.name(), tool_set_str),
                 );
             }
         }
@@ -704,8 +747,10 @@ impl SwarmOrchestrator {
         // T-S1-B-02: emit AgentStarted 事件。
         let task_id_for_started = task_id.clone();
         for agent in &agents {
-            self.bus
-                .emit_event(SwarmEvent::agent_started(agent.kind(), &task_id_for_started));
+            self.bus.emit_event(SwarmEvent::agent_started(
+                agent.kind(),
+                &task_id_for_started,
+            ));
         }
 
         // Fan-out: run every agent concurrently.
@@ -729,11 +774,7 @@ impl SwarmOrchestrator {
                 let sender = event_sender.clone();
                 let tok = cancel_token.clone();
                 // T-E-D-10: 设置 swarm 上下文，让 agent 在 tool_loop 中能 emit 事件。
-                agent.set_swarm_context(
-                    sender.clone(),
-                    task_id.clone(),
-                    kind.as_str().to_string(),
-                );
+                agent.set_swarm_context(sender.clone(), task_id.clone(), kind.as_str().to_string());
                 tokio::spawn(async move {
                     // T-E-D-07: select! 让 agent 在被取消时立即中断,
                     // 返回 Cancelled 错误(不计入 retry)。
@@ -746,12 +787,8 @@ impl SwarmOrchestrator {
                         Ok(_output) => (true, None),
                         Err(e) => (false, Some(format!("{e}"))),
                     };
-                    let _ = sender.send(SwarmEvent::agent_completed(
-                        kind,
-                        &task_id,
-                        success,
-                        error,
-                    ));
+                    let _ =
+                        sender.send(SwarmEvent::agent_completed(kind, &task_id, success, error));
                     (agent_name, result)
                 })
             })
@@ -839,10 +876,8 @@ impl SwarmOrchestrator {
             }
 
             // T-S1-B-02: emit NegotiationStarted。
-            self.bus.emit_event(SwarmEvent::negotiation_started(
-                &task_id,
-                outputs.len(),
-            ));
+            self.bus
+                .emit_event(SwarmEvent::negotiation_started(&task_id, outputs.len()));
 
             let negotiator = crate::swarm::negotiator::Negotiator::new();
             // v2.1 修复 (EXPERT_REVIEW P0): 改用 negotiate_with_arbitration 触发 LLM 仲裁,
@@ -1033,10 +1068,8 @@ impl SwarmOrchestrator {
         let max_retries = task.max_retries;
 
         // 把 agent 与 config 配对(按索引)。
-        let paired: Vec<(Arc<dyn Agent>, ThoughtAgentConfig)> = agents
-            .into_iter()
-            .zip(configs)
-            .collect();
+        let paired: Vec<(Arc<dyn Agent>, ThoughtAgentConfig)> =
+            agents.into_iter().zip(configs).collect();
 
         let handles: Vec<_> = paired
             .into_iter()
@@ -1052,11 +1085,7 @@ impl SwarmOrchestrator {
                 let strategy = config.strategy;
                 let prefix = config.system_prompt_prefix.to_string();
                 // 设置 swarm 上下文(供 tool_loop emit 事件)。
-                agent.set_swarm_context(
-                    sender.clone(),
-                    task_id.clone(),
-                    kind.as_str().to_string(),
-                );
+                agent.set_swarm_context(sender.clone(), task_id.clone(), kind.as_str().to_string());
                 tokio::spawn(async move {
                     // 把思维视角前缀前置到任务描述,实现差异化注入。
                     let prefixed_task = format!("{prefix}\n\nTask:\n{t}");
@@ -1066,11 +1095,7 @@ impl SwarmOrchestrator {
                         r = Self::run_agent_with_retry(agent, &prefixed_task, &c, max_retries) => r,
                     };
                     // 不论成功/失败都 emit PathCompleted(携带 path_id + strategy)。
-                    let _ = sender.send(SwarmEvent::path_completed(
-                        &task_id,
-                        &path_id,
-                        strategy,
-                    ));
+                    let _ = sender.send(SwarmEvent::path_completed(&task_id, &path_id, strategy));
                     (agent_name, path_id, strategy, result)
                 })
             })
@@ -1362,8 +1387,13 @@ mod tests {
             "http://127.0.0.1:1",
             std::time::Duration::from_secs(2),
         ));
-        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(client, "m", "ollama", None, None, None, None, None));
-        let orch = SwarmOrchestrator::new_without_memory(gw, std::sync::Arc::new(crate::tools::ToolRegistry::new()));
+        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
+            client, "m", "ollama", None, None, None, None, None,
+        ));
+        let orch = SwarmOrchestrator::new_without_memory(
+            gw,
+            std::sync::Arc::new(crate::tools::ToolRegistry::new()),
+        );
         // agent_pool is pre-built with 6 agents — verify.
         assert_eq!(orch.agent_pool.len(), 6);
     }
@@ -1376,15 +1406,22 @@ mod tests {
             "http://127.0.0.1:1",
             std::time::Duration::from_secs(2),
         ));
-        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(client, "m", "ollama", None, None, None, None, None));
-        let orch = SwarmOrchestrator::new_without_memory(gw, std::sync::Arc::new(crate::tools::ToolRegistry::new()));
+        let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
+            client, "m", "ollama", None, None, None, None, None,
+        ));
+        let orch = SwarmOrchestrator::new_without_memory(
+            gw,
+            std::sync::Arc::new(crate::tools::ToolRegistry::new()),
+        );
 
         // 未知 task_id:返回 false。
         assert!(!orch.cancel("nonexistent-task"));
 
         // 手动登记一个 token(模拟 execute() 内部行为)并验证 cancel() 取消它。
         let tok = tokio_util::sync::CancellationToken::new();
-        orch.cancel_tokens.lock().insert("task-xyz".to_string(), tok.clone());
+        orch.cancel_tokens
+            .lock()
+            .insert("task-xyz".to_string(), tok.clone());
         assert!(orch.cancel("task-xyz"));
         // 取消后 token 的 cancelled() future 应立即就绪。
         tokio::select! {
@@ -1548,9 +1585,7 @@ mod tests {
         // 复杂度路径会调用 estimate_complexity,无论返回 Simple/Medium/Complex,
         // target_count_for 都在 {2, 3, 6} 中。失败 agent 数应等于 count。
         assert!(
-            report.failure_count == 2
-                || report.failure_count == 3
-                || report.failure_count == 6,
+            report.failure_count == 2 || report.failure_count == 3 || report.failure_count == 6,
             "complexity path should produce failure_count in {{2, 3, 6}}, got {}",
             report.failure_count
         );
@@ -1582,9 +1617,7 @@ mod tests {
             .await
             .expect("execute must return a report");
         assert!(
-            report.failure_count == 2
-                || report.failure_count == 3
-                || report.failure_count == 6,
+            report.failure_count == 2 || report.failure_count == 3 || report.failure_count == 6,
             "explicit agent_count=3 (== default) should still trigger complexity path, got {}",
             report.failure_count
         );

@@ -170,10 +170,10 @@ impl SelfReflectionEngine {
     pub fn persist_reflection(&self, reflection: &SelfReflection) -> Result<()> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();
-        let insights_json = serde_json::to_string(&reflection.insights)
-            .unwrap_or_else(|_| "[]".to_string());
-        let action_items_json = serde_json::to_string(&reflection.action_items)
-            .unwrap_or_else(|_| "[]".to_string());
+        let insights_json =
+            serde_json::to_string(&reflection.insights).unwrap_or_else(|_| "[]".to_string());
+        let action_items_json =
+            serde_json::to_string(&reflection.action_items).unwrap_or_else(|_| "[]".to_string());
         let related_ids_json = serde_json::to_string(&reflection.related_memory_ids)
             .unwrap_or_else(|_| "[]".to_string());
 
@@ -210,7 +210,10 @@ impl SelfReflectionEngine {
     ///
     /// 供 UI 历史回溯面板使用。返回 `(id, kind, title, content, created_at)`
     /// 元组；完整字段（insights/action_items）可通过 `get_self_reflection()` 获取。
-    pub fn list_recent_self_reflections(&self, limit: usize) -> Result<Vec<(String, String, String, String, i64)>> {
+    pub fn list_recent_self_reflections(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<(String, String, String, String, i64)>> {
         let conn = self.sqlite.raw_connection();
         let conn = conn.lock();
         let mut stmt = conn
@@ -236,10 +239,7 @@ impl SelfReflectionEngine {
     }
 
     /// 价值对齐反思：检查最近的记忆是否与 L4 价值观一致。
-    pub fn reflect_value_alignment(
-        &self,
-        recent: &[Memory],
-    ) -> Result<SelfReflection> {
+    pub fn reflect_value_alignment(&self, recent: &[Memory]) -> Result<SelfReflection> {
         let mut violations = Vec::new();
         let mut warnings = Vec::new();
         let mut ok_count = 0;
@@ -349,14 +349,8 @@ impl SelfReflectionEngine {
             return Ok(None);
         }
 
-        let success_count = outcomes
-            .iter()
-            .filter(|o| o.status == "success")
-            .count();
-        let fail_count = outcomes
-            .iter()
-            .filter(|o| o.status == "fail")
-            .count();
+        let success_count = outcomes.iter().filter(|o| o.status == "success").count();
+        let fail_count = outcomes.iter().filter(|o| o.status == "fail").count();
         let total = outcomes.len();
         let success_rate = if total == 0 {
             0.0
@@ -365,8 +359,12 @@ impl SelfReflectionEngine {
         };
 
         let mut insights = Vec::new();
-        insights.push(format!("近期任务成功率: {:.0}% ({}/{})",
-            success_rate * 100.0, success_count, total));
+        insights.push(format!(
+            "近期任务成功率: {:.0}% ({}/{})",
+            success_rate * 100.0,
+            success_count,
+            total
+        ));
 
         if success_rate >= 0.8 {
             insights.push("任务执行表现优秀，保持当前策略".to_string());
@@ -421,23 +419,14 @@ impl SelfReflectionEngine {
     }
 
     /// 自我改进反思：基于前两种反思生成改进计划。
-    pub fn reflect_self_improvement(
-        &self,
-        prior: &[SelfReflection],
-    ) -> Result<SelfReflection> {
-        let high_severity = prior
-            .iter()
-            .filter(|r| r.severity >= 0.7)
-            .count();
+    pub fn reflect_self_improvement(&self, prior: &[SelfReflection]) -> Result<SelfReflection> {
+        let high_severity = prior.iter().filter(|r| r.severity >= 0.7).count();
         let medium_severity = prior
             .iter()
             .filter(|r| r.severity >= 0.4 && r.severity < 0.7)
             .count();
 
-        let all_actions: Vec<String> = prior
-            .iter()
-            .flat_map(|r| r.action_items.clone())
-            .collect();
+        let all_actions: Vec<String> = prior.iter().flat_map(|r| r.action_items.clone()).collect();
 
         let mut insights = Vec::new();
         insights.push(format!(
@@ -592,10 +581,7 @@ mod tests {
             n
         ));
         let store = Arc::new(SqliteStore::open(&p).unwrap());
-        crate::memory::migration::run_bundled_migrations(
-            &store.raw_connection().lock(),
-        )
-        .unwrap();
+        crate::memory::migration::run_bundled_migrations(&store.raw_connection().lock()).unwrap();
         (p, store)
     }
 
@@ -619,7 +605,11 @@ mod tests {
     }
 
     fn make_engine(store: Arc<SqliteStore>) -> SelfReflectionEngine {
-        SelfReflectionEngine::new(store, ValuesLayer::with_defaults(), ReflectConfig::default())
+        SelfReflectionEngine::new(
+            store,
+            ValuesLayer::with_defaults(),
+            ReflectConfig::default(),
+        )
     }
 
     #[test]
@@ -673,14 +663,18 @@ mod tests {
     fn list_recent_self_reflections_returns_descending_order() {
         let (p, store) = temp_db();
         let engine = make_engine(store);
-        engine.persist_reflection(&dummy_reflection(ReflectionKind::ValueAlignment, "first")).unwrap();
+        engine
+            .persist_reflection(&dummy_reflection(ReflectionKind::ValueAlignment, "first"))
+            .unwrap();
         // M7b #90 分类 A: persist_reflection 用 chrono::Utc::now().timestamp()(秒级精度),
         // list_recent_self_reflections 用 ORDER BY created_at DESC。同秒插入会导致
         // 顺序不稳定。sleep(1100ms) 确保第二条时间戳严格大于第一条。
         std::thread::sleep(std::time::Duration::from_millis(1100));
         // 模拟时间差：手动插入第二条（更新 created_at 会不同，但 persist_reflection 用 now()）
         // 由于两条插入时间接近，我们通过数量验证而非严格时间排序。
-        engine.persist_reflection(&dummy_reflection(ReflectionKind::OutcomeReview, "second")).unwrap();
+        engine
+            .persist_reflection(&dummy_reflection(ReflectionKind::OutcomeReview, "second"))
+            .unwrap();
 
         let rows = engine.list_recent_self_reflections(10).unwrap();
         assert_eq!(rows.len(), 2);

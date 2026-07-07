@@ -27,8 +27,7 @@ use crate::AppState;
 /// 内部辅助:从 AppState 构造 `InboxStore`(只读路径用)。
 fn build_store(state: &AppState) -> Result<InboxStore, CommandError> {
     let conn = state.sqlite.raw_connection();
-    InboxStore::new(conn)
-        .map_err(|e| CommandError::db("inbox_store_init", &anyhow::anyhow!("{e}")))
+    InboxStore::new(conn).map_err(|e| CommandError::db("inbox_store_init", &anyhow::anyhow!("{e}")))
 }
 
 /// 内部辅助:从 AppState 构造 `InboxManager`(出站路径用)。

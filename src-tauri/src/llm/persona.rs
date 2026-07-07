@@ -1,4 +1,4 @@
-﻿//! T-E-S-39: SOUL.md / AGENTS.md / TOOLS.md persona injection.
+//! T-E-S-39: SOUL.md / AGENTS.md / TOOLS.md persona injection.
 //!
 //! Reads up to three Markdown files from the workspace root and
 //! assembles them into an XML-tagged system-prompt prefix that is
@@ -236,10 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_reads_existing_files() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula-persona-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("nebula-persona-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("SOUL.md"), "soul-content").unwrap();
 

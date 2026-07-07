@@ -1,4 +1,4 @@
-﻿//! T-S4-A-03: 蜂群内 CRDT 同步 — Agent 间通过 AgentBus 传播 CRDT 操作。
+//! T-S4-A-03: 蜂群内 CRDT 同步 — Agent 间通过 AgentBus 传播 CRDT 操作。
 //!
 //! 复用 [`crate::sync::crdt::CrdtEngine`] 的 LWW(Last-Writer-Wins)合并语义,
 //! 在 swarm 内部维护一个 `memory_id -> CrdtVersion` 的本地副本。当任一 agent
@@ -114,7 +114,9 @@ impl SwarmCrdtSync {
         };
 
         // 存入本地副本。
-        self.versions.write().insert(memory_id.to_string(), version.clone());
+        self.versions
+            .write()
+            .insert(memory_id.to_string(), version.clone());
 
         // 广播到 AgentBus(序列化为 JSON 放入 content)。
         let payload = serde_json::to_string(&version).unwrap_or_else(|e| {
@@ -154,7 +156,10 @@ impl SwarmCrdtSync {
     #[instrument(target = "nebula.swarm.crdt", skip(self, remote), fields(otel.kind = "crdt", memory_id = %remote.memory_id))]
     pub fn merge_remote(&self, remote: CrdtVersion, from: &str) -> bool {
         // ACL 检查:写权限。
-        if !self.acl.check(from, &remote.memory_id, AclPermission::Write) {
+        if !self
+            .acl
+            .check(from, &remote.memory_id, AclPermission::Write)
+        {
             warn!(
                 target: "nebula.swarm.crdt",
                 agent = %from,
@@ -194,7 +199,10 @@ impl SwarmCrdtSync {
     ///
     /// 仍受 ACL Write 权限检查。
     pub fn merge_remote_fields(&self, remote: CrdtVersion, from: &str) -> bool {
-        if !self.acl.check(from, &remote.memory_id, AclPermission::Write) {
+        if !self
+            .acl
+            .check(from, &remote.memory_id, AclPermission::Write)
+        {
             warn!(
                 target: "nebula.swarm.crdt",
                 agent = %from,

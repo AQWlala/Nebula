@@ -64,10 +64,7 @@ pub async fn sidecar_list_status(
 /// 手动启动指定 sidecar。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "sidecar_start"))]
-pub async fn sidecar_start(
-    state: State<'_, AppState>,
-    kind: String,
-) -> Result<bool, CommandError> {
+pub async fn sidecar_start(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
         .sidecar_manager
@@ -80,10 +77,7 @@ pub async fn sidecar_start(
 /// 手动停止指定 sidecar。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "sidecar_stop"))]
-pub async fn sidecar_stop(
-    state: State<'_, AppState>,
-    kind: String,
-) -> Result<bool, CommandError> {
+pub async fn sidecar_stop(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
         .sidecar_manager

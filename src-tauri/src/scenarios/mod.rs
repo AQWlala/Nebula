@@ -279,7 +279,11 @@ mod tests {
 
         // manager-base:含 planner + researcher(spec 强制要求)。
         let manager_base = engine.get_by_id("manager-base").expect("manager-base");
-        let kinds: Vec<&str> = manager_base.agents.iter().map(|a| a.kind.as_str()).collect();
+        let kinds: Vec<&str> = manager_base
+            .agents
+            .iter()
+            .map(|a| a.kind.as_str())
+            .collect();
         assert!(
             kinds.contains(&"planner"),
             "manager-base must contain a planner agent"
@@ -298,9 +302,17 @@ mod tests {
         for t in engine.list() {
             assert!(!t.id.is_empty(), "template id empty");
             assert!(!t.name.is_empty(), "template {} name empty", t.id);
-            assert!(!t.description.is_empty(), "template {} description empty", t.id);
+            assert!(
+                !t.description.is_empty(),
+                "template {} description empty",
+                t.id
+            );
             assert!(!t.agents.is_empty(), "template {} agents empty", t.id);
-            assert!(!t.system_prompt.is_empty(), "template {} system_prompt empty", t.id);
+            assert!(
+                !t.system_prompt.is_empty(),
+                "template {} system_prompt empty",
+                t.id
+            );
             assert!(
                 !t.user_prompt_template.is_empty(),
                 "template {} user_prompt_template empty",

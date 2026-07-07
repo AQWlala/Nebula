@@ -50,12 +50,7 @@ const CONFIRMATION_TIMEOUT_MS: i64 = 5 * 60 * 1000;
 
 impl ConfirmationTracker {
     /// 创建一个准奏请求。
-    pub fn create(
-        &self,
-        action: &str,
-        risk: &str,
-        action_kind: ActionKind,
-    ) -> ConfirmationRequest {
+    pub fn create(&self, action: &str, risk: &str, action_kind: ActionKind) -> ConfirmationRequest {
         let req = ConfirmationRequest {
             id: new_id(),
             action: action.to_string(),

@@ -168,8 +168,7 @@ impl SqliteStore {
         const SCHEMA: &str = include_str!("../../migrations/001_initial.sql");
         conn.execute_batch(SCHEMA)
             .context("applying initial migration")?;
-        super::migration::run_bundled_migrations(&conn)
-            .context("applying pending migrations")?;
+        super::migration::run_bundled_migrations(&conn).context("applying pending migrations")?;
 
         info!(
             target: "nebula.memory",
@@ -545,11 +544,7 @@ impl SqliteStore {
     ///
     /// SQL 形如 `WHERE id IN (...) AND compressed_from IS NULL AND domain = ?`,
     /// 占位符顺序为 `[id_1, id_2, ..., id_n, domain]`。
-    pub async fn get_many_in_domain(
-        &self,
-        ids: &[String],
-        domain: &str,
-    ) -> Result<Vec<Memory>> {
+    pub async fn get_many_in_domain(&self, ids: &[String], domain: &str) -> Result<Vec<Memory>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -662,11 +657,7 @@ impl SqliteStore {
     /// M2a #31: 与 [`list_recent`](Self::list_recent) 相同,但额外按 `domain`
     /// 过滤。供 M2b ACL 的 query-time 过滤使用 —— 旧的 `list_recent` 保留
     /// 为跨域查询(向后兼容),新代码应优先使用本方法以避免 post-filter 开销。
-    pub async fn list_recent_in_domain(
-        &self,
-        domain: &str,
-        limit: usize,
-    ) -> Result<Vec<Memory>> {
+    pub async fn list_recent_in_domain(&self, domain: &str, limit: usize) -> Result<Vec<Memory>> {
         let conn = self.conn.clone();
         let domain_owned = domain.to_string();
 
@@ -888,7 +879,10 @@ impl SqliteStore {
                 ))
                 .map_err(|e| anyhow!("sqlite prepare error: {e}"))?;
             let rows = stmt
-                .query_map(params![layer_str, domain_owned, limit as i64], row_to_memory)
+                .query_map(
+                    params![layer_str, domain_owned, limit as i64],
+                    row_to_memory,
+                )
                 .map_err(|e| anyhow!("sqlite query error: {e}"))?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| anyhow!("sqlite row error: {e}"))?;
@@ -1545,7 +1539,11 @@ mod tests {
 
         // 跨域查询(旧方法,向后兼容):返回全部 3 条
         let all = store.list_recent(100).await.unwrap();
-        assert_eq!(all.len(), 3, "list_recent (no domain filter) must return all 3");
+        assert_eq!(
+            all.len(),
+            3,
+            "list_recent (no domain filter) must return all 3"
+        );
 
         // agent_a 域查询:仅返回 1 条
         let agent_a_only = store.list_recent_in_domain("agent_a", 100).await.unwrap();
@@ -1558,7 +1556,10 @@ mod tests {
         assert_eq!(shared_only[0].id, "shared-1");
 
         // 不存在的域:返回 0 条
-        let empty = store.list_recent_in_domain("nonexistent", 100).await.unwrap();
+        let empty = store
+            .list_recent_in_domain("nonexistent", 100)
+            .await
+            .unwrap();
         assert!(empty.is_empty());
 
         let _ = std::fs::remove_file(path);
@@ -1574,7 +1575,10 @@ mod tests {
             "test content",
             SourceKind::UserInput,
         );
-        assert_eq!(m.domain, "shared", "Memory::new() must default domain to 'shared'");
+        assert_eq!(
+            m.domain, "shared",
+            "Memory::new() must default domain to 'shared'"
+        );
     }
 
     #[tokio::test]

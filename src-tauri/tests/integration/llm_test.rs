@@ -1,4 +1,4 @@
-﻿//! Integration tests that require a running Ollama server.
+//! Integration tests that require a running Ollama server.
 //!
 //! These tests are gated behind both `#[ignore]` (so they don't run
 //! on a default `cargo test`) **and** the `OLLAMA_TEST=1` env var (so
@@ -72,8 +72,7 @@ async fn real_embed_against_ollama() {
         return;
     }
     let client = std::sync::Arc::new(OllamaClient::new(OLLAMA_URL));
-    let embedder =
-        nebula_lib::memory::embedder::Embedder::new((*client).clone(), EMBED_MODEL, 768);
+    let embedder = nebula_lib::memory::embedder::Embedder::new((*client).clone(), EMBED_MODEL, 768);
     let vec = tokio::time::timeout(Duration::from_secs(60), embedder.embed("hello world"))
         .await
         .expect("embed timeout (60s)")

@@ -49,16 +49,9 @@ pub enum CostDecision {
     /// 允许调用。
     Allow,
     /// 任务级 token 上限已达。
-    TaskLimitExceeded {
-        used: u64,
-        added: u64,
-        limit: u64,
-    },
+    TaskLimitExceeded { used: u64, added: u64, limit: u64 },
     /// 每日远端调用次数上限已达。
-    DailyLimitExceeded {
-        today_count: u32,
-        limit: u32,
-    },
+    DailyLimitExceeded { today_count: u32, limit: u32 },
 }
 
 impl CostDecision {
@@ -198,11 +191,7 @@ mod tests {
         // used=8000 + added=3000 = 11000 > 10000
         let d = p.check(false, IS_LOCAL_ONLY_FALSE, 8000, 3000, 0);
         match d {
-            CostDecision::TaskLimitExceeded {
-                used,
-                added,
-                limit,
-            } => {
+            CostDecision::TaskLimitExceeded { used, added, limit } => {
                 assert_eq!(used, 8000);
                 assert_eq!(added, 3000);
                 assert_eq!(limit, 10000);
@@ -225,10 +214,7 @@ mod tests {
         // today_count=100 >= 100 → 拒绝
         let d = p.check(false, IS_LOCAL_ONLY_FALSE, 0, 0, 100);
         match d {
-            CostDecision::DailyLimitExceeded {
-                today_count,
-                limit,
-            } => {
+            CostDecision::DailyLimitExceeded { today_count, limit } => {
                 assert_eq!(today_count, 100);
                 assert_eq!(limit, 100);
             }

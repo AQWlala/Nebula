@@ -1,4 +1,4 @@
-﻿//! Swarm commands — execute, list agents, get agent.
+//! Swarm commands — execute, list agents, get agent.
 
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -100,9 +100,9 @@ pub async fn subscribe_events(
         match rx.recv().await {
             Ok(envelope) => {
                 // 将 EventEnvelope<SwarmEvent> 转为 EventEnvelope<serde_json::Value>
-                let value = serde_json::to_value(&envelope)
-                    .ok()
-                    .and_then(|v| serde_json::from_value::<crate::swarm::EventEnvelope<serde_json::Value>>(v).ok());
+                let value = serde_json::to_value(&envelope).ok().and_then(|v| {
+                    serde_json::from_value::<crate::swarm::EventEnvelope<serde_json::Value>>(v).ok()
+                });
                 if let Some(v) = value {
                     if on_event.send(v).is_err() {
                         break;
@@ -157,9 +157,7 @@ pub async fn swarm_cancel(
 /// T-E-S-05: 查询死锁检测状态。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "deadlock_status"))]
-pub async fn deadlock_status(
-    state: State<'_, AppState>,
-) -> Result<DeadlockStatus, CommandError> {
+pub async fn deadlock_status(state: State<'_, AppState>) -> Result<DeadlockStatus, CommandError> {
     Ok(state.deadlock_detector.status())
 }
 

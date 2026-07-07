@@ -175,7 +175,11 @@ mod tests {
 
         // 大小写不敏感。
         let hits = reg.match_by_intent("FILE");
-        assert_eq!(hits.len(), 1, "intent 'FILE' should match case-insensitively");
+        assert_eq!(
+            hits.len(),
+            1,
+            "intent 'FILE' should match case-insensitively"
+        );
 
         // 无命中。
         assert!(reg.match_by_intent("nonexistent").is_empty());
@@ -213,8 +217,7 @@ mod tests {
         let all = reg.list_all();
         assert_eq!(all.len(), 3, "should have 3 registered capabilities");
         // list_all 返回引用,顺序由 HashMap 决定,故只检查数量与 id 集合。
-        let ids: std::collections::HashSet<&str> =
-            all.iter().map(|c| c.id.as_str()).collect();
+        let ids: std::collections::HashSet<&str> = all.iter().map(|c| c.id.as_str()).collect();
         assert!(ids.contains("file:read"));
         assert!(ids.contains("network"));
         assert!(ids.contains("llm:call"));

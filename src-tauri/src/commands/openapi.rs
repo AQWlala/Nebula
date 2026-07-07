@@ -34,12 +34,11 @@ pub async fn openapi_register_tools(
     spec: String,
     bearer_token: Option<String>,
 ) -> Result<usize, CommandError> {
-    let mut server = OpenApiToolServer::from_spec(&spec)
-        .map_err(|e| CommandError {
-            code: ErrorCode::Internal,
-            message: "OpenAPI spec parse failed".to_string(),
-            details: Some(e.to_string()),
-        })?;
+    let mut server = OpenApiToolServer::from_spec(&spec).map_err(|e| CommandError {
+        code: ErrorCode::Internal,
+        message: "OpenAPI spec parse failed".to_string(),
+        details: Some(e.to_string()),
+    })?;
     if let Some(token) = bearer_token {
         server = server.with_auth(OpenApiAuth::Bearer(token));
     }

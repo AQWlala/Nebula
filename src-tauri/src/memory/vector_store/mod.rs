@@ -219,16 +219,11 @@ mod tests {
     /// Lance 后端默认可用(无 feature gate),工厂返回 trait 对象。
     #[tokio::test]
     async fn factory_lance_default() {
-        let path = std::env::temp_dir()
-            .join(format!("nebula_vs_factory_lance_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(
-            VectorStoreBackend::Lance,
-            path.to_str().unwrap(),
-            4,
-            None,
-        )
-        .await
-        .expect("Lance backend should build without feature flag");
+        let path =
+            std::env::temp_dir().join(format!("nebula_vs_factory_lance_{}", uuid::Uuid::new_v4()));
+        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().unwrap(), 4, None)
+            .await
+            .expect("Lance backend should build without feature flag");
         assert_eq!(store.dim(), 4);
         assert_eq!(store.path(), path.to_str().unwrap());
         assert_eq!(store.len().await, 0);
@@ -283,16 +278,10 @@ mod tests {
     /// batch_upsert 默认逐条 upsert,语义等价。
     #[tokio::test]
     async fn batch_upsert_default_impl_equivalent_to_loop() {
-        let path = std::env::temp_dir()
-            .join(format!("nebula_vs_batch_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(
-            VectorStoreBackend::Lance,
-            path.to_str().unwrap(),
-            4,
-            None,
-        )
-        .await
-        .unwrap();
+        let path = std::env::temp_dir().join(format!("nebula_vs_batch_{}", uuid::Uuid::new_v4()));
+        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().unwrap(), 4, None)
+            .await
+            .unwrap();
         let ids = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         let vecs = vec![
             vec![1.0, 0.0, 0.0, 0.0],
@@ -307,16 +296,11 @@ mod tests {
     /// batch_upsert 长度不匹配返回 Err。
     #[tokio::test]
     async fn batch_upsert_length_mismatch_errors() {
-        let path = std::env::temp_dir()
-            .join(format!("nebula_vs_batch_mismatch_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(
-            VectorStoreBackend::Lance,
-            path.to_str().unwrap(),
-            4,
-            None,
-        )
-        .await
-        .unwrap();
+        let path =
+            std::env::temp_dir().join(format!("nebula_vs_batch_mismatch_{}", uuid::Uuid::new_v4()));
+        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().unwrap(), 4, None)
+            .await
+            .unwrap();
         let ids = vec!["a".to_string(), "b".to_string()];
         let vecs = vec![vec![1.0, 0.0, 0.0, 0.0]];
         let err = store.batch_upsert(&ids, &vecs).await;
@@ -329,16 +313,10 @@ mod tests {
     /// Lance 后端的 search_with_filter 默认返回 Err(无 metadata 列)。
     #[tokio::test]
     async fn search_with_filter_default_errors() {
-        let path = std::env::temp_dir()
-            .join(format!("nebula_vs_filter_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(
-            VectorStoreBackend::Lance,
-            path.to_str().unwrap(),
-            4,
-            None,
-        )
-        .await
-        .unwrap();
+        let path = std::env::temp_dir().join(format!("nebula_vs_filter_{}", uuid::Uuid::new_v4()));
+        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().unwrap(), 4, None)
+            .await
+            .unwrap();
         let err = store
             .search_with_filter(&[1.0, 0.0, 0.0, 0.0], 1, "id = 'a'")
             .await;

@@ -15,8 +15,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::swarm::{AgentKind, NegotiationMethod};
 use crate::swarm::tot::ThoughtStrategy;
+use crate::swarm::{AgentKind, NegotiationMethod};
 
 // ---------------------------------------------------------------------------
 // T-E-S-26: EventEnvelope — 统一协议包装(event_type / payload / trace_id / timestamp)
@@ -307,10 +307,7 @@ impl SwarmEvent {
 
     /// T-E-S-05: 死锁检测事件构造函数。
     pub fn deadlock_detected(cycle: Vec<String>, detected_at: i64) -> Self {
-        Self::DeadlockDetected {
-            cycle,
-            detected_at,
-        }
+        Self::DeadlockDetected { cycle, detected_at }
     }
 
     /// T-E-B-18: 思维树启动事件构造函数。
@@ -462,7 +459,10 @@ mod tests {
     fn tree_of_thoughts_started_serializes() {
         let evt = SwarmEvent::tree_of_thoughts_started("task-tot-1", 4);
         let s = serde_json::to_string(&evt).unwrap();
-        assert!(s.contains("\"kind\":\"tree_of_thoughts_started\""), "got: {s}");
+        assert!(
+            s.contains("\"kind\":\"tree_of_thoughts_started\""),
+            "got: {s}"
+        );
         assert!(s.contains("\"task_id\":\"task-tot-1\""));
         assert!(s.contains("\"branches\":4"));
         assert!(s.contains("\"timestamp\":"));
@@ -507,7 +507,10 @@ mod tests {
         let envelope = EventEnvelope::wrap_with_variant(evt);
         assert_eq!(envelope.event_type, "AgentStarted");
         assert!(envelope.timestamp > 0, "timestamp should be positive");
-        assert!(!envelope.trace_id.is_empty(), "trace_id should not be empty");
+        assert!(
+            !envelope.trace_id.is_empty(),
+            "trace_id should not be empty"
+        );
         // payload should be AgentStarted variant
         match &envelope.payload {
             SwarmEvent::AgentStarted { task_id, .. } => {
@@ -524,7 +527,11 @@ mod tests {
         let evt = SwarmEvent::agent_completed(AgentKind::Writer, "t-fallback", true, None);
         let envelope = EventEnvelope::wrap_with_variant(evt);
         // 无 OTel 时 trace_id 为 UUID v4 去连字符(32 字符 hex)
-        assert_eq!(envelope.trace_id.len(), 32, "fallback trace_id should be 32 hex chars");
+        assert_eq!(
+            envelope.trace_id.len(),
+            32,
+            "fallback trace_id should be 32 hex chars"
+        );
         assert!(
             envelope.trace_id.chars().all(|c| c.is_ascii_hexdigit()),
             "fallback trace_id should be hex: got {}",

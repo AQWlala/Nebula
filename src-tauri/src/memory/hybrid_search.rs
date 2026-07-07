@@ -154,10 +154,7 @@ impl HybridSearcher {
         // 7: hydrate ids into full Memory entries.
         let ids: Vec<String> = ranked.iter().map(|(id, _)| id.clone()).collect();
         let memories = self.sqlite.get_many(&ids).await.unwrap_or_default();
-        let mem_map: HashMap<&str, &Memory> = memories
-            .iter()
-            .map(|m| (m.id.as_str(), m))
-            .collect();
+        let mem_map: HashMap<&str, &Memory> = memories.iter().map(|m| (m.id.as_str(), m)).collect();
 
         let mut out: Vec<(Memory, f64)> = Vec::with_capacity(ranked.len());
         for (id, score) in ranked {
@@ -180,10 +177,7 @@ fn normalise_scores(hits: Vec<(String, f64)>) -> HashMap<String, f64> {
     if hits.is_empty() {
         return HashMap::new();
     }
-    let min = hits
-        .iter()
-        .map(|(_, s)| *s)
-        .fold(f64::INFINITY, f64::min);
+    let min = hits.iter().map(|(_, s)| *s).fold(f64::INFINITY, f64::min);
     let max = hits
         .iter()
         .map(|(_, s)| *s)
@@ -214,10 +208,7 @@ mod tests {
     /// retriever that feeds into hybrid fusion.
     #[tokio::test]
     async fn vector_search_returns_nearest_first() {
-        let path = std::env::temp_dir().join(format!(
-            "nebula_hybrid_vec_{}",
-            uuid::Uuid::new_v4()
-        ));
+        let path = std::env::temp_dir().join(format!("nebula_hybrid_vec_{}", uuid::Uuid::new_v4()));
         let store = LanceStore::open(&path, 4).await.unwrap();
         store.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.unwrap();
         store.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.unwrap();
@@ -262,10 +253,7 @@ mod tests {
     /// to `1.0` (avoids division by zero).
     #[test]
     fn normalise_scores_handles_uniform_input() {
-        let hits = vec![
-            ("a".to_string(), 3.5),
-            ("b".to_string(), 3.5),
-        ];
+        let hits = vec![("a".to_string(), 3.5), ("b".to_string(), 3.5)];
         let norm = normalise_scores(hits);
         assert!((norm["a"] - 1.0).abs() < 1e-9);
         assert!((norm["b"] - 1.0).abs() < 1e-9);
@@ -300,17 +288,11 @@ mod tests {
         // Simulate normalised scores from both retrievers with one
         // overlapping id ("shared").
         let bm25_scores: HashMap<String, f64> = {
-            let hits = vec![
-                ("shared".to_string(), 0.8),
-                ("bm25-only".to_string(), 0.5),
-            ];
+            let hits = vec![("shared".to_string(), 0.8), ("bm25-only".to_string(), 0.5)];
             normalise_scores(hits)
         };
         let vec_scores: HashMap<String, f64> = {
-            let hits = vec![
-                ("shared".to_string(), 0.6),
-                ("vec-only".to_string(), 0.9),
-            ];
+            let hits = vec![("shared".to_string(), 0.6), ("vec-only".to_string(), 0.9)];
             normalise_scores(hits)
         };
 
@@ -330,7 +312,11 @@ mod tests {
         }
 
         // Three unique ids (deduplication removed the duplicate "shared").
-        assert_eq!(fused.len(), 3, "expected 3 unique ids after dedup: {fused:?}");
+        assert_eq!(
+            fused.len(),
+            3,
+            "expected 3 unique ids after dedup: {fused:?}"
+        );
         assert!(fused.contains_key("shared"));
         assert!(fused.contains_key("bm25-only"));
         assert!(fused.contains_key("vec-only"));

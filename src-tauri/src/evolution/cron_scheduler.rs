@@ -163,7 +163,11 @@ impl CronScheduler {
             // 快照任务列表,检查哪些该执行。
             let due: Vec<CronTask> = {
                 let tasks = self.tasks.lock();
-                tasks.iter().filter(|t| t.should_run(now)).cloned().collect()
+                tasks
+                    .iter()
+                    .filter(|t| t.should_run(now))
+                    .cloned()
+                    .collect()
             };
 
             for task in due {
@@ -353,7 +357,13 @@ mod tests {
         let scheduler = CronScheduler::new(None, "user1".to_string());
         assert!(scheduler.set_task_enabled("memory-merge", false));
         let tasks = scheduler.list_tasks();
-        assert!(!tasks.iter().find(|t| t.name == "memory-merge").unwrap().enabled);
+        assert!(
+            !tasks
+                .iter()
+                .find(|t| t.name == "memory-merge")
+                .unwrap()
+                .enabled
+        );
     }
 
     #[test]

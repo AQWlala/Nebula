@@ -208,7 +208,10 @@ impl EvolutionLog {
     ///
     /// 通过简单的 Markdown 解析（查找 `## [<entry_id>]` 标记）。
     /// 找不到返回 None。
-    pub fn find_entry(&self, entry_id: &str) -> Result<Option<EvolutionLogEntry>, EvolutionLogError> {
+    pub fn find_entry(
+        &self,
+        entry_id: &str,
+    ) -> Result<Option<EvolutionLogEntry>, EvolutionLogError> {
         let content = self.read_all()?;
         if content.is_empty() {
             return Ok(None);
@@ -361,12 +364,7 @@ mod tests {
 
     #[test]
     fn entry_to_markdown_roundtrip() {
-        let entry = EvolutionLogEntry::new(
-            EvolutionPhase::Extract,
-            "agent_a",
-            "mem-123",
-            1024,
-        );
+        let entry = EvolutionLogEntry::new(EvolutionPhase::Extract, "agent_a", "mem-123", 1024);
         let md = entry.to_markdown();
         assert!(md.contains("Phase: extract"));
         assert!(md.contains("master_id: agent_a"));
@@ -377,13 +375,8 @@ mod tests {
 
     #[test]
     fn entry_with_soul_md_path_serializes() {
-        let entry = EvolutionLogEntry::new(
-            EvolutionPhase::Soul,
-            "agent_a",
-            "",
-            512,
-        )
-        .with_soul_md_path("/path/to/SOUL.md");
+        let entry = EvolutionLogEntry::new(EvolutionPhase::Soul, "agent_a", "", 512)
+            .with_soul_md_path("/path/to/SOUL.md");
         let md = entry.to_markdown();
         assert!(md.contains("memory_id: (none)"));
         assert!(md.contains("soul_md_path: /path/to/SOUL.md"));

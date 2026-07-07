@@ -87,10 +87,7 @@ impl ReflectionServiceHandler {
     /// 返回 `(id, kind, title, content, created_at)` 元组列表,
     /// 供 UI 历史回溯面板使用。
     #[instrument(skip(self), fields(limit = limit))]
-    pub fn list_recent(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<(String, String, String, String, i64)>> {
+    pub fn list_recent(&self, limit: usize) -> Result<Vec<(String, String, String, String, i64)>> {
         self.engine.list_recent_self_reflections(limit)
     }
 
@@ -148,14 +145,20 @@ mod tests {
         // 无近期记忆时 reflect_all 应返回空 Vec(不报错)。
         let h = make_handler();
         let results = h.reflect_all().await.expect("reflect_all should succeed");
-        assert!(results.is_empty(), "expected no reflections without memories");
+        assert!(
+            results.is_empty(),
+            "expected no reflections without memories"
+        );
     }
 
     #[test]
     fn list_recent_returns_empty_initially() {
         let h = make_handler();
         let rows = h.list_recent(10).expect("list_recent should succeed");
-        assert!(rows.is_empty(), "expected no persisted reflections initially");
+        assert!(
+            rows.is_empty(),
+            "expected no persisted reflections initially"
+        );
     }
 
     #[test]
@@ -171,7 +174,8 @@ mod tests {
             severity: 0.3,
             related_memory_ids: vec![],
         };
-        h.persist_reflection(&reflection).expect("persist should succeed");
+        h.persist_reflection(&reflection)
+            .expect("persist should succeed");
         let rows = h.list_recent(10).expect("list_recent should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1, "value_alignment");

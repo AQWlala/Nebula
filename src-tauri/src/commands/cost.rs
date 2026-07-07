@@ -1,4 +1,4 @@
-﻿//! T-E-A-08 / T-E-A-12: 费用报告命令。
+//! T-E-A-08 / T-E-A-12: 费用报告命令。
 //!
 //! 提供 `cost_report` Tauri 命令,返回按模型或来源聚合的费用明细,
 //! 供前端 CreditsDashboard 复用。CLI 模式(`nebula cost report`)
@@ -10,9 +10,9 @@
 use tauri::State;
 use tracing::instrument;
 
-use crate::AppState;
 use crate::commands::error::CommandError;
 use crate::llm::cost_tracker::{ModelCostRow, SourceBucket};
+use crate::AppState;
 
 /// T-E-A-12: cost_report 返回的聚合结果。
 ///

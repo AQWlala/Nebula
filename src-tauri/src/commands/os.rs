@@ -1,4 +1,4 @@
-﻿//! OS commands — clipboard, shell, notify.
+//! OS commands — clipboard, shell, notify.
 
 use std::path::PathBuf;
 
@@ -187,12 +187,9 @@ pub async fn screenshot() -> Result<String, String> {
         // 原始像素字节(&Vec<u8>),clone 后用我们自己的 image 0.25 重建 RgbaImage,
         // 这样跨 image crate 版本也能工作。
         let img = screen.capture().map_err(|e| e.to_string())?;
-        let rgba: image::RgbaImage = image::ImageBuffer::from_raw(
-            img.width(),
-            img.height(),
-            img.as_raw().clone(),
-        )
-        .ok_or("failed to construct RgbaImage from raw RGBA bytes".to_string())?;
+        let rgba: image::RgbaImage =
+            image::ImageBuffer::from_raw(img.width(), img.height(), img.as_raw().clone())
+                .ok_or("failed to construct RgbaImage from raw RGBA bytes".to_string())?;
         // 编码为 PNG,再 base64 包装。
         let mut buf = std::io::Cursor::new(Vec::<u8>::new());
         rgba.write_to(&mut buf, image::ImageFormat::Png)
@@ -234,7 +231,10 @@ mod screenshot_tests {
                 Ok(b64) => {
                     // base64 字符串长度应 > 0 且不含 data: 前缀(纯 base64)。
                     assert!(!b64.is_empty(), "base64 png should not be empty");
-                    assert!(!b64.starts_with("data:"), "should be raw base64, not data URL");
+                    assert!(
+                        !b64.starts_with("data:"),
+                        "should be raw base64, not data URL"
+                    );
                 }
                 Err(_) => {
                     // 测试环境无显示器或权限被拒 — 接受。

@@ -1,4 +1,4 @@
-﻿use std::convert::Infallible;
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -78,7 +78,10 @@ impl RestApiServer {
 
                 // T-S2-B-03a: 认证检查（在路由匹配之前）
                 if let Err((status, msg)) = crate::api::auth::check_auth(&req, &api_token) {
-                    return Ok::<_, Infallible>(json_response(status, serde_json::json!({"error": msg})));
+                    return Ok::<_, Infallible>(json_response(
+                        status,
+                        serde_json::json!({"error": msg}),
+                    ));
                 }
 
                 let (mut parts, body) = req.into_parts();
@@ -103,73 +106,119 @@ impl RestApiServer {
                     ("POST", "/api/chat") => {
                         let body_val = match body_json {
                             Some(v) => v,
-                            None => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": "invalid request body"}))),
+                            None => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": "invalid request body"}),
+                                ))
+                            }
                         };
                         let chat_req: ChatRequest = match serde_json::from_value(body_val) {
                             Ok(r) => r,
-                            Err(e) => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": format!("invalid chat request: {}", e)}))),
+                            Err(e) => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": format!("invalid chat request: {}", e)}),
+                                ))
+                            }
                         };
                         let msgs: Vec<ChatMessage> = chat_req
                             .messages
                             .into_iter()
-                            .map(|(role, content)| ChatMessage { role, content, ..Default::default() })
+                            .map(|(role, content)| ChatMessage {
+                                role,
+                                content,
+                                ..Default::default()
+                            })
                             .collect();
                         match chat_req.model.as_deref() {
                             Some(model) if !model.is_empty() => {
                                 match state.llm.chat_with_model(model, msgs).await {
-                                    Ok(resp) => (200, serde_json::json!({
+                                    Ok(resp) => (
+                                        200,
+                                        serde_json::json!({
+                                            "role": resp.message.role,
+                                            "content": resp.message.content,
+                                            "model": resp.model,
+                                            "eval_count": resp.eval_count,
+                                        }),
+                                    ),
+                                    Err(e) => (500, serde_json::json!({"error": e.to_string()})),
+                                }
+                            }
+                            _ => match state.llm.chat(msgs).await {
+                                Ok(resp) => (
+                                    200,
+                                    serde_json::json!({
                                         "role": resp.message.role,
                                         "content": resp.message.content,
                                         "model": resp.model,
                                         "eval_count": resp.eval_count,
-                                    })),
-                                    Err(e) => (500, serde_json::json!({"error": e.to_string()})),
-                                }
-                            }
-                            _ => {
-                                match state.llm.chat(msgs).await {
-                                    Ok(resp) => (200, serde_json::json!({
-                                        "role": resp.message.role,
-                                        "content": resp.message.content,
-                                        "model": resp.model,
-                                        "eval_count": resp.eval_count,
-                                    })),
-                                    Err(e) => (500, serde_json::json!({"error": e.to_string()})),
-                                }
-                            }
+                                    }),
+                                ),
+                                Err(e) => (500, serde_json::json!({"error": e.to_string()})),
+                            },
                         }
-                    },
+                    }
                     ("POST", "/api/swarm/execute") => {
                         let body_val = match body_json {
                             Some(v) => v,
-                            None => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": "invalid request body"}))),
+                            None => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": "invalid request body"}),
+                                ))
+                            }
                         };
                         let task: SwarmTask = match serde_json::from_value(body_val) {
                             Ok(t) => t,
-                            Err(e) => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": format!("invalid swarm task: {}", e)}))),
+                            Err(e) => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": format!("invalid swarm task: {}", e)}),
+                                ))
+                            }
                         };
                         match state.swarm.execute(task).await {
-                            Ok(report) => (200, serde_json::json!({
-                                "task": report.task,
-                                "outputs": report.outputs,
-                                "success_count": report.success_count,
-                                "failure_count": report.failure_count,
-                                "approved": report.approved,
-                            })),
+                            Ok(report) => (
+                                200,
+                                serde_json::json!({
+                                    "task": report.task,
+                                    "outputs": report.outputs,
+                                    "success_count": report.success_count,
+                                    "failure_count": report.failure_count,
+                                    "approved": report.approved,
+                                }),
+                            ),
                             Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                         }
-                    },
+                    }
                     ("POST", "/api/memory/search") => {
                         let body_val = match body_json {
                             Some(v) => v,
-                            None => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": "invalid request body"}))),
+                            None => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": "invalid request body"}),
+                                ))
+                            }
                         };
-                        let search_req: MemorySearchRequest = match serde_json::from_value(body_val) {
+                        let search_req: MemorySearchRequest = match serde_json::from_value(body_val)
+                        {
                             Ok(r) => r,
-                            Err(e) => return Ok::<_, Infallible>(json_response(400, serde_json::json!({"error": format!("invalid search request: {}", e)}))),
+                            Err(e) => {
+                                return Ok::<_, Infallible>(json_response(
+                                    400,
+                                    serde_json::json!({"error": format!("invalid search request: {}", e)}),
+                                ))
+                            }
                         };
                         let k = search_req.k.unwrap_or(10);
-                        match state.sponge.search_with_graph(&search_req.query, k, None).await {
+                        match state
+                            .sponge
+                            .search_with_graph(&search_req.query, k, None)
+                            .await
+                        {
                             Ok(hits) => {
                                 let results: Vec<serde_json::Value> = hits
                                     .into_iter()
@@ -179,7 +228,7 @@ impl RestApiServer {
                             }
                             Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                         }
-                    },
+                    }
                     _ => (404, serde_json::json!({"error": "not found"})),
                 };
 

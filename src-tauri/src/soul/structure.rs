@@ -192,12 +192,15 @@ pub fn parse_soul_md(text: &str) -> Result<SoulStructure, SoulStructureError> {
                             begin_offset: begin_off,
                             end_offset: tag_end,
                         });
-                        by_name.insert(name.clone(), SoulSection {
-                            name: name.clone(),
-                            content,
-                            begin_offset: begin_off,
-                            end_offset: tag_end,
-                        });
+                        by_name.insert(
+                            name.clone(),
+                            SoulSection {
+                                name: name.clone(),
+                                content,
+                                begin_offset: begin_off,
+                                end_offset: tag_end,
+                            },
+                        );
                     }
                     None => {
                         return Err(SoulStructureError::OrphanEnd {
@@ -356,37 +359,48 @@ mod tests {
     fn parse_unclosed_section_errors() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n内容";
         let err = parse_soul_md(text).unwrap_err();
-        assert!(matches!(err, SoulStructureError::UnclosedSection { name, .. } if name == "immutable_from_ai"));
+        assert!(
+            matches!(err, SoulStructureError::UnclosedSection { name, .. } if name == "immutable_from_ai")
+        );
     }
 
     #[test]
     fn parse_orphan_end_errors() {
         let text = "内容\n<!-- END SECTION: immutable_from_ai -->";
         let err = parse_soul_md(text).unwrap_err();
-        assert!(matches!(err, SoulStructureError::OrphanEnd { name, .. } if name == "immutable_from_ai"));
+        assert!(
+            matches!(err, SoulStructureError::OrphanEnd { name, .. } if name == "immutable_from_ai")
+        );
     }
 
     #[test]
     fn parse_mismatched_end_errors() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: evolution-append -->";
         let err = parse_soul_md(text).unwrap_err();
-        assert!(matches!(err, SoulStructureError::MismatchedEnd { expected, found, .. }
-            if expected == "immutable_from_ai" && found == "evolution-append"));
+        assert!(
+            matches!(err, SoulStructureError::MismatchedEnd { expected, found, .. }
+            if expected == "immutable_from_ai" && found == "evolution-append")
+        );
     }
 
     #[test]
     fn parse_nested_section_errors() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- BEGIN SECTION: evolution-append -->\n经验\n<!-- END SECTION: evolution-append -->\n<!-- END SECTION: immutable_from_ai -->";
         let err = parse_soul_md(text).unwrap_err();
-        assert!(matches!(err, SoulStructureError::NestedSection { outer, inner, .. }
-            if outer == "immutable_from_ai" && inner == "evolution-append"));
+        assert!(
+            matches!(err, SoulStructureError::NestedSection { outer, inner, .. }
+            if outer == "immutable_from_ai" && inner == "evolution-append")
+        );
     }
 
     #[test]
     fn parse_unknown_section_name_errors() {
-        let text = "<!-- BEGIN SECTION: custom_section -->\n内容\n<!-- END SECTION: custom_section -->";
+        let text =
+            "<!-- BEGIN SECTION: custom_section -->\n内容\n<!-- END SECTION: custom_section -->";
         let err = parse_soul_md(text).unwrap_err();
-        assert!(matches!(err, SoulStructureError::UnknownSection { name, .. } if name == "custom_section"));
+        assert!(
+            matches!(err, SoulStructureError::UnknownSection { name, .. } if name == "custom_section")
+        );
     }
 
     #[test]

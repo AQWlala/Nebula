@@ -34,11 +34,7 @@ impl GitHubOAuthProvider {
     /// GitHub's OAuth app flow requires a client secret for the token
     /// exchange; pass `Some(secret)` for the standard web-app flow.
     /// PKCE-only GitHub Apps are not yet generally available.
-    pub fn new(
-        client_id: String,
-        client_secret: Option<String>,
-        redirect_uri: String,
-    ) -> Self {
+    pub fn new(client_id: String, client_secret: Option<String>, redirect_uri: String) -> Self {
         let config = OAuthProviderConfig {
             id: "github".to_string(),
             name: "GitHub".to_string(),
@@ -70,11 +66,7 @@ impl GitHubOAuthProvider {
     ///
     /// All endpoints are paginated; this returns at most `per_page` items
     /// per category (default 30) to bound token usage.
-    pub async fn fetch_delta(
-        &self,
-        token: &OAuthToken,
-        per_page: usize,
-    ) -> Result<GitHubDelta> {
+    pub async fn fetch_delta(&self, token: &OAuthToken, per_page: usize) -> Result<GitHubDelta> {
         let per_page = per_page.clamp(1, 100);
 
         let repos = self.fetch_repos(token, per_page).await.unwrap_or_default();
@@ -89,11 +81,7 @@ impl GitHubOAuthProvider {
     }
 
     /// Fetches the user's owned & starred repos.
-    async fn fetch_repos(
-        &self,
-        token: &OAuthToken,
-        per_page: usize,
-    ) -> Result<Vec<RepoSummary>> {
+    async fn fetch_repos(&self, token: &OAuthToken, per_page: usize) -> Result<Vec<RepoSummary>> {
         let url = format!("{GITHUB_API_BASE}/user/repos");
         let resp = self
             .http
@@ -125,11 +113,7 @@ impl GitHubOAuthProvider {
     }
 
     /// Fetches the user's recent open issues across all repos.
-    async fn fetch_issues(
-        &self,
-        token: &OAuthToken,
-        per_page: usize,
-    ) -> Result<Vec<IssueSummary>> {
+    async fn fetch_issues(&self, token: &OAuthToken, per_page: usize) -> Result<Vec<IssueSummary>> {
         let url = format!("{GITHUB_API_BASE}/issues");
         let resp = self
             .http
@@ -163,11 +147,7 @@ impl GitHubOAuthProvider {
     }
 
     /// Fetches the user's recent public events (commits, merges, etc.).
-    async fn fetch_events(
-        &self,
-        token: &OAuthToken,
-        per_page: usize,
-    ) -> Result<Vec<EventSummary>> {
+    async fn fetch_events(&self, token: &OAuthToken, per_page: usize) -> Result<Vec<EventSummary>> {
         // /user/events only returns public events; for private events the
         // app would need the `activity:read` scope on a GitHub App.
         let url = format!("{GITHUB_API_BASE}/events");
@@ -186,15 +166,9 @@ impl GitHubOAuthProvider {
             .map(|e| EventSummary {
                 id: e["id"].as_str().unwrap_or("").to_string(),
                 event_type: e["type"].as_str().unwrap_or("").to_string(),
-                repo: e["repo"]["name"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
+                repo: e["repo"]["name"].as_str().unwrap_or("").to_string(),
                 created_at: e["created_at"].as_str().unwrap_or("").to_string(),
-                payload_action: e["payload"]["action"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
+                payload_action: e["payload"]["action"].as_str().unwrap_or("").to_string(),
             })
             .collect())
     }

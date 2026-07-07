@@ -1,4 +1,4 @@
-﻿//! Skill exporter — T-E-S-45 ClawHub bidirectional compatibility.
+//! Skill exporter — T-E-S-45 ClawHub bidirectional compatibility.
 //!
 //! 序列化 nebula [`Skill`] 为 agentskills.io `SKILL.md` 格式
 //! (YAML front-matter + Markdown body)。这是 [`importer`] 的逆函数:
@@ -315,8 +315,7 @@ mod tests {
 
         // 反向 + 正向映射后,能力集应当完全一致(full_trust)。
         assert_eq!(
-            parsed.capabilities,
-            skill.capabilities,
+            parsed.capabilities, skill.capabilities,
             "capabilities reverse mapping must be symmetric"
         );
         // 显式验证每个能力都存在。
@@ -331,10 +330,8 @@ mod tests {
     #[test]
     fn test_export_to_dir_creates_file() {
         let skill = sample_skill();
-        let dir = std::env::temp_dir().join(format!(
-            "nebula-exporter-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula-exporter-test-{}", uuid::Uuid::new_v4()));
 
         let path = SkillExporter::export_to_dir(&skill, &dir).unwrap();
 

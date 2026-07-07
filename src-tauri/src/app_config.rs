@@ -216,9 +216,10 @@ impl AppConfig {
                 .unwrap_or(false),
             rest_bind_addr: std::env::var("NEBULA_REST_ADDR")
                 .unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
-            rest_api_token: std::env::var("NEBULA_REST_TOKEN").ok().filter(|t| !t.is_empty()),
-            editor_workspace: std::env::var("NEBULA_WORKSPACE")
-                .unwrap_or_else(|_| ".".to_string()),
+            rest_api_token: std::env::var("NEBULA_REST_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty()),
+            editor_workspace: std::env::var("NEBULA_WORKSPACE").unwrap_or_else(|_| ".".to_string()),
             sync_inbox: std::env::var("NEBULA_SYNC_INBOX")
                 .unwrap_or_else(|_| "sync_inbox".to_string()),
             exec_approval_timeout_secs: std::env::var("NEBULA_EXEC_APPROVAL_TIMEOUT_SECS")
@@ -305,15 +306,14 @@ impl AppConfig {
             // T-E-S-44: 存储后端配置。env: NEBULA_STORAGE_BACKEND
             // (local/s3/webdav,默认 local)。
             storage_backend: {
-                let kind = std::env::var("NEBULA_STORAGE_BACKEND")
-                    .unwrap_or_else(|_| "local".to_string());
-                let root = std::env::var("NEBULA_STORAGE_ROOT")
-                    .unwrap_or_else(|_| {
-                        std::env::temp_dir()
-                            .join("nebula-storage")
-                            .to_string_lossy()
-                            .to_string()
-                    });
+                let kind =
+                    std::env::var("NEBULA_STORAGE_BACKEND").unwrap_or_else(|_| "local".to_string());
+                let root = std::env::var("NEBULA_STORAGE_ROOT").unwrap_or_else(|_| {
+                    std::env::temp_dir()
+                        .join("nebula-storage")
+                        .to_string_lossy()
+                        .to_string()
+                });
                 crate::storage::StorageConfig {
                     kind,
                     root,
@@ -345,8 +345,7 @@ impl AppConfig {
                 .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
                 .unwrap_or(true),
             // T-E-B-01: Wiki 笔记子目录,默认 "wiki"。
-            wiki_subdir: std::env::var("NEBULA_WIKI_SUBDIR")
-                .unwrap_or_else(|_| "wiki".to_string()),
+            wiki_subdir: std::env::var("NEBULA_WIKI_SUBDIR").unwrap_or_else(|_| "wiki".to_string()),
             // T-E-S-43: DB 加密开关,默认 false(用户需显式开启)。
             db_encryption_enabled: std::env::var("NEBULA_DB_ENCRYPTION")
                 .ok()

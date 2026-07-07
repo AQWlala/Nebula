@@ -154,28 +154,28 @@ pub use editor::*;
 pub use export::*;
 pub use identity::*;
 pub use llm::*;
-pub use memory::*;
 #[cfg(feature = "mcp")]
 pub use mcp::*;
+pub use memory::*;
 pub use os::*;
+pub use plan::*;
 pub use reflect::*;
 pub use security::*;
+pub use sidecar::*;
 pub use skill::*;
 pub use swarm::*;
 pub use sync::*;
 pub use tool::*;
-pub use plan::*;
-pub use sidecar::*;
-pub use window::*;
 #[cfg(feature = "channels")]
 pub use webchat::*;
+pub use window::*;
 pub use work::*;
 pub use writing::*;
 // T-E-S-50 / T-E-S-51 / T-E-S-59: 新增命令 re-export。
 pub use autonomy::*;
-pub use inline_completion::*;
 #[cfg(feature = "channels")]
 pub use inbox::*;
+pub use inline_completion::*;
 // T-E-A-07 / T-E-S-52: 新增命令 re-export。
 pub use credits::*;
 // T-E-A-08: 费用报告命令 re-export。

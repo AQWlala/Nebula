@@ -104,10 +104,8 @@ impl ToolRegistry {
         let server = Arc::new(server);
         let mut count = 0;
         for def in server.list_tool_definitions() {
-            let adapter = crate::tools::openapi_server::OpenApiToolAdapter::new(
-                server.clone(),
-                def,
-            );
+            let adapter =
+                crate::tools::openapi_server::OpenApiToolAdapter::new(server.clone(), def);
             self.register(Arc::new(adapter));
             count += 1;
         }

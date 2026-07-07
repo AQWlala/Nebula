@@ -90,7 +90,9 @@ pub struct ShadowConfig {
 impl Default for ShadowConfig {
     fn default() -> Self {
         let root = std::env::temp_dir().join("nebula-shadow-ws");
-        Self { worktree_root: root }
+        Self {
+            worktree_root: root,
+        }
     }
 }
 
@@ -162,7 +164,9 @@ impl ShadowWorkspaceEngine {
         let out = run_git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])?;
         let branch = out.trim().to_string();
         if branch.is_empty() || branch == "HEAD" {
-            return Err(anyhow!("cannot create shadow workspace in detached HEAD state"));
+            return Err(anyhow!(
+                "cannot create shadow workspace in detached HEAD state"
+            ));
         }
         Ok(branch)
     }
@@ -174,7 +178,11 @@ impl ShadowWorkspaceEngine {
     /// 3. `git worktree add -b agent/<id> <path> <base_branch>`
     /// 4. 记录元数据,状态置 Running
     #[instrument(skip(self))]
-    pub fn create(&self, task_description: String, base_branch: Option<String>) -> Result<ShadowWorkspace> {
+    pub fn create(
+        &self,
+        task_description: String,
+        base_branch: Option<String>,
+    ) -> Result<ShadowWorkspace> {
         let repo = self.repo()?;
         let id = Self::gen_id();
         let branch = format!("agent/{id}");
@@ -190,8 +198,20 @@ impl ShadowWorkspaceEngine {
 
         // git worktree add -b agent/<id> <path> <base>
         // -b 创建新分支,基于 base
-        run_git(&repo, &["worktree", "add", "-b", &branch, ws_path.to_str().ok_or_else(|| anyhow!("invalid worktree path"))?, &base])
-            .context(format!("git worktree add -b {branch} {ws_path:?} {base}"))?;
+        run_git(
+            &repo,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                &branch,
+                ws_path
+                    .to_str()
+                    .ok_or_else(|| anyhow!("invalid worktree path"))?,
+                &base,
+            ],
+        )
+        .context(format!("git worktree add -b {branch} {ws_path:?} {base}"))?;
 
         let now = now_secs();
         let ws = ShadowWorkspace {
@@ -225,7 +245,9 @@ impl ShadowWorkspaceEngine {
     /// 获取 workspace 的 git diff(与 base_branch 对比)。
     #[instrument(skip(self))]
     pub fn diff(&self, id: &str) -> Result<String> {
-        let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
+        let ws = self
+            .get(id)
+            .ok_or_else(|| anyhow!("workspace {id} not found"))?;
         let ws_path = Path::new(&ws.path);
         if !ws_path.exists() {
             return Err(anyhow!("worktree path {} no longer exists", ws.path));
@@ -247,7 +269,9 @@ impl ShadowWorkspaceEngine {
     /// 供用户在合并前回放审查 Agent 执行了哪些命令。
     #[instrument(skip(self, args))]
     pub fn run_command(&self, id: &str, program: &str, args: &[String]) -> Result<String> {
-        let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
+        let ws = self
+            .get(id)
+            .ok_or_else(|| anyhow!("workspace {id} not found"))?;
         let ws_path = Path::new(&ws.path);
         if !ws_path.exists() {
             return Err(anyhow!("worktree path {} no longer exists", ws.path));
@@ -276,10 +300,19 @@ impl ShadowWorkspaceEngine {
         } else {
             format!("exited {:?}: {stderr}", out.status.code())
         };
-        self.recordings
-            .record(id, OperationKind::Command, program.to_string(), detail, success, message);
+        self.recordings.record(
+            id,
+            OperationKind::Command,
+            program.to_string(),
+            detail,
+            success,
+            message,
+        );
         if !success {
-            return Err(anyhow!("{program} exited {:?}: {stderr}", out.status.code()));
+            return Err(anyhow!(
+                "{program} exited {:?}: {stderr}",
+                out.status.code()
+            ));
         }
         Ok(combined)
     }
@@ -303,7 +336,9 @@ impl ShadowWorkspaceEngine {
         if self.get(id).is_none() {
             return Err(anyhow!("workspace {id} not found"));
         }
-        Ok(self.recordings.record(id, kind, target, detail, success, message))
+        Ok(self
+            .recordings
+            .record(id, kind, target, detail, success, message))
     }
 
     /// 获取 workspace 的完整操作时间线(按 seq 升序)。
@@ -332,7 +367,9 @@ impl ShadowWorkspaceEngine {
     /// 使用 `git merge --no-ff` 保留分支历史。合并后删除 worktree + 分支。
     #[instrument(skip(self))]
     pub fn merge(&self, id: &str) -> Result<ShadowWorkspace> {
-        let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
+        let ws = self
+            .get(id)
+            .ok_or_else(|| anyhow!("workspace {id} not found"))?;
         let repo = self.repo()?;
 
         // 状态检查:已完成或运行中才允许合并
@@ -369,7 +406,9 @@ impl ShadowWorkspaceEngine {
     /// 丢弃 workspace:remove worktree + delete branch,不可逆。
     #[instrument(skip(self))]
     pub fn abort(&self, id: &str) -> Result<ShadowWorkspace> {
-        let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
+        let ws = self
+            .get(id)
+            .ok_or_else(|| anyhow!("workspace {id} not found"))?;
         let repo = self.repo()?;
 
         match ws.status {
@@ -388,7 +427,9 @@ impl ShadowWorkspaceEngine {
     /// 清理已完成/已丢弃的 worktree 目录(保留分支记录)。
     /// 仅对 Merged/Aborted 状态有效,删除磁盘上的 worktree 目录。
     pub fn cleanup(&self, id: &str) -> Result<()> {
-        let ws = self.get(id).ok_or_else(|| anyhow!("workspace {id} not found"))?;
+        let ws = self
+            .get(id)
+            .ok_or_else(|| anyhow!("workspace {id} not found"))?;
         match ws.status {
             ShadowStatus::Merged | ShadowStatus::Aborted => {
                 let path = Path::new(&ws.path);
@@ -398,7 +439,10 @@ impl ShadowWorkspaceEngine {
                 }
                 Ok(())
             }
-            _ => Err(anyhow!("workspace {id} not in cleanable state (status={})", ws.status.as_str())),
+            _ => Err(anyhow!(
+                "workspace {id} not in cleanable state (status={})",
+                ws.status.as_str()
+            )),
         }
     }
 
@@ -443,22 +487,20 @@ impl ShadowWorkspaceEngine {
         let repo = self.repo()?;
         let path = Path::new(&ws.path);
         if path.exists() {
-            run_git(&repo, &["worktree", "remove", "--force", &ws.path])
-                .or_else(|_| {
-                    let _ = std::fs::remove_dir_all(&ws.path);
-                    Ok::<String, anyhow::Error>(String::new())
-                })?;
+            run_git(&repo, &["worktree", "remove", "--force", &ws.path]).or_else(|_| {
+                let _ = std::fs::remove_dir_all(&ws.path);
+                Ok::<String, anyhow::Error>(String::new())
+            })?;
         }
         Ok(())
     }
 
     fn delete_branch(&self, repo: &Path, branch: &str) -> Result<()> {
         // git branch -d(要求已合并)
-        run_git(repo, &["branch", "-d", branch])
-            .or_else(|_| {
-                // -d 失败(未合并),用 -D 强制删除(aborted 场景)
-                run_git(repo, &["branch", "-D", branch])
-            })?;
+        run_git(repo, &["branch", "-d", branch]).or_else(|_| {
+            // -d 失败(未合并),用 -D 强制删除(aborted 场景)
+            run_git(repo, &["branch", "-D", branch])
+        })?;
         Ok(())
     }
 
@@ -499,7 +541,10 @@ mod tests {
 
     /// 在临时目录创建一个 git repo 用于测试。
     fn make_test_repo() -> Result<PathBuf> {
-        let dir = std::env::temp_dir().join(format!("nebula-shadow-test-{}", ShadowWorkspaceEngine::gen_id()));
+        let dir = std::env::temp_dir().join(format!(
+            "nebula-shadow-test-{}",
+            ShadowWorkspaceEngine::gen_id()
+        ));
         std::fs::create_dir_all(&dir)?;
         // git init + 初始 commit(需要 user.email/name 配置)
         run_git(&dir, &["init", "--initial-branch=main"])?;
@@ -531,7 +576,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("refactor module X".into(), None).expect("create");
+        let ws = engine
+            .create("refactor module X".into(), None)
+            .expect("create");
         assert_eq!(ws.status, ShadowStatus::Running);
         assert_eq!(ws.base_branch, "main");
         assert!(ws.branch.starts_with("agent/"));
@@ -592,9 +639,14 @@ mod tests {
         } else {
             ("pwd", vec![])
         };
-        let out = engine.run_command(&ws.id, program, &args).expect("run_command");
+        let out = engine
+            .run_command(&ws.id, program, &args)
+            .expect("run_command");
         // 输出应包含 worktree 路径
-        assert!(out.contains(&ws.id), "output should be in worktree dir: {out}");
+        assert!(
+            out.contains(&ws.id),
+            "output should be in worktree dir: {out}"
+        );
 
         cleanup_test_repo(&repo);
     }
@@ -608,7 +660,10 @@ mod tests {
         let ws = engine.create("recorded task".into(), None).unwrap();
         // 执行两条命令
         let (program, args) = if cfg!(windows) {
-            ("cmd", vec!["/C".to_string(), "echo".to_string(), "hello".to_string()])
+            (
+                "cmd",
+                vec!["/C".to_string(), "echo".to_string(), "hello".to_string()],
+            )
         } else {
             ("echo", vec!["hello".to_string()])
         };
@@ -627,11 +682,18 @@ mod tests {
         assert_eq!(ops[1].seq, 2);
         assert_eq!(ops[0].kind, OperationKind::Command);
         assert_eq!(ops[1].kind, OperationKind::Command);
-        assert!(ops[0].success, "first command should be recorded as success");
+        assert!(
+            ops[0].success,
+            "first command should be recorded as success"
+        );
         // target 是程序名
         assert!(!ops[0].target.is_empty());
         // message 应包含输出(hello)
-        assert!(ops[0].message.contains("hello"), "message should contain stdout: {}", ops[0].message);
+        assert!(
+            ops[0].message.contains("hello"),
+            "message should contain stdout: {}",
+            ops[0].message
+        );
 
         cleanup_test_repo(&repo);
     }
@@ -639,7 +701,14 @@ mod tests {
     #[test]
     fn record_operation_rejects_unknown_workspace() {
         let engine = ShadowWorkspaceEngine::with_default();
-        let res = engine.record_operation("nope", OperationKind::Note, String::new(), "x".into(), true, String::new());
+        let res = engine.record_operation(
+            "nope",
+            OperationKind::Note,
+            String::new(),
+            "x".into(),
+            true,
+            String::new(),
+        );
         assert!(res.is_err(), "recording to unknown workspace should fail");
     }
 
@@ -652,10 +721,20 @@ mod tests {
         let ws = engine.create("merge + replay".into(), None).unwrap();
         // 记录一条备注 + 执行一条命令
         engine
-            .record_operation(&ws.id, OperationKind::Note, String::new(), "starting".into(), true, String::new())
+            .record_operation(
+                &ws.id,
+                OperationKind::Note,
+                String::new(),
+                "starting".into(),
+                true,
+                String::new(),
+            )
             .unwrap();
         let (program, args) = if cfg!(windows) {
-            ("cmd", vec!["/C".to_string(), "echo".to_string(), "done".to_string()])
+            (
+                "cmd",
+                vec!["/C".to_string(), "echo".to_string(), "done".to_string()],
+            )
         } else {
             ("echo", vec!["done".to_string()])
         };
@@ -682,7 +761,14 @@ mod tests {
 
         let ws = engine.create("clear me".into(), None).unwrap();
         engine
-            .record_operation(&ws.id, OperationKind::Note, String::new(), "x".into(), true, String::new())
+            .record_operation(
+                &ws.id,
+                OperationKind::Note,
+                String::new(),
+                "x".into(),
+                true,
+                String::new(),
+            )
             .unwrap();
         assert_eq!(engine.get_recording(&ws.id).len(), 1);
         engine.clear_recording(&ws.id);
@@ -709,10 +795,16 @@ mod tests {
         assert_eq!(merged.status, ShadowStatus::Merged);
 
         // 主 repo 应有 feature.txt
-        assert!(repo.join("feature.txt").exists(), "merged file should exist in base");
+        assert!(
+            repo.join("feature.txt").exists(),
+            "merged file should exist in base"
+        );
 
         // worktree 目录应已清理
-        assert!(!Path::new(&ws.path).exists(), "worktree dir should be removed after merge");
+        assert!(
+            !Path::new(&ws.path).exists(),
+            "worktree dir should be removed after merge"
+        );
 
         cleanup_test_repo(&repo);
     }
@@ -731,13 +823,22 @@ mod tests {
         assert_eq!(aborted.status, ShadowStatus::Aborted);
 
         // worktree 目录应已清理
-        assert!(!Path::new(&ws.path).exists(), "worktree dir should be removed after abort");
+        assert!(
+            !Path::new(&ws.path).exists(),
+            "worktree dir should be removed after abort"
+        );
         // 主 repo 不应有 junk.txt
-        assert!(!repo.join("junk.txt").exists(), "aborted changes should not leak to base");
+        assert!(
+            !repo.join("junk.txt").exists(),
+            "aborted changes should not leak to base"
+        );
 
         // 分支应已删除
         let branches = run_git(&repo, &["branch", "--list"]).unwrap();
-        assert!(!branches.contains(&ws.branch), "agent branch should be deleted: {branches}");
+        assert!(
+            !branches.contains(&ws.branch),
+            "agent branch should be deleted: {branches}"
+        );
 
         cleanup_test_repo(&repo);
     }
@@ -763,7 +864,9 @@ mod tests {
         engine.set_repo_root(repo.clone());
 
         let ws = engine.create("will fail".into(), None).unwrap();
-        let failed = engine.fail(&ws.id, "compilation error".into()).expect("fail");
+        let failed = engine
+            .fail(&ws.id, "compilation error".into())
+            .expect("fail");
         assert_eq!(failed.status, ShadowStatus::Failed);
         assert_eq!(failed.error.as_deref(), Some("compilation error"));
 

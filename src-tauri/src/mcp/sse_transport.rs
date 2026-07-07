@@ -1,4 +1,4 @@
-﻿//! T-E-S-31: MCP SSE 传输层 — GET /sse 长连接 + POST /messages 双通道。
+//! T-E-S-31: MCP SSE 传输层 — GET /sse 长连接 + POST /messages 双通道。
 //!
 //! 本模块实现 MCP 规范的 SSE(Stream of Server-Encoded Events)传输:
 //!
@@ -25,13 +25,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use futures::StreamExt;
 use parking_lot::Mutex;
 use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
-use futures::StreamExt;
 use tracing::{debug, info, warn};
 
-use super::protocol::{JsonRpcRequest, JsonRpcResponse, parse_frame};
+use super::protocol::{parse_frame, JsonRpcRequest, JsonRpcResponse};
 use crate::security::ssrf_guard::SsrfGuard;
 
 /// SSE 事件(解析后的单条事件)。
@@ -363,10 +363,10 @@ impl SseTransport {
                                             }
                                             match parse_frame(data.trim()) {
                                                 Ok(resp) => {
-                                                    if let Some(id_num) = resp
-                                                        .id
-                                                        .as_u64()
-                                                        .or_else(|| resp.id.as_i64().map(|i| i as u64))
+                                                    if let Some(id_num) =
+                                                        resp.id.as_u64().or_else(|| {
+                                                            resp.id.as_i64().map(|i| i as u64)
+                                                        })
                                                     {
                                                         let sender_opt = {
                                                             let mut p = pending.lock();
@@ -415,10 +415,7 @@ impl SseTransport {
                         max = reconnect_cfg.max_reconnect_attempts,
                         "SSE reconnect attempts exhausted, failing all pending"
                     );
-                    fail_all_pending(
-                        &pending,
-                        "SSE reconnect failed after max attempts",
-                    );
+                    fail_all_pending(&pending, "SSE reconnect failed after max attempts");
                     return;
                 }
                 let backoff = reconnect_cfg.backoff(attempt);
@@ -716,11 +713,7 @@ mod tests {
             initial_reconnect_delay: Duration::from_secs(2),
             max_reconnect_delay: Duration::from_secs(45),
         };
-        let r = SseTransport::new_with_config(
-            "https://1.1.1.1/sse".to_string(),
-            None,
-            cfg,
-        );
+        let r = SseTransport::new_with_config("https://1.1.1.1/sse".to_string(), None, cfg);
         assert!(r.is_ok());
         let transport = r.unwrap();
         assert_eq!(transport.reconnect_config.max_reconnect_attempts, 7);

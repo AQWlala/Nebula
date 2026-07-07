@@ -1,4 +1,4 @@
-﻿//! v1.0: live performance monitor.
+//! v1.0: live performance monitor.
 //!
 //! [`PerfMonitor`] samples process memory + CPU on a background
 //! tokio task (default 1 Hz).  The latest sample is stored in a
@@ -140,7 +140,9 @@ async fn run_loop(monitor: PerfMonitor, period: Duration, abort: Arc<Mutex<bool>
 #[cfg(all(feature = "perf-telemetry", target_os = "windows"))]
 fn take_sample(_monitor: &PerfMonitor) -> PerfSample {
     use crate::perf::RSS_BUDGET_BYTES;
-    use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use windows_sys::Win32::System::ProcessStatus::{
+        GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+    };
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
     // SAFETY: `GetCurrentProcess()` 返回一个常量伪句柄(始终有效,无需 close)。

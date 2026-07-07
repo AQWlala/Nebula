@@ -49,9 +49,7 @@ use serde::{Deserialize, Serialize};
 
 /// 重导出核心类型，便于外部使用。
 pub use log::{EvolutionLog, EvolutionLogEntry, EvolutionLogError};
-pub use pipeline::{
-    EvolutionEngine, EvolutionError, EvolutionPhase, EvolutionResult, PhaseOutput,
-};
+pub use pipeline::{EvolutionEngine, EvolutionError, EvolutionPhase, EvolutionResult, PhaseOutput};
 pub use rollback::{RollbackError, RollbackResult, Roller};
 
 /// EvolutionEngine 配置 DTO（通过 Tauri 命令边界交换）。

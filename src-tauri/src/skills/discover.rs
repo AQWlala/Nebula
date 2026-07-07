@@ -30,8 +30,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use tracing::{info, warn};
 
-use crate::skills::types::{ActivationCondition, Skill};
 use crate::skills::store::SkillStore;
+use crate::skills::types::{ActivationCondition, Skill};
 
 /// Scans the 4-layer directory hierarchy for `SKILL.md` files and
 /// registers any new skills into the [`SkillStore`].

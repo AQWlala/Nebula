@@ -69,10 +69,7 @@ impl DiagnosticsBus {
     /// 没有订阅者不算错误:诊断仍会被记录到 tracing layer 的
     /// `nebula.diagnostic` target 中,只是当前没有前端在监听。
     pub fn emit(&self, mut event: DiagnosticEvent) {
-        let seq = self
-            .seq
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
+        let seq = self.seq.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
         // 把 seq 写入事件。所有变体都有 seq 字段。
         match &mut event {
             DiagnosticEvent::L4Deny { seq: s, .. }

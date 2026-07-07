@@ -90,10 +90,7 @@ pub async fn im_list_bindings(
 /// 删除 IM 绑定(幂等)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "im_delete_binding"))]
-pub async fn im_delete_binding(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn im_delete_binding(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     let engine = state.im_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine

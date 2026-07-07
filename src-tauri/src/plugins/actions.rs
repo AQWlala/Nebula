@@ -1,4 +1,4 @@
-﻿//! T-E-S-35: Action 层示例 — `NotifyAction`。
+//! T-E-S-35: Action 层示例 — `NotifyAction`。
 //!
 //! 包装 `os::notifications::send`,UI 按钮触发的一次性通知动作。
 //! Action 与 Agent 解耦:无状态、不持有 TeamContext、不参与多轮对话。
@@ -95,11 +95,26 @@ mod tests {
 
     #[test]
     fn parse_level_maps_known_strings() {
-        assert_eq!(NotifyAction::parse_level(Some("info")), NotificationLevel::Info);
-        assert_eq!(NotifyAction::parse_level(Some("success")), NotificationLevel::Success);
-        assert_eq!(NotifyAction::parse_level(Some("warning")), NotificationLevel::Warning);
-        assert_eq!(NotifyAction::parse_level(Some("error")), NotificationLevel::Error);
+        assert_eq!(
+            NotifyAction::parse_level(Some("info")),
+            NotificationLevel::Info
+        );
+        assert_eq!(
+            NotifyAction::parse_level(Some("success")),
+            NotificationLevel::Success
+        );
+        assert_eq!(
+            NotifyAction::parse_level(Some("warning")),
+            NotificationLevel::Warning
+        );
+        assert_eq!(
+            NotifyAction::parse_level(Some("error")),
+            NotificationLevel::Error
+        );
         assert_eq!(NotifyAction::parse_level(None), NotificationLevel::Info);
-        assert_eq!(NotifyAction::parse_level(Some("bogus")), NotificationLevel::Info);
+        assert_eq!(
+            NotifyAction::parse_level(Some("bogus")),
+            NotificationLevel::Info
+        );
     }
 }

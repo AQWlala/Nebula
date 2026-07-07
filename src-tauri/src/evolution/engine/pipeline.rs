@@ -1,4 +1,4 @@
-﻿//! EvolutionEngine — 4 Phase 进化管线主逻辑（M4 任务 #55-58）。
+//! EvolutionEngine — 4 Phase 进化管线主逻辑（M4 任务 #55-58）。
 //!
 //! 这是 EvolutionEngine 的核心实现。每个 Phase 调用 `dispatch(WorkType::Evolution)`
 //! 走本地 LLM，将 L1/L2/L3 记忆提炼为 L5 Lessons，最后写入 SOUL.md evolution-append。
@@ -43,7 +43,10 @@ pub enum EvolutionError {
     MemoryStore(String),
 
     #[error("phase {phase:?} timeout after {timeout:?}")]
-    Timeout { phase: EvolutionPhase, timeout: Duration },
+    Timeout {
+        phase: EvolutionPhase,
+        timeout: Duration,
+    },
 
     #[error("injection scan rejected L5 content (severity={severity:?})")]
     InjectionRejected { severity: InjectionSeverity },
@@ -277,7 +280,8 @@ impl EvolutionEngine {
             .map_err(|e| EvolutionError::MemoryStore(format!("read L1: {e}")))?;
 
         if l1_mems.is_empty() {
-            out.warnings.push("no L1 memories to extract from".to_string());
+            out.warnings
+                .push("no L1 memories to extract from".to_string());
             out.degraded = true;
             return Ok(out);
         }
@@ -581,9 +585,8 @@ impl EvolutionEngine {
 
         // Step 1: 拼接要写入的文本（带 master_id provenance）
         let timestamp = chrono::Utc::now().to_rfc3339();
-        let append_text = format!(
-            "## [{timestamp}] Evolution (master={master_id})\n\n{l5_content}\n"
-        );
+        let append_text =
+            format!("## [{timestamp}] Evolution (master={master_id})\n\n{l5_content}\n");
 
         // Step 2: 输出侧注入扫描（P1-13）
         let scan_result = security::full_injection_scan(&append_text);
@@ -605,9 +608,8 @@ impl EvolutionEngine {
         // 与当前 run(master_id) 比对。不匹配则拒绝写入(防止跨实例写入)。
         // 首次写入(SOUL.md 不存在或无 master_id 元数据)时,自动写入当前 master_id。
         if let Err(e) = self.verify_soul_md_master_id(master_id) {
-            out.warnings.push(format!(
-                "SOUL.md master_id verification failed: {e}"
-            ));
+            out.warnings
+                .push(format!("SOUL.md master_id verification failed: {e}"));
             out.degraded = true;
             return Ok(out);
         }
@@ -618,9 +620,7 @@ impl EvolutionEngine {
             Ok(s) => s,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => {
-                return Err(EvolutionError::SoulWrite(format!(
-                    "read SOUL.md: {e}"
-                )));
+                return Err(EvolutionError::SoulWrite(format!("read SOUL.md: {e}")));
             }
         };
 
@@ -701,9 +701,7 @@ impl EvolutionEngine {
                 Ok(String::new())
             }
             Err(_) => {
-                warnings.push(format!(
-                    "phase {phase} timeout after {timeout:?}; degraded"
-                ));
+                warnings.push(format!("phase {phase} timeout after {timeout:?}; degraded"));
                 Ok(String::new())
             }
         }
@@ -851,7 +849,8 @@ impl EvolutionEngine {
         } else if let Some(begin_idx) = existing_soul_md.find(BEGIN_TAG) {
             // 已有 evolution-append Section：在 BEGIN 后插入
             let insert_pos = begin_idx + BEGIN_TAG.len();
-            let mut new_content = String::with_capacity(existing_soul_md.len() + append_text.len() + 2);
+            let mut new_content =
+                String::with_capacity(existing_soul_md.len() + append_text.len() + 2);
             new_content.push_str(&existing_soul_md[..insert_pos]);
             new_content.push('\n');
             new_content.push_str(append_text);
@@ -861,9 +860,7 @@ impl EvolutionEngine {
             self.truncate_evolution_section_to_max_lines(new_content)
         } else {
             // SOUL.md 存在但无 evolution-append Section：在末尾追加
-            format!(
-                "{existing_soul_md}\n\n{BEGIN_TAG}\n{append_text}\n{END_TAG}\n"
-            )
+            format!("{existing_soul_md}\n\n{BEGIN_TAG}\n{append_text}\n{END_TAG}\n")
         };
 
         Ok(new_soul_md)
@@ -952,9 +949,8 @@ fn inject_master_id_metadata(soul_md: &str, master_id: &str) -> String {
     }
 
     // 在 section BEGIN 标签后插入 master_id 元数据行
-    let mut result = String::with_capacity(
-        soul_md.len() + MASTER_ID_PREFIX.len() + master_id.len() + 4,
-    );
+    let mut result =
+        String::with_capacity(soul_md.len() + MASTER_ID_PREFIX.len() + master_id.len() + 4);
     result.push_str(&soul_md[..section_start]);
     result.push('\n');
     result.push_str(MASTER_ID_PREFIX);
@@ -1014,7 +1010,8 @@ mod master_id_verification_tests {
 
     #[test]
     fn inject_master_id_metadata_is_idempotent() {
-        let soul_md = "<!-- BEGIN SECTION: immutable_from_ai -->\n<!-- END SECTION: immutable_from_ai -->";
+        let soul_md =
+            "<!-- BEGIN SECTION: immutable_from_ai -->\n<!-- END SECTION: immutable_from_ai -->";
         let once = inject_master_id_metadata(soul_md, "agent_a");
         let twice = inject_master_id_metadata(&once, "agent_a");
         assert_eq!(once, twice, "double inject should be idempotent");

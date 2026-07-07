@@ -1,4 +1,4 @@
-﻿//! Thin async HTTP wrapper around the local Ollama server.
+//! Thin async HTTP wrapper around the local Ollama server.
 //!
 //! This module intentionally exposes only the three endpoints we use
 //! (chat, generate, embeddings) so the rest of the code base does not
@@ -75,7 +75,11 @@ pub struct FunctionSpec {
 
 impl ToolSpec {
     /// 构造函数规格,ty 自动设为 "function"。
-    pub fn function(name: impl Into<String>, description: impl Into<String>, parameters: serde_json::Value) -> Self {
+    pub fn function(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        parameters: serde_json::Value,
+    ) -> Self {
         Self {
             ty: "function".to_string(),
             function: FunctionSpec {
@@ -266,9 +270,7 @@ impl OllamaClient {
             http,
             max_retries: 3,
             retry_delay: Duration::from_secs(1),
-            max_concurrency: Arc::new(tokio::sync::Semaphore::new(
-                DEFAULT_OLLAMA_MAX_CONCURRENCY,
-            )),
+            max_concurrency: Arc::new(tokio::sync::Semaphore::new(DEFAULT_OLLAMA_MAX_CONCURRENCY)),
             max_concurrency_limit: DEFAULT_OLLAMA_MAX_CONCURRENCY,
         }
     }
@@ -296,9 +298,7 @@ impl OllamaClient {
             http,
             max_retries: 3,
             retry_delay: Duration::from_secs(1),
-            max_concurrency: Arc::new(tokio::sync::Semaphore::new(
-                DEFAULT_OLLAMA_MAX_CONCURRENCY,
-            )),
+            max_concurrency: Arc::new(tokio::sync::Semaphore::new(DEFAULT_OLLAMA_MAX_CONCURRENCY)),
             max_concurrency_limit: DEFAULT_OLLAMA_MAX_CONCURRENCY,
         }
     }
@@ -844,9 +844,7 @@ mod tests {
             let generate_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let gen_counter = generate_count.clone();
             // 设置较短的超时,避免测试卡死。
-            listener
-                .set_nonblocking(false)
-                .expect("set blocking ok");
+            listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
                 // 最多处理 4 个连接后退出,避免线程泄漏。
                 for _ in 0..4 {
@@ -887,7 +885,8 @@ mod tests {
         }
 
         fn generate_calls(&self) -> usize {
-            self.generate_count.load(std::sync::atomic::Ordering::SeqCst)
+            self.generate_count
+                .load(std::sync::atomic::Ordering::SeqCst)
         }
     }
 
@@ -1009,9 +1008,7 @@ mod tests {
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
-            listener
-                .set_nonblocking(false)
-                .expect("set blocking ok");
+            listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
                 // Accept up to 8 connections so retries have room;
                 // leftover accepts are simply never made (the thread
@@ -1066,9 +1063,7 @@ mod tests {
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
-            listener
-                .set_nonblocking(false)
-                .expect("set blocking ok");
+            listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
                 // 接受足够多连接以容纳 3 并发 + retry 余量。
                 for _ in 0..16 {
@@ -1302,9 +1297,7 @@ mod tests {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             let port = listener.local_addr().unwrap().port();
             let base_url = format!("http://127.0.0.1:{port}");
-            listener
-                .set_nonblocking(false)
-                .expect("set blocking ok");
+            listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
                 for _ in 0..4 {
                     let (mut stream, _) = match listener.accept() {
@@ -1334,9 +1327,7 @@ mod tests {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             let port = listener.local_addr().unwrap().port();
             let base_url = format!("http://127.0.0.1:{port}");
-            listener
-                .set_nonblocking(false)
-                .expect("set blocking ok");
+            listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
                 for _ in 0..4 {
                     let (mut stream, _) = match listener.accept() {
@@ -1371,8 +1362,10 @@ mod tests {
         use futures::StreamExt;
 
         let lines = vec![
-            r#"{"model":"x","message":{"role":"assistant","content":"Hel"},"done":false}"#.to_string(),
-            r#"{"model":"x","message":{"role":"assistant","content":"lo"},"done":false}"#.to_string(),
+            r#"{"model":"x","message":{"role":"assistant","content":"Hel"},"done":false}"#
+                .to_string(),
+            r#"{"model":"x","message":{"role":"assistant","content":"lo"},"done":false}"#
+                .to_string(),
             r#"{"model":"x","message":{"role":"assistant","content":""},"done":true}"#.to_string(),
         ];
         let server = MockStreamServer::start(lines);
@@ -1409,10 +1402,7 @@ mod tests {
 
         let mut stream = client.chat_stream("x", vec![ChatMessage::user("hi")]);
         let result = stream.next().await;
-        assert!(
-            result.is_some(),
-            "stream should yield at least one item"
-        );
+        assert!(result.is_some(), "stream should yield at least one item");
         match result.unwrap() {
             Ok(_) => panic!("expected Err on HTTP 400"),
             Err(e) => {
@@ -1458,8 +1448,7 @@ mod tests {
     async fn test_chat_stream_shares_semaphore_with_chat() {
         // 仅验证 chat_stream 不会绕过 Semaphore 配置。
         // max_concurrency=1 时,流式请求也受限。
-        let client = OllamaClient::new("http://127.0.0.1:1")
-            .with_max_concurrency(1);
+        let client = OllamaClient::new("http://127.0.0.1:1").with_max_concurrency(1);
         assert_eq!(client.max_concurrency(), 1);
         assert_eq!(client.available_concurrency(), 1);
         // 创建流(未 await,不消耗 permit)。
@@ -1474,7 +1463,8 @@ mod tests {
         use futures::StreamExt;
 
         let lines = vec![
-            r#"{"model":"x","message":{"role":"assistant","content":"ok"},"done":false}"#.to_string(),
+            r#"{"model":"x","message":{"role":"assistant","content":"ok"},"done":false}"#
+                .to_string(),
             // 故意放入无法解析的行(非 JSON)。
             "this is not json".to_string(),
             r#"{"model":"x","message":{"role":"assistant","content":"!"},"done":true}"#.to_string(),
@@ -1492,7 +1482,12 @@ mod tests {
         }
 
         // 跳过坏行后,应收到 2 个 token("ok" + done)。
-        assert_eq!(tokens.len(), 2, "expected 2 tokens (bad line skipped), got {}", tokens.len());
+        assert_eq!(
+            tokens.len(),
+            2,
+            "expected 2 tokens (bad line skipped), got {}",
+            tokens.len()
+        );
         assert_eq!(tokens[0].text, "ok");
         assert_eq!(tokens[1].done, true);
     }

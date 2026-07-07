@@ -120,10 +120,10 @@ impl HonchoEngine {
         let confidence: f32 = row.get(1)?;
         let last_nudge_ts: Option<i64> = row.get(2)?;
         let updated_ts: i64 = row.get(3)?;
-        let last_nudge = last_nudge_ts.map(|ts| {
-            DateTime::<Utc>::from_timestamp(ts, 0).unwrap_or_else(|| Utc::now())
-        });
-        let updated_at = DateTime::<Utc>::from_timestamp(updated_ts, 0).unwrap_or_else(|| Utc::now());
+        let last_nudge = last_nudge_ts
+            .map(|ts| DateTime::<Utc>::from_timestamp(ts, 0).unwrap_or_else(|| Utc::now()));
+        let updated_at =
+            DateTime::<Utc>::from_timestamp(updated_ts, 0).unwrap_or_else(|| Utc::now());
 
         // 拉取所有辩证层
         let mut stmt_layers = conn.prepare(
@@ -311,7 +311,10 @@ impl HonchoEngine {
     }
 
     /// 辩证式归纳:用 LLM 从对话摘要中提取 thesis/antithesis/synthesis。
-    async fn dialectic_induction(&self, sessions: &[SessionSummary]) -> Result<Vec<DialecticLayer>> {
+    async fn dialectic_induction(
+        &self,
+        sessions: &[SessionSummary],
+    ) -> Result<Vec<DialecticLayer>> {
         // 构造 LLM 提示
         let mut conversation_text = String::new();
         for (i, s) in sessions.iter().enumerate() {
@@ -347,7 +350,9 @@ impl HonchoEngine {
             },
             ChatMessage {
                 role: "user".to_string(),
-                content: format!("以下是用户最近的对话历史:\n\n{conversation_text}\n\n请归纳用户画像。"),
+                content: format!(
+                    "以下是用户最近的对话历史:\n\n{conversation_text}\n\n请归纳用户画像。"
+                ),
                 ..Default::default()
             },
         ];
@@ -406,16 +411,9 @@ impl HonchoEngine {
     fn generate_nudge_prompt(&self, profile: &UserProfile) -> String {
         let mut prompt = String::from("我根据你最近的对话归纳了一些偏好,请确认或修正:\n\n");
         for (i, layer) in profile.dialectic_layers.iter().enumerate() {
-            prompt.push_str(&format!(
-                "{}. 偏好: {}\n",
-                i + 1,
-                layer.synthesis
-            ));
+            prompt.push_str(&format!("{}. 偏好: {}\n", i + 1, layer.synthesis));
             if !layer.antithesis.is_empty() {
-                prompt.push_str(&format!(
-                    "   (检测到矛盾: {})\n",
-                    layer.antithesis
-                ));
+                prompt.push_str(&format!("   (检测到矛盾: {})\n", layer.antithesis));
             }
             prompt.push('\n');
         }
@@ -445,8 +443,7 @@ fn parse_dialectic_response(content: &str) -> Result<Vec<DialecticLayer>> {
         content
     };
 
-    let parsed: Vec<serde_json::Value> = serde_json::from_str(json_str.trim())
-        .unwrap_or_default();
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(json_str.trim()).unwrap_or_default();
 
     let now = Utc::now();
     let layers = parsed

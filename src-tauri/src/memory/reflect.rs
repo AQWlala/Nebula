@@ -1186,7 +1186,10 @@ mod tests {
         let mut g = RoundGuard::new(5, 3600);
         let now = 10000i64;
         for i in 0..5 {
-            assert!(g.check_and_record(now + i as i64 * 10), "round {i} should be allowed");
+            assert!(
+                g.check_and_record(now + i as i64 * 10),
+                "round {i} should be allowed"
+            );
         }
     }
 
@@ -1196,7 +1199,10 @@ mod tests {
         let now = 10000i64;
         assert!(g.check_and_record(now));
         assert!(g.check_and_record(now + 1));
-        assert!(!g.check_and_record(now + 2), "third round should be blocked");
+        assert!(
+            !g.check_and_record(now + 2),
+            "third round should be blocked"
+        );
     }
 
     #[test]
@@ -1208,7 +1214,10 @@ mod tests {
         // 冷却窗口内已满，blocked
         assert!(!g.check_and_record(now + 2));
         // 超出冷却窗口（> 100 秒），旧的被淘汰
-        assert!(g.check_and_record(now + 200), "old rounds should have expired");
+        assert!(
+            g.check_and_record(now + 200),
+            "old rounds should have expired"
+        );
     }
 
     #[test]

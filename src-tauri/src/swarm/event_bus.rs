@@ -33,10 +33,7 @@ impl EventBus {
     pub fn with_capacity(capacity: usize) -> Self {
         let cap = capacity.max(1);
         let (tx, _) = broadcast::channel(cap);
-        Self {
-            tx,
-            capacity: cap,
-        }
+        Self { tx, capacity: cap }
     }
 
     /// 返回通道容量。
@@ -102,7 +99,12 @@ mod tests {
         let mut rx = bus.subscribe();
 
         bus.emit(SwarmEvent::agent_started(AgentKind::Coder, "t-1"));
-        bus.emit(SwarmEvent::agent_completed(AgentKind::Writer, "t-2", true, None));
+        bus.emit(SwarmEvent::agent_completed(
+            AgentKind::Writer,
+            "t-2",
+            true,
+            None,
+        ));
         bus.emit(SwarmEvent::swarm_completed("t-3", 1, 0, true));
 
         let mut received = Vec::new();

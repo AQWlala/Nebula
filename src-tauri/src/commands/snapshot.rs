@@ -37,10 +37,7 @@ pub async fn snapshot_create(
 
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "snapshot_rollback"))]
-pub async fn snapshot_rollback(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn snapshot_rollback(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     let engine = state.snapshot_engine.clone();
     engine
         .rollback(&id)
@@ -52,10 +49,7 @@ pub async fn snapshot_rollback(
 
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "snapshot_discard"))]
-pub async fn snapshot_discard(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn snapshot_discard(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     let engine = state.snapshot_engine.clone();
     engine
         .discard(&id)
@@ -67,7 +61,9 @@ pub async fn snapshot_discard(
 
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "snapshot_list"))]
-pub async fn snapshot_list(state: State<'_, AppState>) -> Result<Vec<SnapshotInfoDto>, CommandError> {
+pub async fn snapshot_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<SnapshotInfoDto>, CommandError> {
     let engine = state.snapshot_engine.clone();
     let list = engine.list_snapshots();
     let dtos: Vec<SnapshotInfoDto> = list.into_iter().map(SnapshotInfoDto::from).collect();

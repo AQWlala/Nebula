@@ -7,7 +7,9 @@
 
 use std::sync::Arc;
 
-use super::{DynStorageBackend, LocalBackend, StorageConfig, StorageError, StorageResult, WebDavBackend};
+use super::{
+    DynStorageBackend, LocalBackend, StorageConfig, StorageError, StorageResult, WebDavBackend,
+};
 
 /// 存储后端工厂。
 pub struct StorageBackendFactory;
@@ -44,12 +46,9 @@ impl StorageBackendFactory {
             }
             "webdav" => {
                 // WebDAV 始终构造实例(feature 关闭时为 stub,方法返回 Err)。
-                let url = config
-                    .webdav_url
-                    .as_ref()
-                    .ok_or_else(|| {
-                        StorageError::Unavailable("WebDAV backend requires `webdav_url`".to_string())
-                    })?;
+                let url = config.webdav_url.as_ref().ok_or_else(|| {
+                    StorageError::Unavailable("WebDAV backend requires `webdav_url`".to_string())
+                })?;
                 let backend = WebDavBackend::new(
                     url,
                     config.webdav_username.clone(),
@@ -116,7 +115,8 @@ mod tests {
             webdav_url: Some("https://example.com/dav/".to_string()),
             ..Default::default()
         };
-        let backend = StorageBackendFactory::from_config(&config).expect("construct webdav backend");
+        let backend =
+            StorageBackendFactory::from_config(&config).expect("construct webdav backend");
         assert_eq!(backend.kind(), "webdav");
     }
 

@@ -113,10 +113,7 @@ where
 /// 供 `ActionExecutor::dispatch` 包装触发器动作执行,让动作内部的 LLM
 /// 调用经由 `CostTracker::record` 时自动归类为 Automation 来源并关联
 /// trigger_id。等价于 `COST_TRIGGER_ID.scope(id, with_source(Automation, fut))`。
-pub async fn with_automation_trigger<F, R>(
-    trigger_id: Option<String>,
-    fut: F,
-) -> R
+pub async fn with_automation_trigger<F, R>(trigger_id: Option<String>, fut: F) -> R
 where
     F: std::future::Future<Output = R>,
 {
@@ -137,10 +134,7 @@ fn current_source() -> CostSource {
 
 /// T-E-A-12: 读取当前 task_local 的 trigger_id;未设置时返回 None。
 fn current_trigger_id() -> Option<String> {
-    COST_TRIGGER_ID
-        .try_get()
-        .ok()
-        .and_then(|v| v.clone())
+    COST_TRIGGER_ID.try_get().ok().and_then(|v| v.clone())
 }
 
 /// T-E-A-12: 预算告警负载。当自动化当日累计费用超过阈值时由
@@ -275,14 +269,8 @@ impl CostRecord {
         agent: Option<String>,
         work_type_str: Option<String>,
     ) -> Self {
-        let mut rec = Self::new_with_context(
-            model,
-            input_tokens,
-            output_tokens,
-            provider,
-            task,
-            agent,
-        );
+        let mut rec =
+            Self::new_with_context(model, input_tokens, output_tokens, provider, task, agent);
         rec.work_type = work_type_str;
         rec
     }
@@ -568,14 +556,8 @@ impl CostTracker {
         task: Option<String>,
         agent: Option<String>,
     ) {
-        let rec = CostRecord::new_with_context(
-            model,
-            input_tokens,
-            output_tokens,
-            provider,
-            task,
-            agent,
-        );
+        let rec =
+            CostRecord::new_with_context(model, input_tokens, output_tokens, provider, task, agent);
         let micro_cent = usd_to_micro_cent(rec.cost_usd);
         crate::metrics::global().record_token_cost(micro_cent);
         let today_automation_cost = self.push_and_sum_today_automation(rec);
@@ -697,7 +679,10 @@ impl CostTracker {
     /// 在 records 锁释放后调用,只锁 `budget_alerted_today`(无重入风险)。
     fn maybe_emit_budget_alert(&self, today_automation_cost: (f64, NaiveDate)) {
         let (cost, today) = today_automation_cost;
-        let (budget, callback) = match (self.automation_daily_budget_usd, &self.budget_alert_callback) {
+        let (budget, callback) = match (
+            self.automation_daily_budget_usd,
+            &self.budget_alert_callback,
+        ) {
             (Some(b), Some(cb)) if b > 0.0 => (b, cb.clone()),
             _ => return,
         };
@@ -759,10 +744,9 @@ impl CostTracker {
 
     /// 累计 token 用量。
     pub fn total_tokens(&self) -> (u64, u64) {
-        self.records
-            .lock()
-            .iter()
-            .fold((0, 0), |(i, o), r| (i + r.input_tokens, o + r.output_tokens))
+        self.records.lock().iter().fold((0, 0), |(i, o), r| {
+            (i + r.input_tokens, o + r.output_tokens)
+        })
     }
 }
 impl CostTracker {
@@ -826,10 +810,7 @@ impl CostTracker {
         let mut map: std::collections::HashMap<String, ProviderBucket> =
             std::collections::HashMap::new();
         for r in self.records.lock().iter() {
-            let key = r
-                .provider
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
+            let key = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
             let agg = map.entry(key.clone()).or_insert_with(|| ProviderBucket {
                 provider: key,
                 ..Default::default()
@@ -902,10 +883,7 @@ impl CostTracker {
             if ry != target_year || rm != target_month {
                 continue;
             }
-            let provider = r
-                .provider
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
+            let provider = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
             let agg = map.entry(r.model.clone()).or_insert_with(|| ModelCostRow {
                 model: r.model.clone(),
                 provider: provider.clone(),
@@ -1031,10 +1009,7 @@ impl CostTracker {
             if ry != target_year || rm != target_month {
                 continue;
             }
-            let key = r
-                .work_type
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
+            let key = r.work_type.clone().unwrap_or_else(|| "unknown".to_string());
             let agg = map.entry(key.clone()).or_insert_with(|| SourceBucket {
                 source: key,
                 ..Default::default()
@@ -1062,8 +1037,7 @@ impl CostTracker {
             .lock()
             .iter()
             .filter(|r| {
-                r.timestamp.date_naive() == today
-                    && r.work_type.as_deref() == Some(work_type_str)
+                r.timestamp.date_naive() == today && r.work_type.as_deref() == Some(work_type_str)
             })
             .count() as u32
     }
@@ -1078,8 +1052,9 @@ static MODELS_CONFIG_CACHE: std::sync::OnceLock<crate::llm::models_config::Model
 
 /// T-E-S-41: override 槽位。`models_config_save` 命令在保存后会把
 /// 最新配置推进这里,让 `model_price()` 立即看到新 pricing,无需重启。
-static MODELS_CONFIG_OVERRIDE: parking_lot::RwLock<Option<crate::llm::models_config::ModelsConfig>> =
-    parking_lot::const_rwlock(None);
+static MODELS_CONFIG_OVERRIDE: parking_lot::RwLock<
+    Option<crate::llm::models_config::ModelsConfig>,
+> = parking_lot::const_rwlock(None);
 
 /// T-E-S-41: 由 `models_config_save` 命令调用,把最新保存的配置
 /// 推进 override 槽位,让 `model_price()` 立即看到新 pricing。
@@ -1372,12 +1347,16 @@ mod tests {
         );
         let by_provider = tracker.aggregate_by_provider();
         assert!(
-            by_provider.iter().any(|b| b.provider == "deepseek" && b.calls == 1),
+            by_provider
+                .iter()
+                .any(|b| b.provider == "deepseek" && b.calls == 1),
             "provider bucket should contain deepseek"
         );
         let by_agent = tracker.aggregate_by_agent();
         assert!(
-            by_agent.iter().any(|b| b.provider == "orchestrator" && b.calls == 1),
+            by_agent
+                .iter()
+                .any(|b| b.provider == "orchestrator" && b.calls == 1),
             "agent bucket should contain orchestrator"
         );
     }
@@ -1468,7 +1447,11 @@ mod tests {
         assert_eq!(r.output_tokens, 1_000_000);
         assert_eq!(r.total_tokens, 2_500_000);
         // 0.14*1.5 + 0.28*1.0 = 0.21 + 0.28 = 0.49
-        assert!((r.cost_usd - 0.49).abs() < 1e-9, "expected 0.49, got {}", r.cost_usd);
+        assert!(
+            (r.cost_usd - 0.49).abs() < 1e-9,
+            "expected 0.49, got {}",
+            r.cost_usd
+        );
     }
 
     #[test]
@@ -1557,9 +1540,15 @@ mod tests {
         let tracker = CostTracker::new();
         tracker.record("deepseek-chat", 100_000, 50_000);
         // 非法月份格式应返回空 Vec（不 panic）。
-        assert!(tracker.aggregate_by_model(Some("invalid".to_string())).is_empty());
-        assert!(tracker.aggregate_by_model(Some("2026-13".to_string())).is_empty());
-        assert!(tracker.aggregate_by_model(Some("2026".to_string())).is_empty());
+        assert!(tracker
+            .aggregate_by_model(Some("invalid".to_string()))
+            .is_empty());
+        assert!(tracker
+            .aggregate_by_model(Some("2026-13".to_string()))
+            .is_empty());
+        assert!(tracker
+            .aggregate_by_model(Some("2026".to_string()))
+            .is_empty());
     }
 
     #[test]
@@ -1617,8 +1606,15 @@ mod tests {
         }"#;
         let rec: CostRecord = serde_json::from_str(old_json).unwrap();
         assert_eq!(rec.model, "deepseek-chat");
-        assert_eq!(rec.source, CostSource::Chat, "missing source must default to Chat");
-        assert!(rec.trigger_id.is_none(), "missing trigger_id must default to None");
+        assert_eq!(
+            rec.source,
+            CostSource::Chat,
+            "missing source must default to Chat"
+        );
+        assert!(
+            rec.trigger_id.is_none(),
+            "missing trigger_id must default to None"
+        );
     }
 
     #[test]
@@ -1642,7 +1638,10 @@ mod tests {
         let records = tracker.all();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].source, CostSource::Chat, "no task_local → Chat");
-        assert!(records[0].trigger_id.is_none(), "no task_local → None trigger_id");
+        assert!(
+            records[0].trigger_id.is_none(),
+            "no task_local → None trigger_id"
+        );
     }
 
     #[tokio::test]
@@ -1664,7 +1663,9 @@ mod tests {
         // 聚合:source 分桶应含 automation 桶。
         let by_source = tracker.aggregate_by_source(None);
         assert!(
-            by_source.iter().any(|b| b.source == "automation" && b.calls == 1),
+            by_source
+                .iter()
+                .any(|b| b.source == "automation" && b.calls == 1),
             "aggregate_by_source must contain automation bucket: {by_source:?}"
         );
     }
@@ -1705,7 +1706,11 @@ mod tests {
             guard.push(rec);
         }
         let by_source = tracker.aggregate_by_source(None);
-        assert_eq!(by_source.len(), 2, "should group into 2 sources: {by_source:?}");
+        assert_eq!(
+            by_source.len(),
+            2,
+            "should group into 2 sources: {by_source:?}"
+        );
         // claude-3-5-sonnet 1M input = 3.00 USD (Automation) > deepseek 0.21 USD (Chat),
         // 所以 automation 桶应排在前。
         assert_eq!(by_source[0].source, "automation");
@@ -1738,7 +1743,9 @@ mod tests {
         assert_eq!(cur[0].source, "chat");
         assert_eq!(cur[0].calls, 1);
         // 非法月份返回空。
-        assert!(tracker.aggregate_by_source(Some("invalid".to_string())).is_empty());
+        assert!(tracker
+            .aggregate_by_source(Some("invalid".to_string()))
+            .is_empty());
     }
 
     #[tokio::test]
@@ -1746,12 +1753,10 @@ mod tests {
         // 注入预算 0.10 USD + 回调捕获告警。record 累计超过 0.10 时应 emit 一次。
         let alert = Arc::new(parking_lot::Mutex::new(None::<BudgetAlert>));
         let alert_cb = Arc::clone(&alert);
-        let callback: Arc<dyn Fn(BudgetAlert) + Send + Sync> =
-            Arc::new(move |a| {
-                *alert_cb.lock() = Some(a);
-            });
-        let tracker = CostTracker::new()
-            .with_budget_alert(Some(0.10), callback);
+        let callback: Arc<dyn Fn(BudgetAlert) + Send + Sync> = Arc::new(move |a| {
+            *alert_cb.lock() = Some(a);
+        });
+        let tracker = CostTracker::new().with_budget_alert(Some(0.10), callback);
         // Automation 来源 0.14 USD(deepseek-chat 1M input) > 0.10 阈值。
         let tracker_arc = Arc::new(tracker);
         let tracker_clone = Arc::clone(&tracker_arc);
@@ -1760,7 +1765,8 @@ mod tests {
         })
         .await;
         let captured = alert.lock().clone();
-        let captured = captured.expect("budget alert should fire when automation daily cost > 0.10");
+        let captured =
+            captured.expect("budget alert should fire when automation daily cost > 0.10");
         assert_eq!(captured.source, CostSource::Automation);
         assert!((captured.budget_usd - 0.10).abs() < 1e-9);
         assert!(
@@ -1807,10 +1813,9 @@ mod tests {
         // Chat 来源的记录不应触发 Automation 预算告警(只统计 Automation)。
         let alert = Arc::new(parking_lot::Mutex::new(None::<BudgetAlert>));
         let alert_cb = Arc::clone(&alert);
-        let callback: Arc<dyn Fn(BudgetAlert) + Send + Sync> =
-            Arc::new(move |a| {
-                *alert_cb.lock() = Some(a);
-            });
+        let callback: Arc<dyn Fn(BudgetAlert) + Send + Sync> = Arc::new(move |a| {
+            *alert_cb.lock() = Some(a);
+        });
         let tracker = CostTracker::new().with_budget_alert(Some(0.05), callback);
         let tracker_arc = Arc::new(tracker);
         let tracker_clone = Arc::clone(&tracker_arc);
@@ -1819,7 +1824,10 @@ mod tests {
             tracker_clone.record("deepseek-chat", 1_000_000, 0);
         })
         .await;
-        assert!(alert.lock().is_none(), "Chat source must not trigger Automation budget alert");
+        assert!(
+            alert.lock().is_none(),
+            "Chat source must not trigger Automation budget alert"
+        );
         // automation_cost_today 应为 0(Chat 记录不计入)。
         assert_eq!(tracker_arc.automation_cost_today(), 0.0);
     }
@@ -1849,8 +1857,10 @@ mod tests {
     fn cost_records_count(store: &SqliteStore) -> i64 {
         let conn = store.raw_connection();
         let g = conn.lock();
-        g.query_row("SELECT COUNT(*) FROM cost_records", [], |r| r.get::<_, i64>(0))
-            .expect("count cost_records")
+        g.query_row("SELECT COUNT(*) FROM cost_records", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .expect("count cost_records")
     }
 
     /// T1: 无 attach_store,record_async 仅入内存,不 panic。
@@ -1876,7 +1886,11 @@ mod tests {
         let r = CostRecord::new("deepseek-chat", 1_000_000, 500_000);
         tracker.record_async(r).await;
         // spawn_blocking 完成后 SQLite 应有 1 行。
-        assert_eq!(cost_records_count(&store), 1, "cost_records table should have 1 row");
+        assert_eq!(
+            cost_records_count(&store),
+            1,
+            "cost_records table should have 1 row"
+        );
         assert_eq!(tracker.len(), 1, "memory should have 1 record");
     }
 
@@ -1888,7 +1902,9 @@ mod tests {
         // 第一阶段:写 3 条记录到 SQLite。
         {
             let tracker = CostTracker::new().attach_store(store.clone());
-            tracker.record_async(CostRecord::new("deepseek-chat", 1_000_000, 0)).await;
+            tracker
+                .record_async(CostRecord::new("deepseek-chat", 1_000_000, 0))
+                .await;
             // 设置不同 source / trigger_id 验证反序列化 round-trip。
             let mut r2 = CostRecord::new("claude-3-5-sonnet", 500_000, 0);
             r2.source = CostSource::Automation;
@@ -1897,11 +1913,19 @@ mod tests {
             let mut r3 = CostRecord::new("gpt-4o", 100_000, 50_000);
             r3.source = CostSource::Cron;
             tracker.record_async(r3).await;
-            assert_eq!(tracker.len(), 3, "first tracker should have 3 records in memory");
+            assert_eq!(
+                tracker.len(),
+                3,
+                "first tracker should have 3 records in memory"
+            );
             // tracker drop 在块结束 — SQLite 数据持久化在文件里。
         }
         // 验证 SQLite 里有 3 行。
-        assert_eq!(cost_records_count(&store), 3, "sqlite should persist 3 rows");
+        assert_eq!(
+            cost_records_count(&store),
+            3,
+            "sqlite should persist 3 rows"
+        );
         // 第二阶段:新构造 tracker,attach_store 触发 load_from_store_blocking。
         let tracker2 = CostTracker::new().attach_store(store.clone());
         assert_eq!(
@@ -1930,7 +1954,11 @@ mod tests {
     fn test_bootstrap_storage_plain() {
         let (store, _tmp) = make_temp_store();
         // 验证 cost_records 表已建(migration 027 在 open 内部已应用)。
-        assert_eq!(cost_records_count(&store), 0, "fresh db should have 0 cost_records");
+        assert_eq!(
+            cost_records_count(&store),
+            0,
+            "fresh db should have 0 cost_records"
+        );
         // 验证可 INSERT / SELECT(列名与 migration 027 对齐)。
         let conn = store.raw_connection();
         {
@@ -1955,7 +1983,11 @@ mod tests {
             )
             .expect("insert cost_records row");
         }
-        assert_eq!(cost_records_count(&store), 1, "after insert should have 1 row");
+        assert_eq!(
+            cost_records_count(&store),
+            1,
+            "after insert should have 1 row"
+        );
     }
 
     /// T5: CostRecord 含 source / trigger_id 字段的序列化/反序列化
@@ -1970,8 +2002,15 @@ mod tests {
         assert_eq!(back1.input_tokens, r1.input_tokens);
         assert_eq!(back1.output_tokens, r1.output_tokens);
         assert_eq!(back1.cost_usd, r1.cost_usd);
-        assert_eq!(back1.source, CostSource::Chat, "default source should be Chat");
-        assert!(back1.trigger_id.is_none(), "default trigger_id should be None");
+        assert_eq!(
+            back1.source,
+            CostSource::Chat,
+            "default source should be Chat"
+        );
+        assert!(
+            back1.trigger_id.is_none(),
+            "default trigger_id should be None"
+        );
 
         // 2. Automation 来源 + trigger_id 全字段 round-trip。
         let mut r2 = CostRecord::new("claude-3-5-sonnet", 1_000_000, 500_000);
@@ -2009,7 +2048,14 @@ mod tests {
             "agent": "orchestrator"
         }"#;
         let back3: CostRecord = serde_json::from_str(old_json).expect("deserialize old json");
-        assert_eq!(back3.source, CostSource::Chat, "missing source must default to Chat");
-        assert!(back3.trigger_id.is_none(), "missing trigger_id must default to None");
+        assert_eq!(
+            back3.source,
+            CostSource::Chat,
+            "missing source must default to Chat"
+        );
+        assert!(
+            back3.trigger_id.is_none(),
+            "missing trigger_id must default to None"
+        );
     }
 }

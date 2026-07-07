@@ -35,7 +35,9 @@ pub async fn export_chat_docx(
     messages: Vec<ChatMessageForExport>,
     options: ChatExportOptions,
 ) -> Result<ChatExportResult, CommandError> {
-    let title = options.title.unwrap_or_else(|| "Nebula对话导出".to_string());
+    let title = options
+        .title
+        .unwrap_or_else(|| "Nebula对话导出".to_string());
     let include_timestamps = options.include_timestamps.unwrap_or(false);
 
     let mut doc = Docx::new()
@@ -70,25 +72,21 @@ pub async fn export_chat_docx(
         };
 
         doc = doc.add_paragraph(
-            Paragraph::new()
-                .add_run(Run::new().add_text(role_label).bold().size(24).color(color)),
+            Paragraph::new().add_run(Run::new().add_text(role_label).bold().size(24).color(color)),
         );
 
         if include_timestamps && msg.timestamp > 0 {
             if let Some(dt) = Utc.timestamp_millis_opt(msg.timestamp).single() {
                 let ts_str = dt.format("%Y-%m-%d %H:%M:%S").to_string();
                 doc = doc.add_paragraph(
-                    Paragraph::new()
-                        .add_run(Run::new().add_text(&ts_str).size(18).color("808080")),
+                    Paragraph::new().add_run(Run::new().add_text(&ts_str).size(18).color("808080")),
                 );
             }
         }
 
         let content = &msg.content;
         for line in content.lines() {
-            doc = doc.add_paragraph(
-                Paragraph::new().add_run(Run::new().add_text(line).size(22)),
-            );
+            doc = doc.add_paragraph(Paragraph::new().add_run(Run::new().add_text(line).size(22)));
         }
 
         doc = doc.add_paragraph(Paragraph::new().add_run(Run::new().add_text(" ")));

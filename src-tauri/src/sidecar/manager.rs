@@ -178,11 +178,7 @@ impl SidecarManager {
         let token = self.generate_token();
         self.inner.auth_tokens.lock().insert(kind, token.clone());
 
-        let config = SidecarConfig::new(
-            kind.as_str(),
-            self.inner.data_dir.clone(),
-            token,
-        );
+        let config = SidecarConfig::new(kind.as_str(), self.inner.data_dir.clone(), token);
 
         self.spawn_sidecar(kind, config).await?;
         self.ensure_supervisor();
@@ -250,9 +246,7 @@ impl SidecarManager {
     pub async fn stop_all(&self) -> Result<()> {
         self.inner.cancel.cancel();
 
-        let handle = {
-            self.inner.supervisor.lock().take()
-        };
+        let handle = { self.inner.supervisor.lock().take() };
         if let Some(handle) = handle {
             handle.abort();
             let _ = handle.await;
@@ -316,7 +310,9 @@ impl SidecarManager {
     fn generate_token(&self) -> String {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        (0..32).map(|_| rng.sample(rand::distributions::Alphanumeric) as char).collect()
+        (0..32)
+            .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
+            .collect()
     }
 
     async fn spawn_sidecar(&self, kind: SidecarKind, config: SidecarConfig) -> Result<()> {
@@ -368,7 +364,9 @@ impl SidecarManager {
             manager.monitor_sidecar(kind).await;
         });
 
-        let wait_addr = self.wait_for_listen_addr(kind, Duration::from_secs(30)).await;
+        let wait_addr = self
+            .wait_for_listen_addr(kind, Duration::from_secs(30))
+            .await;
         match wait_addr {
             Ok(addr) => {
                 let mut runtimes = self.inner.runtimes.lock();
@@ -395,11 +393,7 @@ impl SidecarManager {
         Ok(())
     }
 
-    async fn wait_for_listen_addr(
-        &self,
-        kind: SidecarKind,
-        timeout: Duration,
-    ) -> Result<String> {
+    async fn wait_for_listen_addr(&self, kind: SidecarKind, timeout: Duration) -> Result<String> {
         // T-E-S-61: gRPC HealthCheck 路径(feature on 时优先尝试)
         #[cfg(feature = "grpc")]
         {
@@ -471,7 +465,14 @@ impl SidecarManager {
                 return Ok(addr);
             }
 
-            if self.inner.runtimes.lock().get(&kind).and_then(|rt| rt.pid).is_some() {
+            if self
+                .inner
+                .runtimes
+                .lock()
+                .get(&kind)
+                .and_then(|rt| rt.pid)
+                .is_some()
+            {
                 return Ok(format!("127.0.0.1:{}", default_port));
             }
         }
@@ -487,8 +488,8 @@ impl SidecarManager {
     /// 5s 超时,失败返回 false(不向上抛错,由调用方决定如何处理)。
     #[cfg(feature = "grpc")]
     pub(crate) async fn grpc_health_check(addr: &str, timeout: Duration) -> bool {
-        use tonic_health::pb::health_client::HealthClient;
         use tonic_health::pb::health_check_response::ServingStatus;
+        use tonic_health::pb::health_client::HealthClient;
 
         // tonic-health 0.12: HealthClient no longer has ::connect().
         // Use tonic's Endpoint::from_shared + connect_lazy, then HealthClient::new(channel).
@@ -509,9 +510,7 @@ impl SidecarManager {
         });
 
         match tokio::time::timeout(timeout, client.check(req)).await {
-            Ok(Ok(resp)) => {
-                resp.into_inner().status == ServingStatus::Serving as i32
-            }
+            Ok(Ok(resp)) => resp.into_inner().status == ServingStatus::Serving as i32,
             Ok(Err(e)) => {
                 debug!(target: "sidecar", addr = %addr, error = %e,
                     "gRPC health check: RPC failed");
@@ -583,7 +582,13 @@ impl SidecarManager {
     }
 
     async fn monitor_sidecar(&self, kind: SidecarKind) {
-        let mut child = match self.inner.runtimes.lock().get_mut(&kind).and_then(|rt| rt.child.take()) {
+        let mut child = match self
+            .inner
+            .runtimes
+            .lock()
+            .get_mut(&kind)
+            .and_then(|rt| rt.child.take())
+        {
             Some(c) => c,
             None => return,
         };
@@ -700,10 +705,8 @@ impl SidecarManager {
                             // T-S4-B-03: 指数退避 — 仅在距上次崩溃已过
                             // backoff_delay 时间后才重启,避免重启风暴。
                             let backoff = Self::restart_backoff_delay(rt.restart_count);
-                            let elapsed = rt
-                                .last_crash
-                                .map(|t| t.elapsed())
-                                .unwrap_or(Duration::ZERO);
+                            let elapsed =
+                                rt.last_crash.map(|t| t.elapsed()).unwrap_or(Duration::ZERO);
                             if elapsed >= backoff {
                                 true
                             } else {
@@ -724,11 +727,8 @@ impl SidecarManager {
                     let token = self.generate_token();
                     self.inner.auth_tokens.lock().insert(kind, token.clone());
 
-                    let config = SidecarConfig::new(
-                        kind.as_str(),
-                        self.inner.data_dir.clone(),
-                        token,
-                    );
+                    let config =
+                        SidecarConfig::new(kind.as_str(), self.inner.data_dir.clone(), token);
 
                     let backoff_secs = {
                         let runtimes = self.inner.runtimes.lock();
@@ -793,25 +793,49 @@ mod tests {
     #[test]
     fn restart_backoff_delay_exponential() {
         // restart_count=0 → 1s (首次重启前的最小延迟)
-        assert_eq!(SidecarManager::restart_backoff_delay(0), Duration::from_secs(1));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(0),
+            Duration::from_secs(1)
+        );
         // restart_count=1 → 2s
-        assert_eq!(SidecarManager::restart_backoff_delay(1), Duration::from_secs(2));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(1),
+            Duration::from_secs(2)
+        );
         // restart_count=2 → 4s
-        assert_eq!(SidecarManager::restart_backoff_delay(2), Duration::from_secs(4));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(2),
+            Duration::from_secs(4)
+        );
         // restart_count=3 → 8s
-        assert_eq!(SidecarManager::restart_backoff_delay(3), Duration::from_secs(8));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(3),
+            Duration::from_secs(8)
+        );
         // restart_count=4 → 16s
-        assert_eq!(SidecarManager::restart_backoff_delay(4), Duration::from_secs(16));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(4),
+            Duration::from_secs(16)
+        );
     }
 
     #[test]
     fn restart_backoff_delay_capped_at_30s() {
         // restart_count=5 → 2^5=32, 饱和至 30s
-        assert_eq!(SidecarManager::restart_backoff_delay(5), Duration::from_secs(30));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(5),
+            Duration::from_secs(30)
+        );
         // restart_count=10 → 远超 30, 饱和至 30s
-        assert_eq!(SidecarManager::restart_backoff_delay(10), Duration::from_secs(30));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(10),
+            Duration::from_secs(30)
+        );
         // restart_count=30 → checked_shl 溢出返回 MAX, 饱和至 30s
-        assert_eq!(SidecarManager::restart_backoff_delay(30), Duration::from_secs(30));
+        assert_eq!(
+            SidecarManager::restart_backoff_delay(30),
+            Duration::from_secs(30)
+        );
     }
 
     #[tokio::test]
@@ -820,7 +844,10 @@ mod tests {
         let manager = SidecarManager::new(PathBuf::from("/tmp"));
         // bootstrap 内部 wait_ready 超时 10s × 5 kinds = 最多 50s,
         // 但 in-process 模式下 start() 立即标记 Running,wait_ready 立即返回。
-        manager.bootstrap().await.expect("bootstrap should not error");
+        manager
+            .bootstrap()
+            .await
+            .expect("bootstrap should not error");
         // in-process 模式下所有 sidecar 都应标记为 Running
         assert!(manager.is_running(SidecarKind::Memory));
     }
@@ -834,8 +861,7 @@ mod tests {
     #[tokio::test]
     async fn grpc_health_check_returns_false_for_unreachable() {
         // Port 1 通常无服务监听,connect 应失败或超时
-        let result =
-            SidecarManager::grpc_health_check("127.0.0.1:1", Duration::from_secs(1)).await;
+        let result = SidecarManager::grpc_health_check("127.0.0.1:1", Duration::from_secs(1)).await;
         assert!(!result, "unreachable address should return false");
     }
 
@@ -872,7 +898,10 @@ mod tests {
         }
 
         let result = manager.health_check(SidecarKind::Memory).await;
-        assert!(result.is_err(), "unreachable sidecar should fail health check");
+        assert!(
+            result.is_err(),
+            "unreachable sidecar should fail health check"
+        );
 
         let failures = manager
             .inner
@@ -945,7 +974,10 @@ mod tests {
         // 但也不应递增 failures
         let runtimes = manager.inner.runtimes.lock();
         let rt = runtimes.get(&SidecarKind::Memory).unwrap();
-        assert_eq!(rt.health_check_failures, 2, "failures unchanged in in-process mode");
+        assert_eq!(
+            rt.health_check_failures, 2,
+            "failures unchanged in in-process mode"
+        );
     }
 
     /// T-E-S-61: 无 grpc feature 时,manager 应回退到 is_running 逻辑。

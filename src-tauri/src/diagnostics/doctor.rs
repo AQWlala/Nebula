@@ -107,18 +107,7 @@ pub async fn run_doctor(state: &AppState) -> DoctorReport {
 
     // tokio::join! 并发轮询所有 run_one 包装器;每个 run_one 内部
     // 独立 2s 超时。所有子检查共享 &AppState 的不可变借用(Sync)。
-    let (
-        app_config,
-        keychain,
-        sqlite,
-        lancedb,
-        ollama,
-        gateway,
-        sidecar,
-        ipc,
-        logs,
-        backup,
-    ) = tokio::join!(
+    let (app_config, keychain, sqlite, lancedb, ollama, gateway, sidecar, ipc, logs, backup) = tokio::join!(
         run_one("app_config", check_app_config(state)),
         run_one("keychain", check_keychain(state)),
         run_one("sqlite", check_sqlite(state)),
@@ -132,16 +121,7 @@ pub async fn run_doctor(state: &AppState) -> DoctorReport {
     );
 
     let checks = vec![
-        app_config,
-        keychain,
-        sqlite,
-        lancedb,
-        ollama,
-        gateway,
-        sidecar,
-        ipc,
-        logs,
-        backup,
+        app_config, keychain, sqlite, lancedb, ollama, gateway, sidecar, ipc, logs, backup,
     ];
     let overall = aggregate_status(&checks);
 
@@ -177,10 +157,7 @@ async fn check_keychain(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
     let provider = state.config.llm_provider.clone();
     // keychain 访问是 OS 阻塞调用,放 spawn_blocking 避免阻塞 runtime。
-    let result = tokio::task::spawn_blocking(
-        crate::security::keychain::resolve_deepseek_key,
-    )
-    .await;
+    let result = tokio::task::spawn_blocking(crate::security::keychain::resolve_deepseek_key).await;
     match result {
         Ok(Some(_)) => DoctorCheck {
             name: "keychain".to_string(),
@@ -269,7 +246,8 @@ async fn check_lancedb(state: &AppState) -> DoctorCheck {
     // T-E-S-42: 调用 VectorStore::health_check 验证后端可用性。
     // trait 方法对 Lance/Qdrant/Chroma 各有实现,doctor 不需要关心具体后端。
     let health = state.lance.health_check().await;
-    let dir_exists = tokio::fs::metadata(&lance_path).await
+    let dir_exists = tokio::fs::metadata(&lance_path)
+        .await
         .map(|m| m.is_dir())
         .unwrap_or(false);
     match health {
@@ -397,9 +375,7 @@ async fn check_sidecar(state: &AppState) -> DoctorCheck {
                 stopped_names.len(),
                 stopped_names.join(", ")
             ),
-            suggestion: Some(
-                "进程内模式会自动降级;如需独立进程请在设置中启动 sidecar".to_string(),
-            ),
+            suggestion: Some("进程内模式会自动降级;如需独立进程请在设置中启动 sidecar".to_string()),
             latency_ms: start.elapsed().as_millis() as u64,
         }
     }
@@ -505,10 +481,7 @@ async fn check_backup() -> DoctorCheck {
     }
     match latest {
         Some(mtime) => {
-            let age_secs = mtime
-                .elapsed()
-                .map(|d| d.as_secs())
-                .unwrap_or(u64::MAX);
+            let age_secs = mtime.elapsed().map(|d| d.as_secs()).unwrap_or(u64::MAX);
             // 超过 7 天的备份视为 Warn(可能备份调度器未运行)。
             let status = if age_secs > 7 * 24 * 3600 {
                 CheckStatus::Warn
@@ -584,10 +557,7 @@ mod tests {
 
     #[test]
     fn test_overall_aggregation_ok() {
-        let checks = vec![
-            check("a", CheckStatus::Ok),
-            check("b", CheckStatus::Ok),
-        ];
+        let checks = vec![check("a", CheckStatus::Ok), check("b", CheckStatus::Ok)];
         assert_eq!(aggregate_status(&checks), CheckStatus::Ok);
     }
 
@@ -603,10 +573,7 @@ mod tests {
 
     #[test]
     fn test_overall_aggregation_fail() {
-        let checks = vec![
-            check("a", CheckStatus::Ok),
-            check("b", CheckStatus::Fail),
-        ];
+        let checks = vec![check("a", CheckStatus::Ok), check("b", CheckStatus::Fail)];
         assert_eq!(aggregate_status(&checks), CheckStatus::Fail);
     }
 

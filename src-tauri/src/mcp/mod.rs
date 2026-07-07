@@ -80,8 +80,11 @@ mod adapter {
             let manager = self.manager.clone();
             let server_name = self.server_name.clone();
             let tool_name = self.tool.name.clone();
-            let invoke =
-                async move { manager.invoke_tool(&server_name, &tool_name, arguments).await };
+            let invoke = async move {
+                manager
+                    .invoke_tool(&server_name, &tool_name, arguments)
+                    .await
+            };
 
             // 把 async 调用桥接到同步 trait。
             let result = match tokio::runtime::Handle::try_current() {

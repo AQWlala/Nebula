@@ -97,22 +97,19 @@ impl ObsidianVaultSync {
     /// 读取 `.obsidian/app.json` 配置。
     ///
     /// 返回 `Ok(None)` 表示文件不存在(新 vault 正常)。
-    pub async fn read_app_config(
-        vault_path: &Path,
-    ) -> Result<Option<serde_json::Value>> {
+    pub async fn read_app_config(vault_path: &Path) -> Result<Option<serde_json::Value>> {
         let app_json = vault_path.join(".obsidian").join("app.json");
         match fs::read_to_string(&app_json).await {
             Ok(content) => {
-                let value: serde_json::Value = serde_json::from_str(&content)
-                    .unwrap_or_else(|e| {
-                        warn!(
-                            target: "nebula.wiki.obsidian_sync",
-                            path = %app_json.display(),
-                            error = %e,
-                            "failed to parse app.json, returning empty object"
-                        );
-                        serde_json::json!({})
-                    });
+                let value: serde_json::Value = serde_json::from_str(&content).unwrap_or_else(|e| {
+                    warn!(
+                        target: "nebula.wiki.obsidian_sync",
+                        path = %app_json.display(),
+                        error = %e,
+                        "failed to parse app.json, returning empty object"
+                    );
+                    serde_json::json!({})
+                });
                 Ok(Some(value))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -123,10 +120,9 @@ impl ObsidianVaultSync {
     /// 确保 Nebula 子目录存在。
     pub async fn ensure_nebula_dir(config: &ObsidianSyncConfig) -> Result<PathBuf> {
         let dir = config.nebula_dir();
-        fs::create_dir_all(&dir).await.context(format!(
-            "creating Nebula subdir {}",
-            dir.display()
-        ))?;
+        fs::create_dir_all(&dir)
+            .await
+            .context(format!("creating Nebula subdir {}", dir.display()))?;
         Ok(dir)
     }
 
@@ -157,10 +153,9 @@ impl ObsidianVaultSync {
             format!("{}\n{}", frontmatter, body)
         };
 
-        fs::write(&file_path, &content).await.context(format!(
-            "writing {}",
-            file_path.display()
-        ))?;
+        fs::write(&file_path, &content)
+            .await
+            .context(format!("writing {}", file_path.display()))?;
 
         info!(
             target: "nebula.wiki.obsidian_sync",
@@ -234,10 +229,9 @@ impl ObsidianVaultSync {
         skip_dir2: &Path,
         results: &mut Vec<String>,
     ) -> Result<()> {
-        let mut entries = fs::read_dir(current).await.context(format!(
-            "scanning {}",
-            current.display()
-        ))?;
+        let mut entries = fs::read_dir(current)
+            .await
+            .context(format!("scanning {}", current.display()))?;
 
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
@@ -305,7 +299,14 @@ fn format_frontmatter(note: &WikiNote) -> String {
     let tags = if note.tags.is_empty() {
         "[]".to_string()
     } else {
-        format!("[{}]", note.tags.iter().map(|t| format!("\"{}\"", t.replace('"', "\\\""))).collect::<Vec<_>>().join(", "))
+        format!(
+            "[{}]",
+            note.tags
+                .iter()
+                .map(|t| format!("\"{}\"", t.replace('"', "\\\"")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     };
 
     format!(
@@ -487,7 +488,9 @@ mod tests {
         let vault = tmp.path();
         assert!(!ObsidianVaultSync::is_obsidian_vault(vault).await);
 
-        tokio::fs::create_dir_all(vault.join(".obsidian")).await.unwrap();
+        tokio::fs::create_dir_all(vault.join(".obsidian"))
+            .await
+            .unwrap();
         assert!(ObsidianVaultSync::is_obsidian_vault(vault).await);
     }
 
@@ -527,14 +530,26 @@ mod tests {
         let vault = tmp.path();
 
         // 创建 vault 结构
-        tokio::fs::create_dir_all(vault.join(".obsidian")).await.unwrap();
-        tokio::fs::create_dir_all(vault.join("Nebula")).await.unwrap();
-        tokio::fs::create_dir_all(vault.join("notes")).await.unwrap();
-        tokio::fs::write(vault.join("notes/a.md"), "# A").await.unwrap();
+        tokio::fs::create_dir_all(vault.join(".obsidian"))
+            .await
+            .unwrap();
+        tokio::fs::create_dir_all(vault.join("Nebula"))
+            .await
+            .unwrap();
+        tokio::fs::create_dir_all(vault.join("notes"))
+            .await
+            .unwrap();
+        tokio::fs::write(vault.join("notes/a.md"), "# A")
+            .await
+            .unwrap();
         tokio::fs::write(vault.join("b.md"), "# B").await.unwrap();
         // 应被跳过
-        tokio::fs::write(vault.join("Nebula/c.md"), "# C").await.unwrap();
-        tokio::fs::write(vault.join(".hidden.md"), "# Hidden").await.unwrap();
+        tokio::fs::write(vault.join("Nebula/c.md"), "# C")
+            .await
+            .unwrap();
+        tokio::fs::write(vault.join(".hidden.md"), "# Hidden")
+            .await
+            .unwrap();
 
         let config = ObsidianSyncConfig::new(vault.to_path_buf());
         let files = ObsidianVaultSync::scan_vault(&config).await.unwrap();
@@ -550,8 +565,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let vault = tmp.path();
 
-        tokio::fs::create_dir_all(vault.join("notes")).await.unwrap();
-        let content = "---\ntitle: \"Imported\"\ntags: [\"test\"]\nimportance: 0.9\n---\n\n# Body\n";
+        tokio::fs::create_dir_all(vault.join("notes"))
+            .await
+            .unwrap();
+        let content =
+            "---\ntitle: \"Imported\"\ntags: [\"test\"]\nimportance: 0.9\n---\n\n# Body\n";
         tokio::fs::write(vault.join("notes/imported.md"), content)
             .await
             .unwrap();

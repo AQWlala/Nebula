@@ -7,7 +7,7 @@
 //! cold-start budget on the reference machine.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use nebula_lib::{AppState, AppConfig};
+use nebula_lib::{AppConfig, AppState};
 use tempfile::tempdir;
 
 fn bench_app_bootstrap(c: &mut Criterion) {

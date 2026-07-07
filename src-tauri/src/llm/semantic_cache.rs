@@ -92,8 +92,7 @@ impl SemanticCache {
         similarity_threshold: f32,
         ttl: Duration,
     ) -> Self {
-        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY)
-            .unwrap_or(NonZeroUsize::new(1).unwrap());
+        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY).unwrap_or(NonZeroUsize::new(1).unwrap());
         Self {
             lance,
             embedder,
@@ -606,7 +605,10 @@ mod tests {
         // sqlite 表中应无对应记录(因为未启用持久化)。
         let id = stable_id("no sqlite");
         let got = sqlite.query_semantic_cache_entry(&id).await.unwrap();
-        assert!(got.is_none(), "sqlite must not have entry when not configured");
+        assert!(
+            got.is_none(),
+            "sqlite must not have entry when not configured"
+        );
 
         cleanup(db_path, lance_path);
     }

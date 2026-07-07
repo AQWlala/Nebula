@@ -85,10 +85,7 @@ fn resolve_db_paths(app: &tauri::AppHandle) -> Result<(PathBuf, PathBuf), String
 
     // 方案 B:独立解析 %LOCALAPPDATA%\com.nebula.desktop\
     let data_dir = resolve_app_data_dir()?;
-    Ok((
-        data_dir.join("nebula.db"),
-        data_dir.join("nebula_lance"),
-    ))
+    Ok((data_dir.join("nebula.db"), data_dir.join("nebula_lance")))
 }
 
 /// 解析应用数据目录(方案 B 回退,不依赖 app state)。
@@ -106,10 +103,7 @@ pub(crate) fn resolve_app_data_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         std::env::var("HOME")
-            .map(|d| {
-                PathBuf::from(d)
-                    .join("Library/Application Support/com.nebula.desktop")
-            })
+            .map(|d| PathBuf::from(d).join("Library/Application Support/com.nebula.desktop"))
             .map_err(|_| "HOME environment variable not set".to_string())
     }
     #[cfg(target_os = "linux")]

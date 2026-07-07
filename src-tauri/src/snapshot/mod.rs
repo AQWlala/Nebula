@@ -1,4 +1,4 @@
-﻿//! T-E-S-24 文件快照回滚引擎(MVP)。
+//! T-E-S-24 文件快照回滚引擎(MVP)。
 //!
 //! 提供两种后端:
 //! - `GitBackend`: 利用系统 git 命令做 stash 快照
@@ -608,7 +608,10 @@ mod tests {
             .await
             .expect("create snapshot");
 
-        assert!(id.starts_with("clean:"), "clean worktree should produce clean: prefix id");
+        assert!(
+            id.starts_with("clean:"),
+            "clean worktree should produce clean: prefix id"
+        );
 
         write_file(&file1, "modified content");
         assert_eq!(read_file(&file1), "modified content");
@@ -642,7 +645,10 @@ mod tests {
             .await
             .expect("create snapshot");
 
-        assert!(id.starts_with("commit:"), "dirty worktree should produce commit: prefix id");
+        assert!(
+            id.starts_with("commit:"),
+            "dirty worktree should produce commit: prefix id"
+        );
 
         write_file(&file1, "even more modified");
         assert_eq!(read_file(&file1), "even more modified");
@@ -806,7 +812,10 @@ mod tests {
         // 验证 backend 中保存了相对路径结构
         let backend_path = format!("{}/sub/nested/deep.txt", id);
         let exists = storage.exists(&backend_path).await.expect("check exists");
-        assert!(exists, "snapshot file should exist at relative path in backend");
+        assert!(
+            exists,
+            "snapshot file should exist at relative path in backend"
+        );
 
         write_file(&file, "modified deep");
         backend

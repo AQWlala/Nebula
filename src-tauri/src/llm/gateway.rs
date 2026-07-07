@@ -440,10 +440,7 @@ impl LlmGateway {
 
     /// T-E-A-03: 注入 ModelRouter。builder 风格,链式调用。
     /// 未调用时 chat() 走原 self.provider 分派逻辑。
-    pub fn with_model_router(
-        mut self,
-        router: Arc<crate::llm::model_router::ModelRouter>,
-    ) -> Self {
+    pub fn with_model_router(mut self, router: Arc<crate::llm::model_router::ModelRouter>) -> Self {
         self.model_router = Some(router);
         self
     }
@@ -600,12 +597,21 @@ impl LlmGateway {
                 crate::llm::model_router::Route::Ollama => "ollama",
                 crate::llm::model_router::Route::DeepSeek => "deepseek",
                 crate::llm::model_router::Route::Anthropic => {
-                    if self.anthropic.is_some() { "anthropic" } else { "deepseek" }
+                    if self.anthropic.is_some() {
+                        "anthropic"
+                    } else {
+                        "deepseek"
+                    }
                 }
                 crate::llm::model_router::Route::Remote => {
-                    if self.remote.is_some() { "openai-compat" } else { "deepseek" }
+                    if self.remote.is_some() {
+                        "openai-compat"
+                    } else {
+                        "deepseek"
+                    }
                 }
-            }.to_string()
+            }
+            .to_string()
         } else {
             self.provider.clone()
         };
@@ -640,7 +646,10 @@ impl LlmGateway {
             // T-E-S-40: OpenAI 兼容主分支(vLLM/LMStudio/OpenRouter/自建)。
             // 调用 OpenAICompatClient,失败则降级到下方 fallback 链(Ollama/Anthropic/Remote)。
             if let Some(client) = &self.openai_compat {
-                match self.call_openai_compat(client, &self.default_model, &messages).await {
+                match self
+                    .call_openai_compat(client, &self.default_model, &messages)
+                    .await
+                {
                     Ok((resp, prompt_tokens, completion_tokens)) => {
                         self.breaker.record_success();
                         self.maybe_record_cost(
@@ -703,7 +712,10 @@ impl LlmGateway {
                 }
                 // Fallback 3: 通用 Remote (OpenAI 兼容)
                 if let Some(remote) = &self.remote {
-                    match self.call_remote(remote, &self.default_model, &messages).await {
+                    match self
+                        .call_remote(remote, &self.default_model, &messages)
+                        .await
+                    {
                         Ok((resp, prompt_tokens, completion_tokens)) => {
                             self.breaker.record_success();
                             // T-E-A-06: Remote (OpenAI 兼容) 响应含 usage,
@@ -719,9 +731,8 @@ impl LlmGateway {
                         }
                         Err(remote_err) => {
                             self.breaker.record_failure();
-                            return Err(remote_err).context(
-                                "deepseek/ollama/anthropic/remote all failed",
-                            );
+                            return Err(remote_err)
+                                .context("deepseek/ollama/anthropic/remote all failed");
                         }
                     }
                 }
@@ -853,10 +864,7 @@ impl LlmGateway {
         messages: Vec<ChatMessage>,
         tools: &[ToolSpec],
     ) -> Result<ChatResponse> {
-        let ds = self
-            .deepseek
-            .as_ref()
-            .context("deepseek not configured")?;
+        let ds = self.deepseek.as_ref().context("deepseek not configured")?;
         let url = format!("{}/chat/completions", ds.base_url.trim_end_matches('/'));
         let req_body = serde_json::json!({
             "model": self.default_model,
@@ -900,22 +908,19 @@ impl LlmGateway {
         };
         crate::metrics::global().record_token_usage(prompt_tokens, completion_tokens);
         // T-E-S-02: 把 RemoteToolCall 转成 ollama::ToolCall(结构相同但独立)。
-        let tool_calls = choice
-            .message
-            .tool_calls
-            .map(|calls| {
-                calls
-                    .into_iter()
-                    .map(|c| ToolCall {
-                        id: c.id,
-                        ty: c.ty,
-                        function: FunctionCall {
-                            name: c.function.name,
-                            arguments: c.function.arguments,
-                        },
-                    })
-                    .collect::<Vec<_>>()
-            });
+        let tool_calls = choice.message.tool_calls.map(|calls| {
+            calls
+                .into_iter()
+                .map(|c| ToolCall {
+                    id: c.id,
+                    ty: c.ty,
+                    function: FunctionCall {
+                        name: c.function.name,
+                        arguments: c.function.arguments,
+                    },
+                })
+                .collect::<Vec<_>>()
+        });
         let chat_resp = ChatResponse {
             model: self.default_model.clone(),
             message: ChatMessage {
@@ -957,11 +962,7 @@ impl LlmGateway {
     ///
     /// 与 `memory/clip_embedder.rs` 的 ClipEmbedRequest.images 同样的 wire format
     /// — Ollama /api/chat 接受 `{"messages":[{"role","content","images":[b64]}]}`。
-    pub async fn describe_image(
-        &self,
-        model: &str,
-        msg: ChatMessage,
-    ) -> anyhow::Result<String> {
+    pub async fn describe_image(&self, model: &str, msg: ChatMessage) -> anyhow::Result<String> {
         let resp = self.primary.chat(model, &[msg]).await?;
         Ok(resp.message.content)
     }
@@ -1594,22 +1595,19 @@ impl LlmGateway {
         };
         crate::metrics::global().record_token_usage(prompt_tokens, completion_tokens);
         // T-E-S-02: 把 RemoteToolCall 转成 ollama::ToolCall(结构相同但独立)。
-        let tool_calls = choice
-            .message
-            .tool_calls
-            .map(|calls| {
-                calls
-                    .into_iter()
-                    .map(|c| ToolCall {
-                        id: c.id,
-                        ty: c.ty,
-                        function: FunctionCall {
-                            name: c.function.name,
-                            arguments: c.function.arguments,
-                        },
-                    })
-                    .collect::<Vec<_>>()
-            });
+        let tool_calls = choice.message.tool_calls.map(|calls| {
+            calls
+                .into_iter()
+                .map(|c| ToolCall {
+                    id: c.id,
+                    ty: c.ty,
+                    function: FunctionCall {
+                        name: c.function.name,
+                        arguments: c.function.arguments,
+                    },
+                })
+                .collect::<Vec<_>>()
+        });
         let chat_resp = ChatResponse {
             model: self.default_model.clone(),
             message: ChatMessage {
@@ -1655,8 +1653,7 @@ impl LlmGateway {
         let (text, usage) = anthropic.client.chat(&anthropic_messages).await?;
         // T-E-A-04: 透传 prefix cache 命中到 metrics。
         if usage.cache_read_input_tokens > 0 {
-            crate::metrics::global()
-                .record_prefix_cache_hit();
+            crate::metrics::global().record_prefix_cache_hit();
             crate::metrics::global()
                 .record_prefix_cache_cached_tokens(usage.cache_read_input_tokens);
             // T-E-A-10: 估算省的金额 = cached_tokens × Claude 单价(input $3/M tokens)。
@@ -1722,7 +1719,9 @@ impl LlmGateway {
                     .deepseek
                     .as_ref()
                     .ok_or_else(|| anyhow!("DeepSeek not configured"))?;
-                let (resp, _, _) = self.call_deepseek(ds, &self.default_model, messages).await?;
+                let (resp, _, _) = self
+                    .call_deepseek(ds, &self.default_model, messages)
+                    .await?;
                 Ok(resp)
             }
             "anthropic" => {
@@ -1749,15 +1748,14 @@ impl LlmGateway {
                     .openai_compat
                     .as_ref()
                     .ok_or_else(|| anyhow!("openai-compat not configured"))?;
-                let (resp, _, _) = self.call_openai_compat(client, &self.default_model, messages).await?;
+                let (resp, _, _) = self
+                    .call_openai_compat(client, &self.default_model, messages)
+                    .await?;
                 Ok(resp)
             }
             // 默认回退到 Ollama
             _ => {
-                let resp = self
-                    .primary
-                    .chat(&self.default_model, messages)
-                    .await?;
+                let resp = self.primary.chat(&self.default_model, messages).await?;
                 Ok(resp)
             }
         }
@@ -2218,7 +2216,10 @@ mod tests {
     fn remote_resp_message_parses_without_tool_calls() {
         let json = r#"{"role": "assistant", "content": "hello"}"#;
         let msg: RemoteRespMessage = serde_json::from_str(json).unwrap();
-        assert!(msg.tool_calls.is_none(), "tool_calls should default to None");
+        assert!(
+            msg.tool_calls.is_none(),
+            "tool_calls should default to None"
+        );
         assert_eq!(msg.content, "hello");
     }
 
@@ -2349,7 +2350,9 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
         // 改用 LlmGateway::new 传入 anthropic_api_key + 自定义 base_url。
         // 但 LlmGateway::new 不支持自定义 anthropic base_url(固定 https://api.anthropic.com)。
         // 因此直接测试 chat_stream_anthropic 的解析逻辑:手动构造 AnthropicFallback。
-        let fallback = AnthropicFallback { client: anthropic_client };
+        let fallback = AnthropicFallback {
+            client: anthropic_client,
+        };
         let gw = LlmGateway::new(
             Arc::new(OllamaClient::new("http://127.0.0.1:1")),
             "claude-test",
@@ -2395,8 +2398,8 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
     /// - 使用指定的 model(此处为 "qwen2.5-vl:3b")。
     #[tokio::test]
     async fn test_describe_image_with_mock_server() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
 
         // Mock Ollama server:收到 POST /api/chat 时返回固定响应。
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -2439,7 +2442,16 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
             base_url.clone(),
             std::time::Duration::from_secs(5),
         ));
-        let gw = LlmGateway::new(ollama, "default-model", "ollama", None, None, None, None, None);
+        let gw = LlmGateway::new(
+            ollama,
+            "default-model",
+            "ollama",
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
 
         let msg = ChatMessage {
             role: "user".to_string(),
@@ -2448,7 +2460,10 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
             ..Default::default()
         };
         let result = gw.describe_image("qwen2.5-vl:3b", msg).await;
-        assert!(result.is_ok(), "describe_image should succeed with mock server");
+        assert!(
+            result.is_ok(),
+            "describe_image should succeed with mock server"
+        );
         let content = result.unwrap();
         assert_eq!(
             content, "a screenshot showing code editor",
@@ -2456,7 +2471,11 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
         );
         // 验证请求体包含 images 字段(多模态 wire format)。
         let captured = captured_request.lock().unwrap().clone();
-        assert_eq!(counter.load(Ordering::SeqCst), 1, "should hit /api/chat exactly once");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            1,
+            "should hit /api/chat exactly once"
+        );
         assert!(
             captured.contains("\"images\""),
             "request body must contain images field; got: {captured}"

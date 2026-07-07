@@ -1,4 +1,4 @@
-﻿//! Implementation of the [`NebulaService`] trait on [`AppState`].
+//! Implementation of the [`NebulaService`] trait on [`AppState`].
 //!
 //! This bridges the Tauri command layer with the gRPC API layer
 //! ([`crate::api::server`]).  The trait methods are the non-streaming
@@ -34,9 +34,7 @@ fn injection_guard_check(caller: &str, text: &str) -> anyhow::Result<()> {
                 leaks = scan.credential_leaks.len(),
                 "blocked critical injection / credential leak in service layer"
             );
-            anyhow::bail!(
-                "输入包含潜在的安全风险（注入攻击或凭证泄露），已被拦截"
-            );
+            anyhow::bail!("输入包含潜在的安全风险（注入攻击或凭证泄露），已被拦截");
         }
         if !scan.safe {
             tracing::warn!(
@@ -58,7 +56,10 @@ impl NebulaService for AppState {
 
         // T-S1-A-02: MemoryOrchestrator 接入 chat 路径。
         // 根据用户消息组装相关记忆上下文，拼接到 system prompt 前。
-        let context_bundle = self.orchestrator.assemble_context(&req.user_message, "system").await?;
+        let context_bundle = self
+            .orchestrator
+            .assemble_context(&req.user_message, "system")
+            .await?;
 
         // T-E-S-39: 注入 SOUL.md/AGENTS.md/TOOLS.md persona 前缀。
         // persona 缓存位于 AppConfig(Option<Arc<RwLock<PersonaConfig>>>),

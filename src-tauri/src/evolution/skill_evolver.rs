@@ -256,7 +256,9 @@ impl SkillAutoEvolver for SqliteSkillAutoEvolver {
         // NB: SkillStore::list takes raw (language, single_tag, tags, tag_match,
         // limit) — the ListSkillsRequest DTO is the wire form for the
         // Tauri/gRPC layer only.  Reuse the store's typed signature here.
-        let skills = self.skills.list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
+        let skills =
+            self.skills
+                .list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
         let now = chrono::Utc::now().timestamp();
         let mut decisions = Vec::new();
 

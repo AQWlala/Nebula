@@ -7,17 +7,15 @@ use tauri::State;
 
 use crate::AppState;
 
-const DIRECTED_EDIT_PROMPT_TEMPLATE: &str = "重写以下文本,保持原意但更清晰简洁,直接输出重写后的文本,不要加任何解释:\n\n{selected}";
+const DIRECTED_EDIT_PROMPT_TEMPLATE: &str =
+    "重写以下文本,保持原意但更清晰简洁,直接输出重写后的文本,不要加任何解释:\n\n{selected}";
 
 /// T-E-S-52: 定向编辑命令。
 ///
 /// 前端通过 `invoke('directed_edit', { selected })` 调用,返回重写后的
 /// `string`。**失败返回 `Err`**(与 L0 失败静默不同),前端 toast 提示。
 #[tauri::command]
-pub async fn directed_edit(
-    state: State<'_, AppState>,
-    selected: String,
-) -> Result<String, String> {
+pub async fn directed_edit(state: State<'_, AppState>, selected: String) -> Result<String, String> {
     if selected.trim().is_empty() {
         return Err("选区为空,请先选中文字".to_string());
     }

@@ -7,11 +7,11 @@ use std::sync::atomic::Ordering;
 
 use tauri::State;
 
-use crate::AppState;
 use crate::commands::error::CommandError;
 use crate::llm::cost_tracker::{
     DailyAggregate, MonthlyAggregate, ProviderBucket, SourceBucket, WeeklyAggregate,
 };
+use crate::AppState;
 
 /// Credits 仪表盘汇总数据。
 #[derive(Debug, serde::Serialize)]

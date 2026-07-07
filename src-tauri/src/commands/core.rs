@@ -342,10 +342,7 @@ fn provider_key_slot(provider: &str) -> &'static str {
 /// `value` 为空时视为删除(对齐 `set_api_key` 语义)。
 #[tauri::command]
 #[instrument(fields(otel.kind = "set_provider_api_key"))]
-pub async fn set_provider_api_key(
-    provider: String,
-    value: String,
-) -> Result<(), CommandError> {
+pub async fn set_provider_api_key(provider: String, value: String) -> Result<(), CommandError> {
     let slot = provider_key_slot(&provider);
     if value.trim().is_empty() {
         crate::security::keychain::delete(slot)
@@ -360,9 +357,7 @@ pub async fn set_provider_api_key(
 /// 返回 `Option<MaskedApiKey>`,`None` 表示该 provider 未配置。
 #[tauri::command]
 #[instrument(fields(otel.kind = "get_provider_api_key"))]
-pub async fn get_provider_api_key(
-    provider: String,
-) -> Result<Option<MaskedApiKey>, CommandError> {
+pub async fn get_provider_api_key(provider: String) -> Result<Option<MaskedApiKey>, CommandError> {
     let slot = provider_key_slot(&provider);
     let raw = crate::security::keychain::get(slot)
         .map_err(|e| CommandError::internal("get_provider_api_key", &e))?;

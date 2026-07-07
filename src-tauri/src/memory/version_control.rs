@@ -178,8 +178,11 @@ impl MemoryVersionControl {
         }
         let conn = self.sqlite.raw_connection();
         let g = conn.lock();
-        g.execute("DELETE FROM memory_branches WHERE name = ?1", rusqlite::params![name])
-            .map_err(|e| anyhow!("delete_branch error: {e}"))?;
+        g.execute(
+            "DELETE FROM memory_branches WHERE name = ?1",
+            rusqlite::params![name],
+        )
+        .map_err(|e| anyhow!("delete_branch error: {e}"))?;
         Ok(())
     }
 
@@ -373,7 +376,16 @@ impl MemoryVersionControl {
              WHERE branch_name = ?1
              ORDER BY created_at ASC",
         )?;
-        let source_commits: Vec<(String, Option<String>, String, String, String, String, String, i64)> = stmt
+        let source_commits: Vec<(
+            String,
+            Option<String>,
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+        )> = stmt
             .query_map(rusqlite::params![source_branch], |r| {
                 Ok((
                     r.get(0)?,
@@ -395,7 +407,9 @@ impl MemoryVersionControl {
         let mut merged_ids: Vec<String> = Vec::new();
         let target_branch = target.name.clone();
 
-        for (_src_id, _src_parent, action, target_id, payload, author, message, created_at) in source_commits {
+        for (_src_id, _src_parent, action, target_id, payload, author, message, created_at) in
+            source_commits
+        {
             let new_id = uuid::Uuid::new_v4().to_string();
             g.execute(
                 "INSERT INTO memory_commits
@@ -440,10 +454,7 @@ mod tests {
     // 测试模式:真实临时文件 + UUID,每个测试独立 DB 文件。
     fn temp_db_path() -> std::path::PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!(
-            "nebula_vc_test_{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("nebula_vc_test_{}.db", uuid::Uuid::new_v4()));
         p
     }
 
@@ -513,7 +524,13 @@ mod tests {
     fn commit_updates_head() {
         let vc = setup();
         let cid = vc
-            .commit("store", "mem-1", &serde_json::json!({"k":"v"}), "test", "test commit")
+            .commit(
+                "store",
+                "mem-1",
+                &serde_json::json!({"k":"v"}),
+                "test",
+                "test commit",
+            )
             .unwrap();
         let active = vc.get_active_branch().unwrap().unwrap();
         assert_eq!(active.head_commit_id, Some(cid));
@@ -522,12 +539,14 @@ mod tests {
     #[test]
     fn log_returns_commits_in_desc_order() {
         let vc = setup();
-        vc.commit("store", "mem-1", &serde_json::json!({}), "test", "first").unwrap();
+        vc.commit("store", "mem-1", &serde_json::json!({}), "test", "first")
+            .unwrap();
         // M7b #90 分类 A: commit 用 chrono::Utc::now().timestamp()(秒级精度),
         // log 用 ORDER BY created_at DESC。10ms 间隔可能落在同一秒,导致排序
         // 不稳定。sleep(1100ms) 确保时间戳严格递增,测试不再 flaky。
         std::thread::sleep(std::time::Duration::from_millis(1100));
-        vc.commit("store", "mem-2", &serde_json::json!({}), "test", "second").unwrap();
+        vc.commit("store", "mem-2", &serde_json::json!({}), "test", "second")
+            .unwrap();
 
         let logs = vc.log(10).unwrap();
         assert_eq!(logs.len(), 2);
@@ -539,9 +558,13 @@ mod tests {
     #[test]
     fn diff_traverses_commit_chain() {
         let vc = setup();
-        let c1 = vc.commit("store", "mem-1", &serde_json::json!({}), "test", "c1").unwrap();
+        let c1 = vc
+            .commit("store", "mem-1", &serde_json::json!({}), "test", "c1")
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        let c2 = vc.commit("store", "mem-2", &serde_json::json!({}), "test", "c2").unwrap();
+        let c2 = vc
+            .commit("store", "mem-2", &serde_json::json!({}), "test", "c2")
+            .unwrap();
 
         let diff = vc.diff(&c1, &c2).unwrap();
         assert_eq!(diff.commits.len(), 1);
@@ -552,7 +575,9 @@ mod tests {
     #[test]
     fn revert_creates_revert_commit() {
         let vc = setup();
-        let c1 = vc.commit("store", "mem-1", &serde_json::json!({}), "test", "original").unwrap();
+        let c1 = vc
+            .commit("store", "mem-1", &serde_json::json!({}), "test", "original")
+            .unwrap();
         // M7b #90 分类 A: commit 和 revert 同秒会导致 log ORDER BY 不稳定。
         // sleep(1100ms) 确保 revert 的时间戳严格大于 c1。
         std::thread::sleep(std::time::Duration::from_millis(1100));
@@ -568,13 +593,28 @@ mod tests {
     fn merge_appends_commits() {
         let vc = setup();
         // 在 main 上创建一个 commit
-        vc.commit("store", "mem-1", &serde_json::json!({}), "test", "main-1").unwrap();
+        vc.commit("store", "mem-1", &serde_json::json!({}), "test", "main-1")
+            .unwrap();
 
         // 创建 feature 分支并切换
         vc.create_branch("feature").unwrap();
         vc.checkout("feature").unwrap();
-        vc.commit("store", "mem-2", &serde_json::json!({}), "test", "feature-1").unwrap();
-        vc.commit("store", "mem-3", &serde_json::json!({}), "test", "feature-2").unwrap();
+        vc.commit(
+            "store",
+            "mem-2",
+            &serde_json::json!({}),
+            "test",
+            "feature-1",
+        )
+        .unwrap();
+        vc.commit(
+            "store",
+            "mem-3",
+            &serde_json::json!({}),
+            "test",
+            "feature-2",
+        )
+        .unwrap();
 
         // 切回 main 并合并
         vc.checkout("main").unwrap();

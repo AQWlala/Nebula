@@ -65,6 +65,7 @@ check-*.txt
 fetch_log*.py
 fetch_logs*.py
 tmp_repro_*.py
+tmp_*.py
 .tmp_*.ps1
 ci_logs.txt
 count_panic.py

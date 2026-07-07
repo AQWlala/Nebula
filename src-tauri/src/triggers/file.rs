@@ -1,4 +1,4 @@
-﻿//! T-E-S-54: 文件触发器 — 复制 `memory/file_watcher.rs` 的
+//! T-E-S-54: 文件触发器 — 复制 `memory/file_watcher.rs` 的
 //! notify + mpsc + debounce 模板,但每个 trigger 一个独立 worker。
 //!
 //! 设计差异(与 FileWatcherEngine 对比):
@@ -255,7 +255,9 @@ pub fn matches_patterns(path: &Path, patterns: &[String]) -> bool {
         None => return false,
     };
     let path_str = path.to_string_lossy();
-    patterns.iter().any(|p| glob_match(p, file_name) || glob_match(p, &path_str))
+    patterns
+        .iter()
+        .any(|p| glob_match(p, file_name) || glob_match(p, &path_str))
 }
 
 /// 简化 glob 匹配:`*` 匹配任意非分隔符字符序列。
@@ -330,10 +332,22 @@ mod tests {
 
     #[test]
     fn test_event_kind_str() {
-        assert_eq!(event_kind_str(&EventKind::Create(notify::event::CreateKind::File)), "create");
-        assert_eq!(event_kind_str(&EventKind::Modify(notify::event::ModifyKind::Any)), "modify");
-        assert_eq!(event_kind_str(&EventKind::Remove(notify::event::RemoveKind::File)), "remove");
-        assert_eq!(event_kind_str(&EventKind::Access(notify::event::AccessKind::Any)), "");
+        assert_eq!(
+            event_kind_str(&EventKind::Create(notify::event::CreateKind::File)),
+            "create"
+        );
+        assert_eq!(
+            event_kind_str(&EventKind::Modify(notify::event::ModifyKind::Any)),
+            "modify"
+        );
+        assert_eq!(
+            event_kind_str(&EventKind::Remove(notify::event::RemoveKind::File)),
+            "remove"
+        );
+        assert_eq!(
+            event_kind_str(&EventKind::Access(notify::event::AccessKind::Any)),
+            ""
+        );
     }
 
     #[test]

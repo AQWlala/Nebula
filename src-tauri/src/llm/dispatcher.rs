@@ -1,4 +1,4 @@
-﻿//! ADR-003: 统一模型调度层（Unified Model Dispatcher）
+//! ADR-003: 统一模型调度层（Unified Model Dispatcher）
 //!
 //! 所有 LLM 调用（聊天 / Swarm / Master / 进化 / Soul 编译 / 分类）的单一入口。
 //! 参考 JiuwenSwarm（openJiuwen 社区）的成员级模型路由设计：不同工作类型
@@ -359,8 +359,9 @@ fn parse_work_type(s: &str) -> Option<WorkType> {
 
         // 旧键（M3 #50 向后兼容，映射到合并后的变体）
         "master_decompose" | "master_validate" => Some(WorkType::MasterTask),
-        "evolution_extract" | "evolution_compile" | "evolution_reflect"
-        | "evolution_soul" => Some(WorkType::Evolution),
+        "evolution_extract" | "evolution_compile" | "evolution_reflect" | "evolution_soul" => {
+            Some(WorkType::Evolution)
+        }
 
         _ => None,
     }
@@ -425,9 +426,7 @@ impl UnifiedModelDispatcher {
             local_cache,
             policy: Arc::new(RwLock::new(policy)),
             cost_tracker,
-            local_semaphore: Arc::new(tokio::sync::Semaphore::new(
-                max_local_concurrency.max(1),
-            )),
+            local_semaphore: Arc::new(tokio::sync::Semaphore::new(max_local_concurrency.max(1))),
         }
     }
 
@@ -455,11 +454,9 @@ impl UnifiedModelDispatcher {
         let resolved = self.policy.read().resolve(work_type);
 
         if resolved.is_local(self.policy.read().local_provider_id()) {
-            self.dispatch_local(&resolved, &messages, work_type)
-                .await
+            self.dispatch_local(&resolved, &messages, work_type).await
         } else {
-            self.dispatch_remote(&resolved, messages, work_type)
-                .await
+            self.dispatch_remote(&resolved, messages, work_type).await
         }
     }
 
@@ -495,7 +492,9 @@ impl UnifiedModelDispatcher {
                 model = %resolved.model,
                 "dispatch_stream: local ollama streaming"
             );
-            return self.gateway.ollama_client()
+            return self
+                .gateway
+                .ollama_client()
                 .chat_stream(&resolved.model, messages);
         }
 
@@ -620,7 +619,8 @@ impl UnifiedModelDispatcher {
         _resolved: &ResolvedModel,
         messages: Vec<ChatMessage>,
         work_type: WorkType,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ChatResponse>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ChatResponse>> + Send + '_>>
+    {
         // TODO(#13 P0-5): 替换为 chat_with_task_context(messages, work_type.as_str())
         // 当前回退到普通 chat()，work_type 不被记录（功能可用但成本统计不完整）。
         tracing::debug!(
@@ -818,7 +818,10 @@ mod tests {
         );
         // resolve 应忽略非本地 override，回退到默认本地路由
         let r = policy.resolve(WorkType::Evolution);
-        assert_eq!(r.provider, "ollama", "is_local_only override should be rejected");
+        assert_eq!(
+            r.provider, "ollama",
+            "is_local_only override should be rejected"
+        );
         assert_eq!(r.model, "qwen2.5:7b");
     }
 
@@ -913,11 +916,26 @@ mod tests {
     /// - `evolution_extract` / `evolution_compile` / `evolution_reflect` / `evolution_soul` → `Evolution`
     #[test]
     fn parse_work_type_backward_compat_with_legacy_keys() {
-        assert_eq!(parse_work_type("master_decompose"), Some(WorkType::MasterTask));
-        assert_eq!(parse_work_type("master_validate"), Some(WorkType::MasterTask));
-        assert_eq!(parse_work_type("evolution_extract"), Some(WorkType::Evolution));
-        assert_eq!(parse_work_type("evolution_compile"), Some(WorkType::Evolution));
-        assert_eq!(parse_work_type("evolution_reflect"), Some(WorkType::Evolution));
+        assert_eq!(
+            parse_work_type("master_decompose"),
+            Some(WorkType::MasterTask)
+        );
+        assert_eq!(
+            parse_work_type("master_validate"),
+            Some(WorkType::MasterTask)
+        );
+        assert_eq!(
+            parse_work_type("evolution_extract"),
+            Some(WorkType::Evolution)
+        );
+        assert_eq!(
+            parse_work_type("evolution_compile"),
+            Some(WorkType::Evolution)
+        );
+        assert_eq!(
+            parse_work_type("evolution_reflect"),
+            Some(WorkType::Evolution)
+        );
         assert_eq!(parse_work_type("evolution_soul"), Some(WorkType::Evolution));
     }
 

@@ -1,4 +1,4 @@
-﻿//! T-E-S-28: 对话标注 Tauri 命令(upsert / list / stats / export)。
+//! T-E-S-28: 对话标注 Tauri 命令(upsert / list / stats / export)。
 //!
 //! 这 4 个命令封装 `memory::annotations::AnnotationStore`,供前端
 //! ChatPanel.tsx 的 👍/👎 按钮调用。`annotation_upsert` 在 bad 标注
@@ -63,7 +63,9 @@ pub async fn annotation_upsert(
             .map_err(|e| CommandError::internal("annotation_upsert", &e))
     })
     .await
-    .map_err(|e| CommandError::internal("annotation_upsert", &anyhow::anyhow!("join error: {e}")))??;
+    .map_err(|e| {
+        CommandError::internal("annotation_upsert", &anyhow::anyhow!("join error: {e}"))
+    })??;
 
     // T-E-S-28: bad 标注 + 非空 comment → 触发 sponge.absorb_text 回流到记忆。
     // 用 SourceKind::UserInput(无 Feedback 变体);tool = Some("annotation")

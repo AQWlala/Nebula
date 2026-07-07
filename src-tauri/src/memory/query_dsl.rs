@@ -507,11 +507,13 @@ impl Parser {
         match self.advance() {
             Token::Star => Ok(LayerSpec::All),
             Token::Ident(s) => {
-                let layer = MemoryLayer::from_str(&s)
-                    .map_err(|e| format!("FROM clause: {e}"))?;
+                let layer = MemoryLayer::from_str(&s).map_err(|e| format!("FROM clause: {e}"))?;
                 Ok(LayerSpec::Layer(layer))
             }
-            other => Err(format!("expected layer (L0-L7) or '*' after FROM, found {:?}", other)),
+            other => Err(format!(
+                "expected layer (L0-L7) or '*' after FROM, found {:?}",
+                other
+            )),
         }
     }
 
@@ -567,7 +569,10 @@ impl Parser {
     fn parse_cmp(&mut self) -> Result<Expr, String> {
         let field = self.parse_field()?;
         // Bare boolean field: `pinned` with no operator.
-        if matches!(self.peek(), Token::And | Token::Or | Token::RParen | Token::Eof | Token::Order | Token::Limit) {
+        if matches!(
+            self.peek(),
+            Token::And | Token::Or | Token::RParen | Token::Eof | Token::Order | Token::Limit
+        ) {
             return Ok(Expr::Bool(field));
         }
         // IN clause.
@@ -591,8 +596,7 @@ impl Parser {
 
     fn parse_field(&mut self) -> Result<Field, String> {
         match self.advance() {
-            Token::Ident(s) => Field::from_name(&s)
-                .ok_or_else(|| format!("unknown field: {s}")),
+            Token::Ident(s) => Field::from_name(&s).ok_or_else(|| format!("unknown field: {s}")),
             other => Err(format!("expected field name, found {:?}", other)),
         }
     }
@@ -613,14 +617,12 @@ impl Parser {
         match self.advance() {
             Token::Number(n) => Ok(Value::Number(n)),
             Token::String(s) => Ok(Value::String(s)),
-            Token::Ident(s) => {
-                match s.to_ascii_lowercase().as_str() {
-                    "null" => Ok(Value::Null),
-                    "true" => Ok(Value::Bool(true)),
-                    "false" => Ok(Value::Bool(false)),
-                    _ => Ok(Value::String(s)),
-                }
-            }
+            Token::Ident(s) => match s.to_ascii_lowercase().as_str() {
+                "null" => Ok(Value::Null),
+                "true" => Ok(Value::Bool(true)),
+                "false" => Ok(Value::Bool(false)),
+                _ => Ok(Value::String(s)),
+            },
             other => Err(format!("expected value, found {:?}", other)),
         }
     }
@@ -647,7 +649,10 @@ impl Parser {
         self.expect(&Token::Limit)?;
         match self.advance() {
             Token::Number(n) if n >= 0.0 => Ok(n as u32),
-            other => Err(format!("expected non-negative number after LIMIT, found {:?}", other)),
+            other => Err(format!(
+                "expected non-negative number after LIMIT, found {:?}",
+                other
+            )),
         }
     }
 }
@@ -867,10 +872,17 @@ mod tests {
 
     #[test]
     fn test_lexer_operators() {
-        let tokens = Lexer::new("a = b != c > d >= e < f <= g").tokenize().unwrap();
+        let tokens = Lexer::new("a = b != c > d >= e < f <= g")
+            .tokenize()
+            .unwrap();
         let ops: Vec<_> = tokens
             .iter()
-            .filter(|t| matches!(t, Token::Eq | Token::Ne | Token::Gt | Token::Ge | Token::Lt | Token::Le))
+            .filter(|t| {
+                matches!(
+                    t,
+                    Token::Eq | Token::Ne | Token::Gt | Token::Ge | Token::Lt | Token::Le
+                )
+            })
             .collect();
         assert_eq!(ops.len(), 6);
     }
@@ -998,7 +1010,8 @@ mod tests {
     #[test]
     fn test_parser_parens_override_precedence() {
         // a OR (b AND c) — the AND must be grouped inside the OR's right.
-        let ast = Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)").unwrap();
+        let ast =
+            Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)").unwrap();
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Or(_, right) => {
@@ -1243,9 +1256,9 @@ mod tests {
         // It must be bound as a parameter.
         assert!(sql.contains("?"));
         // The params vector must contain the dangerous text verbatim.
-        let found = params.iter().any(|p| {
-            matches!(p, SqlValue::Text(s) if s == "; DROP TABLE memories--")
-        });
+        let found = params
+            .iter()
+            .any(|p| matches!(p, SqlValue::Text(s) if s == "; DROP TABLE memories--"));
         assert!(found, "dangerous text must be in params, got: {params:?}");
     }
 

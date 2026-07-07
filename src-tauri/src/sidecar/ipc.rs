@@ -12,9 +12,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 #[cfg(feature = "grpc")]
 use anyhow::Context;
+use anyhow::Result;
 
 use super::manager::{SidecarKind, SidecarManager};
 
@@ -228,17 +228,20 @@ impl LlmIpcClient {
             IpcMode::Grpc { addr } => {
                 let channel = dial_sidecar(addr).await?;
                 let mut client =
-                    crate::grpc::tonic_server::generated::llm_service_client::LlmServiceClient::new(channel);
-                let req = crate::grpc::tonic_server::generated::ChatRequest {
-                    messages: messages
-                        .into_iter()
-                        .map(|(role, content)| {
-                            crate::grpc::tonic_server::generated::ChatMessage { role, content }
-                        })
-                        .collect(),
-                    model,
-                    temperature: 0.7,
-                };
+                    crate::grpc::tonic_server::generated::llm_service_client::LlmServiceClient::new(
+                        channel,
+                    );
+                let req =
+                    crate::grpc::tonic_server::generated::ChatRequest {
+                        messages: messages
+                            .into_iter()
+                            .map(|(role, content)| {
+                                crate::grpc::tonic_server::generated::ChatMessage { role, content }
+                            })
+                            .collect(),
+                        model,
+                        temperature: 0.7,
+                    };
                 let resp = client
                     .chat(tonic::Request::new(req))
                     .await
@@ -259,7 +262,9 @@ impl LlmIpcClient {
             IpcMode::Grpc { addr } => {
                 let channel = dial_sidecar(addr).await?;
                 let mut client =
-                    crate::grpc::tonic_server::generated::llm_service_client::LlmServiceClient::new(channel);
+                    crate::grpc::tonic_server::generated::llm_service_client::LlmServiceClient::new(
+                        channel,
+                    );
                 let req = crate::grpc::tonic_server::generated::EmbedRequest { text };
                 let resp = client
                     .embed(tonic::Request::new(req))
@@ -350,7 +355,10 @@ impl SwarmIpcClient {
                     .await
                     .context("SwarmService.Execute RPC failed")?
                     .into_inner();
-                Ok(format!("approved={}, verdict={}", resp.approved, resp.verdict))
+                Ok(format!(
+                    "approved={}, verdict={}",
+                    resp.approved, resp.verdict
+                ))
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿//! T-E-C-14: 剪贴板智能监听引擎。
+//! T-E-C-14: 剪贴板智能监听引擎。
 //!
 //! [`ClipboardWatcherEngine`] 在后台 500ms 轮询系统剪贴板,对内容做
 //! 哈希去重 + 类型检测,把"有结构的"内容(URL/代码/表格/JSON 等)吸收到
@@ -228,7 +228,10 @@ pub fn detect_kind(content: &str) -> ClipboardKind {
         return ClipboardKind::Code { language: lang };
     }
     // 2. markdown table: 包含 |---| 或 | --- | 分隔行
-    if content.lines().any(|l| l.contains("|---|") || l.contains("| --- |")) {
+    if content
+        .lines()
+        .any(|l| l.contains("|---|") || l.contains("| --- |"))
+    {
         return ClipboardKind::MarkdownTable;
     }
     // 3. JSON: 能解析为 serde_json::Value
@@ -241,7 +244,16 @@ pub fn detect_kind(content: &str) -> ClipboardKind {
         return ClipboardKind::Url;
     }
     // 5. heuristic code:常见关键字 / 括号结构
-    let code_hints = ["function ", "def ", "class ", "import ", "pub fn", "fn ", "{", "};"];
+    let code_hints = [
+        "function ",
+        "def ",
+        "class ",
+        "import ",
+        "pub fn",
+        "fn ",
+        "{",
+        "};",
+    ];
     if code_hints.iter().any(|h| content.contains(h)) {
         return ClipboardKind::Code { language: None };
     }

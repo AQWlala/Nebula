@@ -96,7 +96,11 @@ impl InlineCompletionEngine {
         let prompt = build_prompt(prefix);
         let resp = match self
             .ollama
-            .generate_with_options(&self.model, &prompt, GenerateOptions::inline_completion_defaults())
+            .generate_with_options(
+                &self.model,
+                &prompt,
+                GenerateOptions::inline_completion_defaults(),
+            )
             .await
         {
             Ok(r) => r,
@@ -174,7 +178,10 @@ mod tests {
     #[test]
     fn truncate_completion_takes_first_line_and_trims() {
         // 多行 → 取第一行;首尾空白 trim。
-        assert_eq!(truncate_completion("hello world\nsecond line"), "hello world");
+        assert_eq!(
+            truncate_completion("hello world\nsecond line"),
+            "hello world"
+        );
         assert_eq!(truncate_completion("  padded  \nrest"), "padded");
         // 单行也 trim。
         assert_eq!(truncate_completion("  only line  "), "only line");
@@ -290,7 +297,9 @@ mod tests {
         ));
         let engine = InlineCompletionEngine::new(ollama, "qwen2.5-coder:0.5b".to_string());
 
-        let result = engine.suggest_completion("a sufficiently long prefix").await;
+        let result = engine
+            .suggest_completion("a sufficiently long prefix")
+            .await;
         // 失败静默:不返回 Err,而是 Ok(None)。
         assert!(result.is_ok(), "失败应静默,不返回 Err");
         assert_eq!(result.unwrap(), None);

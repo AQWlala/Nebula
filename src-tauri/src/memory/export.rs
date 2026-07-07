@@ -1,4 +1,4 @@
-﻿use std::path::Path;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -306,9 +306,7 @@ impl DataExporter {
                 archived: false,
                 embedding: Vec::new(),
                 // T-E-A-09: 从 JSON 读取 ingest_cost(可选)。
-                ingest_cost: item
-                    .get("ingest_cost")
-                    .and_then(|v| v.as_f64()),
+                ingest_cost: item.get("ingest_cost").and_then(|v| v.as_f64()),
                 // M2a #28: 从 JSON 读取 domain(可选,默认 "shared")。
                 domain: item
                     .get("domain")
@@ -356,7 +354,10 @@ mod tests {
             evidence: Some("observed in logs".to_string()),
         };
         let json = serde_json::to_string(&rel).expect("serialize");
-        assert!(json.contains("\"@type\":\"RelationEntity\""), "missing @type field");
+        assert!(
+            json.contains("\"@type\":\"RelationEntity\""),
+            "missing @type field"
+        );
         assert!(json.contains("\"source_id\":\"nebula:memory:m1\""));
         assert!(json.contains("\"target_id\":\"nebula:memory:m2\""));
         assert!(json.contains("\"kind\":\"causes\""));
@@ -378,7 +379,10 @@ mod tests {
             evidence: None,
         };
         let json = serde_json::to_string(&rel).expect("serialize");
-        assert!(!json.contains("evidence"), "None evidence should be skipped");
+        assert!(
+            !json.contains("evidence"),
+            "None evidence should be skipped"
+        );
     }
 
     /// `ExportManifest` 的 `relation_count` 字段不再是硬编码 0。
@@ -392,8 +396,14 @@ mod tests {
             exported_at: 1700000000,
             schema_version: SCHEMA_VERSION.to_string(),
         };
-        assert_eq!(manifest.relation_count, 5, "relation_count should reflect actual count");
-        assert_ne!(manifest.relation_count, 0, "regression: relation_count must not be hardcoded 0");
+        assert_eq!(
+            manifest.relation_count, 5,
+            "relation_count should reflect actual count"
+        );
+        assert_ne!(
+            manifest.relation_count, 0,
+            "regression: relation_count must not be hardcoded 0"
+        );
     }
 
     /// `RelationEntity` 可反序列化（round-trip）。

@@ -1,4 +1,4 @@
-﻿//! Swarm end-to-end integration tests.
+//! Swarm end-to-end integration tests.
 //!
 //! Validates the full v2.0 swarm pipeline:
 //! 1. Task creation → agent dispatch → parallel execution → report
@@ -27,7 +27,16 @@ fn mock_gateway() -> Arc<LlmGateway> {
         "http://127.0.0.1:1",
         Duration::from_secs(2),
     ));
-    Arc::new(LlmGateway::new(client, "mock-model", "ollama", None, None, None, None, None))
+    Arc::new(LlmGateway::new(
+        client,
+        "mock-model",
+        "ollama",
+        None,
+        None,
+        None,
+        None,
+        None,
+    ))
 }
 
 fn mock_orchestrator() -> SwarmOrchestrator {

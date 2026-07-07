@@ -1,4 +1,4 @@
-﻿//! Skill-related DTOs.
+//! Skill-related DTOs.
 //!
 //! These types are the wire shape for both the Tauri command layer and
 //! the gRPC SkillService. They map 1:1 onto the gRPC proto messages
@@ -234,16 +234,19 @@ mod tests {
         assert_eq!(req.tag.as_deref(), Some("math"));
         assert_eq!(req.limit, 10);
         assert!(req.tags.is_empty(), "tags should default to empty vec");
-        assert_eq!(req.tag_match, TagMatch::Any, "tag_match should default to Any");
+        assert_eq!(
+            req.tag_match,
+            TagMatch::Any,
+            "tag_match should default to Any"
+        );
     }
 
     /// T-E-S-37: 多 tag payload 能正确反序列化。
     #[test]
     fn list_skills_request_parses_multi_tags_and_match_mode() {
-        let req: ListSkillsRequest = serde_json::from_str(
-            r#"{"tags":["rust","math"],"tag_match":"all","limit":5}"#,
-        )
-        .unwrap();
+        let req: ListSkillsRequest =
+            serde_json::from_str(r#"{"tags":["rust","math"],"tag_match":"all","limit":5}"#)
+                .unwrap();
         assert_eq!(req.tags, vec!["rust".to_string(), "math".to_string()]);
         assert_eq!(req.tag_match, TagMatch::All);
         assert_eq!(req.limit, 5);

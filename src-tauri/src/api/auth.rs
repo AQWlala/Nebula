@@ -23,10 +23,7 @@ pub type AuthResult = Result<(), (u16, String)>;
 /// # 返回
 /// - `Ok(())`: 认证通过或跳过
 /// - `Err((401, message))`: 缺少认证头或 token 不匹配
-pub fn check_auth<B>(
-    req: &Request<B>,
-    expected_token: &Option<String>,
-) -> AuthResult {
+pub fn check_auth<B>(req: &Request<B>, expected_token: &Option<String>) -> AuthResult {
     // 未配置 token → 开发模式，跳过认证
     let expected = match expected_token {
         None => return Ok(()),

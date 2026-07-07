@@ -140,8 +140,6 @@ pub async fn mdrm_get_graph(
     if parsed_dims.is_empty() {
         Ok(engine.get_full_graph(&memory_id, &cfg).await)
     } else {
-        Ok(engine
-            .query_multi_dim(&memory_id, &parsed_dims, &cfg)
-            .await)
+        Ok(engine.query_multi_dim(&memory_id, &parsed_dims, &cfg).await)
     }
 }

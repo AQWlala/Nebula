@@ -1,4 +1,4 @@
-﻿//! T-E-A-03 ModelRouter 智能路由 — 本地小模型分类,决定首选 LLM provider.
+//! T-E-A-03 ModelRouter 智能路由 — 本地小模型分类,决定首选 LLM provider.
 //!
 //! ## M3 #47 迁移说明
 //!
@@ -282,7 +282,10 @@ mod tests {
     fn test_hash_messages_differs_for_different_content() {
         let a = vec![ChatMessage::user("hello")];
         let b = vec![ChatMessage::user("world")];
-        assert_ne!(ModelRouter::hash_messages(&a), ModelRouter::hash_messages(&b));
+        assert_ne!(
+            ModelRouter::hash_messages(&a),
+            ModelRouter::hash_messages(&b)
+        );
     }
 
     #[test]

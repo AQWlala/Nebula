@@ -96,10 +96,7 @@ impl LocalBackend {
             .map(|n| n.to_os_string())
             .unwrap_or_default();
         name.push(".partial");
-        fs_path
-            .parent()
-            .unwrap_or(Path::new("."))
-            .join(name)
+        fs_path.parent().unwrap_or(Path::new(".")).join(name)
     }
 
     /// 读取文件 mtime(Unix 毫秒)。
@@ -326,7 +323,11 @@ mod tests {
         let input_stream: Box<dyn Stream<Item = StorageResult<Bytes>> + Send + Unpin> =
             Box::new(futures::stream::iter(chunks));
         backend
-            .write_stream("big.bin", input_stream, Some((chunk.len() * total_chunks) as u64))
+            .write_stream(
+                "big.bin",
+                input_stream,
+                Some((chunk.len() * total_chunks) as u64),
+            )
             .await
             .expect("write_stream");
 
@@ -426,7 +427,11 @@ mod tests {
         // 验证 .partial 临时文件不存在(已被 rename 清理)
         let fs_path = backend.resolve("atom.txt").expect("resolve");
         let tmp = backend.tmp_path(&fs_path);
-        assert!(!tmp.exists(), "tmp file should not exist after write: {}", tmp.display());
+        assert!(
+            !tmp.exists(),
+            "tmp file should not exist after write: {}",
+            tmp.display()
+        );
     }
 
     /// 测试:read 不存在的文件返回 NotFound。
@@ -442,7 +447,10 @@ mod tests {
     async fn remove_dir_idempotent() {
         let backend = temp_backend();
         backend.create_dir("dir").await.expect("create dir");
-        backend.write("dir/file.txt", b"x").await.expect("write file");
+        backend
+            .write("dir/file.txt", b"x")
+            .await
+            .expect("write file");
         backend.remove_dir("dir").await.expect("remove dir first");
         // 再次删除不应报错
         backend.remove_dir("dir").await.expect("remove dir again");
@@ -452,7 +460,10 @@ mod tests {
     #[tokio::test]
     async fn metadata_correct() {
         let backend = temp_backend();
-        backend.write("meta.txt", b"1234567890").await.expect("write");
+        backend
+            .write("meta.txt", b"1234567890")
+            .await
+            .expect("write");
         let meta = backend.metadata("meta.txt").await.expect("metadata");
         assert_eq!(meta.path, "meta.txt");
         assert_eq!(meta.size, 10);

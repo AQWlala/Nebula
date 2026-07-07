@@ -271,7 +271,10 @@ mod tests {
         let resp = executor.execute(req).await.unwrap();
         assert!(resp.error.is_some(), "McpExecutor should set error");
         let err = resp.error.unwrap();
-        assert!(err.contains("not implemented"), "expected NotImplemented: {err}");
+        assert!(
+            err.contains("not implemented"),
+            "expected NotImplemented: {err}"
+        );
         assert!(err.contains("test-server"));
     }
 }

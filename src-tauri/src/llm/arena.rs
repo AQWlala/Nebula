@@ -98,21 +98,21 @@ impl ArenaLeaderboard {
         };
         // spawn_blocking:SQLite 同步 I/O,避免在 async 上下文阻塞。
         // parking_lot::MutexGuard 不能跨 await,所以全部读在块内完成。
-        let rows: Vec<(String, f32)> = tokio::task::spawn_blocking(move || -> Result<Vec<(String, f32)>> {
-            let conn = store.raw_connection();
-            let g = conn.lock();
-            let mut stmt = g.prepare("SELECT model, elo FROM model_elo_scores")?;
-            let rows = stmt.query_map([], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, f32>(1)?))
-            })?;
-            let mut out = Vec::new();
-            for row in rows {
-                out.push(row?);
-            }
-            Ok(out)
-        })
-        .await
-        .context("spawn_blocking for arena load_from_store")??;
+        let rows: Vec<(String, f32)> =
+            tokio::task::spawn_blocking(move || -> Result<Vec<(String, f32)>> {
+                let conn = store.raw_connection();
+                let g = conn.lock();
+                let mut stmt = g.prepare("SELECT model, elo FROM model_elo_scores")?;
+                let rows =
+                    stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, f32>(1)?)))?;
+                let mut out = Vec::new();
+                for row in rows {
+                    out.push(row?);
+                }
+                Ok(out)
+            })
+            .await
+            .context("spawn_blocking for arena load_from_store")??;
 
         let mut guard = self.elo_scores.lock();
         for (model, elo) in rows {
@@ -178,16 +178,7 @@ impl ArenaLeaderboard {
                       auto_score_a, auto_score_b, created_at) \
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                     params![
-                        id_c,
-                        prompt_c,
-                        ma_c,
-                        mb_c,
-                        ra_c,
-                        rb_c,
-                        winner_c,
-                        score_a,
-                        score_b,
-                        now,
+                        id_c, prompt_c, ma_c, mb_c, ra_c, rb_c, winner_c, score_a, score_b, now,
                     ],
                 ) {
                     warn!(
@@ -212,12 +203,7 @@ impl ArenaLeaderboard {
     ///
     /// 块作用域持锁计算新 ELO,drop guard 后 spawn_blocking 写 SQLite
     /// (parking_lot::MutexGuard 是 !Send,不能跨 await)。
-    pub async fn update_elo(
-        &self,
-        model_a: &str,
-        model_b: &str,
-        winner: &str,
-    ) -> Result<()> {
+    pub async fn update_elo(&self, model_a: &str, model_b: &str, winner: &str) -> Result<()> {
         // 块作用域:持锁计算 + 写内存,Guard 在块结束 drop。
         let (new_elo_a, new_elo_b) = {
             let mut scores = self.elo_scores.lock();
@@ -286,13 +272,10 @@ impl ArenaLeaderboard {
     ///
     /// 简化实现:不撤销旧 winner 的 ELO 影响(spec R2 提到人工投票优先级
     /// 高于自动评分;此处假设 vote 仅在 winner=NULL 时调用)。
-    pub async fn vote(
-        &self,
-        match_id: &str,
-        winner: String,
-    ) -> Result<()> {
+    pub async fn vote(&self, match_id: &str, winner: String) -> Result<()> {
         // 读回 model_a/model_b(若 store 存在),用于驱动 ELO 更新。
-        let (model_a, model_b): (Option<String>, Option<String>) = if let Some(store) = &self.store {
+        let (model_a, model_b): (Option<String>, Option<String>) = if let Some(store) = &self.store
+        {
             let store = store.clone();
             let mid = match_id.to_string();
             tokio::task::spawn_blocking(move || -> Result<(Option<String>, Option<String>)> {
@@ -301,7 +284,12 @@ impl ArenaLeaderboard {
                 let row: rusqlite::Result<(Option<String>, Option<String>)> = g.query_row(
                     "SELECT model_a, model_b FROM arena_matches WHERE id = ?1",
                     params![mid],
-                    |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?)),
+                    |r| {
+                        Ok((
+                            r.get::<_, Option<String>>(0)?,
+                            r.get::<_, Option<String>>(1)?,
+                        ))
+                    },
                 );
                 match row {
                     Ok(v) => Ok(v),
@@ -389,16 +377,20 @@ mod tests {
     fn arena_matches_count(store: &SqliteStore) -> i64 {
         let conn = store.raw_connection();
         let g = conn.lock();
-        g.query_row("SELECT COUNT(*) FROM arena_matches", [], |r| r.get::<_, i64>(0))
-            .expect("count arena_matches")
+        g.query_row("SELECT COUNT(*) FROM arena_matches", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .expect("count arena_matches")
     }
 
     /// 辅助:查询 model_elo_scores 表行数。
     fn elo_scores_count(store: &SqliteStore) -> i64 {
         let conn = store.raw_connection();
         let g = conn.lock();
-        g.query_row("SELECT COUNT(*) FROM model_elo_scores", [], |r| r.get::<_, i64>(0))
-            .expect("count model_elo_scores")
+        g.query_row("SELECT COUNT(*) FROM model_elo_scores", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .expect("count model_elo_scores")
     }
 
     /// 辅助:查询某场对战的 winner。
@@ -419,7 +411,10 @@ mod tests {
     fn test_elo_calculation() {
         // 双方同分 → expected_a = 0.5。
         let expected = 1.0 / (1.0 + 10.0_f32.powf((1200.0 - 1200.0) / 400.0));
-        assert!((expected - 0.5).abs() < 1e-6, "expected_a at equal elos should be 0.5");
+        assert!(
+            (expected - 0.5).abs() < 1e-6,
+            "expected_a at equal elos should be 0.5"
+        );
 
         // elo_a=1400, elo_b=1200 → expected_a ≈ 0.76(更高 elo 的一方应胜率更高)。
         let expected_a = 1.0 / (1.0 + 10.0_f32.powf((1200.0 - 1400.0) / 400.0));
@@ -509,7 +504,9 @@ mod tests {
         // 不等分选手平局:高分方略降、低分方略升(双方趋近中间)。
         let lb2 = Arc::new(ArenaLeaderboard::new());
         // 先让 model_high 赢 model_low 一次,拉开差距。
-        lb2.update_elo("model_high", "model_low", "a").await.unwrap();
+        lb2.update_elo("model_high", "model_low", "a")
+            .await
+            .unwrap();
         let board_mid = lb2.leaderboard().await;
         let elo_high_before = board_mid
             .iter()
@@ -522,7 +519,9 @@ mod tests {
             .map(|(_, e)| *e)
             .expect("model_low");
         // 然后让两人平局:high 应降,low 应升(双方趋近中间)。
-        lb2.update_elo("model_high", "model_low", "tie").await.unwrap();
+        lb2.update_elo("model_high", "model_low", "tie")
+            .await
+            .unwrap();
         let board_after = lb2.leaderboard().await;
         let elo_high_after = board_after
             .iter()
@@ -558,14 +557,21 @@ mod tests {
         assert_eq!(before, 0, "fresh store should have 0 arena_matches");
 
         let match_id = lb
-            .create_match("hello".to_string(), "deepseek-chat".to_string(), "qwen2.5:7b".to_string())
+            .create_match(
+                "hello".to_string(),
+                "deepseek-chat".to_string(),
+                "qwen2.5:7b".to_string(),
+            )
             .await
             .expect("create_match");
         assert!(!match_id.is_empty(), "match_id should be non-empty");
 
         // spawn_blocking 完成后 SQLite 应有 1 行。
         let after = arena_matches_count(&store);
-        assert_eq!(after, 1, "arena_matches table should have 1 row after create_match");
+        assert_eq!(
+            after, 1,
+            "arena_matches table should have 1 row after create_match"
+        );
 
         // 验证列内容(prompt / model_a / model_b)。
         let conn = store.raw_connection();
@@ -597,7 +603,11 @@ mod tests {
 
         // 创建对战(stub 路径 winner=None)。
         let match_id = lb
-            .create_match("vote-test".to_string(), "model_p".to_string(), "model_q".to_string())
+            .create_match(
+                "vote-test".to_string(),
+                "model_p".to_string(),
+                "model_q".to_string(),
+            )
             .await
             .unwrap();
         // 验证初始 winner 为 None(stub 路径未自动评分)。
@@ -634,9 +644,13 @@ mod tests {
         let lb = Arc::new(ArenaLeaderboard::new());
         // 构造三条记录:ELO 各异。
         // 第一场:model_alpha 胜 model_beta(alpha↑ beta↓)。
-        lb.update_elo("model_alpha", "model_beta", "a").await.unwrap();
+        lb.update_elo("model_alpha", "model_beta", "a")
+            .await
+            .unwrap();
         // 第二场:再让 model_alpha 胜 model_gamma(alpha↑↑ gamma↓)。
-        lb.update_elo("model_alpha", "model_gamma", "a").await.unwrap();
+        lb.update_elo("model_alpha", "model_gamma", "a")
+            .await
+            .unwrap();
         // 此时:model_alpha(2 胜) > model_beta(0 胜 1 负) > model_gamma(0 胜 1 负,首战对 model_alpha)
         // 实际数值:alpha 赢两次,model_beta 输一次,model_gamma 输一次但对手是已升级的 alpha。
         let board = lb.leaderboard().await;

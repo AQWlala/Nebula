@@ -115,11 +115,9 @@ pub async fn db_encryption_enable(
     //    重命名明文 DB → .plain.bak,用 key 打开新 DB,sqlcipher_export 导入。
     let db_path = state.config.db_path.clone();
     let plain_path = Path::new(&db_path);
-    let _backup = crate::memory::sqlite_cipher::CipherMigrator::encrypt_plaintext_db(
-        plain_path,
-        &key,
-    )
-    .map_err(|e| CommandError::db("db_encryption_enable: encrypt_plaintext_db", &e))?;
+    let _backup =
+        crate::memory::sqlite_cipher::CipherMigrator::encrypt_plaintext_db(plain_path, &key)
+            .map_err(|e| CommandError::db("db_encryption_enable: encrypt_plaintext_db", &e))?;
 
     // 4. 持久化 config。
     //    主 agent 集成:save_app_settings(db_encryption_enabled=true)。
@@ -171,11 +169,9 @@ pub async fn db_encryption_disable(
     //    key 错则 sqlcipher_export 失败,"file is not a database")。
     let db_path = state.config.db_path.clone();
     let enc_path = Path::new(&db_path);
-    let _backup = crate::memory::sqlite_cipher::CipherMigrator::decrypt_to_plaintext(
-        enc_path,
-        &key,
-    )
-    .map_err(|e| CommandError::db("db_encryption_disable: decrypt_to_plaintext", &e))?;
+    let _backup =
+        crate::memory::sqlite_cipher::CipherMigrator::decrypt_to_plaintext(enc_path, &key)
+            .map_err(|e| CommandError::db("db_encryption_disable: decrypt_to_plaintext", &e))?;
 
     // 2. 删除 keychain slot(幂等)。
     let _ = crate::security::keychain::delete(crate::security::keychain::KEY_DB_ENCRYPTION_KEY);

@@ -1,4 +1,4 @@
-﻿//! T-E-S-57: 后台执行通知服务。
+//! T-E-S-57: 后台执行通知服务。
 //!
 //! 封装系统通知 + 悬浮球状态广播 + 去重逻辑。
 //! - 系统通知: 使用 tauri-plugin-notification
@@ -103,7 +103,9 @@ impl NotificationService {
 
     pub fn increment_active_tasks(&self) {}
     pub fn decrement_active_tasks(&self) {}
-    pub fn active_task_count(&self) -> u32 { 0 }
+    pub fn active_task_count(&self) -> u32 {
+        0
+    }
 
     pub fn handle_swarm_event(&self, _event: &SwarmEvent) {}
 }
@@ -264,12 +266,7 @@ impl NotificationService {
             return;
         };
 
-        let result = app
-            .notification()
-            .builder()
-            .title(title)
-            .body(body)
-            .show();
+        let result = app.notification().builder().title(title).body(body).show();
 
         if let Err(e) = result {
             warn!(target: "nebula.notify", error = %e, "failed to show system notification");
@@ -315,7 +312,10 @@ impl NotificationService {
                     let title = format!("任务完成 ({} 个成功)", success_count);
                     self.notify_task_completed(&title, task_id);
                 } else if *failure_count > 0 {
-                    let title = format!("任务部分失败 ({} 成功 / {} 失败)", success_count, failure_count);
+                    let title = format!(
+                        "任务部分失败 ({} 成功 / {} 失败)",
+                        success_count, failure_count
+                    );
                     self.notify_task_failed(&title, task_id, "部分代理执行失败");
                 }
             }

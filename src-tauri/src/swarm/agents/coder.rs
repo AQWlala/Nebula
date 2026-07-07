@@ -1,4 +1,4 @@
-﻿//! Coder agent — produces Rust code in response to a task description.
+//! Coder agent — produces Rust code in response to a task description.
 
 use std::sync::Arc;
 
@@ -83,10 +83,7 @@ mod tests {
             agent.tool_set(),
             &["shell", "editor_read", "editor_write", "tool_invoke"]
         );
-        assert_eq!(
-            agent.knowledge_scope(),
-            &[MemoryLayer::L2, MemoryLayer::L3]
-        );
+        assert_eq!(agent.knowledge_scope(), &[MemoryLayer::L2, MemoryLayer::L3]);
     }
 
     #[test]

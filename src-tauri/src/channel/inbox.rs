@@ -1,4 +1,4 @@
-﻿//! T-E-S-59 统一收件箱 — Unified inbox for all channel messages.
+//! T-E-S-59 统一收件箱 — Unified inbox for all channel messages.
 //!
 //! 所有渠道(Telegram / Discord / WebChat / JiuwenSwarm)的入站消息
 //! 汇入同一张 `inbox_messages` 表,前端可通过 `InboxView` 组件统一
@@ -321,7 +321,11 @@ impl InboxManager {
 
         // 写一条出站记录,便于前端在收件箱中显示对话历史。
         let reply_msg = UnifiedMessage {
-            id: format!("reply-{}-{}", message_id, chrono::Utc::now().timestamp_millis()),
+            id: format!(
+                "reply-{}-{}",
+                message_id,
+                chrono::Utc::now().timestamp_millis()
+            ),
             source_channel: original.source_channel.clone(),
             sender: "nebula".to_string(),
             content: body.to_string(),
@@ -443,7 +447,9 @@ mod tests {
         store.insert(&sample_msg("r3", "telegram", 3000)).unwrap();
 
         assert_eq!(store.unread_count().unwrap(), 3);
-        store.mark_read(&["r1".to_string(), "r2".to_string()]).unwrap();
+        store
+            .mark_read(&["r1".to_string(), "r2".to_string()])
+            .unwrap();
         assert_eq!(store.unread_count().unwrap(), 1);
 
         // 已读消息的 read 字段应为 true
@@ -484,7 +490,10 @@ mod tests {
         let list = store.list(100, 0, None).unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "mgr-1");
-        assert!(!list[0].read, "inbound message should be unread after ingest");
+        assert!(
+            !list[0].read,
+            "inbound message should be unread after ingest"
+        );
 
         // 出站消息(inbound=false)ingest 后应自动标记为已读
         let out_msg = UnifiedMessage {
@@ -500,8 +509,15 @@ mod tests {
         };
         mgr.ingest(out_msg).unwrap();
         let out = store.get_by_id("mgr-out").unwrap().unwrap();
-        assert!(out.read, "outbound message should be marked read after ingest");
-        assert_eq!(store.unread_count().unwrap(), 1, "only the inbound one is unread");
+        assert!(
+            out.read,
+            "outbound message should be marked read after ingest"
+        );
+        assert_eq!(
+            store.unread_count().unwrap(),
+            1,
+            "only the inbound one is unread"
+        );
     }
 
     #[test]
@@ -525,13 +541,22 @@ mod tests {
 
     #[test]
     fn parse_channel_kind_handles_known_and_unknown() {
-        assert_eq!(parse_channel_kind("telegram").unwrap(), ChannelKind::Telegram);
+        assert_eq!(
+            parse_channel_kind("telegram").unwrap(),
+            ChannelKind::Telegram
+        );
         assert_eq!(parse_channel_kind("discord").unwrap(), ChannelKind::Discord);
         assert_eq!(parse_channel_kind("webchat").unwrap(), ChannelKind::WebChat);
         assert_eq!(parse_channel_kind("web").unwrap(), ChannelKind::WebChat);
-        assert_eq!(parse_channel_kind("jiuwenswarm").unwrap(), ChannelKind::JiuwenSwarm);
+        assert_eq!(
+            parse_channel_kind("jiuwenswarm").unwrap(),
+            ChannelKind::JiuwenSwarm
+        );
         // 大小写不敏感
-        assert_eq!(parse_channel_kind("Telegram").unwrap(), ChannelKind::Telegram);
+        assert_eq!(
+            parse_channel_kind("Telegram").unwrap(),
+            ChannelKind::Telegram
+        );
         // 未知渠道
         assert!(parse_channel_kind("slack").is_err());
     }

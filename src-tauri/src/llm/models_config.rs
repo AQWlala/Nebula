@@ -452,11 +452,7 @@ impl ModelsConfig {
             let mut seen_models = std::collections::HashSet::new();
             for m in &p.models {
                 if !seen_models.insert(m.id.as_str()) {
-                    anyhow::bail!(
-                        "duplicate model id `{}` in provider `{}`",
-                        m.id,
-                        p.id
-                    );
+                    anyhow::bail!("duplicate model id `{}` in provider `{}`", m.id, p.id);
                 }
             }
             // #17: SSRF 校验 provider base_url。
@@ -502,11 +498,7 @@ impl ModelsConfig {
                 }
             }
         }
-        if !self
-            .providers
-            .iter()
-            .any(|p| p.id == self.default_provider)
-        {
+        if !self.providers.iter().any(|p| p.id == self.default_provider) {
             anyhow::bail!(
                 "default_provider `{}` not found in providers list",
                 self.default_provider
@@ -518,7 +510,11 @@ impl ModelsConfig {
             .iter()
             .find(|p| p.id == self.default_provider)
             .expect("checked above");
-        if !default_provider.models.iter().any(|m| m.id == self.default_model) {
+        if !default_provider
+            .models
+            .iter()
+            .any(|m| m.id == self.default_model)
+        {
             anyhow::bail!(
                 "default_model `{}` not found in provider `{}`",
                 self.default_model,
@@ -540,9 +536,7 @@ impl ModelsConfig {
             return Some(m);
         }
         // 前缀匹配(如 `claude-3-5-sonnet-20241022` → `claude-3-5-sonnet`)。
-        p.models
-            .iter()
-            .find(|m| model_id.starts_with(&m.id))
+        p.models.iter().find(|m| model_id.starts_with(&m.id))
     }
 }
 
@@ -632,7 +626,9 @@ mod tests {
         cfg.save(&path).expect("save");
         let loaded = ModelsConfig::load(&path);
         assert_eq!(loaded.providers.len(), 4);
-        let custom = loaded.find_provider("custom-openai").expect("custom provider");
+        let custom = loaded
+            .find_provider("custom-openai")
+            .expect("custom provider");
         assert!(!custom.is_builtin);
         assert_eq!(custom.kind, ProviderKind::OpenAiCompat);
         let _ = std::fs::remove_file(&path);
@@ -666,7 +662,9 @@ mod tests {
     fn find_model_uses_prefix_match() {
         let cfg = ModelsConfig::default_builtin();
         // 完整 id 匹配。
-        let m = cfg.find_model("anthropic", "claude-3-5-sonnet").expect("exact");
+        let m = cfg
+            .find_model("anthropic", "claude-3-5-sonnet")
+            .expect("exact");
         assert_eq!(m.id, "claude-3-5-sonnet");
         // 前缀匹配(模拟带日期后缀的版本号)。
         let m = cfg
@@ -772,10 +770,7 @@ mod tests {
     #[test]
     fn migrate_v2_config_not_re_migrated() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!(
-            "nebula_models_v2_noop_{}.json",
-            std::process::id()
-        ));
+        let path = dir.join(format!("nebula_models_v2_noop_{}.json", std::process::id()));
         let bak_path = PathBuf::from(format!("{}.v1.bak", path.display()));
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(&bak_path);

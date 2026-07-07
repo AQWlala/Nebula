@@ -1,4 +1,4 @@
-﻿//! T-S6-A-02: 电源管理 — 监听系统睡眠/唤醒事件,暂停/恢复 LLM 与蜂群任务。
+//! T-S6-A-02: 电源管理 — 监听系统睡眠/唤醒事件,暂停/恢复 LLM 与蜂群任务。
 //!
 //! ## 设计说明
 //!
@@ -225,9 +225,7 @@ impl PowerManager {
 /// 查询当前电源状态。返回 "active" 或 "paused"。
 #[tauri::command]
 #[allow(dead_code)]
-pub async fn power_state(
-    state: tauri::State<'_, Arc<PowerManager>>,
-) -> Result<String, String> {
+pub async fn power_state(state: tauri::State<'_, Arc<PowerManager>>) -> Result<String, String> {
     Ok(if state.is_active() {
         "active".to_string()
     } else {
@@ -238,9 +236,7 @@ pub async fn power_state(
 /// 主动暂停电源管理器(进入 Paused 状态)。
 #[tauri::command]
 #[allow(dead_code)]
-pub async fn power_pause(
-    state: tauri::State<'_, Arc<PowerManager>>,
-) -> Result<(), String> {
+pub async fn power_pause(state: tauri::State<'_, Arc<PowerManager>>) -> Result<(), String> {
     state.pause();
     Ok(())
 }

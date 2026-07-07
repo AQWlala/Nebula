@@ -37,11 +37,7 @@ impl GmailOAuthProvider {
     ///
     /// `client_secret` is `None` for PKCE-only flows (Google now supports
     /// confidential-client flows where the secret is required).
-    pub fn new(
-        client_id: String,
-        client_secret: Option<String>,
-        redirect_uri: String,
-    ) -> Self {
+    pub fn new(client_id: String, client_secret: Option<String>, redirect_uri: String) -> Self {
         let config = OAuthProviderConfig {
             id: "gmail".to_string(),
             name: "Gmail".to_string(),
@@ -231,7 +227,11 @@ pub struct EmailDelta {
 fn extract_header(msg: &serde_json::Value, name: &str) -> Option<String> {
     let headers = msg["payload"]["headers"].as_array()?;
     for h in headers {
-        if h["name"].as_str().map(|s| s.eq_ignore_ascii_case(name)).unwrap_or(false) {
+        if h["name"]
+            .as_str()
+            .map(|s| s.eq_ignore_ascii_case(name))
+            .unwrap_or(false)
+        {
             return h["value"].as_str().map(|s| s.to_string());
         }
     }

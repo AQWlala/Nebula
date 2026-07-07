@@ -230,9 +230,7 @@ impl ExecApprovalTracker {
 
     /// 是否已批准。
     pub fn is_approved(&self, id: &str) -> bool {
-        self.status(id)
-            .map(|s| s.is_allowed())
-            .unwrap_or(false)
+        self.status(id).map(|s| s.is_allowed()).unwrap_or(false)
     }
 
     /// 是否因超时被 fail-closed。
@@ -339,16 +337,10 @@ mod tests {
         let (req, _notify) = tracker.request("skill-3", "exec rm");
         assert!(tracker.deny(&req.id));
         assert!(!tracker.is_approved(&req.id));
-        assert_eq!(
-            tracker.status(&req.id).unwrap(),
-            ExecApprovalStatus::Denied
-        );
+        assert_eq!(tracker.status(&req.id).unwrap(), ExecApprovalStatus::Denied);
         thread::sleep(Duration::from_millis(1100));
         assert!(!tracker.check_timeout_fail_closed(&req.id));
-        assert_eq!(
-            tracker.status(&req.id).unwrap(),
-            ExecApprovalStatus::Denied
-        );
+        assert_eq!(tracker.status(&req.id).unwrap(), ExecApprovalStatus::Denied);
     }
 
     /// T-E-S-20: `mark_timeout_fail_closed` 直接将 Pending 标记为
@@ -414,8 +406,7 @@ mod tests {
         let (req, notify) = tracker.request("skill-to", "exec to");
 
         // 用远短于 tracker.timeout 的时间等待，模拟"用户未响应"。
-        let waited =
-            tokio::time::timeout(Duration::from_millis(50), notify.notified()).await;
+        let waited = tokio::time::timeout(Duration::from_millis(50), notify.notified()).await;
         assert!(waited.is_err(), "should time out with no approver");
 
         // 显式落态为 fail-closed。

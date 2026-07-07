@@ -10,8 +10,8 @@
 //!
 //! 详见 `engine::ShadowWorkspaceEngine`。
 
-pub mod engine;
 pub mod commands;
+pub mod engine;
 pub mod recording;
 
 pub use engine::{ShadowConfig, ShadowStatus, ShadowWorkspace, ShadowWorkspaceEngine};

@@ -47,9 +47,7 @@ pub async fn shadow_create(
 /// 列出所有 workspace(按创建时间降序)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "shadow_list"))]
-pub async fn shadow_list(
-    state: State<'_, AppState>,
-) -> Result<Vec<ShadowWorkspace>, CommandError> {
+pub async fn shadow_list(state: State<'_, AppState>) -> Result<Vec<ShadowWorkspace>, CommandError> {
     let engine = state.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.list())
         .await
@@ -241,6 +239,8 @@ pub async fn shadow_recording_clear(
     let engine = state.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.clear_recording(&workspace_id))
         .await
-        .map_err(|e| CommandError::internal("shadow_recording_clear_blocking", &anyhow::anyhow!(e)))?;
+        .map_err(|e| {
+            CommandError::internal("shadow_recording_clear_blocking", &anyhow::anyhow!(e))
+        })?;
     Ok(())
 }

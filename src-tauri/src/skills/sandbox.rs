@@ -1,4 +1,4 @@
-﻿//! v1.3 P1-3: 技能沙箱隔离 — 基于能力的权限模型。
+//! v1.3 P1-3: 技能沙箱隔离 — 基于能力的权限模型。
 //!
 //! 当前技能执行通过 Python 子进程沙箱（见 `skills::engine::execute_shell`），
 //! 具备进程隔离 + 网络阻断 + 内存限制。本模块在此之上增加**声明式能力**
@@ -327,21 +327,27 @@ mod wasm_sandbox {
             let mut linker = wasmtime::Linker::new(&engine);
 
             if config.capabilities.has(Capability::FileRead) {
-                linker.func_wrap("env", "file_read", |_path: i32, _path_len: i32, _buf: i32, _buf_len: i32| -> i32 {
-                    -1
-                })?;
+                linker.func_wrap(
+                    "env",
+                    "file_read",
+                    |_path: i32, _path_len: i32, _buf: i32, _buf_len: i32| -> i32 { -1 },
+                )?;
             }
 
             if config.capabilities.has(Capability::FileWrite) {
-                linker.func_wrap("env", "file_write", |_path: i32, _path_len: i32, _data: i32, _data_len: i32| -> i32 {
-                    -1
-                })?;
+                linker.func_wrap(
+                    "env",
+                    "file_write",
+                    |_path: i32, _path_len: i32, _data: i32, _data_len: i32| -> i32 { -1 },
+                )?;
             }
 
             if config.capabilities.has(Capability::Network) {
-                linker.func_wrap("env", "http_fetch", |_url: i32, _url_len: i32, _buf: i32, _buf_len: i32| -> i32 {
-                    -1
-                })?;
+                linker.func_wrap(
+                    "env",
+                    "http_fetch",
+                    |_url: i32, _url_len: i32, _buf: i32, _buf_len: i32| -> i32 { -1 },
+                )?;
             }
 
             Ok(Self {

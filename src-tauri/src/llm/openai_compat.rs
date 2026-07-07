@@ -1,4 +1,4 @@
-﻿//! T-E-S-40 OpenAI 兼容层 — 一个可复用的 OpenAI 兼容客户端。
+//! T-E-S-40 OpenAI 兼容层 — 一个可复用的 OpenAI 兼容客户端。
 //!
 //! 支持 vLLM / LMStudio / OpenRouter / DeepSeek 等任何实现了
 //! `POST /v1/chat/completions`(或 `/chat/completions`)协议的端点。
@@ -101,11 +101,7 @@ impl OpenAICompatClient {
 
     /// DeepSeek 官方 API 预设。`url` 通常为 `https://api.deepseek.com/v1`。
     pub fn deepseek(url: impl Into<String>, key: impl Into<String>) -> Self {
-        Self::new(
-            url,
-            Some(key.into()),
-            "deepseek-chat",
-        )
+        Self::new(url, Some(key.into()), "deepseek-chat")
     }
 
     /// vLLM 预设。`url` 通常为 `http://localhost:8000/v1`(本地点,
@@ -147,11 +143,7 @@ impl OpenAICompatClient {
     /// - 内置 SSRF 校验(对齐 `gateway::call_remote` 的 SsrfGuard 用法)。
     /// - 解析 `reasoning_content`(DeepSeek-R1 等推理模型返回字段),
     ///   仅把正文 content 返回给调用方,reasoning 不在本次范围内透传。
-    pub async fn chat(
-        &self,
-        model: &str,
-        msgs: &[ChatMessage],
-    ) -> Result<(String, u64, u64)> {
+    pub async fn chat(&self, model: &str, msgs: &[ChatMessage]) -> Result<(String, u64, u64)> {
         // M7b #94: SSRF 校验 — 用 with_allow_loopback 替代 with_allow_private。
         // 允许 loopback(127.0.0.1,本地 vLLM/LMStudio)但拒绝其他私网(10.x/172.16.x/192.168.x)。
         // self.http 已在构造时用 build_safe_client 构建(重定向链每跳校验)。

@@ -1,4 +1,4 @@
-﻿//! T-S6-A-03: 自动备份调度器 — 每日 02:00 备份 SQLite + LanceDB。
+//! T-S6-A-03: 自动备份调度器 — 每日 02:00 备份 SQLite + LanceDB。
 //!
 //! 调度器在后台线程中运行,计算到下一个 02:00 (本地时间) 的秒数并 sleep,
 //! 到点后执行一次完整备份,然后清理超过 7 份的旧备份。线程为守护线程,
@@ -139,10 +139,8 @@ impl BackupScheduler {
                                 path = %path.display(),
                                 "scheduled backup completed"
                             );
-                            let _ = app.emit(
-                                "backup-completed",
-                                path.to_string_lossy().to_string(),
-                            );
+                            let _ =
+                                app.emit("backup-completed", path.to_string_lossy().to_string());
                         }
                         Err(e) => {
                             error!(
@@ -180,9 +178,8 @@ impl BackupScheduler {
         let backup_dir = self.backup_root.join(&date_str);
 
         // 确保备份根目录存在
-        fs::create_dir_all(&self.backup_root).with_context(|| {
-            format!("creating backup root: {}", self.backup_root.display())
-        })?;
+        fs::create_dir_all(&self.backup_root)
+            .with_context(|| format!("creating backup root: {}", self.backup_root.display()))?;
         fs::create_dir_all(&backup_dir)
             .with_context(|| format!("creating backup dir: {}", backup_dir.display()))?;
 
@@ -220,8 +217,7 @@ impl BackupScheduler {
             created_at_iso: now.to_rfc3339(),
         };
         let meta_path = backup_dir.join(META_FILENAME);
-        let meta_json = serde_json::to_string_pretty(&meta)
-            .context("serializing backup meta")?;
+        let meta_json = serde_json::to_string_pretty(&meta).context("serializing backup meta")?;
         fs::write(&meta_path, meta_json)
             .with_context(|| format!("writing meta.json: {}", meta_path.display()))?;
 
@@ -333,10 +329,7 @@ pub fn default_backup_root() -> PathBuf {
     {
         std::env::var("HOME")
             .ok()
-            .map(|d| {
-                PathBuf::from(d)
-                    .join("Library/Application Support/nebula/backups")
-            })
+            .map(|d| PathBuf::from(d).join("Library/Application Support/nebula/backups"))
             .unwrap_or_else(|| PathBuf::from("nebula-backups"))
     }
     #[cfg(target_os = "linux")]
@@ -376,9 +369,7 @@ fn seconds_until_next_02am() -> u64 {
 fn copy_file_with_sidecars(db_path: &Path, dest_dir: &Path) -> Result<u64> {
     let mut total = 0u64;
 
-    let filename = db_path
-        .file_name()
-        .context("db_path has no file_name")?;
+    let filename = db_path.file_name().context("db_path has no file_name")?;
     let dest = dest_dir.join(filename);
     total += fs::copy(db_path, &dest)
         .with_context(|| format!("copying sqlite db: {}", db_path.display()))?;
@@ -407,8 +398,7 @@ fn copy_file_with_sidecars(db_path: &Path, dest_dir: &Path) -> Result<u64> {
 /// 递归复制目录,返回所有文件总字节数。
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<u64> {
     let mut total = 0u64;
-    fs::create_dir_all(dest)
-        .with_context(|| format!("creating dest dir: {}", dest.display()))?;
+    fs::create_dir_all(dest).with_context(|| format!("creating dest dir: {}", dest.display()))?;
 
     for entry in WalkDir::new(src).min_depth(1) {
         let entry = entry?;
@@ -423,9 +413,8 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<u64> {
             if let Some(parent) = dest_path.parent() {
                 fs::create_dir_all(parent).ok();
             }
-            let n = fs::copy(entry_path, &dest_path).with_context(|| {
-                format!("copying file: {}", entry_path.display())
-            })?;
+            let n = fs::copy(entry_path, &dest_path)
+                .with_context(|| format!("copying file: {}", entry_path.display()))?;
             total += n;
         }
     }

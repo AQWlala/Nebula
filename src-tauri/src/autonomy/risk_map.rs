@@ -288,21 +288,14 @@ mod tests {
     fn execute_normal_is_medium() {
         let m = WorkerRiskMap::new();
         // 普通 Shell → score 0.5 → Medium
-        assert_eq!(
-            m.assess(ActionKind::Execute, "ls -la"),
-            RiskTier::Medium
-        );
+        assert_eq!(m.assess(ActionKind::Execute, "ls -la"), RiskTier::Medium);
     }
 
     #[test]
     fn needs_approval_high_always_except_l5_background_ai_self_modify() {
         let m = WorkerRiskMap::new();
         // High (AiSelfModify) — L2 需审批
-        assert!(m.needs_approval(
-            ActionKind::AiSelfModify,
-            "evolve",
-            AutonomyLevel::L2Chat
-        ));
+        assert!(m.needs_approval(ActionKind::AiSelfModify, "evolve", AutonomyLevel::L2Chat));
         // L5 + AiSelfModify + bypass=true → 放行
         assert!(!m.needs_approval(
             ActionKind::AiSelfModify,
@@ -325,27 +318,11 @@ mod tests {
     fn needs_approval_medium_depends_on_autonomy() {
         let m = WorkerRiskMap::new();
         // Medium (Delete) — L2/L3 需审批
-        assert!(m.needs_approval(
-            ActionKind::Delete,
-            "x",
-            AutonomyLevel::L2Chat
-        ));
-        assert!(m.needs_approval(
-            ActionKind::Delete,
-            "x",
-            AutonomyLevel::L3Plan
-        ));
+        assert!(m.needs_approval(ActionKind::Delete, "x", AutonomyLevel::L2Chat));
+        assert!(m.needs_approval(ActionKind::Delete, "x", AutonomyLevel::L3Plan));
         // L4/L5 放行
-        assert!(!m.needs_approval(
-            ActionKind::Delete,
-            "x",
-            AutonomyLevel::L4Swarm
-        ));
-        assert!(!m.needs_approval(
-            ActionKind::Delete,
-            "x",
-            AutonomyLevel::L5Background
-        ));
+        assert!(!m.needs_approval(ActionKind::Delete, "x", AutonomyLevel::L4Swarm));
+        assert!(!m.needs_approval(ActionKind::Delete, "x", AutonomyLevel::L5Background));
     }
 
     #[test]

@@ -46,16 +46,44 @@ impl ValuePredictor {
         }
         let lower = trimmed.to_lowercase();
         // 噪声任务
-        let noise = ["test", "hello", "ping", "测试一下", "你好", "hi", "asdf", "xxx"];
-        if noise.iter().any(|n| lower == *n || lower.starts_with(n)) && trimmed.chars().count() < 12 {
+        let noise = [
+            "test",
+            "hello",
+            "ping",
+            "测试一下",
+            "你好",
+            "hi",
+            "asdf",
+            "xxx",
+        ];
+        if noise.iter().any(|n| lower == *n || lower.starts_with(n)) && trimmed.chars().count() < 12
+        {
             return ValueVerdict {
                 score: 0.08,
                 reason: "疑似测试/噪声任务".to_string(),
             };
         }
         // 有明确动作动词
-        let verbs = ["写", "分析", "总结", "规划", "实现", "修复", "重构", "设计", "生成", "整理",
-            "write", "analyze", "summarize", "plan", "implement", "fix", "refactor", "design"];
+        let verbs = [
+            "写",
+            "分析",
+            "总结",
+            "规划",
+            "实现",
+            "修复",
+            "重构",
+            "设计",
+            "生成",
+            "整理",
+            "write",
+            "analyze",
+            "summarize",
+            "plan",
+            "implement",
+            "fix",
+            "refactor",
+            "design",
+        ];
         let has_verb = verbs.iter().any(|v| lower.contains(v));
         // 有宾语（长度可作为代理指标）
         let len = trimmed.chars().count();

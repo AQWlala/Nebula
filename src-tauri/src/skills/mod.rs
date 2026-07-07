@@ -1,4 +1,4 @@
-﻿//! `nebula::skills` — v0.3 procedural-memory subsystem.
+//! `nebula::skills` — v0.3 procedural-memory subsystem.
 //!
 //! The `skills` table was reserved in v0.1 (see
 //! `migrations/001_initial.sql`) but never written to. v0.3 promotes
@@ -22,12 +22,12 @@
 pub mod audit;
 // T-E-S-36: 能力层 — Capability + CapabilityRegistry。
 pub mod capability;
+pub mod discover;
 pub mod engine;
 pub mod exec_approval;
-pub mod exporter;
 pub mod executor;
+pub mod exporter;
 pub mod extractor;
-pub mod discover;
 pub mod hub_client;
 pub mod importer;
 pub mod marketplace;
@@ -41,15 +41,15 @@ pub mod store;
 pub mod types;
 
 pub use audit::{redact_if_sensitive, truncate_summary, SkillAuditEntry, SkillAuditLogger};
+pub use engine::SkillEngine;
 pub use exec_approval::{
     ExecApprovalRequest, ExecApprovalStatus, ExecApprovalTracker,
     DEFAULT_EXEC_APPROVAL_TIMEOUT_SECS, TIMEOUT_FAIL_CLOSED_REASON,
 };
-pub use engine::SkillEngine;
 pub use exporter::SkillExporter;
 pub use extractor::{ExtractionReport, SkillExtractor};
-pub use importer::{ImportResult, SkillImporter, SkillSource};
 pub use hub_client::{HubSkillDetail, HubSkillSummary, TeamSkillsHubClient, TeamSkillsHubImporter};
+pub use importer::{ImportResult, SkillImporter, SkillSource};
 pub use marketplace::{
     MarketplaceQuery, MarketplaceResponse, MarketplaceStats, PublishManifest, SearchHit,
     SkillEntry, SkillMarketplace, SortBy, UpdateInfo,

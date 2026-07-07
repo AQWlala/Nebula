@@ -310,8 +310,14 @@ mod tests {
         let skills = list_all(&engine);
         let names: Vec<&str> = skills.iter().map(|s| s.name.as_str()).collect();
         assert!(names.contains(&"canvas-creator"), "canvas-creator missing");
-        assert!(names.contains(&"mermaid-creator"), "mermaid-creator missing");
-        assert!(names.contains(&"mindmap-creator"), "mindmap-creator missing");
+        assert!(
+            names.contains(&"mermaid-creator"),
+            "mermaid-creator missing"
+        );
+        assert!(
+            names.contains(&"mindmap-creator"),
+            "mindmap-creator missing"
+        );
         cleanup(&p);
     }
 
@@ -382,7 +388,8 @@ mod tests {
                 "{name} capabilities must be non-empty"
             );
             assert!(
-                s.capabilities.has(crate::skills::sandbox::Capability::LlmCall),
+                s.capabilities
+                    .has(crate::skills::sandbox::Capability::LlmCall),
                 "{name} must have LlmCall capability"
             );
         }

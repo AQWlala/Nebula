@@ -61,7 +61,10 @@ pub fn parse_deepseek_tool_calls(json: &serde_json::Value) -> Vec<ToolCall> {
             let id = tc.get("id")?.as_str()?.to_string();
             let func = tc.get("function")?;
             let name = func.get("name")?.as_str()?.to_string();
-            let args_str = func.get("arguments").and_then(|a| a.as_str()).unwrap_or("{}");
+            let args_str = func
+                .get("arguments")
+                .and_then(|a| a.as_str())
+                .unwrap_or("{}");
             let arguments = serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null);
             Some(ToolCall {
                 id,

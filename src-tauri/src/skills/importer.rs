@@ -25,9 +25,9 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
-use crate::security::SsrfGuard;
 use super::store::SkillStore;
 use super::types::{CreateSkillRequest, Skill};
+use crate::security::SsrfGuard;
 
 // ---------------------------------------------------------------------------
 // Data types

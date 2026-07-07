@@ -1,4 +1,4 @@
-﻿//! T-E-S-02: 工具调用循环 — LLM function calling 的核心执行引擎。
+//! T-E-S-02: 工具调用循环 — LLM function calling 的核心执行引擎。
 //!
 //! 当 LLM 返回 `tool_calls` 时,本模块负责:
 //! 1. 对每个 tool_call,从 ToolRegistry 查找工具并执行
@@ -68,8 +68,7 @@ pub async fn run_tool_loop(
             "tool_loop iteration"
         );
 
-        let resp: ChatResponse =
-            llm.chat_with_tools(messages.clone(), tools.clone()).await?;
+        let resp: ChatResponse = llm.chat_with_tools(messages.clone(), tools.clone()).await?;
 
         let tool_calls = resp.tool_calls.clone().unwrap_or_default();
 
@@ -140,12 +139,9 @@ pub async fn run_tool_loop(
             };
 
             // T-E-D-10: emit AgentToolCall 事件（如果在 swarm 上下文中）
-            if let (Some(sender), Some(aid), Some(arole), Some(tid)) = (
-                event_sender.as_ref(),
-                agent_id,
-                agent_role,
-                task_id,
-            ) {
+            if let (Some(sender), Some(aid), Some(arole), Some(tid)) =
+                (event_sender.as_ref(), agent_id, agent_role, task_id)
+            {
                 let (success, output_preview, error) = match &invoke_result {
                     Ok(output) => {
                         let preview = if output.success {

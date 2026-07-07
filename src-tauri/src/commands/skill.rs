@@ -1,4 +1,4 @@
-﻿//! Skill commands — CRUD, import, marketplace, audit.
+//! Skill commands — CRUD, import, marketplace, audit.
 
 use tauri::State;
 use tracing::instrument;
@@ -320,8 +320,8 @@ pub async fn skill_publish(
         .ok_or_else(|| CommandError::not_found(format!("skill: {skill_id}")))?;
 
     // 2. 生成 SKILL.md(内联 to_skill_md,不依赖 exporter.rs)。
-    let skill_md = skill_to_skill_md(&skill)
-        .map_err(|e| CommandError::internal("skill_publish", &e))?;
+    let skill_md =
+        skill_to_skill_md(&skill).map_err(|e| CommandError::internal("skill_publish", &e))?;
 
     // 3. 生成 PublishManifest 并校验。
     let manifest = state
@@ -336,8 +336,8 @@ pub async fn skill_publish(
         "gist" => {
             let token = keychain::get_publisher_token("github")
                 .map_err(|e| CommandError::internal("skill_publish", &e))?;
-            let publisher = GistPublisher::new()
-                .map_err(|e| CommandError::internal("skill_publish", &e))?;
+            let publisher =
+                GistPublisher::new().map_err(|e| CommandError::internal("skill_publish", &e))?;
             publisher
                 .publish(&skill_md, &manifest, token.as_deref())
                 .await

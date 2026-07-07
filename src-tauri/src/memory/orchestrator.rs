@@ -1,4 +1,4 @@
-﻿//! v1.4 Memory Orchestrator — L2 认知层协调器。
+//! v1.4 Memory Orchestrator — L2 认知层协调器。
 //!
 //! 对应设计文档 v7.0 §2.1 的 L2 Memory Orchestrator + §4.3 上下文组装策略。
 //!
@@ -87,9 +87,18 @@ impl TaskHint {
     /// 从任务描述自动推断提示。
     pub fn infer(description: &str) -> Self {
         let lower = description.to_lowercase();
-        let is_writing = ["写", "总结", "规划", "设计", "write", "summarize", "plan", "design"]
-            .iter()
-            .any(|k| lower.contains(k));
+        let is_writing = [
+            "写",
+            "总结",
+            "规划",
+            "设计",
+            "write",
+            "summarize",
+            "plan",
+            "design",
+        ]
+        .iter()
+        .any(|k| lower.contains(k));
         let involves_preference = ["喜欢", "偏好", "习惯", "prefer", "like", "habit", "情感"]
             .iter()
             .any(|k| lower.contains(k));
@@ -431,7 +440,12 @@ mod tests {
     }
 
     fn make_mem(id: &str, content: &str, mt: MemoryType) -> Memory {
-        let mut m = Memory::new(mt, MemoryLayer::L1, content.to_string(), SourceKind::UserInput);
+        let mut m = Memory::new(
+            mt,
+            MemoryLayer::L1,
+            content.to_string(),
+            SourceKind::UserInput,
+        );
         m.id = id.to_string();
         m
     }
@@ -486,11 +500,7 @@ mod tests {
         ];
 
         let filtered = apply_acl_filter(Some(&acl), mems, "user-1");
-        assert_eq!(
-            filtered.len(),
-            1,
-            "denied memories must be filtered out"
-        );
+        assert_eq!(filtered.len(), 1, "denied memories must be filtered out");
         assert_eq!(filtered[0].id, "mem-public");
         assert!(
             !filtered.iter().any(|m| m.id == "mem-secret"),

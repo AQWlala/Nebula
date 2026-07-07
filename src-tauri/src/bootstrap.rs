@@ -22,9 +22,9 @@ use crate::channel::webchat::WebChatService;
 use crate::editor::EditorState;
 use crate::llm::gateway::LlmGateway;
 use crate::llm::ollama::OllamaClient;
+use crate::llm::openai_compat::OpenAICompatClient;
 use crate::llm::prefetch::PrefetchEngine;
 use crate::llm::semantic_cache::SemanticCache;
-use crate::llm::openai_compat::OpenAICompatClient;
 use crate::memory::acl::{AclEffect, AclPermission, AclRule, MemoryAcl};
 use crate::memory::blackhole::BlackholeEngine;
 use crate::memory::causal_graph::CausalGraphEngine;
@@ -58,7 +58,10 @@ impl AppState {
     ///
     /// On failure all already-initialised subsystems are dropped; the
     /// returned `anyhow::Error` carries the full context chain.
-    pub async fn bootstrap(mut config: AppConfig, app_handle: tauri::AppHandle) -> anyhow::Result<Self> {
+    pub async fn bootstrap(
+        mut config: AppConfig,
+        app_handle: tauri::AppHandle,
+    ) -> anyhow::Result<Self> {
         info!(target: "nebula", "bootstrapping app state");
         let startup = StartupTimer::start();
         startup.mark("bootstrap.start");
@@ -92,7 +95,13 @@ impl AppState {
         // Phase 3: swarm + reflection
         let tool_registry = Arc::new(ToolRegistry::new());
         let (swarm, reflection, deadlock_detector) = Self::bootstrap_swarm_and_reflection(
-            &config, &sqlite, &lance, &embedder, &llm, &sponge, &tool_registry,
+            &config,
+            &sqlite,
+            &lance,
+            &embedder,
+            &llm,
+            &sponge,
+            &tool_registry,
         );
 
         // T-E-S-39: 预加载 SOUL.md/AGENTS.md/TOOLS.md persona。
@@ -128,13 +137,11 @@ impl AppState {
         startup.mark("bootstrap.persona");
 
         // v2.0: 真正的 Self-Reflection 引擎（L5 元认知层升级）。
-        let self_reflection = Arc::new(
-            crate::memory::self_reflection::SelfReflectionEngine::new(
-                sqlite.clone(),
-                swarm.values_layer().clone(),
-                reflection.config().clone(),
-            ),
-        );
+        let self_reflection = Arc::new(crate::memory::self_reflection::SelfReflectionEngine::new(
+            sqlite.clone(),
+            swarm.values_layer().clone(),
+            reflection.config().clone(),
+        ));
         startup.mark("bootstrap.self_reflection");
 
         // Phase 4: skills ecosystem
@@ -144,13 +151,9 @@ impl AppState {
 
         // v1.4: L0 缓存层 + Memory Orchestrator。
         let l0 = Arc::new(L0Cache::new());
-        let mut orchestrator_builder = MemoryOrchestrator::new(
-            sqlite.clone(),
-            lance.clone(),
-            embedder.clone(),
-            l0.clone(),
-        )
-        .with_sponge(sponge.clone());
+        let mut orchestrator_builder =
+            MemoryOrchestrator::new(sqlite.clone(), lance.clone(), embedder.clone(), l0.clone())
+                .with_sponge(sponge.clone());
         if let Some(acl) = sponge.acl() {
             orchestrator_builder = orchestrator_builder.with_acl(acl.clone());
             info!(target: "nebula", "ACL loaded into MemoryOrchestrator");
@@ -183,7 +186,8 @@ impl AppState {
         let editor = Self::bootstrap_editor(&config);
         startup.mark("bootstrap.editor");
         // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root 以启用 git worktree 隔离。
-        let shadow_engine = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
+        let shadow_engine =
+            Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
         shadow_engine.set_repo_root(editor.workspace_root().to_path_buf());
         // T-E-C-10: 长任务引擎 — 复用 sqlite + shadow_engine,bootstrap 时恢复 Running→Paused。
         let long_task_engine = Arc::new(crate::long_task::LongTaskEngine::new(
@@ -225,9 +229,9 @@ impl AppState {
         info!(target: "nebula", "event bus ready (T-E-S-26)");
 
         // T-E-B-09: 构造 FileWatcherEngine。
-        let file_watcher = Arc::new(
-            crate::memory::file_watcher::FileWatcherEngine::new(sponge.clone()),
-        );
+        let file_watcher = Arc::new(crate::memory::file_watcher::FileWatcherEngine::new(
+            sponge.clone(),
+        ));
         let file_watcher_worker: Arc<parking_lot::Mutex<Option<JoinHandle<()>>>> =
             Arc::new(parking_lot::Mutex::new(None));
         if !config.watch_paths.is_empty() {
@@ -249,7 +253,9 @@ impl AppState {
 
         // T-E-C-14: 构造 ClipboardWatcherEngine。此处只构造不启动。
         let clipboard_watcher: Arc<tokio::sync::Mutex<crate::os::ClipboardWatcherEngine>> =
-            Arc::new(tokio::sync::Mutex::new(crate::os::ClipboardWatcherEngine::new()));
+            Arc::new(tokio::sync::Mutex::new(
+                crate::os::ClipboardWatcherEngine::new(),
+            ));
         info!(
             target: "nebula",
             enabled = config.clipboard_watch_enabled,
@@ -306,16 +312,18 @@ impl AppState {
             enabled: config.wiki_enabled,
             subdir: config.wiki_subdir.clone(),
         };
-        let wiki = Arc::new(crate::wiki::WikiCompiler::new(
-            llm.clone(),
-            storage.clone(),
-            sqlite.clone(),
-            wiki_config,
-        )
-        .with_memory_sync(
-            sponge.clone() as std::sync::Arc<dyn crate::wiki::MemoryRevectorizer>,
-            version_control.clone(),
-        ));
+        let wiki = Arc::new(
+            crate::wiki::WikiCompiler::new(
+                llm.clone(),
+                storage.clone(),
+                sqlite.clone(),
+                wiki_config,
+            )
+            .with_memory_sync(
+                sponge.clone() as std::sync::Arc<dyn crate::wiki::MemoryRevectorizer>,
+                version_control.clone(),
+            ),
+        );
         info!(
             target: "nebula",
             enabled = config.wiki_enabled,
@@ -329,7 +337,8 @@ impl AppState {
 
         #[cfg(feature = "mcp")]
         let mcp_registry = {
-            let log_dir = crate::tracing_setup::default_log_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+            let log_dir = crate::tracing_setup::default_log_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
             Arc::new(crate::mcp::registry::McpServerRegistry::new(
                 mcp_manager.clone(),
                 log_dir,
@@ -341,8 +350,9 @@ impl AppState {
         }
 
         // T-E-A-14: Arena A/B 测试。
-        let arena = Arc::new(crate::llm::arena::ArenaLeaderboard::new()
-            .with_store(sqlite.as_ref().clone()));
+        let arena = Arc::new(
+            crate::llm::arena::ArenaLeaderboard::new().with_store(sqlite.as_ref().clone()),
+        );
         if let Err(e) = arena.load_from_store().await {
             warn!(
                 target: "nebula",
@@ -379,7 +389,9 @@ impl AppState {
             #[cfg(feature = "unified-dispatcher")]
             let dispatcher = dispatcher.clone();
             #[cfg(not(feature = "unified-dispatcher"))]
-            let dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = None;
+            let dispatcher: Option<
+                Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
+            > = None;
             let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
                 swarm.clone(),
                 dispatcher,
@@ -391,7 +403,9 @@ impl AppState {
         // M6 #78: EvolutionEngine + EvolutionLog + Roller 构造。
         #[cfg(feature = "evolution-engine")]
         let (evolution_engine, evolution_log, roller) = {
-            use crate::evolution::engine::{EvolutionEngine, EvolutionLog, Roller, EvolutionEngineConfig};
+            use crate::evolution::engine::{
+                EvolutionEngine, EvolutionEngineConfig, EvolutionLog, Roller,
+            };
             use std::path::PathBuf;
             let log_path = PathBuf::from("evolution_log.md");
             let soul_md_path = PathBuf::from("SOUL.md");
@@ -401,7 +415,9 @@ impl AppState {
                 #[cfg(feature = "unified-dispatcher")]
                 let dispatcher_opt = dispatcher.clone();
                 #[cfg(not(feature = "unified-dispatcher"))]
-                let dispatcher_opt: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = None;
+                let dispatcher_opt: Option<
+                    Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
+                > = None;
                 if let Some(dispatcher) = dispatcher_opt {
                     let config = EvolutionEngineConfig::default();
                     Some(Arc::new(EvolutionEngine::new(
@@ -587,17 +603,16 @@ impl AppState {
         let ollama = Arc::new(OllamaClient::new(config.ollama_url.clone()));
         let inline_model = std::env::var("NEBULA_INLINE_MODEL")
             .unwrap_or_else(|_| "qwen2.5-coder:0.5b".to_string());
-        let inline_completion = Arc::new(
-            crate::editor::InlineCompletionEngine::new(ollama.clone(), inline_model),
-        );
+        let inline_completion = Arc::new(crate::editor::InlineCompletionEngine::new(
+            ollama.clone(),
+            inline_model,
+        ));
         let ollama_for_compress = ollama.clone();
         let ak = crate::security::keychain::resolve_anthropic_key();
         let am = std::env::var("NEBULA_ANTHROPIC_MODEL").ok();
-        let exec_approval = Arc::new(
-            crate::skills::exec_approval::ExecApprovalTracker::new(
-                config.exec_approval_timeout_secs,
-            ),
-        );
+        let exec_approval = Arc::new(crate::skills::exec_approval::ExecApprovalTracker::new(
+            config.exec_approval_timeout_secs,
+        ));
         let cost_tracker = {
             use crate::llm::cost_tracker::CostTracker;
             let base = CostTracker::new();
@@ -658,23 +673,19 @@ impl AppState {
             info!(target: "nebula", "cost tracker wired into LlmGateway");
         }
         if config.token_juice_enabled {
-            let compressor = Arc::new(
-                crate::llm::token_juice::TokenJuiceCompressor::new(
-                    ollama_for_compress.clone(),
-                    config.chat_model.clone(),
-                    crate::llm::token_juice::TokenJuiceConfig::default(),
-                ),
-            );
+            let compressor = Arc::new(crate::llm::token_juice::TokenJuiceCompressor::new(
+                ollama_for_compress.clone(),
+                config.chat_model.clone(),
+                crate::llm::token_juice::TokenJuiceConfig::default(),
+            ));
             llm_builder = llm_builder.with_token_juice(compressor);
             info!(target: "nebula", "token juice compressor wired into LlmGateway");
         }
         if config.router_enabled {
-            let router = Arc::new(
-                crate::llm::model_router::ModelRouter::new(
-                    ollama_for_compress.clone(),
-                    config.router_classifier_model.clone(),
-                ),
-            );
+            let router = Arc::new(crate::llm::model_router::ModelRouter::new(
+                ollama_for_compress.clone(),
+                config.router_classifier_model.clone(),
+            ));
             llm_builder = llm_builder.with_model_router(router);
             info!(target: "nebula", "model router wired into LlmGateway");
         }
@@ -706,11 +717,8 @@ impl AppState {
         let llm = Arc::new(llm_builder);
         startup.mark("bootstrap.llm");
         let sponge = {
-            let mut sponge_builder = SpongeEngine::new(
-                sqlite.clone(),
-                lance.clone(),
-                embedder.clone(),
-            );
+            let mut sponge_builder =
+                SpongeEngine::new(sqlite.clone(), lance.clone(), embedder.clone());
             sponge_builder = sponge_builder.with_cost_tracker(cost_tracker.clone());
             match Self::load_acl_from_store(&sqlite) {
                 Ok(acl) => {
@@ -806,7 +814,11 @@ impl AppState {
         llm: &Arc<LlmGateway>,
         sponge: &Arc<SpongeEngine>,
         tool_registry: &Arc<ToolRegistry>,
-    ) -> (Arc<SwarmOrchestrator>, Arc<ReflectionEngine>, Arc<crate::swarm::DeadlockDetector>) {
+    ) -> (
+        Arc<SwarmOrchestrator>,
+        Arc<ReflectionEngine>,
+        Arc<crate::swarm::DeadlockDetector>,
+    ) {
         let swarm = Arc::new(SwarmOrchestrator::new(
             llm.clone(),
             sponge.clone(),

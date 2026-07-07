@@ -1,4 +1,4 @@
-﻿//! M5 #75-76: L4 审批门禁 + CostPolicy + CostTracker work_type 集成测试。
+//! M5 #75-76: L4 审批门禁 + CostPolicy + CostTracker work_type 集成测试。
 //!
 //! 覆盖场景：
 //! 1. **审批流端到端**：assess → ConfirmRequired → mark_confirmed → Confirmed
@@ -61,7 +61,10 @@ fn approval_flow_high_risk_confirm_then_acknowledge() {
             assert!(!confirmation_id.is_empty());
             assert!(diff.is_some(), "AiSelfModify should carry diff");
             let diff_str = diff.unwrap();
-            assert!(diff_str.contains("@@ -1 +1 @@"), "diff should contain hunk header");
+            assert!(
+                diff_str.contains("@@ -1 +1 @@"),
+                "diff should contain hunk header"
+            );
 
             // 首次 check → Confirmed（未消费）
             assert_eq!(
@@ -123,14 +126,11 @@ fn confirmation_replay_attack_blocked() {
     let gate = make_gate();
     let autonomy = AutonomyLevel::L2Chat;
 
-    let verdict = gate.assess(
-        ActionKind::Transfer,
-        "transfer 1000 USD",
-        autonomy,
-        None,
-    );
+    let verdict = gate.assess(ActionKind::Transfer, "transfer 1000 USD", autonomy, None);
     let confirmation_id = match verdict {
-        ApprovalVerdict::ConfirmRequired { confirmation_id, .. } => confirmation_id,
+        ApprovalVerdict::ConfirmRequired {
+            confirmation_id, ..
+        } => confirmation_id,
         _ => panic!("expected ConfirmRequired"),
     };
 
@@ -183,17 +183,15 @@ fn l5_background_bulk_delete_still_requires_confirm() {
     let gate = make_gate();
     let autonomy = AutonomyLevel::L5Background;
 
-    let verdict = gate.assess(
-        ActionKind::BulkDelete,
-        "delete 100 files",
-        autonomy,
-        None,
-    );
+    let verdict = gate.assess(ActionKind::BulkDelete, "delete 100 files", autonomy, None);
 
     // bypass 只针对 AiSelfModify，BulkDelete 仍需确认。
     match verdict {
         ApprovalVerdict::ConfirmRequired { .. } => {}
-        other => panic!("expected ConfirmRequired for BulkDelete even at L5, got {:?}", other),
+        other => panic!(
+            "expected ConfirmRequired for BulkDelete even at L5, got {:?}",
+            other
+        ),
     }
 }
 
@@ -363,12 +361,7 @@ fn ai_self_modify_always_high_risk() {
     let autonomy = AutonomyLevel::L4Swarm;
 
     // 即便在 L4（较高自主级），AiSelfModify 仍需确认。
-    let verdict = gate.assess(
-        ActionKind::AiSelfModify,
-        "harmless update",
-        autonomy,
-        None,
-    );
+    let verdict = gate.assess(ActionKind::AiSelfModify, "harmless update", autonomy, None);
 
     match verdict {
         ApprovalVerdict::ConfirmRequired { risk_tier, .. } => {
@@ -437,11 +430,7 @@ fn gc_cleans_confirmed_and_expired() {
     assert_eq!(removed, 2, "gc should remove 2 (confirmed + expired)");
 
     // GC 后应只剩 pending_id（1 个）。
-    assert_eq!(
-        registry.pending_count(),
-        1,
-        "gc should leave only pending"
-    );
+    assert_eq!(registry.pending_count(), 1, "gc should leave only pending");
 
     // 验证剩余的是 pending_id（仍未消费）。
     assert_eq!(

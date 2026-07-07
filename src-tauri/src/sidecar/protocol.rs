@@ -57,11 +57,7 @@ mod tests {
 
     #[test]
     fn sidecar_config_defaults() {
-        let cfg = SidecarConfig::new(
-            "memory",
-            PathBuf::from("/tmp/data"),
-            "token123".to_string(),
-        );
+        let cfg = SidecarConfig::new("memory", PathBuf::from("/tmp/data"), "token123".to_string());
         assert_eq!(cfg.kind, "memory");
         assert_eq!(cfg.listen_addr, "127.0.0.1:0");
         assert_eq!(cfg.log_level, "info");

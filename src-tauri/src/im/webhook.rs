@@ -1,4 +1,4 @@
-﻿//! T-E-C-17: 三平台 webhook 发送器(Feishu / WeCom / DingTalk)。
+//! T-E-C-17: 三平台 webhook 发送器(Feishu / WeCom / DingTalk)。
 //!
 //! Phase 1 零新依赖:reqwest + serde_json + sha2 + base64 全部已有。
 //!
@@ -131,9 +131,10 @@ pub fn build_payload(platform: ImPlatform, message: &ImMessage) -> Value {
         }
         ImPlatform::Wecom => {
             // WeCom markdown:content 字段含 **title**\nbody。
-            let md = message.markdown.clone().unwrap_or_else(|| {
-                format!("**{}**\n{}", message.title, message.body)
-            });
+            let md = message
+                .markdown
+                .clone()
+                .unwrap_or_else(|| format!("**{}**\n{}", message.title, message.body));
             json!({
                 "msgtype": "markdown",
                 "markdown": { "content": md },
@@ -141,7 +142,10 @@ pub fn build_payload(platform: ImPlatform, message: &ImMessage) -> Value {
         }
         ImPlatform::Dingtalk => {
             // DingTalk markdown:title + text(body 或 markdown)。
-            let text = message.markdown.clone().unwrap_or_else(|| message.body.clone());
+            let text = message
+                .markdown
+                .clone()
+                .unwrap_or_else(|| message.body.clone());
             json!({
                 "msgtype": "markdown",
                 "markdown": { "title": message.title, "text": text },
@@ -364,7 +368,10 @@ mod tests {
         assert_eq!(payload["card"]["header"]["title"]["content"], "Build");
         assert_eq!(payload["card"]["header"]["template"], "blue");
         assert_eq!(payload["card"]["elements"][0]["tag"], "markdown");
-        assert_eq!(payload["card"]["elements"][0]["content"], "# Build OK\n- tests: 12");
+        assert_eq!(
+            payload["card"]["elements"][0]["content"],
+            "# Build OK\n- tests: 12"
+        );
     }
 
     #[test]
@@ -437,7 +444,9 @@ mod tests {
         assert!(guard.validate_url("http://192.168.1.1:8080/hook").is_err());
         assert!(guard.validate_url("http://10.0.0.5/hook").is_err());
         assert!(guard.validate_url("http://127.0.0.1:9000/hook").is_err());
-        assert!(guard.validate_url("http://169.254.169.254/latest/meta-data/").is_err());
+        assert!(guard
+            .validate_url("http://169.254.169.254/latest/meta-data/")
+            .is_err());
         // 公网地址放行。
         assert!(guard
             .validate_url("https://oapi.dingtalk.com/robot/send?access_token=xxx")
@@ -449,10 +458,7 @@ mod tests {
     #[test]
     fn extract_dingtalk_secret_present() {
         let url = "https://oapi.dingtalk.com/robot/send?access_token=XXX&secret=SECtest";
-        assert_eq!(
-            extract_dingtalk_secret(url).as_deref(),
-            Some("SECtest")
-        );
+        assert_eq!(extract_dingtalk_secret(url).as_deref(), Some("SECtest"));
     }
 
     #[test]

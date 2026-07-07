@@ -1,4 +1,4 @@
-﻿//! M7b #92: ADR-003 端到端(E2E)测试场景。
+//! M7b #92: ADR-003 端到端(E2E)测试场景。
 //!
 //! 覆盖 ADR-003 核心系统的多组件协作端到端流程,不依赖外部 LLM 服务:
 //!
@@ -7,15 +7,13 @@
 //!   3. swarm_orchestrator_full_dispatch_e2e — SwarmOrchestrator 完整派发流程
 //!   4. negotiator_conflict_detection_e2e — Negotiator 冲突检测 + 置信度选择
 
-use nebula_lib::memory::acl::{
-    AclEffect, AclPermission, AclRule, MemoryAcl, PrincipalDomainMap,
-};
+use nebula_lib::llm::{LlmGateway, OllamaClient};
+use nebula_lib::memory::acl::{AclEffect, AclPermission, AclRule, MemoryAcl, PrincipalDomainMap};
 use nebula_lib::memory::sqlite_store::SqliteStore;
 use nebula_lib::memory::types::{Memory, MemoryLayer, MemoryType, SourceKind};
 use nebula_lib::swarm::agents::{AgentKind, AgentOutput};
 use nebula_lib::swarm::negotiator::Negotiator;
 use nebula_lib::swarm::orchestrator::{SwarmOrchestrator, SwarmTask};
-use nebula_lib::llm::{LlmGateway, OllamaClient};
 use nebula_lib::tools::ToolRegistry;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,10 +24,7 @@ use std::time::Duration;
 
 fn temp_sqlite_store() -> (std::path::PathBuf, Arc<SqliteStore>) {
     let mut p = std::env::temp_dir();
-    p.push(format!(
-        "nebula_e2e_adr003_{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    p.push(format!("nebula_e2e_adr003_{}.db", uuid::Uuid::new_v4()));
     let store = SqliteStore::open(&p).expect("open sqlite store");
     (p, Arc::new(store))
 }
@@ -62,7 +57,9 @@ fn mock_gateway() -> Arc<LlmGateway> {
         "http://127.0.0.1:1",
         Duration::from_secs(2),
     ));
-    Arc::new(LlmGateway::new(client, "mock", "ollama", None, None, None, None, None))
+    Arc::new(LlmGateway::new(
+        client, "mock", "ollama", None, None, None, None, None,
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -102,8 +99,14 @@ async fn memory_domain_isolation_e2e() {
     assert_eq!(b_mems[0].id, mem_b.id);
 
     // 查询不存在的域 → 返回 0 条
-    let none_mems = store.list_recent_in_domain("nonexistent", 10).await.unwrap();
-    assert!(none_mems.is_empty(), "nonexistent domain should have 0 memories");
+    let none_mems = store
+        .list_recent_in_domain("nonexistent", 10)
+        .await
+        .unwrap();
+    assert!(
+        none_mems.is_empty(),
+        "nonexistent domain should have 0 memories"
+    );
 
     // 清理临时文件
     let _ = std::fs::remove_file(&path);
@@ -194,11 +197,7 @@ async fn acl_cross_domain_filtering_e2e() {
         ("mem-b-1".to_string(), "content b1", "agent_b"),
         ("mem-shared-1".to_string(), "content shared", "shared"),
     ];
-    let filtered = acl.filter_memories_with_domain(
-        "evolution:agent_a",
-        Some("agent_a"),
-        memories,
-    );
+    let filtered = acl.filter_memories_with_domain("evolution:agent_a", Some("agent_a"), memories);
     // 应只返回 agent_a 域的 2 条记忆
     assert_eq!(filtered.len(), 2, "should filter to 2 agent_a memories");
     let ids: Vec<_> = filtered.iter().map(|(id, _)| id.as_str()).collect();
@@ -217,10 +216,7 @@ async fn acl_cross_domain_filtering_e2e() {
 /// - negotiation 产生至少 1 个输出(降级)
 #[tokio::test]
 async fn swarm_orchestrator_full_dispatch_e2e() {
-    let orch = SwarmOrchestrator::new_without_memory(
-        mock_gateway(),
-        Arc::new(ToolRegistry::new()),
-    );
+    let orch = SwarmOrchestrator::new_without_memory(mock_gateway(), Arc::new(ToolRegistry::new()));
 
     let mut task = SwarmTask::new("Design a REST API for user management");
     // M7b #91: 小写 kinds 才能被 AgentKind::from_str 正确解析
@@ -232,7 +228,10 @@ async fn swarm_orchestrator_full_dispatch_e2e() {
         .expect("orchestration should complete");
 
     // 验证 Report 结构完整
-    assert!(!report.task.description.is_empty(), "task description preserved");
+    assert!(
+        !report.task.description.is_empty(),
+        "task description preserved"
+    );
     assert!(
         !report.task.description.is_empty(),
         "report should carry original task"

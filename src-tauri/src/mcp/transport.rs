@@ -1,4 +1,4 @@
-﻿//! T-S2-B-02: MCP 传输层 — stdio 子进程 + HTTP 两种模式。
+//! T-S2-B-02: MCP 传输层 — stdio 子进程 + HTTP 两种模式。
 //!
 //! 本模块在原 `McpTransport` 配置枚举之上新增真正的 I/O 能力:
 //!
@@ -35,8 +35,12 @@ use super::security::filter_safe_env_vars;
 /// [`StdioTransport`] / [`HttpTransport`] / [`super::sse_transport::SseTransport`] 完成。
 #[derive(Debug, Clone)]
 pub enum McpTransport {
-    Stdio { command: String },
-    Http { url: String },
+    Stdio {
+        command: String,
+    },
+    Http {
+        url: String,
+    },
     /// T-E-S-31: SSE 长连接传输(GET /sse + POST /messages)。
     Sse {
         url: String,
@@ -146,14 +150,8 @@ impl StdioTransport {
         let mut child = cmd
             .spawn()
             .with_context(|| format!("failed to spawn MCP server: {}", program))?;
-        let stdin = child
-            .stdin
-            .take()
-            .context("child stdin not captured")?;
-        let stdout_raw = child
-            .stdout
-            .take()
-            .context("child stdout not captured")?;
+        let stdin = child.stdin.take().context("child stdin not captured")?;
+        let stdout_raw = child.stdout.take().context("child stdout not captured")?;
         let stdout = BufReader::new(stdout_raw);
         let stderr = child.stderr.take();
 
@@ -250,20 +248,18 @@ impl HttpTransport {
     pub fn new(url: String) -> Self {
         // M7b #94: SSRF 校验 + build_safe_client(重定向链每跳校验)。
         // MCP server URL 用户可控,必须防止 SSRF 到内网。
-        let client = SsrfGuard::new()
-            .build_safe_client()
-            .unwrap_or_else(|e| {
-                tracing::warn!(
-                    target: "nebula.ssrf",
-                    error = %e,
-                    url = %url,
-                    "failed to build SSRF-safe client for MCP HttpTransport; falling back"
-                );
-                reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(30))
-                    .build()
-                    .unwrap_or_else(|_| reqwest::Client::new())
-            });
+        let client = SsrfGuard::new().build_safe_client().unwrap_or_else(|e| {
+            tracing::warn!(
+                target: "nebula.ssrf",
+                error = %e,
+                url = %url,
+                "failed to build SSRF-safe client for MCP HttpTransport; falling back"
+            );
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new())
+        });
         Self { url, client }
     }
 
@@ -291,7 +287,8 @@ mod tests {
 
     #[test]
     fn stdio_transport_from_config() {
-        let t = McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None).unwrap();
+        let t =
+            McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None).unwrap();
         match t {
             McpTransport::Stdio { command } => assert_eq!(command, "npx"),
             _ => panic!("expected Stdio"),
@@ -363,7 +360,11 @@ mod tests {
         };
         let t = McpTransport::from_config(&tt, None, None, None).unwrap();
         match t {
-            McpTransport::StreamableHttp { url, headers, session_id } => {
+            McpTransport::StreamableHttp {
+                url,
+                headers,
+                session_id,
+            } => {
                 assert_eq!(url, "https://example.com/mcp");
                 assert_eq!(headers.get("X-Custom").map(|s| s.as_str()), Some("v"));
                 assert_eq!(session_id.as_deref(), Some("sid"));
@@ -389,7 +390,10 @@ mod tests {
     #[tokio::test]
     async fn stdio_spawn_with_args_env_succeeds() {
         let (program, args) = if cfg!(windows) {
-            ("cmd", vec!["/c".to_string(), "echo".to_string(), "hello".to_string()])
+            (
+                "cmd",
+                vec!["/c".to_string(), "echo".to_string(), "hello".to_string()],
+            )
         } else {
             ("echo", vec!["hello".to_string()])
         };

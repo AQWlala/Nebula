@@ -475,7 +475,9 @@ impl MasterOrchestrator {
         // 单节点 DAG → 直通(不需要综合阶段)
         if dag.node_count() == 1 {
             info!(task_id = %task_id, "single-node DAG, executing directly");
-            return self.execute_single_node(&task_id, &dag, input, mode, start).await;
+            return self
+                .execute_single_node(&task_id, &dag, input, mode, start)
+                .await;
         }
 
         let layers = dag.topological_layers()?;
@@ -484,11 +486,7 @@ impl MasterOrchestrator {
         let mut failed = 0usize;
 
         for (layer_idx, layer) in layers.iter().enumerate() {
-            self.emit(MasterEvent::layer_started(
-                &task_id,
-                layer_idx,
-                layer.len(),
-            ));
+            self.emit(MasterEvent::layer_started(&task_id, layer_idx, layer.len()));
 
             let (layer_ok, layer_fail) = self
                 .execute_layer(&task_id, &dag, layer, &mut results, mode)
@@ -498,10 +496,7 @@ impl MasterOrchestrator {
             failed += layer_fail;
 
             self.emit(MasterEvent::layer_completed(
-                &task_id,
-                layer_idx,
-                layer_ok,
-                layer_fail,
+                &task_id, layer_idx, layer_ok, layer_fail,
             ));
 
             // Fail 策略触发:中止后续层
@@ -548,7 +543,9 @@ impl MasterOrchestrator {
             ChatMessage::user(format!("用户任务: {input}")),
         ];
 
-        let resp = self.dispatch_master(WorkType::MasterTask, &messages).await?;
+        let resp = self
+            .dispatch_master(WorkType::MasterTask, &messages)
+            .await?;
         TaskDag::from_json(&resp.message.content)
     }
 
@@ -624,10 +621,7 @@ impl MasterOrchestrator {
         let swarm_task = self.sub_task_to_swarm_task(sub, resolved_prompt);
 
         // 3. 执行(委托 SwarmOrchestrator)
-        let report = self
-            .swarm
-            .execute_with_mode(swarm_task, mode)
-            .await;
+        let report = self.swarm.execute_with_mode(swarm_task, mode).await;
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         let result = match report {
@@ -639,7 +633,11 @@ impl MasterOrchestrator {
                     task_id,
                     &sub_id,
                     success,
-                    if success { None } else { Some("no output".to_string()) },
+                    if success {
+                        None
+                    } else {
+                        Some("no output".to_string())
+                    },
                     elapsed_ms,
                 ));
                 SubTaskResult {
@@ -697,7 +695,9 @@ impl MasterOrchestrator {
             )),
         ];
 
-        let resp = self.dispatch_master(WorkType::SwarmSynthesize, &messages).await?;
+        let resp = self
+            .dispatch_master(WorkType::SwarmSynthesize, &messages)
+            .await?;
         Ok(resp.message.content)
     }
 
@@ -771,10 +771,7 @@ impl MasterOrchestrator {
         let failed = if result.success { 0 } else { 1 };
 
         self.emit(MasterEvent::master_completed(
-            task_id,
-            1,
-            successful,
-            elapsed_ms,
+            task_id, 1, successful, elapsed_ms,
         ));
 
         Ok(MasterReport {
@@ -792,9 +789,8 @@ impl MasterOrchestrator {
     /// 检查层中是否有节点使用 Fail 策略且执行失败。
     fn has_fail_strategy(&self, dag: &TaskDag, layer: &[petgraph::graph::NodeIndex]) -> bool {
         layer.iter().any(|&idx| {
-            dag.node(idx).map_or(false, |n| {
-                n.on_failure == FailureStrategy::Fail
-            })
+            dag.node(idx)
+                .map_or(false, |n| n.on_failure == FailureStrategy::Fail)
         })
     }
 
@@ -872,9 +868,7 @@ mod tests {
         let json = serde_json::to_string(&evt).unwrap();
         let de: MasterEvent = serde_json::from_str(&json).unwrap();
         match de {
-            MasterEvent::SynthesizeStarted {
-                result_count, ..
-            } => assert_eq!(result_count, 3),
+            MasterEvent::SynthesizeStarted { result_count, .. } => assert_eq!(result_count, 3),
             _ => panic!("wrong variant"),
         }
     }
@@ -911,7 +905,13 @@ mod tests {
         // 验证所有变体都能正确包装
         let events = vec![
             MasterEvent::decompose_started("t", "x"),
-            MasterEvent::decompose_completed("t", &TaskDag::builder().add_node(SubTask::new("a","1")).build().unwrap()),
+            MasterEvent::decompose_completed(
+                "t",
+                &TaskDag::builder()
+                    .add_node(SubTask::new("a", "1"))
+                    .build()
+                    .unwrap(),
+            ),
             MasterEvent::DecomposeFailed {
                 task_id: "t".into(),
                 error: "e".into(),

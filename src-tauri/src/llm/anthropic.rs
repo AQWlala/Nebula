@@ -1,4 +1,4 @@
-﻿//! v1.1 P0-1: Anthropic Claude HTTP client.
+//! v1.1 P0-1: Anthropic Claude HTTP client.
 //!
 //! Supports `claude-3-5-haiku`、`claude-3-5-sonnet`、`claude-3-opus`
 //! 等模型。使用 Anthropic Messages API (`POST /v1/messages`)，
@@ -356,7 +356,10 @@ mod tests {
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["type"], serde_json::json!("text"));
         assert_eq!(arr[0]["text"], serde_json::json!(long_system));
-        assert_eq!(arr[0]["cache_control"]["type"], serde_json::json!("ephemeral"));
+        assert_eq!(
+            arr[0]["cache_control"]["type"],
+            serde_json::json!("ephemeral")
+        );
     }
 
     #[test]

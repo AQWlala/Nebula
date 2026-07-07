@@ -1,4 +1,4 @@
-﻿//! T-S2-B-02: MCP 客户端 — 通过 JSON-RPC 2.0 与 MCP server 通信。
+//! T-S2-B-02: MCP 客户端 — 通过 JSON-RPC 2.0 与 MCP server 通信。
 //!
 //! 核心能力（v2.1）:
 //! * `connect()` — spawn 子进程（stdio）或建立 HTTP 客户端,并发送
@@ -143,9 +143,7 @@ impl McpClient {
     #[cfg(test)]
     fn new_for_test(config: McpServerConfig, mock_responses: Vec<JsonRpcResponse>) -> Self {
         let mut client = Self::new(config);
-        client.active = Some(ActiveTransport::Mock(std::sync::Mutex::new(
-            mock_responses,
-        )));
+        client.active = Some(ActiveTransport::Mock(std::sync::Mutex::new(mock_responses)));
         client.connected = true;
         client
     }
@@ -186,8 +184,7 @@ impl McpClient {
                 session_id,
             } => {
                 // T-E-S-34: Streamable HTTP 传输 — connect + handshake_streamable_http。
-                let transport =
-                    StreamableHttpTransport::connect(url, headers, session_id).await?;
+                let transport = StreamableHttpTransport::connect(url, headers, session_id).await?;
                 ActiveTransport::StreamableHttp(transport)
             }
         };
@@ -578,7 +575,10 @@ impl McpManager {
         };
         let mut result = Vec::new();
         for server_name in server_names {
-            let tools = self.list_tools_for_server(&server_name).await.unwrap_or_default();
+            let tools = self
+                .list_tools_for_server(&server_name)
+                .await
+                .unwrap_or_default();
             let adapters: Vec<std::sync::Arc<dyn crate::tools::Tool>> = tools
                 .into_iter()
                 .map(|t| {
@@ -605,9 +605,9 @@ impl Default for McpManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::config::McpTransportType;  // Used in test_config_stdio()
+    use super::super::config::McpTransportType; // Used in test_config_stdio()
     use super::super::protocol::JsonRpcResponse;
+    use super::*;
 
     fn test_config_stdio() -> McpServerConfig {
         McpServerConfig {
@@ -779,12 +779,19 @@ mod tests {
         assert_eq!(result.content.len(), 2);
         // 第一项: text 类型,API key 应被脱敏
         assert_eq!(result.content[0].content_type, "text");
-        assert!(result.content[0].text.as_ref().unwrap().contains("[REDACTED_API_KEY]"));
-        assert!(!result.content[0].text.as_ref().unwrap().contains("sk-abc123"));
+        assert!(result.content[0]
+            .text
+            .as_ref()
+            .unwrap()
+            .contains("[REDACTED_API_KEY]"));
+        assert!(!result.content[0]
+            .text
+            .as_ref()
+            .unwrap()
+            .contains("sk-abc123"));
         // 第二项: image 类型,image_url 应为 data URL
         assert_eq!(result.content[1].content_type, "image");
-        assert!(result
-            .content[1]
+        assert!(result.content[1]
             .image_url
             .as_ref()
             .unwrap()
@@ -827,9 +834,24 @@ mod tests {
         let cfg1 = test_config_stdio();
         let mut client1 = McpClient::new(cfg1);
         client1.tools = vec![
-            McpTool { name: "t1".into(), description: "d1".into(), server_name: "test-stdio".into(), input_schema: serde_json::json!({}) },
-            McpTool { name: "t2".into(), description: "d2".into(), server_name: "test-stdio".into(), input_schema: serde_json::json!({}) },
-            McpTool { name: "t3".into(), description: "d3".into(), server_name: "test-stdio".into(), input_schema: serde_json::json!({}) },
+            McpTool {
+                name: "t1".into(),
+                description: "d1".into(),
+                server_name: "test-stdio".into(),
+                input_schema: serde_json::json!({}),
+            },
+            McpTool {
+                name: "t2".into(),
+                description: "d2".into(),
+                server_name: "test-stdio".into(),
+                input_schema: serde_json::json!({}),
+            },
+            McpTool {
+                name: "t3".into(),
+                description: "d3".into(),
+                server_name: "test-stdio".into(),
+                input_schema: serde_json::json!({}),
+            },
         ];
         let cfg2 = McpServerConfig {
             name: "second".to_string(),
@@ -846,14 +868,35 @@ mod tests {
         };
         let mut client2 = McpClient::new(cfg2);
         client2.tools = vec![
-            McpTool { name: "t4".into(), description: "d4".into(), server_name: "second".into(), input_schema: serde_json::json!({}) },
-            McpTool { name: "t5".into(), description: "d5".into(), server_name: "second".into(), input_schema: serde_json::json!({}) },
-            McpTool { name: "t6".into(), description: "d6".into(), server_name: "second".into(), input_schema: serde_json::json!({}) },
+            McpTool {
+                name: "t4".into(),
+                description: "d4".into(),
+                server_name: "second".into(),
+                input_schema: serde_json::json!({}),
+            },
+            McpTool {
+                name: "t5".into(),
+                description: "d5".into(),
+                server_name: "second".into(),
+                input_schema: serde_json::json!({}),
+            },
+            McpTool {
+                name: "t6".into(),
+                description: "d6".into(),
+                server_name: "second".into(),
+                input_schema: serde_json::json!({}),
+            },
         ];
         {
             let mut clients = manager.clients.lock();
-            clients.insert("test-stdio".to_string(), Arc::new(tokio::sync::Mutex::new(client1)));
-            clients.insert("second".to_string(), Arc::new(tokio::sync::Mutex::new(client2)));
+            clients.insert(
+                "test-stdio".to_string(),
+                Arc::new(tokio::sync::Mutex::new(client1)),
+            );
+            clients.insert(
+                "second".to_string(),
+                Arc::new(tokio::sync::Mutex::new(client2)),
+            );
         }
         let rt = tokio::runtime::Runtime::new().unwrap();
         let groups = rt.block_on(async { manager.as_tool_implementations().await });
@@ -862,9 +905,7 @@ mod tests {
         assert_eq!(total, 6);
         let names_by_server: std::collections::HashMap<String, Vec<String>> = groups
             .into_iter()
-            .map(|(srv, tools)| {
-                (srv, tools.iter().map(|t| t.name().to_string()).collect())
-            })
+            .map(|(srv, tools)| (srv, tools.iter().map(|t| t.name().to_string()).collect()))
             .collect();
         let s1 = names_by_server.get("test-stdio").unwrap();
         assert!(s1.contains(&"t1".to_string()));
@@ -925,7 +966,10 @@ mod tests {
         let start = std::time::Instant::now();
         let result = rt.block_on(client.connect());
         let elapsed = start.elapsed();
-        assert!(result.is_err(), "connect should fail with handshake timeout");
+        assert!(
+            result.is_err(),
+            "connect should fail with handshake timeout"
+        );
         let msg = format!("{}", result.unwrap_err());
         assert!(
             msg.contains("handshake timeout"),

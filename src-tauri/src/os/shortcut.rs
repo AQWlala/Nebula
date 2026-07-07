@@ -1,4 +1,4 @@
-﻿//! v1.7: 全局快捷键接线。
+//! v1.7: 全局快捷键接线。
 //!
 //! 设计文档 v7.0 §6 OS 集成 — 全局快捷键表（第四轮 line 366-376）。
 //!
@@ -46,12 +46,15 @@ where
     };
 
     let app_clone = app.clone();
-    if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _sc, event| {
-        // 只在按下（KeyDown）时触发，避免 Up/Down 双触发
-        if event.state == ShortcutState::Pressed {
-            handler(&app_clone);
-        }
-    }) {
+    if let Err(e) = app
+        .global_shortcut()
+        .on_shortcut(shortcut, move |_app, _sc, event| {
+            // 只在按下（KeyDown）时触发，避免 Up/Down 双触发
+            if event.state == ShortcutState::Pressed {
+                handler(&app_clone);
+            }
+        })
+    {
         tracing::warn!(
             target: "nebula.os.shortcut",
             accel,

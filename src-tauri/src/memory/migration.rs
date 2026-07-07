@@ -546,11 +546,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
             include_str!("../../migrations/025_triggers.sql"),
         ),
         // T-E-S-55: 条件监控 Watch — watch_state 表(Web hash / System 值 / Calendar UID)。
-        (
-            26,
-            "watch",
-            include_str!("../../migrations/026_watch.sql"),
-        ),
+        (26, "watch", include_str!("../../migrations/026_watch.sql")),
         // T-E-A-12: Automation Credits — cost_records 表新增 source / trigger_id 列。
         // source 默认 'chat'(CostSource::Chat),trigger_id 可空。前向兼容预留
         // 持久化层(T-E-A-13),当前 CostTracker 仍为内存态。
@@ -609,11 +605,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         // T-E-A-14: Arena A/B 测试 — arena_matches + model_elo_scores 表。
         // arena_matches 存单场对战记录(prompt/model_a/model_b/winner/auto_score),
         // model_elo_scores 累积 ELO(K=32, 初始 1200)。持久化模式参考 027_cost_source。
-        (
-            34,
-            "arena",
-            include_str!("../../migrations/034_arena.sql"),
-        ),
+        (34, "arena", include_str!("../../migrations/034_arena.sql")),
         // M2a 任务 #29: Memory.domain 字段（P0-9 修复）。
         // 为 memories 表添加 domain 列，用于按"域"隔离记忆。
         // 默认 'shared'（向后兼容旧记忆）；idx_memories_domain 加速 WHERE domain = ? 查询。
@@ -784,19 +776,14 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(format!(
-            "nebula_mig_test_{}_{}.db",
-            std::process::id(),
-            n
-        ));
+        let path = dir.join(format!("nebula_mig_test_{}_{}.db", std::process::id(), n));
         let conn = Connection::open(&path).unwrap();
         (path, conn)
     }
 
     fn temp_dir() -> std::path::PathBuf {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("nebula_mig_dir_{}_{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("nebula_mig_dir_{}_{}", std::process::id(), n));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -1027,7 +1014,10 @@ mod tests {
             }
             eprintln!("=== Debug ===");
             eprintln!("{e:#}");
-            panic!("run_migrations failed: {}", format!("{e:#}").replace('\n', " | "));
+            panic!(
+                "run_migrations failed: {}",
+                format!("{e:#}").replace('\n', " | ")
+            );
         });
         let has: bool = conn
             .query_row(

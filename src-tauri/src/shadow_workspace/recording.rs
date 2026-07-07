@@ -165,9 +165,30 @@ mod tests {
     #[test]
     fn record_assigns_sequential_seq() {
         let log = RecordingLog::new();
-        let r1 = log.record("ws1", OperationKind::Note, String::new(), "第一步".into(), true, String::new());
-        let r2 = log.record("ws1", OperationKind::Note, String::new(), "第二步".into(), true, String::new());
-        let r3 = log.record("ws1", OperationKind::Note, String::new(), "第三步".into(), true, String::new());
+        let r1 = log.record(
+            "ws1",
+            OperationKind::Note,
+            String::new(),
+            "第一步".into(),
+            true,
+            String::new(),
+        );
+        let r2 = log.record(
+            "ws1",
+            OperationKind::Note,
+            String::new(),
+            "第二步".into(),
+            true,
+            String::new(),
+        );
+        let r3 = log.record(
+            "ws1",
+            OperationKind::Note,
+            String::new(),
+            "第三步".into(),
+            true,
+            String::new(),
+        );
         assert_eq!(r1.seq, 1);
         assert_eq!(r2.seq, 2);
         assert_eq!(r3.seq, 3);
@@ -179,9 +200,30 @@ mod tests {
     #[test]
     fn list_returns_ops_in_seq_order() {
         let log = RecordingLog::new();
-        log.record("ws", OperationKind::FileCreate, "a.txt".into(), "content".into(), true, String::new());
-        log.record("ws", OperationKind::Command, "cargo".into(), "build".into(), true, "ok".into());
-        log.record("ws", OperationKind::FileWrite, "a.txt".into(), "changed".into(), true, String::new());
+        log.record(
+            "ws",
+            OperationKind::FileCreate,
+            "a.txt".into(),
+            "content".into(),
+            true,
+            String::new(),
+        );
+        log.record(
+            "ws",
+            OperationKind::Command,
+            "cargo".into(),
+            "build".into(),
+            true,
+            "ok".into(),
+        );
+        log.record(
+            "ws",
+            OperationKind::FileWrite,
+            "a.txt".into(),
+            "changed".into(),
+            true,
+            String::new(),
+        );
 
         let ops = log.list("ws");
         assert_eq!(ops.len(), 3);
@@ -202,9 +244,30 @@ mod tests {
     #[test]
     fn workspaces_are_isolated() {
         let log = RecordingLog::new();
-        log.record("ws-a", OperationKind::Note, String::new(), "A1".into(), true, String::new());
-        log.record("ws-b", OperationKind::Note, String::new(), "B1".into(), true, String::new());
-        log.record("ws-a", OperationKind::Note, String::new(), "A2".into(), true, String::new());
+        log.record(
+            "ws-a",
+            OperationKind::Note,
+            String::new(),
+            "A1".into(),
+            true,
+            String::new(),
+        );
+        log.record(
+            "ws-b",
+            OperationKind::Note,
+            String::new(),
+            "B1".into(),
+            true,
+            String::new(),
+        );
+        log.record(
+            "ws-a",
+            OperationKind::Note,
+            String::new(),
+            "A2".into(),
+            true,
+            String::new(),
+        );
 
         assert_eq!(log.list("ws-a").len(), 2);
         assert_eq!(log.list("ws-b").len(), 1);
@@ -215,7 +278,14 @@ mod tests {
     #[test]
     fn clear_removes_workspace_timeline() {
         let log = RecordingLog::new();
-        log.record("ws", OperationKind::Note, String::new(), "x".into(), true, String::new());
+        log.record(
+            "ws",
+            OperationKind::Note,
+            String::new(),
+            "x".into(),
+            true,
+            String::new(),
+        );
         assert_eq!(log.list("ws").len(), 1);
         log.clear("ws");
         assert!(log.list("ws").is_empty());
@@ -227,7 +297,14 @@ mod tests {
     fn long_detail_is_truncated() {
         let log = RecordingLog::new();
         let long = "x".repeat(500);
-        let rec = log.record("ws", OperationKind::Note, String::new(), long.clone(), true, String::new());
+        let rec = log.record(
+            "ws",
+            OperationKind::Note,
+            String::new(),
+            long.clone(),
+            true,
+            String::new(),
+        );
         // detail 截断到 200 字符 + "…"
         assert_eq!(rec.detail.chars().count(), 201);
         assert!(rec.detail.ends_with('…'));
@@ -238,9 +315,30 @@ mod tests {
     #[test]
     fn total_count_sums_across_workspaces() {
         let log = RecordingLog::new();
-        log.record("a", OperationKind::Note, String::new(), "1".into(), true, String::new());
-        log.record("a", OperationKind::Note, String::new(), "2".into(), true, String::new());
-        log.record("b", OperationKind::Note, String::new(), "3".into(), true, String::new());
+        log.record(
+            "a",
+            OperationKind::Note,
+            String::new(),
+            "1".into(),
+            true,
+            String::new(),
+        );
+        log.record(
+            "a",
+            OperationKind::Note,
+            String::new(),
+            "2".into(),
+            true,
+            String::new(),
+        );
+        log.record(
+            "b",
+            OperationKind::Note,
+            String::new(),
+            "3".into(),
+            true,
+            String::new(),
+        );
         assert_eq!(log.total_count(), 3);
     }
 

@@ -1,4 +1,4 @@
-﻿//! M5 任务 #68 + #69 + #70: L4 审批门禁 + 进化写入审批 + 超时/nonce 防重放。
+//! M5 任务 #68 + #69 + #70: L4 审批门禁 + 进化写入审批 + 超时/nonce 防重放。
 //!
 //! ## 设计
 //!
@@ -257,9 +257,7 @@ impl ConfirmationRegistry {
         let now = chrono::Utc::now().timestamp_millis();
         let mut g = self.inner.lock();
         let before = g.len();
-        g.retain(|_, p| {
-            p.confirmed_at.is_none() && now - p.created_at <= CONFIRMATION_TIMEOUT_MS
-        });
+        g.retain(|_, p| p.confirmed_at.is_none() && now - p.created_at <= CONFIRMATION_TIMEOUT_MS);
         before - g.len()
     }
 }
@@ -276,12 +274,7 @@ mod tests {
     #[test]
     fn allow_low_risk_read() {
         let gate = make_gate();
-        let v = gate.assess(
-            ActionKind::Read,
-            "查询记忆",
-            AutonomyLevel::L2Chat,
-            None,
-        );
+        let v = gate.assess(ActionKind::Read, "查询记忆", AutonomyLevel::L2Chat, None);
         assert!(matches!(v, ApprovalVerdict::Allow { .. }));
     }
 
@@ -355,14 +348,11 @@ mod tests {
     #[test]
     fn confirmation_check_then_mark_confirmed() {
         let gate = make_gate();
-        let v = gate.assess(
-            ActionKind::AiSelfModify,
-            "x",
-            AutonomyLevel::L2Chat,
-            None,
-        );
+        let v = gate.assess(ActionKind::AiSelfModify, "x", AutonomyLevel::L2Chat, None);
         let id = match v {
-            ApprovalVerdict::ConfirmRequired { confirmation_id, .. } => confirmation_id,
+            ApprovalVerdict::ConfirmRequired {
+                confirmation_id, ..
+            } => confirmation_id,
             _ => panic!(),
         };
         // 首次 check → Confirmed（未消费）
@@ -372,7 +362,10 @@ mod tests {
         // 二次 mark → AlreadyUsed
         assert_eq!(gate.mark_confirmed(&id), ConfirmationStatus::AlreadyUsed);
         // check 后 → AlreadyUsed
-        assert_eq!(gate.check_confirmation(&id), ConfirmationStatus::AlreadyUsed);
+        assert_eq!(
+            gate.check_confirmation(&id),
+            ConfirmationStatus::AlreadyUsed
+        );
     }
 
     #[test]
@@ -393,14 +386,20 @@ mod tests {
         // check → Expired
         assert_eq!(registry.check(&old_id), ConfirmationStatus::Expired);
         // mark → Expired
-        assert_eq!(registry.mark_confirmed(&old_id), ConfirmationStatus::Expired);
+        assert_eq!(
+            registry.mark_confirmed(&old_id),
+            ConfirmationStatus::Expired
+        );
     }
 
     #[test]
     fn confirmation_not_found_for_unknown_id() {
         let registry = ConfirmationRegistry::new();
         assert_eq!(registry.check("nope"), ConfirmationStatus::NotFound);
-        assert_eq!(registry.mark_confirmed("nope"), ConfirmationStatus::NotFound);
+        assert_eq!(
+            registry.mark_confirmed("nope"),
+            ConfirmationStatus::NotFound
+        );
     }
 
     #[test]

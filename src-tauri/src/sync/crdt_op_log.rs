@@ -425,7 +425,9 @@ mod tests {
     fn fetch_pending_respects_limit() {
         let log = make_log();
         for i in 0..5 {
-            let _ = log.record_op(&make_version(&format!("m{i}"), 1, 100 + i)).unwrap();
+            let _ = log
+                .record_op(&make_version(&format!("m{i}"), 1, 100 + i))
+                .unwrap();
         }
         let pending = log.fetch_pending_ops(3).unwrap();
         assert_eq!(pending.len(), 3);

@@ -41,8 +41,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
     async fn store(
         &self,
         request: tonic::Request<generated::StoreMemoryRequest>,
-    ) -> std::result::Result<tonic::Response<generated::StoreMemoryResponse>, tonic::Status>
-    {
+    ) -> std::result::Result<tonic::Response<generated::StoreMemoryResponse>, tonic::Status> {
         let req = request.into_inner();
         let layer = layer_from_prost(req.layer);
         let memory_type = memory_type_from_prost(req.memory_type);
@@ -50,19 +49,20 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
             .source
             .parse::<crate::memory::SourceKind>()
             .unwrap_or(crate::memory::SourceKind::UserInput);
-        let command_req = crate::api::server::StoreMemoryRequest {
-            content: req.content,
-            memory_type,
-            layer,
-            source,
-            metadata: if req.metadata_json.is_empty() {
-                None
-            } else {
-                Some(serde_json::from_str(&req.metadata_json).map_err(|e| {
-                    tonic::Status::internal(format!("metadata decode error: {e}"))
-                })?)
-            },
-        };
+        let command_req =
+            crate::api::server::StoreMemoryRequest {
+                content: req.content,
+                memory_type,
+                layer,
+                source,
+                metadata: if req.metadata_json.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::from_str(&req.metadata_json).map_err(|e| {
+                        tonic::Status::internal(format!("metadata decode error: {e}"))
+                    })?)
+                },
+            };
         let resp = self
             .state
             .memory_store(command_req)
@@ -123,8 +123,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
     async fn list_recent(
         &self,
         request: tonic::Request<generated::ListRecentRequest>,
-    ) -> std::result::Result<tonic::Response<generated::ListRecentResponse>, tonic::Status>
-    {
+    ) -> std::result::Result<tonic::Response<generated::ListRecentResponse>, tonic::Status> {
         let req = request.into_inner();
         let limit = if req.limit == 0 {
             20
@@ -308,8 +307,7 @@ impl generated::swarm_service_server::SwarmService for TonicServiceImpl {
     async fn list_agents(
         &self,
         request: tonic::Request<generated::ListAgentsRequest>,
-    ) -> std::result::Result<tonic::Response<generated::ListAgentsResponse>, tonic::Status>
-    {
+    ) -> std::result::Result<tonic::Response<generated::ListAgentsResponse>, tonic::Status> {
         let _req = request.into_inner();
         let agents = self.state.swarm.list_agents();
         Ok(tonic::Response::new(generated::ListAgentsResponse {
@@ -510,7 +508,10 @@ impl generated::llm_service_server::LlmService for TonicServiceImpl {
             .await
             .map_err(|e| tonic::Status::internal(e.to_string()))?;
         let dim = v.len() as u32;
-        Ok(tonic::Response::new(generated::EmbedResponse { vector: v, dim }))
+        Ok(tonic::Response::new(generated::EmbedResponse {
+            vector: v,
+            dim,
+        }))
     }
 }
 
@@ -616,8 +617,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
     async fn search(
         &self,
         request: tonic::Request<generated::SearchSkillsRequest>,
-    ) -> std::result::Result<tonic::Response<generated::SearchSkillsResponse>, tonic::Status>
-    {
+    ) -> std::result::Result<tonic::Response<generated::SearchSkillsResponse>, tonic::Status> {
         let req = request.into_inner();
         let r = self
             .state
@@ -925,10 +925,7 @@ fn swarm_event_to_prost(evt: crate::swarm::events::SwarmEvent) -> generated::Swa
             .to_string(),
             ts,
         },
-        E::DeadlockDetected {
-            cycle,
-            detected_at,
-        } => generated::SwarmEvent {
+        E::DeadlockDetected { cycle, detected_at } => generated::SwarmEvent {
             event_type: "deadlock_detected".to_string(),
             agent: generated::AgentKind::Unspecified as i32,
             body: serde_json::json!({
@@ -999,7 +996,9 @@ impl TonicGrpcHandle {
         }
         if let Some(join) = self.join.take() {
             match join.await {
-                Ok(_) => info!(target: "nebula.grpc", addr = %self.addr, "tonic gRPC server stopped"),
+                Ok(_) => {
+                    info!(target: "nebula.grpc", addr = %self.addr, "tonic gRPC server stopped")
+                }
                 Err(e) => warn!(target: "nebula.grpc", error = ?e, "tonic gRPC server join error"),
             }
         }
@@ -1028,7 +1027,10 @@ impl Drop for TonicGrpcHandle {
 /// 由 OS 分配随机端口），再用 serve_with_incoming 让 tonic 使用已绑定
 /// 的 listener。否则 TonicGrpcHandle.addr 会保存 :0 而非实际端口，
 /// 导致客户端连接失败。
-pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::Result<TonicGrpcHandle> {
+pub async fn start_tonic_server(
+    bind_addr: String,
+    state: AppState,
+) -> anyhow::Result<TonicGrpcHandle> {
     let addr: SocketAddr = bind_addr
         .parse()
         .map_err(|e| anyhow::anyhow!("invalid gRPC bind address '{}': {}", bind_addr, e))?;
@@ -1055,18 +1057,25 @@ pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::R
         // 用 serve_with_incoming_shutdown 代替 serve_with_shutdown，
         // 这样 tonic 使用我们已经 bind 好的 listener（端口已知），而不是
         // 内部再 bind。tonic 0.12 用 TcpIncoming::from_listener 转换。
-        let incoming = match tonic::transport::server::TcpIncoming::from_listener(listener, true, None) {
-            Ok(i) => i,
-            Err(e) => {
-                error!(target: "nebula.grpc", error = %e, "failed to create TcpIncoming");
-                return;
-            }
-        };
+        let incoming =
+            match tonic::transport::server::TcpIncoming::from_listener(listener, true, None) {
+                Ok(i) => i,
+                Err(e) => {
+                    error!(target: "nebula.grpc", error = %e, "failed to create TcpIncoming");
+                    return;
+                }
+            };
         let result = tonic::transport::Server::builder()
-            .add_service(generated::memory_service_server::MemoryServiceServer::from_arc(memory_impl))
+            .add_service(
+                generated::memory_service_server::MemoryServiceServer::from_arc(memory_impl),
+            )
             .add_service(generated::swarm_service_server::SwarmServiceServer::from_arc(swarm_impl))
-            .add_service(generated::reflect_service_server::ReflectServiceServer::from_arc(reflect_impl))
-            .add_service(generated::llm_service_server::LlmServiceServer::from_arc(llm_impl))
+            .add_service(
+                generated::reflect_service_server::ReflectServiceServer::from_arc(reflect_impl),
+            )
+            .add_service(generated::llm_service_server::LlmServiceServer::from_arc(
+                llm_impl,
+            ))
             .add_service(generated::skill_service_server::SkillServiceServer::from_arc(skill_impl))
             .serve_with_incoming_shutdown(incoming, async move {
                 let _ = shutdown_rx.await;
@@ -1087,4 +1096,3 @@ pub async fn start_tonic_server(bind_addr: String, state: AppState) -> anyhow::R
         join: Some(join),
     })
 }
-

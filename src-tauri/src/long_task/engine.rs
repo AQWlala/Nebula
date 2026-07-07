@@ -276,7 +276,19 @@ impl LongTaskEngine {
             ))
         });
         match row {
-            Ok((id, goal, status_str, ws, plan, progress, error, created, updated, started, finished)) => {
+            Ok((
+                id,
+                goal,
+                status_str,
+                ws,
+                plan,
+                progress,
+                error,
+                created,
+                updated,
+                started,
+                finished,
+            )) => {
                 let status = LongTaskStatus::from_str(&status_str)?;
                 Ok(Some(LongTask {
                     id,
@@ -310,12 +322,9 @@ impl LongTaskEngine {
             let status_str: String = r.get(5)?;
             let args_json: String = r.get(4)?;
             let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
-            let status = StepStatus::from_str(&status_str)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                    5,
-                    rusqlite::types::Type::Text,
-                    e.into(),
-                ))?;
+            let status = StepStatus::from_str(&status_str).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, e.into())
+            })?;
             Ok(LongTaskStep {
                 task_id: r.get(0)?,
                 seq: r.get(1)?,
@@ -398,8 +407,12 @@ impl LongTaskEngine {
         // 创建暂停/取消标志(若不存在)
         let pause_flag = Arc::new(AtomicBool::new(false));
         let cancel_flag = Arc::new(AtomicBool::new(false));
-        self.pause_flags.write().insert(id.to_string(), pause_flag.clone());
-        self.cancel_flags.write().insert(id.to_string(), cancel_flag.clone());
+        self.pause_flags
+            .write()
+            .insert(id.to_string(), pause_flag.clone());
+        self.cancel_flags
+            .write()
+            .insert(id.to_string(), cancel_flag.clone());
 
         // spawn 后台 runner
         let runner = self.spawn_runner(id.to_string(), pause_flag, cancel_flag);
@@ -512,7 +525,10 @@ impl LongTaskEngine {
         let conn = conn.lock();
         let n = conn.execute("DELETE FROM long_tasks WHERE id = ?1", params![id])?;
         // long_task_steps 通过 ON DELETE CASCADE 或手动删除
-        let _ = conn.execute("DELETE FROM long_task_steps WHERE task_id = ?1", params![id]);
+        let _ = conn.execute(
+            "DELETE FROM long_task_steps WHERE task_id = ?1",
+            params![id],
+        );
         Ok(n > 0)
     }
 
@@ -683,8 +699,9 @@ fn fetch_next_pending_step(sqlite: &SqliteStore, task_id: &str) -> Result<Option
         let status_str: String = r.get(5)?;
         let args_json: String = r.get(4)?;
         let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
-        let status = StepStatus::from_str(&status_str)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, e.into()))?;
+        let status = StepStatus::from_str(&status_str).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, e.into())
+        })?;
         Ok(LongTaskStep {
             task_id: r.get(0)?,
             seq: r.get(1)?,
@@ -817,8 +834,9 @@ fn truncate_output(s: &str) -> String {
 /// rusqlite 行 → LongTask 映射(供 list/get 复用)。
 fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<LongTask> {
     let status_str: String = r.get(2)?;
-    let status = LongTaskStatus::from_str(&status_str)
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, e.into()))?;
+    let status = LongTaskStatus::from_str(&status_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, e.into())
+    })?;
     Ok(LongTask {
         id: r.get(0)?,
         goal: r.get(1)?,
@@ -866,8 +884,16 @@ mod tests {
     fn create_task_persists_with_steps() {
         let (engine, tmp) = make_engine();
         let steps = vec![
-            StepInput { description: "step 1".into(), program: "echo".into(), args: vec!["hello".into()] },
-            StepInput { description: "step 2".into(), program: "echo".into(), args: vec!["world".into()] },
+            StepInput {
+                description: "step 1".into(),
+                program: "echo".into(),
+                args: vec!["hello".into()],
+            },
+            StepInput {
+                description: "step 2".into(),
+                program: "echo".into(),
+                args: vec!["world".into()],
+            },
         ];
         let task = engine
             .create_task("test goal".into(), steps, Some("ws123".into()), None)
@@ -897,7 +923,16 @@ mod tests {
     fn create_rejects_empty_goal() {
         let (engine, tmp) = make_engine();
         let err = engine
-            .create_task("  ".into(), vec![StepInput { description: "x".into(), program: "echo".into(), args: vec![] }], None, None)
+            .create_task(
+                "  ".into(),
+                vec![StepInput {
+                    description: "x".into(),
+                    program: "echo".into(),
+                    args: vec![],
+                }],
+                None,
+                None,
+            )
             .unwrap_err();
         assert!(err.to_string().contains("empty"));
         cleanup(tmp);
@@ -916,10 +951,18 @@ mod tests {
     #[test]
     fn list_tasks_orders_by_created_desc() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec![] };
-        let _ = engine.create_task("a".into(), vec![step.clone()], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec![],
+        };
+        let _ = engine
+            .create_task("a".into(), vec![step.clone()], None, None)
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        let _ = engine.create_task("b".into(), vec![step], None, None).unwrap();
+        let _ = engine
+            .create_task("b".into(), vec![step], None, None)
+            .unwrap();
 
         let list = engine.list_tasks(None).expect("list");
         assert_eq!(list.len(), 2);
@@ -932,13 +975,25 @@ mod tests {
     #[test]
     fn list_tasks_filters_by_status() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec![] };
-        let _ = engine.create_task("a".into(), vec![step.clone()], None, None).unwrap();
-        let _ = engine.create_task("b".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec![],
+        };
+        let _ = engine
+            .create_task("a".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let _ = engine
+            .create_task("b".into(), vec![step], None, None)
+            .unwrap();
 
-        let pending = engine.list_tasks(Some(LongTaskStatus::Pending)).expect("list");
+        let pending = engine
+            .list_tasks(Some(LongTaskStatus::Pending))
+            .expect("list");
         assert_eq!(pending.len(), 2);
-        let running = engine.list_tasks(Some(LongTaskStatus::Running)).expect("list");
+        let running = engine
+            .list_tasks(Some(LongTaskStatus::Running))
+            .expect("list");
         assert_eq!(running.len(), 0);
         cleanup(tmp);
     }
@@ -946,8 +1001,14 @@ mod tests {
     #[tokio::test]
     async fn start_pending_transitions_to_running() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], Some("ws".into()), None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], Some("ws".into()), None)
+            .unwrap();
         let started = engine.start(&task.id).expect("start");
         assert_eq!(started.status, LongTaskStatus::Running);
         assert!(started.started_at.is_some());
@@ -967,8 +1028,14 @@ mod tests {
     #[tokio::test]
     async fn start_already_running_returns_error() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], Some("ws".into()), None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], Some("ws".into()), None)
+            .unwrap();
         engine.start(&task.id).unwrap();
         let err = engine.start(&task.id).unwrap_err();
         assert!(err.to_string().contains("already running"));
@@ -978,8 +1045,14 @@ mod tests {
     #[test]
     fn start_completed_returns_error() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], Some("ws".into()), None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], Some("ws".into()), None)
+            .unwrap();
         // 手动标记为 completed
         {
             let conn = engine.sqlite.raw_connection();
@@ -987,7 +1060,8 @@ mod tests {
             conn.execute(
                 "UPDATE long_tasks SET status = 'completed' WHERE id = ?1",
                 params![task.id],
-            ).unwrap();
+            )
+            .unwrap();
         }
         let err = engine.start(&task.id).unwrap_err();
         assert!(err.to_string().contains("already completed"));
@@ -997,8 +1071,14 @@ mod tests {
     #[test]
     fn cancel_pending_transitions_to_cancelled() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         let cancelled = engine.cancel(&task.id).expect("cancel");
         assert_eq!(cancelled.status, LongTaskStatus::Cancelled);
         assert!(cancelled.finished_at.is_some());
@@ -1011,8 +1091,14 @@ mod tests {
     #[test]
     fn cancel_terminal_returns_error() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         engine.cancel(&task.id).unwrap();
         let err = engine.cancel(&task.id).unwrap_err();
         assert!(err.to_string().contains("already terminal"));
@@ -1022,8 +1108,14 @@ mod tests {
     #[test]
     fn pause_non_running_returns_error() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         let err = engine.pause(&task.id).unwrap_err();
         assert!(err.to_string().contains("not running"));
         cleanup(tmp);
@@ -1032,8 +1124,14 @@ mod tests {
     #[test]
     fn resume_non_paused_returns_error() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         let err = engine.resume(&task.id).unwrap_err();
         assert!(err.to_string().contains("not paused"));
         cleanup(tmp);
@@ -1042,8 +1140,14 @@ mod tests {
     #[test]
     fn delete_task_removes_task_and_steps() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         assert!(engine.delete_task(&task.id).expect("delete"));
         assert!(engine.get_task(&task.id).unwrap().is_none());
         assert!(engine.get_steps(&task.id).unwrap().is_empty());
@@ -1053,8 +1157,14 @@ mod tests {
     #[test]
     fn bootstrap_resets_running_to_paused() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         // 手动标记为 running(模拟进程崩溃前的状态)
         {
             let conn = engine.sqlite.raw_connection();
@@ -1062,7 +1172,8 @@ mod tests {
             conn.execute(
                 "UPDATE long_tasks SET status = 'running' WHERE id = ?1",
                 params![task.id],
-            ).unwrap();
+            )
+            .unwrap();
         }
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 1, "should reset 1 running task");
@@ -1074,8 +1185,14 @@ mod tests {
     #[test]
     fn bootstrap_leaves_other_statuses_unchanged() {
         let (engine, tmp) = make_engine();
-        let step = StepInput { description: "s".into(), program: "echo".into(), args: vec!["x".into()] };
-        let task = engine.create_task("g".into(), vec![step], None, None).unwrap();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let task = engine
+            .create_task("g".into(), vec![step], None, None)
+            .unwrap();
         // pending → 应保持不变
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 0);

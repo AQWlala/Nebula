@@ -15,8 +15,8 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
 use anyhow::Context;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use tracing::info;
@@ -151,10 +151,7 @@ impl DaemonInstaller {
 
     #[cfg(target_os = "linux")]
     async fn install_systemd(&self) -> Result<DaemonStatus> {
-        let unit_path = PathBuf::from(format!(
-            "/etc/systemd/system/{}.service",
-            self.config.name
-        ));
+        let unit_path = PathBuf::from(format!("/etc/systemd/system/{}.service", self.config.name));
         let unit_content = self.render_systemd_unit();
         tokio::fs::write(&unit_path, &unit_content)
             .await
@@ -183,10 +180,7 @@ impl DaemonInstaller {
         // systemctl disable <name> (ignore error if not enabled)
         let _ = self.run_systemctl(&["disable", &self.config.name]).await;
 
-        let unit_path = PathBuf::from(format!(
-            "/etc/systemd/system/{}.service",
-            self.config.name
-        ));
+        let unit_path = PathBuf::from(format!("/etc/systemd/system/{}.service", self.config.name));
         if unit_path.exists() {
             tokio::fs::remove_file(&unit_path).await?;
         }
@@ -202,10 +196,7 @@ impl DaemonInstaller {
 
     #[cfg(target_os = "linux")]
     async fn status_systemd(&self) -> Result<DaemonStatus> {
-        let unit_path = PathBuf::from(format!(
-            "/etc/systemd/system/{}.service",
-            self.config.name
-        ));
+        let unit_path = PathBuf::from(format!("/etc/systemd/system/{}.service", self.config.name));
         let installed = unit_path.exists();
         let running = if installed {
             self.run_systemctl(&["is-active", &self.config.name])
@@ -230,12 +221,19 @@ impl DaemonInstaller {
     fn render_systemd_unit(&self) -> String {
         let mut out = String::new();
         out.push_str("[Unit]\n");
-        out.push_str(&format!("Description=Nebula second-brain daemon ({})\n", self.config.name));
+        out.push_str(&format!(
+            "Description=Nebula second-brain daemon ({})\n",
+            self.config.name
+        ));
         out.push_str("After=network.target\n\n");
 
         out.push_str("[Service]\n");
         out.push_str("Type=simple\n");
-        out.push_str(&format!("ExecStart={} {}\n", self.config.exec_path.display(), self.config.args.join(" ")));
+        out.push_str(&format!(
+            "ExecStart={} {}\n",
+            self.config.exec_path.display(),
+            self.config.args.join(" ")
+        ));
         if let Some(wd) = &self.config.working_dir {
             out.push_str(&format!("WorkingDirectory={}\n", wd.display()));
         }
@@ -274,10 +272,7 @@ impl DaemonInstaller {
     #[cfg(target_os = "macos")]
     async fn install_launchd(&self) -> Result<DaemonStatus> {
         let label = format!("com.nebula.{}", self.config.name);
-        let plist_path = PathBuf::from(format!(
-            "/Library/LaunchDaemons/{}.plist",
-            label
-        ));
+        let plist_path = PathBuf::from(format!("/Library/LaunchDaemons/{}.plist", label));
         let plist_content = self.render_launchd_plist(&label);
         tokio::fs::write(&plist_path, &plist_content)
             .await
@@ -310,10 +305,7 @@ impl DaemonInstaller {
     #[cfg(target_os = "macos")]
     async fn uninstall_launchd(&self) -> Result<DaemonStatus> {
         let label = format!("com.nebula.{}", self.config.name);
-        let plist_path = PathBuf::from(format!(
-            "/Library/LaunchDaemons/{}.plist",
-            label
-        ));
+        let plist_path = PathBuf::from(format!("/Library/LaunchDaemons/{}.plist", label));
 
         // launchctl unload <path>
         let _ = tokio::process::Command::new("launchctl")
@@ -336,10 +328,7 @@ impl DaemonInstaller {
     #[cfg(target_os = "macos")]
     async fn status_launchd(&self) -> Result<DaemonStatus> {
         let label = format!("com.nebula.{}", self.config.name);
-        let plist_path = PathBuf::from(format!(
-            "/Library/LaunchDaemons/{}.plist",
-            label
-        ));
+        let plist_path = PathBuf::from(format!("/Library/LaunchDaemons/{}.plist", label));
         let installed = plist_path.exists();
         let running = if installed {
             tokio::process::Command::new("launchctl")
@@ -369,15 +358,24 @@ impl DaemonInstaller {
         out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         out.push_str("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n");
         out.push_str("<plist version=\"1.0\">\n<dict>\n");
-        out.push_str(&format!("\t<key>Label</key>\n\t<string>{}</string>\n", label));
+        out.push_str(&format!(
+            "\t<key>Label</key>\n\t<string>{}</string>\n",
+            label
+        ));
         out.push_str("\t<key>ProgramArguments</key>\n\t<array>\n");
-        out.push_str(&format!("\t\t<string>{}</string>\n", self.config.exec_path.display()));
+        out.push_str(&format!(
+            "\t\t<string>{}</string>\n",
+            self.config.exec_path.display()
+        ));
         for arg in &self.config.args {
             out.push_str(&format!("\t\t<string>{}</string>\n", arg));
         }
         out.push_str("\t</array>\n");
         if let Some(wd) = &self.config.working_dir {
-            out.push_str(&format!("\t<key>WorkingDirectory</key>\n\t<string>{}</string>\n", wd.display()));
+            out.push_str(&format!(
+                "\t<key>WorkingDirectory</key>\n\t<string>{}</string>\n",
+                wd.display()
+            ));
         }
         out.push_str("\t<key>RunAtLoad</key>\n\t<true/>\n");
         out.push_str("\t<key>KeepAlive</key>\n\t<dict>\n");
@@ -387,7 +385,10 @@ impl DaemonInstaller {
             out.push_str("\t<key>EnvironmentVariables</key>\n\t<dict>\n");
             for env in &self.config.environment {
                 if let Some((k, v)) = env.split_once('=') {
-                    out.push_str(&format!("\t\t<key>{}</key>\n\t\t<string>{}</string>\n", k, v));
+                    out.push_str(&format!(
+                        "\t\t<key>{}</key>\n\t\t<string>{}</string>\n",
+                        k, v
+                    ));
                 }
             }
             out.push_str("\t</dict>\n");
@@ -492,10 +493,7 @@ impl DaemonInstaller {
             .args(["query", &self.config.name])
             .output()
             .await;
-        let installed = output
-            .as_ref()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+        let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
         let running = if installed {
             output
                 .map(|o| String::from_utf8_lossy(&o.stdout).to_lowercase())
@@ -537,8 +535,14 @@ mod tests {
     #[test]
     fn default_config_enables_grpc_and_rest() {
         let c = DaemonConfig::default();
-        assert!(c.environment.iter().any(|e| e.contains("NEBULA_GRPC_ENABLED")));
-        assert!(c.environment.iter().any(|e| e.contains("NEBULA_REST_ENABLED")));
+        assert!(c
+            .environment
+            .iter()
+            .any(|e| e.contains("NEBULA_GRPC_ENABLED")));
+        assert!(c
+            .environment
+            .iter()
+            .any(|e| e.contains("NEBULA_REST_ENABLED")));
     }
 
     #[cfg(target_os = "linux")]

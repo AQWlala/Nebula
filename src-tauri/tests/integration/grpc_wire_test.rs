@@ -73,7 +73,9 @@ async fn start_test_server() -> SocketAddr {
     };
     // bootstrap_headless 不需要 tauri::AppHandle (E0061: bootstrap 现已
     // 改为 2 参数签名,这里用 headless 变体保持测试自包含)。
-    let state = AppState::bootstrap_headless(cfg).await.expect("bootstrap_headless");
+    let state = AppState::bootstrap_headless(cfg)
+        .await
+        .expect("bootstrap_headless");
     // Keep `state` (and the tempdir) alive for the test's
     // lifetime by parking them in a leaked `Box`.
     let _keep_alive: &'static _ = Box::leak(Box::new((state.clone(), tmp)));
@@ -128,12 +130,18 @@ async fn server_binds_and_accepts_tcp_connection() {
                     break;
                 }
                 Ok(Err(e)) => {
-                    eprintln!("[grpc_wire_test] attempt {} connect failed: {e}", attempt + 1);
+                    eprintln!(
+                        "[grpc_wire_test] attempt {} connect failed: {e}",
+                        attempt + 1
+                    );
                     last_err = Some(format!("connect failed (attempt {}): {e}", attempt + 1));
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 }
                 Err(_) => {
-                    eprintln!("[grpc_wire_test] attempt {} connect timed out (2s)", attempt + 1);
+                    eprintln!(
+                        "[grpc_wire_test] attempt {} connect timed out (2s)",
+                        attempt + 1
+                    );
                     last_err = Some(format!("connect timed out (attempt {})", attempt + 1));
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 }

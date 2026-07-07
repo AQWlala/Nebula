@@ -31,20 +31,21 @@ use tracing::{debug, warn};
 ///
 /// 失败时原文件不会被破坏（备份保留在 `<path>.bak`）。
 pub fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    let parent = path
-        .parent()
-        .context("path must have a parent directory")?;
+    let parent = path.parent().context("path must have a parent directory")?;
 
     // 确保父目录存在
-    fs::create_dir_all(parent).with_context(|| {
-        format!("failed to create parent dir: {}", parent.display())
-    })?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("failed to create parent dir: {}", parent.display()))?;
 
     // 1. 备份原文件（若存在）
     let bak_path = backup_path(path);
     if path.exists() {
         fs::copy(path, &bak_path).with_context(|| {
-            format!("failed to backup {} to {}", path.display(), bak_path.display())
+            format!(
+                "failed to backup {} to {}",
+                path.display(),
+                bak_path.display()
+            )
         })?;
         debug!(target: "nebula.soul.atomic_write",
             path = %path.display(),
@@ -61,9 +62,9 @@ pub fn atomic_write(path: &Path, content: &str) -> Result<()> {
         .open(&tmp_path)
         .with_context(|| format!("failed to open temp file: {}", tmp_path.display()))?;
 
-    tmp_file.write_all(content.as_bytes()).with_context(|| {
-        format!("failed to write to temp file: {}", tmp_path.display())
-    })?;
+    tmp_file
+        .write_all(content.as_bytes())
+        .with_context(|| format!("failed to write to temp file: {}", tmp_path.display()))?;
 
     // 3. fsync 确保数据落盘（Windows 上 File::sync_all 调用 FlushFileBuffers）
     tmp_file
@@ -130,11 +131,7 @@ pub fn backup_path(path: &Path) -> PathBuf {
 
 /// 获取临时文件路径（带 PID 防并发冲突）。
 pub fn temp_path(path: &Path) -> PathBuf {
-    PathBuf::from(format!(
-        "{}.tmp.{}",
-        path.display(),
-        std::process::id()
-    ))
+    PathBuf::from(format!("{}.tmp.{}", path.display(), std::process::id()))
 }
 
 /// 从备份恢复（手动恢复接口，供 `/soul restore` 命令使用）。
@@ -165,10 +162,8 @@ mod tests {
 
     #[test]
     fn atomic_write_creates_new_file() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_soul_atomic_new_{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_soul_atomic_new_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("SOUL.md");
 
@@ -185,10 +180,8 @@ mod tests {
 
     #[test]
     fn atomic_write_backs_up_existing_file() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_soul_atomic_backup_{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_soul_atomic_backup_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("SOUL.md");
 
@@ -205,10 +198,8 @@ mod tests {
 
     #[test]
     fn atomic_write_creates_parent_dir() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_soul_atomic_nested_{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_soul_atomic_nested_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("nested/sub/SOUL.md");
 
@@ -221,10 +212,8 @@ mod tests {
 
     #[test]
     fn restore_from_backup_recovers_original() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_soul_atomic_restore_{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_soul_atomic_restore_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("SOUL.md");
 
@@ -255,10 +244,8 @@ mod tests {
 
     #[test]
     fn cleanup_temp_files_removes_residue() {
-        let dir = std::env::temp_dir().join(format!(
-            "nebula_soul_atomic_cleanup_{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("nebula_soul_atomic_cleanup_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("SOUL.md");

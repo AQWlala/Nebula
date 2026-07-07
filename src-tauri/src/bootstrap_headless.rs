@@ -16,9 +16,9 @@ use crate::app_state::AppState;
 use crate::channel::webchat::WebChatService;
 use crate::llm::gateway::LlmGateway;
 use crate::llm::ollama::OllamaClient;
+use crate::llm::openai_compat::OpenAICompatClient;
 use crate::llm::prefetch::PrefetchEngine;
 use crate::llm::semantic_cache::SemanticCache;
-use crate::llm::openai_compat::OpenAICompatClient;
 use crate::memory::blackhole::BlackholeEngine;
 use crate::memory::causal_graph::CausalGraphEngine;
 use crate::memory::embedder::Embedder;
@@ -71,7 +71,13 @@ impl AppState {
         // Phase 3: swarm + reflection
         let tool_registry = Arc::new(ToolRegistry::new());
         let (swarm, reflection, deadlock_detector) = Self::bootstrap_swarm_and_reflection(
-            &config, &sqlite, &lance, &embedder, &llm, &sponge, &tool_registry,
+            &config,
+            &sqlite,
+            &lance,
+            &embedder,
+            &llm,
+            &sponge,
+            &tool_registry,
         );
 
         // persona
@@ -96,13 +102,11 @@ impl AppState {
         config.persona = persona_cache;
 
         // Self-Reflection
-        let self_reflection = Arc::new(
-            crate::memory::self_reflection::SelfReflectionEngine::new(
-                sqlite.clone(),
-                swarm.values_layer().clone(),
-                reflection.config().clone(),
-            ),
-        );
+        let self_reflection = Arc::new(crate::memory::self_reflection::SelfReflectionEngine::new(
+            sqlite.clone(),
+            swarm.values_layer().clone(),
+            reflection.config().clone(),
+        ));
 
         // Phase 4: skills
         let (skills, skill_extractor, skill_composer, marketplace, skill_audit_logger) =
@@ -111,13 +115,9 @@ impl AppState {
 
         // L0 + Orchestrator
         let l0 = Arc::new(L0Cache::new());
-        let mut orchestrator_builder = MemoryOrchestrator::new(
-            sqlite.clone(),
-            lance.clone(),
-            embedder.clone(),
-            l0.clone(),
-        )
-        .with_sponge(sponge.clone());
+        let mut orchestrator_builder =
+            MemoryOrchestrator::new(sqlite.clone(), lance.clone(), embedder.clone(), l0.clone())
+                .with_sponge(sponge.clone());
         if let Some(acl) = sponge.acl() {
             orchestrator_builder = orchestrator_builder.with_acl(acl.clone());
         }
@@ -142,7 +142,8 @@ impl AppState {
         let work = Arc::new(WorkEngine::new(sqlite.clone()));
         let editor = Self::bootstrap_editor(&config);
         // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root。
-        let shadow_engine = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
+        let shadow_engine =
+            Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
         shadow_engine.set_repo_root(editor.workspace_root().to_path_buf());
         // T-E-C-10: 长任务引擎(复用 sqlite + shadow_engine)。
         let long_task_engine = Arc::new(crate::long_task::LongTaskEngine::new(
@@ -171,9 +172,9 @@ impl AppState {
         let event_bus = Arc::clone(crate::swarm::event_bus::global());
 
         // File watcher (headless: 仍支持,目录监控不依赖 GUI)
-        let file_watcher = Arc::new(
-            crate::memory::file_watcher::FileWatcherEngine::new(sponge.clone()),
-        );
+        let file_watcher = Arc::new(crate::memory::file_watcher::FileWatcherEngine::new(
+            sponge.clone(),
+        ));
         let file_watcher_worker: Arc<parking_lot::Mutex<Option<JoinHandle<()>>>> =
             Arc::new(parking_lot::Mutex::new(None));
         if !config.watch_paths.is_empty() {
@@ -190,7 +191,9 @@ impl AppState {
 
         // Clipboard watcher (headless: 构造但不启动)
         let clipboard_watcher: Arc<tokio::sync::Mutex<crate::os::ClipboardWatcherEngine>> =
-            Arc::new(tokio::sync::Mutex::new(crate::os::ClipboardWatcherEngine::new()));
+            Arc::new(tokio::sync::Mutex::new(
+                crate::os::ClipboardWatcherEngine::new(),
+            ));
 
         // Storage backend
         let storage = crate::storage::StorageBackendFactory::from_config(&config.storage_backend)
@@ -229,22 +232,25 @@ impl AppState {
             enabled: config.wiki_enabled,
             subdir: config.wiki_subdir.clone(),
         };
-        let wiki = Arc::new(crate::wiki::WikiCompiler::new(
-            llm.clone(),
-            storage.clone(),
-            sqlite.clone(),
-            wiki_config,
-        )
-        .with_memory_sync(
-            sponge.clone() as std::sync::Arc<dyn crate::wiki::MemoryRevectorizer>,
-            version_control.clone(),
-        ));
+        let wiki = Arc::new(
+            crate::wiki::WikiCompiler::new(
+                llm.clone(),
+                storage.clone(),
+                sqlite.clone(),
+                wiki_config,
+            )
+            .with_memory_sync(
+                sponge.clone() as std::sync::Arc<dyn crate::wiki::MemoryRevectorizer>,
+                version_control.clone(),
+            ),
+        );
 
         #[cfg(feature = "mcp")]
         let mcp_manager = Arc::new(crate::mcp::client::McpManager::new());
         #[cfg(feature = "mcp")]
         let mcp_registry = {
-            let log_dir = crate::tracing_setup::default_log_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+            let log_dir = crate::tracing_setup::default_log_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
             Arc::new(crate::mcp::registry::McpServerRegistry::new(
                 mcp_manager.clone(),
                 log_dir,
@@ -252,8 +258,9 @@ impl AppState {
         };
 
         // T-E-A-14: Arena A/B 测试 — headless 模式同样构造 leaderboard。
-        let arena = Arc::new(crate::llm::arena::ArenaLeaderboard::new()
-            .with_store(sqlite.as_ref().clone()));
+        let arena = Arc::new(
+            crate::llm::arena::ArenaLeaderboard::new().with_store(sqlite.as_ref().clone()),
+        );
         if let Err(e) = arena.load_from_store().await {
             warn!(
                 target: "nebula",
@@ -290,7 +297,9 @@ impl AppState {
             #[cfg(feature = "unified-dispatcher")]
             let dispatcher = dispatcher.clone();
             #[cfg(not(feature = "unified-dispatcher"))]
-            let dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = None;
+            let dispatcher: Option<
+                Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
+            > = None;
             let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
                 swarm.clone(),
                 dispatcher,
@@ -302,7 +311,9 @@ impl AppState {
         // M6 #78: EvolutionEngine + EvolutionLog + Roller 构造(headless)。
         #[cfg(feature = "evolution-engine")]
         let (evolution_engine, evolution_log, roller) = {
-            use crate::evolution::engine::{EvolutionEngine, EvolutionLog, Roller, EvolutionEngineConfig};
+            use crate::evolution::engine::{
+                EvolutionEngine, EvolutionEngineConfig, EvolutionLog, Roller,
+            };
             use std::path::PathBuf;
             let log = Arc::new(EvolutionLog::new(PathBuf::from("evolution_log.md")));
             let roller = Arc::new(Roller::new(log.clone(), PathBuf::from("SOUL.md")));
@@ -310,7 +321,9 @@ impl AppState {
                 #[cfg(feature = "unified-dispatcher")]
                 let dispatcher_opt = dispatcher.clone();
                 #[cfg(not(feature = "unified-dispatcher"))]
-                let dispatcher_opt: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = None;
+                let dispatcher_opt: Option<
+                    Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
+                > = None;
                 if let Some(dispatcher) = dispatcher_opt {
                     Some(Arc::new(EvolutionEngine::new(
                         dispatcher,
@@ -438,19 +451,18 @@ impl AppState {
 
         let inline_model = std::env::var("NEBULA_INLINE_MODEL")
             .unwrap_or_else(|_| "qwen2.5-coder:0.5b".to_string());
-        let inline_completion = Arc::new(
-            crate::editor::InlineCompletionEngine::new(ollama.clone(), inline_model),
-        );
+        let inline_completion = Arc::new(crate::editor::InlineCompletionEngine::new(
+            ollama.clone(),
+            inline_model,
+        ));
 
         let ollama_for_compress = ollama.clone();
         let ak = crate::security::keychain::resolve_anthropic_key();
         let am = std::env::var("NEBULA_ANTHROPIC_MODEL").ok();
 
-        let exec_approval = Arc::new(
-            crate::skills::exec_approval::ExecApprovalTracker::new(
-                config.exec_approval_timeout_secs,
-            ),
-        );
+        let exec_approval = Arc::new(crate::skills::exec_approval::ExecApprovalTracker::new(
+            config.exec_approval_timeout_secs,
+        ));
 
         let cost_tracker = {
             use crate::llm::cost_tracker::CostTracker;
@@ -484,22 +496,18 @@ impl AppState {
             llm_builder = llm_builder.with_cost_tracker(cost_tracker.clone());
         }
         if config.token_juice_enabled {
-            let compressor = Arc::new(
-                crate::llm::token_juice::TokenJuiceCompressor::new(
-                    ollama_for_compress.clone(),
-                    config.chat_model.clone(),
-                    crate::llm::token_juice::TokenJuiceConfig::default(),
-                ),
-            );
+            let compressor = Arc::new(crate::llm::token_juice::TokenJuiceCompressor::new(
+                ollama_for_compress.clone(),
+                config.chat_model.clone(),
+                crate::llm::token_juice::TokenJuiceConfig::default(),
+            ));
             llm_builder = llm_builder.with_token_juice(compressor);
         }
         if config.router_enabled {
-            let router = Arc::new(
-                crate::llm::model_router::ModelRouter::new(
-                    ollama_for_compress.clone(),
-                    config.router_classifier_model.clone(),
-                ),
-            );
+            let router = Arc::new(crate::llm::model_router::ModelRouter::new(
+                ollama_for_compress.clone(),
+                config.router_classifier_model.clone(),
+            ));
             llm_builder = llm_builder.with_model_router(router);
         }
         if config.daily_budget_usd > 0.0 {
@@ -521,11 +529,8 @@ impl AppState {
         startup.mark("bootstrap.llm");
 
         let sponge = {
-            let mut sponge_builder = SpongeEngine::new(
-                sqlite.clone(),
-                lance.clone(),
-                embedder.clone(),
-            );
+            let mut sponge_builder =
+                SpongeEngine::new(sqlite.clone(), lance.clone(), embedder.clone());
             sponge_builder = sponge_builder.with_cost_tracker(cost_tracker.clone());
             match Self::load_acl_from_store(&sqlite) {
                 Ok(acl) => {

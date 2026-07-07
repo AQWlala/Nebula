@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -258,14 +258,8 @@ impl Negotiator {
         let perspectives: Vec<String> = outputs
             .iter()
             .map(|o| {
-                let path_label = o
-                    .path_id
-                    .as_deref()
-                    .unwrap_or("path-?");
-                format!(
-                    "[{path_label}] confidence={:.2}\n{}",
-                    o.confidence, o.body
-                )
+                let path_label = o.path_id.as_deref().unwrap_or("path-?");
+                format!("[{path_label}] confidence={:.2}\n{}", o.confidence, o.body)
             })
             .collect();
 
@@ -326,10 +320,13 @@ impl Negotiator {
             MoAStrategy::Voting => {
                 let messages = vec![ChatMessage::user(prompt)];
                 let responses = gateway.chat_parallel(&messages, &config.participants).await;
-                let scorer = config
-                    .scoring_model
-                    .as_deref()
-                    .unwrap_or_else(|| config.participants.first().map(|s| s.as_str()).unwrap_or("ollama"));
+                let scorer = config.scoring_model.as_deref().unwrap_or_else(|| {
+                    config
+                        .participants
+                        .first()
+                        .map(|s| s.as_str())
+                        .unwrap_or("ollama")
+                });
                 self.vote_on_responses(prompt, &responses, scorer, gateway)
                     .await
             }
@@ -400,7 +397,9 @@ impl Negotiator {
                     continue;
                 }
             };
-            let score = self.score_response(&resp.message.content, scorer, gateway).await;
+            let score = self
+                .score_response(&resp.message.content, scorer, gateway)
+                .await;
             info!(
                 target: "nebula.negotiator",
                 provider = %provider,
@@ -422,7 +421,11 @@ impl Negotiator {
         }
 
         Ok(best_output.unwrap_or_else(|| {
-            AgentOutput::new(super::agents::AgentKind::Generic, "moa_voting", "no valid responses")
+            AgentOutput::new(
+                super::agents::AgentKind::Generic,
+                "moa_voting",
+                "no valid responses",
+            )
         }))
     }
 
@@ -474,12 +477,7 @@ impl Negotiator {
     }
 
     /// 用评分模型对单个响应打分(1-10)。
-    async fn score_response(
-        &self,
-        response_text: &str,
-        scorer: &str,
-        gateway: &LlmGateway,
-    ) -> u8 {
+    async fn score_response(&self, response_text: &str, scorer: &str, gateway: &LlmGateway) -> u8 {
         // R2: 评分用固定模板,不拼接用户输入
         let scoring_prompt = format!(
             "Rate this response on a scale of 1-10 based on clarity, accuracy, and completeness. \
@@ -623,14 +621,7 @@ mod tests {
             std::time::Duration::from_millis(50),
         ));
         let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
-            client,
-            "m",
-            "ollama",
-            None,
-            None,
-            None,
-            None,
-            None,
+            client, "m", "ollama", None, None, None, None, None,
         ));
         let n = Negotiator::new();
         let outputs = vec![
@@ -797,14 +788,7 @@ mod tests {
             std::time::Duration::from_millis(50),
         ));
         let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
-            client,
-            "m",
-            "ollama",
-            None,
-            None,
-            None,
-            None,
-            None,
+            client, "m", "ollama", None, None, None, None, None,
         ));
         let providers = vec!["ollama".into(), "ollama".into()];
         let result = n
@@ -827,14 +811,7 @@ mod tests {
             std::time::Duration::from_millis(50),
         ));
         let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
-            client,
-            "m",
-            "ollama",
-            None,
-            None,
-            None,
-            None,
-            None,
+            client, "m", "ollama", None, None, None, None, None,
         ));
         let config = MoAConfig {
             participants: vec!["ollama".into(), "ollama".into(), "ollama".into()],
@@ -844,7 +821,10 @@ mod tests {
         // 仲裁和 fallback chat 都会失败(不可达端点)
         let result = n.negotiate_moa("test", &config, &gw).await;
         // 整个 MoA 链路失败,返回 Err
-        assert!(result.is_err(), "arbitration with unreachable LLM should fail");
+        assert!(
+            result.is_err(),
+            "arbitration with unreachable LLM should fail"
+        );
     }
 
     /// test_chat_parallel: 2 个 provider 并行 → 返回 2 个结果。
@@ -858,14 +838,7 @@ mod tests {
             std::time::Duration::from_millis(50),
         ));
         let gw = std::sync::Arc::new(crate::llm::LlmGateway::new(
-            client,
-            "m",
-            "ollama",
-            None,
-            None,
-            None,
-            None,
-            None,
+            client, "m", "ollama", None, None, None, None, None,
         ));
         let providers = vec!["ollama".into(), "ollama".into()];
         let messages = vec![crate::llm::ChatMessage::user("hello")];
@@ -894,7 +867,7 @@ mod tests {
         assert_eq!(Negotiator::extract_score("5 8 3"), 5);
 
         // 超出范围
-        assert_eq!(Negotiator::extract_score("0"), 5);  // 0 不在 1-10 范围内
+        assert_eq!(Negotiator::extract_score("0"), 5); // 0 不在 1-10 范围内
         assert_eq!(Negotiator::extract_score("15"), 5); // 15 不在 1-10 范围内
 
         // 无数字

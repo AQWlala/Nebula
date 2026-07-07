@@ -1,4 +1,4 @@
-﻿use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,8 +8,8 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use super::events::SwarmEvent;
 use super::bus::AgentBus;
+use super::events::SwarmEvent;
 
 pub struct WaitForGraph {
     edges: HashMap<String, HashSet<String>>,

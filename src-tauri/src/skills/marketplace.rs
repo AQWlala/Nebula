@@ -274,7 +274,9 @@ impl SkillMarketplace {
 
     /// Build/refresh the index from the local SkillStore.
     pub fn refresh(&self) -> Result<MarketplaceStats, anyhow::Error> {
-        let local_skills = self.store.list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
+        let local_skills =
+            self.store
+                .list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)?;
         let mut entries: Vec<SkillEntry> = Vec::new();
         let installed_ids: HashSet<String> = local_skills.iter().map(|s| s.id.clone()).collect();
 
@@ -433,8 +435,9 @@ impl SkillMarketplace {
                 let asset_id = _identifier.to_string();
                 let importer = self.importer.clone();
                 tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(async move { importer.import_from_teamskillshub(&asset_id).await })
+                    tokio::runtime::Handle::current().block_on(async move {
+                        importer.import_from_teamskillshub(&asset_id).await
+                    })
                 })
             }
             other => anyhow::bail!("unknown source: {other}"),

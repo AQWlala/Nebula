@@ -1,4 +1,4 @@
-﻿//! LLM commands — complete, chat, embed.
+//! LLM commands — complete, chat, embed.
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -35,7 +35,11 @@ pub async fn llm_chat(
     let model_ref = model.as_deref().unwrap_or("");
     let msgs: Vec<ChatMessage> = messages
         .into_iter()
-        .map(|(role, content)| ChatMessage { role, content, ..Default::default() })
+        .map(|(role, content)| ChatMessage {
+            role,
+            content,
+            ..Default::default()
+        })
         .collect();
     let resp = if model_ref.is_empty() {
         state.llm.chat(msgs).await

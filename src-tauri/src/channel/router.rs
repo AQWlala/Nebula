@@ -38,7 +38,9 @@ impl ChannelRouter {
         for (kind, adapter) in &adapters {
             match adapter.start().await {
                 Ok(()) => info!(target: "nebula.channel", kind = %kind.as_str(), "adapter started"),
-                Err(e) => warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter start failed"),
+                Err(e) => {
+                    warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter start failed")
+                }
             }
         }
         Ok(())
@@ -52,7 +54,9 @@ impl ChannelRouter {
         for (kind, adapter) in &adapters {
             match adapter.stop().await {
                 Ok(()) => info!(target: "nebula.channel", kind = %kind.as_str(), "adapter stopped"),
-                Err(e) => warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter stop failed"),
+                Err(e) => {
+                    warn!(target: "nebula.channel", kind = %kind.as_str(), error = %e, "adapter stop failed")
+                }
             }
         }
         Ok(())

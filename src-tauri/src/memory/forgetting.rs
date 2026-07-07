@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -136,12 +136,10 @@ impl ForgettingEngine {
     ///    压缩失败不阻断 tick 返回(仅 warn),因为归档已成功落库。
     ///
     /// 返回 [`TickResult`]，包含候选列表、实际归档数与压缩报告。
-    pub async fn tick(
-        &self,
-        sqlite: &SqliteStore,
-        now: i64,
-    ) -> anyhow::Result<TickResult> {
-        let memories = sqlite.list_forgettable_candidates(self.config.importance_threshold).await?;
+    pub async fn tick(&self, sqlite: &SqliteStore, now: i64) -> anyhow::Result<TickResult> {
+        let memories = sqlite
+            .list_forgettable_candidates(self.config.importance_threshold)
+            .await?;
         let candidates = self.scan_for_archive(memories, now);
 
         if candidates.is_empty() {
@@ -365,10 +363,10 @@ mod tests {
     fn with_blackhole_batch_size_clamps_to_min_one() {
         // 无法直接读取私有字段,但 builder 不 panic 即说明签名正确。
         // batch_size=0 应被 clamp 为 1(不 panic)。
-        let _engine = ForgettingEngine::new(ForgettingConfig::default())
-            .with_blackhole_batch_size(0);
-        let _engine2 = ForgettingEngine::new(ForgettingConfig::default())
-            .with_blackhole_batch_size(500);
+        let _engine =
+            ForgettingEngine::new(ForgettingConfig::default()).with_blackhole_batch_size(0);
+        let _engine2 =
+            ForgettingEngine::new(ForgettingConfig::default()).with_blackhole_batch_size(500);
         // 若 clamp 逻辑正确,两个 engine 都能正常构造。
     }
 
@@ -413,7 +411,11 @@ mod tests {
             false,
         )];
         let candidates = engine.scan_for_archive(memories, now);
-        assert_eq!(candidates.len(), 1, "dry_run should still identify candidates");
+        assert_eq!(
+            candidates.len(),
+            1,
+            "dry_run should still identify candidates"
+        );
     }
 
     /// TTL 过滤：刚访问的记忆不应成为候选（即使 importance 低）。
@@ -430,7 +432,10 @@ mod tests {
             false,
         )];
         let candidates = engine.scan_for_archive(memories, now);
-        assert!(candidates.is_empty(), "freshly accessed memory should not be a candidate");
+        assert!(
+            candidates.is_empty(),
+            "freshly accessed memory should not be a candidate"
+        );
     }
 
     /// 边界：importance 恰好等于阈值时不归档（`>` 而非 `>=`）。
@@ -446,6 +451,9 @@ mod tests {
             false,
         )];
         let candidates = engine.scan_for_archive(memories, now);
-        assert!(candidates.is_empty(), "importance == threshold should not be candidate (uses >)");
+        assert!(
+            candidates.is_empty(),
+            "importance == threshold should not be candidate (uses >)"
+        );
     }
 }

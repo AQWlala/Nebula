@@ -1,4 +1,4 @@
-﻿//! T-E-B-12: PDF/DOCX 文档文本提取引擎。
+//! T-E-B-12: PDF/DOCX 文档文本提取引擎。
 //!
 //! 为 [`super::sponge::SpongeEngine::absorb_file`] 提供二进制文档的
 //! 文本提取能力,使 FileWatcher 可吸收 PDF/DOCX 文件。当前支持:
@@ -49,9 +49,8 @@ pub fn detect_kind(path: &Path) -> Option<DocumentKind> {
 /// * 扫描版 PDF 提取空文本视为成功。
 /// * 输出文本经清洗 + 1 MiB 截断。
 pub fn extract_document_text(path: &Path) -> Result<(DocumentKind, String)> {
-    let kind = detect_kind(path).ok_or_else(|| {
-        anyhow::anyhow!("unsupported document extension: {}", path.display())
-    })?;
+    let kind = detect_kind(path)
+        .ok_or_else(|| anyhow::anyhow!("unsupported document extension: {}", path.display()))?;
     let raw = match kind {
         DocumentKind::Pdf => extract_pdf(path)?,
         DocumentKind::Docx => extract_docx(path)?,
@@ -63,9 +62,8 @@ pub fn extract_document_text(path: &Path) -> Result<(DocumentKind, String)> {
 /// 调 `pdf-extract` 提取 PDF 文本层(纯 Rust,无系统依赖)。
 /// 扫描版 PDF(无文本层)返回空字符串。
 fn extract_pdf(path: &Path) -> Result<String> {
-    let text = pdf_extract::extract_text(path).map_err(|e| {
-        anyhow::anyhow!("pdf extract failed for {}: {:?}", path.display(), e)
-    })?;
+    let text = pdf_extract::extract_text(path)
+        .map_err(|e| anyhow::anyhow!("pdf extract failed for {}: {:?}", path.display(), e))?;
     Ok(text)
 }
 
@@ -168,15 +166,30 @@ mod tests {
 
     #[test]
     fn detect_kind_pdf_case_insensitive() {
-        assert_eq!(detect_kind(&PathBuf::from("foo.pdf")), Some(DocumentKind::Pdf));
-        assert_eq!(detect_kind(&PathBuf::from("FOO.PDF")), Some(DocumentKind::Pdf));
-        assert_eq!(detect_kind(&PathBuf::from("a/b/c.PdF")), Some(DocumentKind::Pdf));
+        assert_eq!(
+            detect_kind(&PathBuf::from("foo.pdf")),
+            Some(DocumentKind::Pdf)
+        );
+        assert_eq!(
+            detect_kind(&PathBuf::from("FOO.PDF")),
+            Some(DocumentKind::Pdf)
+        );
+        assert_eq!(
+            detect_kind(&PathBuf::from("a/b/c.PdF")),
+            Some(DocumentKind::Pdf)
+        );
     }
 
     #[test]
     fn detect_kind_docx_case_insensitive() {
-        assert_eq!(detect_kind(&PathBuf::from("bar.docx")), Some(DocumentKind::Docx));
-        assert_eq!(detect_kind(&PathBuf::from("BAR.DOCX")), Some(DocumentKind::Docx));
+        assert_eq!(
+            detect_kind(&PathBuf::from("bar.docx")),
+            Some(DocumentKind::Docx)
+        );
+        assert_eq!(
+            detect_kind(&PathBuf::from("BAR.DOCX")),
+            Some(DocumentKind::Docx)
+        );
     }
 
     #[test]

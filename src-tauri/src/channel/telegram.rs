@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -64,14 +64,12 @@ impl TelegramBotAdapter {
         // T-S3-B-01: 使用 SSRF 安全客户端（Telegram API 域名固定为 api.telegram.org,
         // 但仍使用安全客户端保持一致性）。
         let guard = SsrfGuard::new();
-        let client = guard
-            .build_safe_client()
-            .unwrap_or_else(|_| {
-                Client::builder()
-                    .timeout(Duration::from_secs(30))
-                    .build()
-                    .expect("reqwest Client::build is infallible")
-            });
+        let client = guard.build_safe_client().unwrap_or_else(|_| {
+            Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("reqwest Client::build is infallible")
+        });
         Self {
             bot_token: bot_token.to_string(),
             client,

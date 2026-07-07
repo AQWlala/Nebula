@@ -275,8 +275,7 @@ fn run_skill_publish(
 
     // 1. 解析 SQLite 路径。CLI 模式无 AppState,用 NEBULA_DB env,
     //    缺省回退到相对路径 ./nebula.db(用户在仓库根目录运行)。
-    let db_path = std::env::var("NEBULA_DB")
-        .unwrap_or_else(|_| "./nebula.db".to_string());
+    let db_path = std::env::var("NEBULA_DB").unwrap_or_else(|_| "./nebula.db".to_string());
 
     // 2. 打开 SQLite + 跑 migrations(SqliteStore::open 内部已跑 001 + 后续;
     //    SkillStore::new 仅校验 skills 表存在)。
@@ -340,10 +339,9 @@ fn run_skill_publish(
             rt.block_on(publisher.publish(&skill_md, &manifest, token.as_deref()))?
         }
         other => {
-            return Err(format!(
-                "unknown target: {other}; expected `gist`, `file` or `--dry-run`"
-            )
-            .into());
+            return Err(
+                format!("unknown target: {other}; expected `gist`, `file` or `--dry-run`").into(),
+            );
         }
     };
 
@@ -382,8 +380,7 @@ fn run_cost_report(month: Option<String>, json: bool) -> Result<(), Box<dyn std:
     let rows = tracker.aggregate_by_model(month.clone());
 
     let now = chrono::Utc::now();
-    let month_str =
-        month.unwrap_or_else(|| format!("{:04}-{:02}", now.year(), now.month()));
+    let month_str = month.unwrap_or_else(|| format!("{:04}-{:02}", now.year(), now.month()));
 
     if json {
         // 规范化 -0.0 → 0.0,避免 JSON 输出 "-0.0"。
@@ -413,7 +410,11 @@ fn print_cost_table(month: &str, rows: &[nebula_lib::llm::cost_tracker::ModelCos
     for r in rows {
         println!(
             "{:<22} {:<11} {:<7} {:<9} {:.4}",
-            r.model, r.provider, r.call_count, r.total_tokens, normalize_zero(r.cost_usd)
+            r.model,
+            r.provider,
+            r.call_count,
+            r.total_tokens,
+            normalize_zero(r.cost_usd)
         );
     }
     println!("{}", sep);

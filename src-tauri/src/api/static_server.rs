@@ -206,10 +206,7 @@ mod tests {
 
     #[test]
     fn mime_for_unknown() {
-        assert_eq!(
-            mime_for(Path::new("file.xyz")),
-            "application/octet-stream"
-        );
+        assert_eq!(mime_for(Path::new("file.xyz")), "application/octet-stream");
     }
 
     #[test]

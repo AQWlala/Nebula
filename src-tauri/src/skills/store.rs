@@ -275,10 +275,7 @@ impl SkillStore {
             None
         };
         // 多 tag 模式:每个 tag 序列化为 `%"tagN"%`(与单 tag 一致的 LIKE 模式)。
-        let multi_tag_p: Vec<String> = tags
-            .iter()
-            .map(|t| format!("%\"{}\"%", t))
-            .collect();
+        let multi_tag_p: Vec<String> = tags.iter().map(|t| format!("%\"{}\"%", t)).collect();
         let lim_p = limit.max(1) as i64;
 
         let mut params_vec: Vec<&dyn rusqlite::ToSql> = Vec::new();
@@ -548,18 +545,12 @@ mod tests {
         s.insert(&b).unwrap();
 
         // T-E-S-37: list() 签名已扩展,旧调用方需传入 tags=[] + tag_match=Any。
-        let all = s
-            .list(None, None, &[], TagMatch::Any, 10)
-            .unwrap();
+        let all = s.list(None, None, &[], TagMatch::Any, 10).unwrap();
         assert_eq!(all.len(), 2);
-        let rust_only = s
-            .list(Some("rust"), None, &[], TagMatch::Any, 10)
-            .unwrap();
+        let rust_only = s.list(Some("rust"), None, &[], TagMatch::Any, 10).unwrap();
         assert_eq!(rust_only.len(), 1);
         assert_eq!(rust_only[0].id, "sk-1");
-        let math_only = s
-            .list(None, Some("math"), &[], TagMatch::Any, 10)
-            .unwrap();
+        let math_only = s.list(None, Some("math"), &[], TagMatch::Any, 10).unwrap();
         assert_eq!(math_only.len(), 1);
         assert_eq!(math_only[0].id, "sk-2");
         cleanup(&p);
@@ -634,7 +625,10 @@ mod tests {
         // tags=[math, nonexistent] + All:应返回 0 条(无人同时有)。
         let tags = vec!["math".to_string(), "nonexistent".to_string()];
         let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
-        assert!(hits.is_empty(), "All match with nonexistent tag should return 0");
+        assert!(
+            hits.is_empty(),
+            "All match with nonexistent tag should return 0"
+        );
         cleanup(&p);
     }
 
@@ -686,9 +680,7 @@ mod tests {
         // tag 值含单引号 + 分号 + DROP TABLE:应被 `?` 绑定为字面量 LIKE 模式,
         // 不会执行注入的 SQL。预期 0 匹配(tag 不存在)。
         let evil_tag = "'; DROP TABLE skills; --".to_string();
-        let hits = s
-            .list(None, None, &[evil_tag], TagMatch::Any, 10)
-            .unwrap();
+        let hits = s.list(None, None, &[evil_tag], TagMatch::Any, 10).unwrap();
         assert!(hits.is_empty(), "evil tag should match nothing");
         // 验证 skills 表仍存在(未被 DROP)。
         let after = s.list(None, None, &[], TagMatch::Any, 10).unwrap();
@@ -719,9 +711,15 @@ mod tests {
         assert_eq!(counts[0].tag, "string");
         assert_eq!(counts[0].count, 3, "string should appear 3 times");
         // 验证 math + utility 各 1 次(顺序无保证,用 find)。
-        let math = counts.iter().find(|t| t.tag == "math").expect("math missing");
+        let math = counts
+            .iter()
+            .find(|t| t.tag == "math")
+            .expect("math missing");
         assert_eq!(math.count, 1);
-        let utility = counts.iter().find(|t| t.tag == "utility").expect("utility missing");
+        let utility = counts
+            .iter()
+            .find(|t| t.tag == "utility")
+            .expect("utility missing");
         assert_eq!(utility.count, 1);
         cleanup(&p);
     }
@@ -743,7 +741,10 @@ mod tests {
         b.tags = vec![];
         s.insert(&b).unwrap();
         let counts = s.all_tags();
-        assert!(counts.is_empty(), "empty tags array should not contribute rows");
+        assert!(
+            counts.is_empty(),
+            "empty tags array should not contribute rows"
+        );
         cleanup(&p);
     }
 

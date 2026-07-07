@@ -45,9 +45,7 @@ pub struct OtelStatus {
 /// 命令本身无副作用,可安全频繁调用。
 #[tauri::command]
 #[instrument(skip(_state), fields(otel.kind = "otel_status"))]
-pub async fn otel_status(
-    _state: State<'_, AppState>,
-) -> Result<OtelStatus, CommandError> {
+pub async fn otel_status(_state: State<'_, AppState>) -> Result<OtelStatus, CommandError> {
     #[cfg(feature = "otel")]
     {
         // feature on:从 otel 模块拿真实状态(读环境变量 + 脱敏)。
