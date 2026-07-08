@@ -119,7 +119,13 @@ pub fn run() {
                                 addr.clone(),
                                 state.infra.perf_monitor.clone(),
                             );
-                            std::mem::forget(h);
+                            // T-D-B-03: 不再使用 std::mem::forget 泄露 JoinHandle。
+                            // tokio::task::JoinHandle 在 drop 时 detach(任务继续
+                            // 运行至进程结束),效果与 forget 等价,但 JoinHandle
+                            // 本身的内存被正确释放,不构成泄露。
+                            // 若需 shutdown 时 abort,后续可存入
+                            // InfraSubsystem::metrics_handle(TODO)。
+                            drop(h);
                             info!(
                                 target: "nebula.metrics",
                                 addr = %addr,

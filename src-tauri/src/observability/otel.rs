@@ -229,11 +229,12 @@ pub fn try_build_layer(endpoint: &str, service_name: &str) -> Option<OtelLayer> 
     let tracer = provider.tracer(service_name.to_string());
     global::set_tracer_provider(provider.clone());
 
-    // Leak the provider so it lives for the process lifetime —
-    // the tracing layer holds a reference to the tracer, which
-    // is backed by the provider.  Dropping the provider before
-    // process exit would lose in-flight spans.
-    std::mem::forget(provider);
+    // T-D-B-03: 不再使用 std::mem::forget 泄露 TracerProvider。
+    // 存入 static OnceLock,保持 provider 存活至进程退出,避免
+    // Drop 触发 shutdown 丢失 in-flight spans。进程退出时 static
+    // 自动 drop,与 forget 的效果一致(进程生命周期存活)但不泄露内存。
+    static TRACER_PROVIDER: std::sync::OnceLock<TracerProvider> = std::sync::OnceLock::new();
+    let _ = TRACER_PROVIDER.set(provider);
 
     Some(tracing_opentelemetry::layer().with_tracer(tracer))
 }
