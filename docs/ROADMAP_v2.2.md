@@ -294,7 +294,7 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 | 任务 ID | 描述 | 优先级 | 复杂度 | 依赖 | 来源 |
 |---------|------|--------|--------|------|------|
 | T-E-L-01 | ✅ DONE (2026-07-08) — **MasterAgent Loop 执行模式**：master.rs 新增 `execute_loop()` 方法 + loop_def.rs（LOOP.md YAML 解析）+ StateMgr（STATE.md 只读投影，从 SQLite 生成）+ `loop_run`/`loop_state` Tauri 命令。Loop 执行模式与现有 Once/Plan 模式并列。【4 commit 完成：①loop_def.rs + 28 测试(6c054f2) ②state_projection() + 6 测试(e6da249) ③execute_loop() + 4 测试(6bd6309) ④loop_run/loop_state Tauri 命令(a9813aa)】 | P1 | L | T-E-C-10 | Loop 内化 |
-| T-E-L-02 | **CronTask 扩展**：扩展现有 `evolution/cron_scheduler.rs` 支持完整 5 字段 cron 表达式（不引入 tokio-cron-scheduler）+ Token/时间预算（AtomicU64 内存累加，异步落库）+ L0-L5 自主度字段 | P1 | M | T-E-L-01 | Loop 内化 |
+| T-E-L-02 | ✅ DONE (2026-07-08) — **CronTask 扩展**：扩展现有 `evolution/cron_scheduler.rs` 支持完整 5 字段 cron 表达式（不引入 tokio-cron-scheduler）+ Token/时间预算（AtomicU64 内存累加，异步落库）+ L0-L5 自主度字段。【4 commit 完成：①cron_expr.rs 5 字段解析器 + 20 测试(8bdca87,用 #[path] 绕过 self-evolution gate 让 CI 测试) ②CronTask 新增 6 字段(cron_expr/autonomy/budget_*) + Default(1ce3c52) ③should_run() 使用 CronExpr + 7 测试(6739c30) ④预算检查(AtomicU64 聚合 + budget_exceeded + record_token_usage + reset_all_budgets) + 10 测试(a6401c2)】 | P1 | M | T-E-L-01 | Loop 内化 |
 | T-E-L-03 | **ReviewerAgent 升级为 CheckerAgent**：升级现有 `swarm/agents/reviewer.rs`（加 worktree 隔离 + 对抗 prompt + 独立 Context 通道 + 模型同质检测 + 自动降级 L4→L2），不新建 maker_checker.rs | P1 | L | T-E-S-01, T-E-C-08 | Loop 内化 |
 | T-E-L-04 | **GitHub MCP 连接器（pull-only）**：读取 Actions 失败 + Issue + PR（**默认 pull-only，写操作人工触发**），为 CI Sweeper / PR Babysitter / Daily Triage 提供 Observation 信号 | P2 | L | T-E-C-18 | Loop 内化 |
 | T-E-L-05 | **Loop 模板库**：7 种 Loop 模式的 LOOP.md 模板 + 复用 TemplatesDialog（新增 automation 类别，默认只露 2 个入口） | P2 | M | T-E-L-01 | Loop 内化 |
