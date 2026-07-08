@@ -388,10 +388,8 @@ impl CronScheduler {
                 }
 
                 // T-E-L-02: 聚合 AtomicU64 计数器(无锁,热路径)。
-                self.aggregate_seconds_used.fetch_add(
-                    elapsed_secs,
-                    std::sync::atomic::Ordering::Relaxed,
-                );
+                self.aggregate_seconds_used
+                    .fetch_add(elapsed_secs, std::sync::atomic::Ordering::Relaxed);
             }
         }
     }
@@ -509,8 +507,16 @@ mod tests {
         // T-E-L-02: 每个任务都有 Token + 时间预算。
         let tasks = CronTask::default_schedule();
         for t in &tasks {
-            assert!(t.budget_tokens_total > 0, "task {} has no token budget", t.name);
-            assert!(t.budget_minutes_total > 0, "task {} has no time budget", t.name);
+            assert!(
+                t.budget_tokens_total > 0,
+                "task {} has no token budget",
+                t.name
+            );
+            assert!(
+                t.budget_minutes_total > 0,
+                "task {} has no time budget",
+                t.name
+            );
             assert_eq!(t.budget_tokens_used, 0);
             assert_eq!(t.budget_minutes_used, 0);
         }
@@ -882,7 +888,11 @@ mod tests {
     fn default_schedule_budgets_not_exceeded_initially() {
         let tasks = CronTask::default_schedule();
         for t in &tasks {
-            assert!(!t.budget_exceeded(), "task {} should not be exceeded", t.name);
+            assert!(
+                !t.budget_exceeded(),
+                "task {} should not be exceeded",
+                t.name
+            );
         }
     }
 }
