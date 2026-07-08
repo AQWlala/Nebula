@@ -44,6 +44,9 @@ pub use generic_agent::GenericAgent;
 pub use planner::PlannerAgent;
 pub use researcher::ResearcherAgent;
 pub use reviewer::ReviewerAgent;
+// T-E-L-06: 重新导出 HomogeneityPolicy / ModelDescriptor 供 master.rs 在
+// execute_loop 中做 L4 同质检测使用(reviewer 模块本身是私有的)。
+pub use reviewer::{HomogeneityPolicy, HomogeneityWarning, ModelDescriptor};
 pub use writer::WriterAgent;
 
 /// Identifies a concrete agent implementation.

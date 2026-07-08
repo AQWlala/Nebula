@@ -151,6 +151,29 @@ pub struct BudgetAlert {
     pub trigger_id: Option<String>,
 }
 
+/// T-E-L-06: 月度 Loop 预算告警负载。当月度 Loop(Automation/Cron/Background)
+/// 累计费用达到 80%(警告)或 100%(超限)时由 `CostTracker` 通过回调发出。
+/// bootstrap 注入 `app.emit("loop_budget_warning" / "loop_budget_exceeded")`。
+///
+/// 100% 超限时 callback 仅 emit 事件;`pause_all` 由前端监听
+/// `loop_budget_exceeded` 事件后调用 Tauri 命令(Task 8)执行,
+/// 避免在 bootstrap 中持有 `LongTaskEngine` 引用导致循环依赖。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopBudgetAlert {
+    /// 告警级别:"warning"(80%)或 "exceeded"(100%)。
+    pub level: String,
+    /// 当月已用 Token。
+    pub used_tokens: u64,
+    /// 当月已用 USD。
+    pub used_usd: f64,
+    /// 月度 Token 预算上限(未配置时为 0)。
+    pub budget_tokens: u64,
+    /// 月度 USD 预算上限(未配置时为 0.0)。
+    pub budget_usd: f64,
+    /// 已用百分比(0.0-1.0,可能 >1.0 表示超额)。
+    pub ratio: f64,
+}
+
 /// T-E-A-12: 按来源(source)分桶的聚合结果。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SourceBucket {
@@ -324,12 +347,30 @@ pub struct WeeklyAggregate {
 }
 
 /// T-E-A-07: 按 provider/agent 分桶的结果。
+///
+/// T-E-L-06: 扩展 `is_local` / `total_cost_usd` / `total_tokens` /
+/// `count` 四个字段,供 `monthly_cost_by_source` 按 provider 拆分
+/// 本地/云端消耗。旧字段 `calls` / `cost_usd` 保留供
+/// `aggregate_by_provider` / `aggregate_by_agent` 向后兼容;新字段
+/// 加 `#[serde(default)]` 保证旧 JSON 反序列化不出错。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProviderBucket {
     /// provider 或 agent 名（None → "unknown"）。
     pub provider: String,
     pub calls: u64,
     pub cost_usd: f64,
+    /// T-E-L-06: 是否本地执行(true=ollama 本地,false=云端)。
+    #[serde(default)]
+    pub is_local: bool,
+    /// T-E-L-06: 总成本(USD)。
+    #[serde(default)]
+    pub total_cost_usd: f64,
+    /// T-E-L-06: 总 Token 数(input + output)。
+    #[serde(default)]
+    pub total_tokens: u64,
+    /// T-E-L-06: 记录数。
+    #[serde(default)]
+    pub count: usize,
 }
 
 /// T-E-A-08: 按模型聚合的费用行（供 `cost report` 命令输出）。
@@ -377,6 +418,17 @@ pub struct CostTracker {
     /// 回填内存。SqliteStore 内部为 `Arc<Mutex<Connection>>`,
     /// clone 廉价,与 SemanticCache::with_sqlite 同模式。
     store: Option<SqliteStore>,
+    /// T-E-L-06: Loop 月度预算上限(Token)。None = 不限制。
+    loop_monthly_budget_tokens: Option<u64>,
+    /// T-E-L-06: Loop 月度预算上限(USD)。None = 不限制。
+    loop_monthly_budget_usd: Option<f64>,
+    /// T-E-L-06: Loop 月度预算告警 callback(80% 警告 / 100% 超限)。
+    /// 用 `Arc<dyn Fn>` 保持与 tauri 运行时解耦(同 `budget_alert_callback`)。
+    loop_budget_alert_callback: Option<Arc<dyn Fn(LoopBudgetAlert) + Send + Sync>>,
+    /// T-E-L-06: 月度 warning 去重(本月已触发 warning,"YYYY-MM")。
+    loop_budget_warned_this_month: Mutex<Option<String>>,
+    /// T-E-L-06: 月度 exceeded 去重(本月已触发 exceeded,"YYYY-MM")。
+    loop_budget_exceeded_this_month: Mutex<Option<String>>,
 }
 
 impl Default for CostTracker {
@@ -387,6 +439,11 @@ impl Default for CostTracker {
             budget_alert_callback: None,
             budget_alerted_today: Mutex::new(None),
             store: None,
+            loop_monthly_budget_tokens: None,
+            loop_monthly_budget_usd: None,
+            loop_budget_alert_callback: None,
+            loop_budget_warned_this_month: Mutex::new(None),
+            loop_budget_exceeded_this_month: Mutex::new(None),
         }
     }
 }
@@ -405,6 +462,30 @@ impl CostTracker {
     ) -> Self {
         self.automation_daily_budget_usd = budget_usd.filter(|v| *v > 0.0);
         self.budget_alert_callback = Some(callback);
+        self
+    }
+
+    /// T-E-L-06: builder 风格注入 Loop 月度预算配置和告警 callback。
+    ///
+    /// bootstrap 阶段调用,把 `app.emit("loop_budget_warning" /
+    /// "loop_budget_exceeded")` 闭包传入。`budget_tokens` / `budget_usd`
+    /// 任一为 Some(且 >0)即启用对应维度的预算检查;两者都为 None
+    /// 或 <=0 时即使注入了 callback 也不会触发告警(见
+    /// [`check_loop_monthly_budget`](Self::check_loop_monthly_budget)
+    /// 的早返回路径)。
+    ///
+    /// 100% 超限时 callback 仅负责 emit 事件;`pause_all` 由前端监听
+    /// `loop_budget_exceeded` 事件后调用 Tauri 命令(Task 8)执行,
+    /// 避免在 bootstrap 中持有 `LongTaskEngine` 引用的循环依赖。
+    pub fn with_loop_budget(
+        mut self,
+        budget_tokens: Option<u64>,
+        budget_usd: Option<f64>,
+        callback: Arc<dyn Fn(LoopBudgetAlert) + Send + Sync>,
+    ) -> Self {
+        self.loop_monthly_budget_tokens = budget_tokens.filter(|&v| v > 0);
+        self.loop_monthly_budget_usd = budget_usd.filter(|&v| v > 0.0);
+        self.loop_budget_alert_callback = Some(callback);
         self
     }
 
@@ -572,8 +653,12 @@ impl CostTracker {
     ///   timestamp),不再走 task_local;
     /// * `store: Some` 时 `spawn_blocking` 异步写 SQLite,失败仅 `warn!`
     ///   不传播(与 SemanticCache 同 best-effort 策略);
-    /// * 不触发预算告警(预算告警由同步 `record` / `record_with_context`
-    ///   路径负责,本方法供测试 / 重放历史记录 / 跨进程持久化路径使用)。
+    /// * 不触发**日级** Automation 预算告警(由同步 `record` /
+    ///   `record_with_context` 路径负责);
+    /// * T-E-L-06: 末尾调用 [`check_loop_monthly_budget`](Self::check_loop_monthly_budget)
+    ///   检查**月度** Loop 预算(80% warning / 100% exceeded)。Loop 的
+    ///   Automation/Cron/Background 调用主要经由 dispatcher → `record_async`
+    ///   路径写入,因此月度预算检查放在此处。
     ///
     /// **MutexGuard 不跨 await 点**:内存 push 在块作用域内完成 drop,
     /// 再进入 spawn_blocking。`parking_lot::MutexGuard` 是 `!Send`,
@@ -657,6 +742,9 @@ impl CostTracker {
             })
             .await;
         }
+        // T-E-L-06: 月度 Loop 预算检查(80% warning / 100% exceeded)。
+        // 放在 SQLite 持久化之后,确保记录已落盘再检查。
+        self.check_loop_monthly_budget();
     }
 
     /// T-E-A-12: 持锁 push 记录,并顺便计算当日 Automation 累计费用,
@@ -708,6 +796,93 @@ impl CostTracker {
                 budget_usd: budget,
                 trigger_id,
             });
+        }
+    }
+
+    /// T-E-L-06: 检查月度 Loop 预算,触发 80% 警告或 100% 超限 callback。
+    ///
+    /// 应在每次 [`record_async`](Self::record_async) 后调用(SQLite 持久化之后)。
+    ///
+    /// - **80%**(ratio ≥ 0.8):仅 emit `level="warning"`(不暂停);
+    /// - **100%**(ratio ≥ 1.0):emit `level="exceeded"`,callback 内部
+    ///   emit 事件;`pause_all` 由前端监听 `loop_budget_exceeded` 事件后
+    ///   调用 Tauri 命令(Task 8)执行。
+    ///
+    /// 各级别每月去重(同月只触发一次,以 "YYYY-MM" 标记)。
+    /// 若从 <80% 直接跳到 ≥100%,只 emit exceeded(优先级更高)。
+    /// 无 callback 或无预算配置时直接返回,不 panic。
+    fn check_loop_monthly_budget(&self) {
+        let callback = match &self.loop_budget_alert_callback {
+            Some(cb) => cb.clone(),
+            None => return,
+        };
+        let budget_tokens = self.loop_monthly_budget_tokens;
+        let budget_usd = self.loop_monthly_budget_usd;
+        // 两个预算维度都未配置 → 不检查。
+        if budget_tokens.is_none() && budget_usd.is_none() {
+            return;
+        }
+        let (used_tokens, used_usd) = self.loop_cost_this_month();
+        // 取 token 和 usd 中较高的比例作为触发依据。
+        let token_ratio = budget_tokens
+            .map(|b| used_tokens as f64 / b as f64)
+            .unwrap_or(0.0);
+        let usd_ratio = budget_usd
+            .map(|b| if b > 0.0 { used_usd / b } else { 0.0 })
+            .unwrap_or(0.0);
+        let ratio = token_ratio.max(usd_ratio);
+
+        // 当前年月字符串("YYYY-MM"),用于去重。跨月复位。
+        let now = chrono::Utc::now();
+        let this_month = format!("{:04}-{:02}", now.year(), now.month());
+
+        // 100% 超限优先检查(避免先 emit warning 再 emit exceeded)。
+        if ratio >= 1.0 {
+            let should_emit = {
+                let mut guard = self.loop_budget_exceeded_this_month.lock();
+                match &*guard {
+                    Some(m) if m == &this_month => false,
+                    _ => {
+                        *guard = Some(this_month.clone());
+                        true
+                    }
+                }
+            };
+            if should_emit {
+                callback(LoopBudgetAlert {
+                    level: "exceeded".to_string(),
+                    used_tokens,
+                    used_usd,
+                    budget_tokens: budget_tokens.unwrap_or(0),
+                    budget_usd: budget_usd.unwrap_or(0.0),
+                    ratio,
+                });
+            }
+            return;
+        }
+
+        // 80% 警告检查。
+        if ratio >= 0.8 {
+            let should_emit = {
+                let mut guard = self.loop_budget_warned_this_month.lock();
+                match &*guard {
+                    Some(m) if m == &this_month => false,
+                    _ => {
+                        *guard = Some(this_month.clone());
+                        true
+                    }
+                }
+            };
+            if should_emit {
+                callback(LoopBudgetAlert {
+                    level: "warning".to_string(),
+                    used_tokens,
+                    used_usd,
+                    budget_tokens: budget_tokens.unwrap_or(0),
+                    budget_usd: budget_usd.unwrap_or(0.0),
+                    ratio,
+                });
+            }
         }
     }
 
@@ -1040,6 +1215,127 @@ impl CostTracker {
                 r.timestamp.date_naive() == today && r.work_type.as_deref() == Some(work_type_str)
             })
             .count() as u32
+    }
+
+    /// T-E-L-06: 按月度聚合成本,按 provider 拆分本地/云端。
+    ///
+    /// 与 `aggregate_by_source` 不同,此方法按 provider 分桶
+    /// (而非按 CostSource),用于本地/云端消耗占比分析。
+    ///
+    /// - provider="ollama" → 本地($0)
+    /// - provider=其他 → 云端
+    ///
+    /// `year_month`: 格式 "YYYY-MM",None 表示当月。结果按
+    /// `total_cost_usd` 降序(与 `aggregate_by_provider` 一致)。
+    /// 非法月份格式返回空 Vec(不 panic)。
+    pub fn monthly_cost_by_source(&self, year_month: Option<String>) -> Vec<ProviderBucket> {
+        let now = Utc::now();
+        let (target_year, target_month) = match &year_month {
+            Some(m) => {
+                let parts: Vec<&str> = m.split('-').collect();
+                if parts.len() != 2 {
+                    return Vec::new();
+                }
+                let y: i32 = match parts[0].parse() {
+                    Ok(v) => v,
+                    Err(_) => return Vec::new(),
+                };
+                let mo: u32 = match parts[1].parse() {
+                    Ok(v) => v,
+                    Err(_) => return Vec::new(),
+                };
+                (y, mo)
+            }
+            None => (now.year(), now.month()),
+        };
+
+        let mut map: std::collections::HashMap<String, ProviderBucket> =
+            std::collections::HashMap::new();
+        for r in self.records.lock().iter() {
+            let (ry, rm) = r.year_month();
+            if ry != target_year || rm != target_month {
+                continue;
+            }
+            let key = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
+            let is_local = key == "ollama";
+            let agg = map.entry(key.clone()).or_insert_with(|| ProviderBucket {
+                provider: key.clone(),
+                is_local,
+                ..Default::default()
+            });
+            let tokens = r.input_tokens + r.output_tokens;
+            // 同步旧字段,保证两套字段一致。
+            agg.calls += 1;
+            agg.cost_usd += r.cost_usd;
+            // T-E-L-06 新字段。
+            agg.total_cost_usd += r.cost_usd;
+            agg.total_tokens += tokens;
+            agg.count += 1;
+        }
+        let mut out: Vec<ProviderBucket> = map.into_values().collect();
+        out.sort_by(|a, b| {
+            b.total_cost_usd
+                .partial_cmp(&a.total_cost_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        out
+    }
+
+    /// T-E-L-06: 只读访问 Loop 月度预算配置(Task 8 命令使用)。
+    ///
+    /// 返回 (budget_tokens, budget_usd),两者均为 `Option`:
+    /// - `Some(v)` 表示该维度已配置且 v > 0;
+    /// - `None` 表示未配置或 ≤0(不限制)。
+    ///
+    /// 与 [`with_loop_budget`](Self::with_loop_budget) 注入的值一致
+    /// (builder 内部已 filter ≤0),保证命令返回的 budget 与实际
+    /// 触发告警的 threshold 同源。
+    pub fn loop_budget_config(&self) -> (Option<u64>, Option<f64>) {
+        (
+            self.loop_monthly_budget_tokens,
+            self.loop_monthly_budget_usd,
+        )
+    }
+
+    /// T-E-L-06: 重置月度预算告警去重标记(Task 8 `loop_budget_reset` 命令调用)。
+    ///
+    /// 清零 `loop_budget_warned_this_month` / `loop_budget_exceeded_this_month`,
+    /// 允许下月(或手动重置后)重新触发 warning / exceeded 事件。
+    ///
+    /// **不清空历史 CostRecord**(保留审计追溯),只重置告警状态。
+    /// 因此重置后 `loop_cost_this_month()` 返回的累计值不变,
+    /// 但 `is_warning` / `is_exceeded` 会重新基于当前累计比例计算。
+    pub fn reset_loop_budget_alerts(&self) {
+        *self.loop_budget_warned_this_month.lock() = None;
+        *self.loop_budget_exceeded_this_month.lock() = None;
+    }
+
+    /// T-E-L-06: 当月 Loop 消耗(tokens + USD)。
+    ///
+    /// 聚合 CostSource::Automation + Cron + Background 三类来源
+    /// (排除人工 Chat),用于月度预算检查。
+    ///
+    /// 返回 (total_tokens, total_cost_usd)。无记录或当月无 Loop
+    /// 调用时返回 (0, 0.0)。
+    pub fn loop_cost_this_month(&self) -> (u64, f64) {
+        let now = Utc::now();
+        let (target_year, target_month) = (now.year(), now.month());
+        let mut total_tokens: u64 = 0;
+        let mut total_cost_usd: f64 = 0.0;
+        for r in self.records.lock().iter() {
+            let (ry, rm) = r.year_month();
+            if ry != target_year || rm != target_month {
+                continue;
+            }
+            match r.source {
+                CostSource::Automation | CostSource::Cron | CostSource::Background => {
+                    total_tokens += r.input_tokens + r.output_tokens;
+                    total_cost_usd += r.cost_usd;
+                }
+                CostSource::Chat => {}
+            }
+        }
+        (total_tokens, total_cost_usd)
     }
 }
 /// T-E-S-41: 进程级 ModelsConfig 缓存。首次访问时从
@@ -2057,5 +2353,486 @@ mod tests {
             back3.trigger_id.is_none(),
             "missing trigger_id must default to None"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // T-E-L-06: monthly_cost_by_source + loop_cost_this_month 新增测试
+    // -----------------------------------------------------------------
+
+    /// 辅助:构造一条指定 provider + source + 当月时间戳的 CostRecord。
+    fn make_record(
+        provider: Option<&str>,
+        source: CostSource,
+        input: u64,
+        output: u64,
+    ) -> CostRecord {
+        let mut r = CostRecord::new_with_context(
+            "deepseek-chat",
+            input,
+            output,
+            provider.map(|s| s.to_string()),
+            None,
+            None,
+        );
+        r.source = source;
+        r
+    }
+
+    #[test]
+    fn monthly_cost_by_source_groups_by_provider() {
+        // 不同 provider 的记录应分到不同桶。
+        let tracker = CostTracker::new();
+        tracker.record_with_context(
+            "deepseek-chat",
+            100_000,
+            50_000,
+            Some("ollama".to_string()),
+            None,
+            None,
+        );
+        tracker.record_with_context(
+            "deepseek-chat",
+            100_000,
+            50_000,
+            Some("openai".to_string()),
+            None,
+            None,
+        );
+        let buckets = tracker.monthly_cost_by_source(None);
+        assert_eq!(
+            buckets.len(),
+            2,
+            "should group into 2 providers: {buckets:?}"
+        );
+        // 每个 provider 各 1 条记录。
+        assert!(
+            buckets
+                .iter()
+                .any(|b| b.provider == "ollama" && b.count == 1),
+            "ollama bucket missing: {buckets:?}"
+        );
+        assert!(
+            buckets
+                .iter()
+                .any(|b| b.provider == "openai" && b.count == 1),
+            "openai bucket missing: {buckets:?}"
+        );
+    }
+
+    #[test]
+    fn monthly_cost_by_source_filters_by_month() {
+        // 当月 + 上月记录,当月过滤只保留 1 条。
+        let tracker = CostTracker::new();
+        // 当月记录。
+        tracker.record_with_context(
+            "deepseek-chat",
+            100_000,
+            0,
+            Some("deepseek".to_string()),
+            None,
+            None,
+        );
+        // 上月记录(直接 push,绕过 record)。
+        let mut r_last = CostRecord::new_with_context(
+            "deepseek-chat",
+            100_000,
+            0,
+            Some("deepseek".to_string()),
+            None,
+            None,
+        );
+        let now = Utc::now();
+        let last_month_date = if now.month() == 1 {
+            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).unwrap()
+        } else {
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).unwrap()
+        };
+        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        {
+            let mut guard = tracker.records.lock();
+            guard.push(r_last);
+        }
+        // 当月过滤:只保留 1 个桶。
+        let cur = tracker.monthly_cost_by_source(None);
+        assert_eq!(cur.len(), 1, "current month should have 1 bucket: {cur:?}");
+        assert_eq!(cur[0].provider, "deepseek");
+        assert_eq!(cur[0].count, 1);
+
+        // 显式指定上月份字符串。
+        let last_month_str = if now.month() == 1 {
+            format!("{:04}-12", now.year() - 1)
+        } else {
+            format!("{:04}-{:02}", now.year(), now.month() - 1)
+        };
+        let last = tracker.monthly_cost_by_source(Some(last_month_str));
+        assert_eq!(last.len(), 1, "last month should have 1 bucket: {last:?}");
+        assert_eq!(last[0].count, 1);
+
+        // 非法月份格式返回空。
+        assert!(tracker
+            .monthly_cost_by_source(Some("invalid".to_string()))
+            .is_empty());
+    }
+
+    #[test]
+    fn monthly_cost_by_source_identifies_local_vs_cloud() {
+        // ollama → is_local=true,openai → is_local=false。
+        let tracker = CostTracker::new();
+        let r1 = make_record(Some("ollama"), CostSource::Chat, 100_000, 50_000);
+        let r2 = make_record(Some("openai"), CostSource::Chat, 100_000, 50_000);
+        {
+            let mut guard = tracker.records.lock();
+            guard.push(r1);
+            guard.push(r2);
+        }
+        let buckets = tracker.monthly_cost_by_source(None);
+        assert_eq!(buckets.len(), 2);
+        let ollama_bucket = buckets
+            .iter()
+            .find(|b| b.provider == "ollama")
+            .expect("ollama bucket should exist");
+        assert!(
+            ollama_bucket.is_local,
+            "ollama should be local: {ollama_bucket:?}"
+        );
+        let openai_bucket = buckets
+            .iter()
+            .find(|b| b.provider == "openai")
+            .expect("openai bucket should exist");
+        assert!(
+            !openai_bucket.is_local,
+            "openai should be cloud: {openai_bucket:?}"
+        );
+    }
+
+    #[test]
+    fn loop_cost_this_month_excludes_chat() {
+        // Chat + Automation + Cron + Background,结果只含后三者。
+        let tracker = CostTracker::new();
+        let r_chat = make_record(Some("deepseek"), CostSource::Chat, 1_000_000, 0);
+        let r_auto = make_record(Some("deepseek"), CostSource::Automation, 1_000_000, 0);
+        let r_cron = make_record(Some("deepseek"), CostSource::Cron, 1_000_000, 0);
+        let r_bg = make_record(Some("deepseek"), CostSource::Background, 1_000_000, 0);
+        {
+            let mut guard = tracker.records.lock();
+            guard.push(r_chat);
+            guard.push(r_auto);
+            guard.push(r_cron);
+            guard.push(r_bg);
+        }
+        // deepseek-chat 1M input = 0.14 USD,tokens = 1M。
+        // 排除 Chat 后:3 条 × 1M tokens = 3M tokens,3 × 0.14 = 0.42 USD。
+        let (tokens, usd) = tracker.loop_cost_this_month();
+        assert_eq!(tokens, 3_000_000, "tokens should exclude Chat: {tokens}");
+        assert!(
+            (usd - 0.42).abs() < 1e-9,
+            "cost should be 0.42 (3 × 0.14), got {usd}"
+        );
+    }
+
+    #[test]
+    fn loop_cost_this_month_empty_returns_zero() {
+        // 无 records 返回 (0, 0.0)。
+        let tracker = CostTracker::new();
+        let (tokens, usd) = tracker.loop_cost_this_month();
+        assert_eq!(tokens, 0);
+        assert!(
+            (usd - 0.0).abs() < 1e-9,
+            "empty should return 0.0 USD, got {usd}"
+        );
+    }
+
+    #[test]
+    fn loop_cost_this_month_aggregates_tokens_and_cost() {
+        // Automation + Cron + Background 验证 tokens + usd 聚合正确。
+        let tracker = CostTracker::new();
+        // Automation: 1M input + 500K output → tokens=1.5M, cost=0.14+0.14=0.28
+        let r_auto = make_record(Some("deepseek"), CostSource::Automation, 1_000_000, 500_000);
+        // Cron: 500K input + 0 output → tokens=0.5M, cost=0.07
+        let r_cron = make_record(Some("deepseek"), CostSource::Cron, 500_000, 0);
+        // Background: 0 input + 500K output → tokens=0.5M, cost=0.14
+        let r_bg = make_record(Some("deepseek"), CostSource::Background, 0, 500_000);
+        {
+            let mut guard = tracker.records.lock();
+            guard.push(r_auto);
+            guard.push(r_cron);
+            guard.push(r_bg);
+        }
+        let (tokens, usd) = tracker.loop_cost_this_month();
+        // 总 tokens: 1.5M + 0.5M + 0.5M = 2.5M
+        assert_eq!(tokens, 2_500_000, "total tokens mismatch: {tokens}");
+        // 总 cost: 0.28 + 0.07 + 0.14 = 0.49
+        assert!(
+            (usd - 0.49).abs() < 1e-9,
+            "total cost should be 0.49, got {usd}"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // T-E-L-06: Loop 月度预算告警(80% warning / 100% exceeded)测试
+    // -----------------------------------------------------------------
+
+    /// 辅助:构造一个捕获 LoopBudgetAlert 的 callback,返回 (sink, callback)。
+    /// sink 内部为 `Arc<Mutex<Vec<LoopBudgetAlert>>>`,callback 触发时 push。
+    fn make_loop_alert_sink() -> (
+        Arc<parking_lot::Mutex<Vec<LoopBudgetAlert>>>,
+        Arc<dyn Fn(LoopBudgetAlert) + Send + Sync>,
+    ) {
+        let sink = Arc::new(parking_lot::Mutex::new(Vec::<LoopBudgetAlert>::new()));
+        let sink_cb = Arc::clone(&sink);
+        let callback: Arc<dyn Fn(LoopBudgetAlert) + Send + Sync> =
+            Arc::new(move |alert| sink_cb.lock().push(alert));
+        (sink, callback)
+    }
+
+    #[test]
+    fn loop_budget_alert_serializes() {
+        // LoopBudgetAlert 需实现 Serialize + Clone(任务约束)。
+        let alert = LoopBudgetAlert {
+            level: "warning".to_string(),
+            used_tokens: 1_000_000,
+            used_usd: 0.14,
+            budget_tokens: 1_250_000,
+            budget_usd: 0.175,
+            ratio: 0.8,
+        };
+        let s = serde_json::to_string(&alert).expect("serialize LoopBudgetAlert");
+        assert!(s.contains("\"level\":\"warning\""), "json: {s}");
+        assert!(s.contains("\"used_tokens\":1000000"), "json: {s}");
+        // Clone 可用(编译期保证)。
+        let _cloned = alert.clone();
+    }
+
+    #[tokio::test]
+    async fn loop_budget_warning_at_80_percent() {
+        // budget_tokens = 1.25M → 1M tokens(1 条 Automation)= 80% → warning。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_250_000), None, callback);
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(alerts.len(), 1, "should emit 1 warning: {alerts:?}");
+        assert_eq!(alerts[0].level, "warning");
+        assert!(
+            (alerts[0].ratio - 0.8).abs() < 1e-9,
+            "ratio should be 0.8, got {}",
+            alerts[0].ratio
+        );
+        assert_eq!(alerts[0].used_tokens, 1_000_000);
+        assert_eq!(alerts[0].budget_tokens, 1_250_000);
+    }
+
+    #[tokio::test]
+    async fn loop_budget_exceeded_at_100_percent() {
+        // budget_tokens = 1M → 1M tokens(1 条 Automation)= 100% → exceeded。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_000_000), None, callback);
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(alerts.len(), 1, "should emit 1 exceeded: {alerts:?}");
+        assert_eq!(alerts[0].level, "exceeded");
+        assert!(
+            (alerts[0].ratio - 1.0).abs() < 1e-9,
+            "ratio should be 1.0, got {}",
+            alerts[0].ratio
+        );
+    }
+
+    #[tokio::test]
+    async fn loop_budget_dedup_per_month() {
+        // 同月 warning 只 emit 一次;后续 record 即使仍在 80-100% 区间也不重复。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_250_000), None, callback);
+        // 第 1 条:1M tokens → 80% → warning。
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        // 第 2 条:100K tokens(总 1.1M,88%)→ 仍在 warning 区间,dedup 不重复 emit。
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                100_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(
+            alerts.len(),
+            1,
+            "warning should dedup per month: {alerts:?}"
+        );
+        assert_eq!(alerts[0].level, "warning");
+    }
+
+    #[tokio::test]
+    async fn loop_budget_warning_then_exceeded_same_month() {
+        // 先 80% warning,再累计到 100% exceeded(两个不同级别各 emit 一次);
+        // 之后继续累计不再重复 emit exceeded(dedup)。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_250_000), None, callback);
+        // 第 1 条:1M tokens → 80% → warning。
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        // 第 2 条:500K tokens(总 1.5M,120%)→ exceeded。
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                500_000,
+                0,
+            ))
+            .await;
+        // 第 3 条:再 500K(总 2M,160%)→ dedup,不重复 emit exceeded。
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                500_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(
+            alerts.len(),
+            2,
+            "should emit 1 warning + 1 exceeded: {alerts:?}"
+        );
+        assert_eq!(alerts[0].level, "warning");
+        assert_eq!(alerts[1].level, "exceeded");
+    }
+
+    #[tokio::test]
+    async fn loop_budget_no_callback_no_panic() {
+        // 无 callback(默认 CostTracker),record_async 不 panic。
+        let tracker = CostTracker::new();
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        assert_eq!(tracker.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn loop_budget_no_limit_no_check() {
+        // 注入 callback 但两个预算维度都为 None → check 早返回,不 emit。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(None, None, callback);
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        assert!(
+            sink.lock().is_empty(),
+            "no budget configured → no alert emitted"
+        );
+    }
+
+    #[tokio::test]
+    async fn loop_budget_chat_source_does_not_trigger() {
+        // Chat 来源不计入 loop_cost_this_month,不应触发告警。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_000), None, callback);
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Chat,
+                1_000_000,
+                0,
+            ))
+            .await;
+        assert!(
+            sink.lock().is_empty(),
+            "Chat source must not trigger loop budget alert"
+        );
+    }
+
+    #[tokio::test]
+    async fn loop_budget_usd_dimension_triggers() {
+        // 仅配置 USD 预算(无 token 预算),USD 达 80% → warning。
+        // deepseek-chat 1M input = 0.14 USD。budget_usd = 0.15 → 0.14/0.15 ≈ 0.933。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(None, Some(0.15), callback);
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Automation,
+                1_000_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(
+            alerts.len(),
+            1,
+            "USD dimension should trigger warning: {alerts:?}"
+        );
+        assert_eq!(alerts[0].level, "warning");
+        assert!(
+            alerts[0].ratio >= 0.8 && alerts[0].ratio < 1.0,
+            "ratio should be in [0.8, 1.0), got {}",
+            alerts[0].ratio
+        );
+        assert!(
+            (alerts[0].budget_usd - 0.15).abs() < 1e-9,
+            "budget_usd should be 0.15, got {}",
+            alerts[0].budget_usd
+        );
+    }
+
+    #[tokio::test]
+    async fn loop_budget_cron_and_background_sources_trigger() {
+        // Cron + Background 来源也计入 loop_cost_this_month,应触发告警。
+        let (sink, callback) = make_loop_alert_sink();
+        let tracker = CostTracker::new().with_loop_budget(Some(1_000_000), None, callback);
+        // Cron 500K + Background 500K = 1M tokens → 100% → exceeded。
+        tracker
+            .record_async(make_record(Some("deepseek"), CostSource::Cron, 500_000, 0))
+            .await;
+        // 500K tokens → ratio 0.5 < 0.8,尚无告警。
+        assert!(sink.lock().is_empty(), "500K tokens should not trigger yet");
+        tracker
+            .record_async(make_record(
+                Some("deepseek"),
+                CostSource::Background,
+                500_000,
+                0,
+            ))
+            .await;
+        let alerts = sink.lock().clone();
+        assert_eq!(alerts.len(), 1, "should emit exceeded: {alerts:?}");
+        assert_eq!(alerts[0].level, "exceeded");
     }
 }

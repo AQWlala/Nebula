@@ -473,6 +473,69 @@ impl LongTaskEngine {
         self.start(id)
     }
 
+    /// T-E-L-06: 批量暂停所有运行中任务。
+    ///
+    /// 遍历所有 status=Running 的任务,逐个设置 pause_flag=true 并更新
+    /// DB 状态为 Paused。已暂停/已完成/已失败/已取消的任务自动跳过
+    /// (不在 Running 列表中)。
+    ///
+    /// 返回被暂停的 task_id 列表(按 created_at 升序,最早的在前)。
+    ///
+    /// 使用场景:月度预算超限 100% 时,批量暂停所有 Loop。
+    pub fn pause_all(&self) -> Vec<String> {
+        // 1. 取出所有 Running 任务快照(避免长时间持锁)
+        let running = self.list_running();
+        if running.is_empty() {
+            return Vec::new();
+        }
+        // 2. 逐个设置 pause_flag + 更新 DB 状态(参考 pause(id) 实现)
+        let now = Utc::now().timestamp();
+        let mut paused_ids = Vec::with_capacity(running.len());
+        for task in &running {
+            // 设置暂停标志(若存在,runner 才能感知并退出)
+            if let Some(flag) = self.pause_flags.read().get(&task.id) {
+                flag.store(true, Ordering::SeqCst);
+            }
+            // 立即更新 DB 状态(WHERE status='running' 防止并发状态变更导致重复暂停)
+            let conn = self.sqlite.raw_connection();
+            let conn = conn.lock();
+            match conn.execute(
+                "UPDATE long_tasks SET status = 'paused', updated_at = ?1 \
+                 WHERE id = ?2 AND status = 'running'",
+                params![now, &task.id],
+            ) {
+                Ok(_) => paused_ids.push(task.id.clone()),
+                Err(e) => warn!(
+                    target: "nebula.long_task",
+                    task_id = %task.id,
+                    error = %e,
+                    "pause_all: failed to update task status"
+                ),
+            }
+        }
+        if !paused_ids.is_empty() {
+            info!(
+                target: "nebula.long_task",
+                count = paused_ids.len(),
+                "pause_all: paused running tasks"
+            );
+        }
+        paused_ids
+    }
+
+    /// T-E-L-06: 列出所有运行中(status=Running)的任务。
+    ///
+    /// 供 pause_all 前的预览/UI 展示用。按 created_at 升序返回(最早的在前),
+    /// 便于调用方优先关注运行时间最长的任务。
+    pub fn list_running(&self) -> Vec<LongTask> {
+        // 复用 list_tasks(Running 过滤),返回 DESC;反转为 ASC(最早的在前)
+        let mut tasks = self
+            .list_tasks(Some(LongTaskStatus::Running))
+            .unwrap_or_default();
+        tasks.reverse();
+        tasks
+    }
+
     /// 取消任务(Running/Paused/Pending → Cancelled)。
     ///
     /// 设置取消标志 + abort runner(立即停止当前命令的进程需更深层
@@ -1561,6 +1624,164 @@ mod tests {
             let _ = engine.delete_task(id);
         }
         let _ = fs::remove_file(&out);
+        cleanup(tmp);
+    }
+
+    // ---- T-E-L-06: pause_all / list_running 测试 ----
+
+    #[test]
+    fn pause_all_pauses_running_tasks() {
+        let (engine, tmp) = make_engine();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        // 创建 3 个任务:2 个 Running,1 个 Completed
+        let t1 = engine
+            .create_task("running-1".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t2 = engine
+            .create_task("running-2".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t3 = engine
+            .create_task("completed-1".into(), vec![step], None, None)
+            .unwrap();
+        set_task_status(&engine, &t1.id, "running");
+        set_task_status(&engine, &t2.id, "running");
+        set_task_status(&engine, &t3.id, "completed");
+
+        let paused = engine.pause_all();
+        // 应返回 2 个 ID(t1, t2)
+        assert_eq!(paused.len(), 2, "should pause 2 running tasks");
+        assert!(paused.contains(&t1.id), "t1 should be paused");
+        assert!(paused.contains(&t2.id), "t2 should be paused");
+        // t3 不应被暂停(Completed 跳过)
+        assert!(!paused.contains(&t3.id), "t3 should not be paused");
+
+        // 验证状态:t1, t2 → Paused,t3 仍为 Completed
+        let after1 = engine.get_task(&t1.id).unwrap().unwrap();
+        assert_eq!(after1.status, LongTaskStatus::Paused);
+        let after2 = engine.get_task(&t2.id).unwrap().unwrap();
+        assert_eq!(after2.status, LongTaskStatus::Paused);
+        let after3 = engine.get_task(&t3.id).unwrap().unwrap();
+        assert_eq!(after3.status, LongTaskStatus::Completed);
+
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn pause_all_skips_already_paused() {
+        let (engine, tmp) = make_engine();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let t1 = engine
+            .create_task("running".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t2 = engine
+            .create_task("paused".into(), vec![step], None, None)
+            .unwrap();
+        // t1 Running,t2 已 Paused
+        set_task_status(&engine, &t1.id, "running");
+        set_task_status(&engine, &t2.id, "paused");
+
+        let paused = engine.pause_all();
+        // 只应返回 t1(已暂停的 t2 跳过)
+        assert_eq!(paused.len(), 1, "should skip already paused task");
+        assert_eq!(paused[0], t1.id, "only t1 should be in paused list");
+
+        // t2 状态应保持 Paused(不变)
+        let after2 = engine.get_task(&t2.id).unwrap().unwrap();
+        assert_eq!(after2.status, LongTaskStatus::Paused);
+
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn pause_all_returns_paused_ids() {
+        let (engine, tmp) = make_engine();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        // 创建 3 个 Running 任务(按 created_at 升序)
+        let t1 = engine
+            .create_task("r1".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t2 = engine
+            .create_task("r2".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t3 = engine
+            .create_task("r3".into(), vec![step], None, None)
+            .unwrap();
+        set_task_status(&engine, &t1.id, "running");
+        set_task_status(&engine, &t2.id, "running");
+        set_task_status(&engine, &t3.id, "running");
+
+        let paused = engine.pause_all();
+        // 应返回 3 个 ID,顺序为 created_at 升序(t1, t2, t3)
+        assert_eq!(paused.len(), 3, "should pause all 3 running tasks");
+        assert_eq!(paused[0], t1.id, "earliest task should be first");
+        assert_eq!(paused[1], t2.id);
+        assert_eq!(paused[2], t3.id, "latest task should be last");
+
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn list_running_filters_correctly() {
+        let (engine, tmp) = make_engine();
+        let step = StepInput {
+            description: "s".into(),
+            program: "echo".into(),
+            args: vec!["x".into()],
+        };
+        let t_pending = engine
+            .create_task("pending".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t_running = engine
+            .create_task("running".into(), vec![step.clone()], None, None)
+            .unwrap();
+        let t_completed = engine
+            .create_task("completed".into(), vec![step], None, None)
+            .unwrap();
+        // t_pending 保持 Pending
+        set_task_status(&engine, &t_running.id, "running");
+        set_task_status(&engine, &t_completed.id, "completed");
+
+        let running = engine.list_running();
+        // 只应返回 Running 状态的任务
+        assert_eq!(running.len(), 1, "should only return running tasks");
+        assert_eq!(running[0].id, t_running.id);
+        assert_eq!(running[0].status, LongTaskStatus::Running);
+        // 不应包含 Pending / Completed
+        assert!(
+            !running.iter().any(|t| t.id == t_pending.id),
+            "should not include pending task"
+        );
+        assert!(
+            !running.iter().any(|t| t.id == t_completed.id),
+            "should not include completed task"
+        );
+
+        cleanup(tmp);
+    }
+
+    #[test]
+    fn pause_all_empty_returns_empty_vec() {
+        let (engine, tmp) = make_engine();
+        // 无任务场景
+        let paused = engine.pause_all();
+        assert!(paused.is_empty(), "should return empty vec when no tasks");
+
+        // list_running 也应返回空
+        let running = engine.list_running();
+        assert!(running.is_empty(), "list_running should also be empty");
+
         cleanup(tmp);
     }
 }

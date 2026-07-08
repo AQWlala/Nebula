@@ -138,7 +138,9 @@ Intent → Context → Action → Observation → Adjustment → (回到 Intent)
 docs/skills/loop-engineering/
 ├── SKILL.md                    # 本文件（Agent 加载入口）
 ├── NEBULA_LOOP_DESIGN.md       # 详细架构映射 + 实施路线图
-└── LOOP_PATTERNS.md            # 7 种 Loop 模式详细规格（cadence/token/停止条件）
+├── LOOP_PATTERNS.md            # 7 种 Loop 模式详细规格（cadence/token/停止条件）
+├── loop-safety-guards.md       # Loop 安全防护规则（模型同质检测 + 自动降级 + 数据主权红线 + 预算阈值 + 审计日志，T-E-L-06 产出）
+└── REVIEW_v1.0.md              # 7 专家评审报告（4 个致命风险修订决策，loop-safety-guards.md 的来源依据）
 ```
 
 对应 Loop Engineering 原版的：

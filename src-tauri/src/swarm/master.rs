@@ -24,11 +24,17 @@ use uuid::Uuid;
 
 use crate::llm::dispatcher::{UnifiedModelDispatcher, WorkType};
 use crate::llm::ollama::{ChatMessage, ChatResponse};
+// T-E-L-06: 预算检查所需的 CostTracker(已由 crate::llm 顶层 re-export)。
+use crate::llm::CostTracker;
 // T-E-L-01: Loop 执行模式所需 import。
 use super::loop_def::LoopDef;
 use crate::long_task::{LongTaskEngine, StepInput};
 use crate::memory::values::risk_assessor::ActionKind;
 use crate::memory::values::Verdict;
+
+// T-E-L-06: 同质检测所需 import(从 agents 模块重新导出)。
+use super::agents::{HomogeneityPolicy, ModelDescriptor, ReviewerAgent};
+use crate::autonomy::AutonomyLevel as GlobalAutonomyLevel;
 
 use super::dag::{FailureStrategy, SubTask, SubTaskResult, SubTaskResultMap, TaskDag};
 use super::events::EventEnvelope;
@@ -361,6 +367,9 @@ pub struct MasterReport {
 ///
 /// 与 [`MasterReport`]（Once 模式）平行，Loop 模式返回轻量级报告，
 /// 实际执行状态由 LongTaskEngine 持久化（可通过 `state_projection()` 投影到 STATE.md）。
+///
+/// T-E-L-06: 新增 `budget_status` + `autonomy_downgraded` 字段，分别记录
+/// 预算门禁结果与 L4 同质降级标记，供前端审计与告警展示。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoopRunReport {
     /// 关联的 LongTask ID（denied / needs_confirmation 时为 None）。
@@ -373,6 +382,100 @@ pub struct LoopRunReport {
     pub status: String,
     /// 人类可读消息（deny 理由 / confirm 提示 / 启动确认）。
     pub message: String,
+    /// T-E-L-06: 预算门禁状态。
+    ///
+    /// 取值：
+    /// - `"ok"`：未超月度预算（或未配置预算 → 视为 ok）
+    /// - `"warning_80"`：月度用量已达 80% 阈值（仍允许执行，仅告警）
+    /// - `"exceeded"`：月度预算超限（execute_loop 已返回 Err，不会到达此处；
+    ///   此值保留给未来单次预算超限但仍允许启动的场景）
+    /// - `"n/a"`：未传入 CostTracker，跳过预算检查
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_status: Option<String>,
+    /// T-E-L-06: 自主度降级标记。
+    ///
+    /// 当 LoopDef.autonomy == L4 且 ReviewerAgent 检测到模型同质时，
+    /// 实际执行自主度从 L4 降级为 L2（由人类最终裁决），此字段记录降级链路
+    /// （如 `"L4→L2"`）。None 表示未降级（非 L4 或 L4 但无同质）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomy_downgraded: Option<String>,
+}
+
+/// T-E-L-06: 把 LoopDef 的 [`super::loop_def::AutonomyLevel`]（L0-L5 简写）
+/// 转换为全局 [`crate::autonomy::AutonomyLevel`]（L0InlineCompletion 等），
+/// 用于调用 [`ReviewerAgent::enforce_homogeneity_policy`]。
+///
+/// 两个 enum 表达同一概念但变体名不同（前者用于 LOOP.md frontmatter
+/// 序列化，后者用于 autonomy 子系统），需要显式映射。
+fn loop_autonomy_to_global(level: super::loop_def::AutonomyLevel) -> GlobalAutonomyLevel {
+    use super::loop_def::AutonomyLevel as LoopAutonomy;
+    match level {
+        LoopAutonomy::L0 => GlobalAutonomyLevel::L0InlineCompletion,
+        LoopAutonomy::L1 => GlobalAutonomyLevel::L1DirectedEdit,
+        LoopAutonomy::L2 => GlobalAutonomyLevel::L2Chat,
+        LoopAutonomy::L3 => GlobalAutonomyLevel::L3Plan,
+        LoopAutonomy::L4 => GlobalAutonomyLevel::L4Swarm,
+        LoopAutonomy::L5 => GlobalAutonomyLevel::L5Background,
+    }
+}
+
+/// T-E-L-06: 预算门禁检查结果（内部辅助类型，供 execute_loop 决策）。
+///
+/// - `Ok`：未超限，附带建议的 `budget_status` 字符串
+/// - `Exceeded`：超限，附带人类可读原因（用于 Err 消息）
+#[derive(Debug)]
+enum BudgetCheckResult {
+    /// 未超限，参数为建议写入 LoopRunReport.budget_status 的字符串。
+    Ok(String),
+    /// 超限，参数为人类可读的原因。
+    Exceeded(String),
+}
+
+/// T-E-L-06: 执行月度预算检查。
+///
+/// 调用 [`CostTracker::loop_cost_this_month`] 获取当月已用量，与
+/// `monthly_budget_usd` / `monthly_budget_tokens` 比较。
+///
+/// - 任一受限维度超限 → [`BudgetCheckResult::Exceeded`]
+/// - 否则根据 80% 阈值返回 `"ok"` 或 `"warning_80"`
+/// - 未传入 CostTracker → `"n/a"`（跳过检查）
+fn check_monthly_budget(
+    cost_tracker: Option<&CostTracker>,
+    monthly_budget_usd: Option<f64>,
+    monthly_budget_tokens: Option<u64>,
+) -> BudgetCheckResult {
+    let tracker = match cost_tracker {
+        Some(t) => t,
+        None => return BudgetCheckResult::Ok("n/a".to_string()),
+    };
+    let (used_tokens, used_usd) = tracker.loop_cost_this_month();
+
+    // 任一受限维度超限即返回 Exceeded（OR 语义，与 LoopBudgetConfig 一致）。
+    let token_exceeded = monthly_budget_tokens
+        .filter(|&limit| limit > 0 && used_tokens >= limit)
+        .is_some();
+    let usd_exceeded = monthly_budget_usd
+        .filter(|&limit| limit > 0.0 && used_usd >= limit)
+        .is_some();
+    if token_exceeded || usd_exceeded {
+        let reason = format!(
+            "monthly loop budget exceeded: used {} tokens / ${:.4} (limits: tokens={:?}, usd={:?})",
+            used_tokens, used_usd, monthly_budget_tokens, monthly_budget_usd
+        );
+        return BudgetCheckResult::Exceeded(reason);
+    }
+
+    // 80% 告警阈值（仅当该维度配置了上限时才检查）。
+    let token_warn = monthly_budget_tokens
+        .filter(|&limit| limit > 0 && used_tokens * 5 >= limit * 4)
+        .is_some();
+    let usd_warn = monthly_budget_usd
+        .filter(|&limit| limit > 0.0 && used_usd * 5.0 >= limit * 4.0)
+        .is_some();
+    if token_warn || usd_warn {
+        return BudgetCheckResult::Ok("warning_80".to_string());
+    }
+    BudgetCheckResult::Ok("ok".to_string())
 }
 
 /// MasterAgent 任务拆解提示词模板。
@@ -571,18 +674,39 @@ impl MasterOrchestrator {
     ///    - `Confirm` / `Plan` → 返回 `status="needs_confirmation"`
     ///      （TODO: T-E-L-03 PlanEngine 集成，暂不阻塞）
     ///    - `Allow` → 继续
-    /// 2. **构造 LongTask 步骤**：每条 action → `StepInput { program: "loop-action", args: [text] }`
-    /// 3. **创建 + 启动 LongTask**：`create_task(intent, steps, workspace_id, None)` + `start(id)`
-    /// 4. **返回报告**：`LoopRunReport { status: "started", task_id: Some(...) }`
+    /// 2. **T-E-L-06 预算门禁**：月度预算超限 → 返回 `Err`（不创建 LongTask）。
+    ///    80% 阈值 → `budget_status="warning_80"`，仍允许执行。
+    /// 3. **T-E-L-06 同质检测**：若 `loop_def.autonomy == L4`，
+    ///    调用 [`ReviewerAgent::enforce_homogeneity_policy`]，
+    ///    返回 `Enforced{L4→L2}` 时降级为 L2 并记 `autonomy_downgraded`。
+    /// 4. **构造 LongTask 步骤**：每条 action → `StepInput { program: "loop-action", args: [text] }`
+    /// 5. **创建 + 启动 LongTask**：`create_task(intent, steps, workspace_id, None)` + `start(id)`
+    /// 6. **返回报告**：`LoopRunReport { status: "started", task_id: Some(...) }`
     ///
-    /// **不持有 LongTaskEngine**（避免循环依赖），通过参数传入。
-    /// **ValuesLayer 内部访问**：`self.swarm.values_layer()`（无需参数）。
-    #[instrument(skip(self, long_task_engine), fields(loop_name = %loop_def.name))]
+    /// **不持有 LongTaskEngine / CostTracker / ReviewerAgent**（避免循环依赖），
+    /// 通过参数传入。`cost_tracker` / `reviewer` 为 `None` 时跳过对应检查
+    /// （向后兼容旧调用方）。**ValuesLayer 内部访问**：`self.swarm.values_layer()`。
+    #[instrument(
+        skip(self, long_task_engine, cost_tracker, reviewer),
+        fields(loop_name = %loop_def.name)
+    )]
     pub async fn execute_loop(
         &self,
         loop_def: &LoopDef,
         long_task_engine: &LongTaskEngine,
         workspace_id: Option<String>,
+        // T-E-L-06: 月度预算检查的 CostTracker 引用。None 时跳过月度检查
+        // （budget_status 设为 "n/a"）。
+        cost_tracker: Option<&CostTracker>,
+        // T-E-L-06: 月度美元预算上限（来自 AppConfig.loop_monthly_budget_usd）。
+        // None 或 0.0 表示该维度不限制。
+        monthly_budget_usd: Option<f64>,
+        // T-E-L-06: 月度 Token 预算上限（来自 AppConfig.loop_monthly_budget_tokens）。
+        // None 或 0 表示该维度不限制。
+        monthly_budget_tokens: Option<u64>,
+        // T-E-L-06: 同质检测的 ReviewerAgent 引用。None 时跳过同质检测
+        // （L4 不降级，autonomy_downgraded 为 None）。
+        reviewer: Option<&ReviewerAgent>,
     ) -> Result<LoopRunReport> {
         // ---- 1. ValuesLayer 门禁 ----
         let action_desc = loop_def.action.join("; ");
@@ -605,6 +729,8 @@ impl MasterOrchestrator {
                     values_verdict: "deny".to_string(),
                     status: "denied".to_string(),
                     message: reason,
+                    budget_status: None,
+                    autonomy_downgraded: None,
                 });
             }
             Verdict::Confirm { prompt } => {
@@ -620,6 +746,8 @@ impl MasterOrchestrator {
                     values_verdict: "confirm".to_string(),
                     status: "needs_confirmation".to_string(),
                     message: prompt,
+                    budget_status: None,
+                    autonomy_downgraded: None,
                 });
             }
             Verdict::Plan { prompt } => {
@@ -635,12 +763,78 @@ impl MasterOrchestrator {
                     values_verdict: "plan".to_string(),
                     status: "needs_confirmation".to_string(),
                     message: prompt,
+                    budget_status: None,
+                    autonomy_downgraded: None,
                 });
             }
             Verdict::Allow => {} // 继续
         }
 
-        // ---- 2. 构造 LongTask 步骤 ----
+        // ---- 2. T-E-L-06: 预算门禁 ----
+        // 月度预算超限 → Err（不创建 LongTask）。
+        // 单次预算检查需要 CronScheduler 引用（T-E-L-02），此处不持有，
+        // 故仅做月度检查；单次超限由 LongTaskEngine::pause_all() 在执行期触发。
+        let budget_status =
+            match check_monthly_budget(cost_tracker, monthly_budget_usd, monthly_budget_tokens) {
+                BudgetCheckResult::Ok(status) => status,
+                BudgetCheckResult::Exceeded(reason) => {
+                    warn!(
+                        target: "nebula.master.loop",
+                        loop_name = %loop_def.name,
+                        reason = %reason,
+                        "loop rejected: monthly budget exceeded"
+                    );
+                    return Err(anyhow!(reason));
+                }
+            };
+        if budget_status == "warning_80" {
+            warn!(
+                target: "nebula.master.loop",
+                loop_name = %loop_def.name,
+                "loop budget at 80%% warning threshold, proceeding"
+            );
+        }
+
+        // ---- 3. T-E-L-06: 同质检测 ----
+        // 仅当 loop_def.autonomy == L4 时调用 enforce_homogeneity_policy。
+        // 返回 Enforced{L4→L2} → 实际执行自主度降为 L2，记降级标记。
+        // 返回 NoHomogeneity → 保持 L4。
+        // 返回 NotCheckerMode → 不可能（L4 不会返回 NotCheckerMode），防御性处理。
+        let autonomy_downgraded = if loop_def.autonomy == super::loop_def::AutonomyLevel::L4 {
+            if let Some(reviewer) = reviewer {
+                let global_level = loop_autonomy_to_global(loop_def.autonomy);
+                match reviewer.enforce_homogeneity_policy(global_level) {
+                    HomogeneityPolicy::Enforced {
+                        original_level,
+                        downgraded_to,
+                        warning,
+                    } => {
+                        warn!(
+                            target: "nebula.master.loop",
+                            loop_name = %loop_def.name,
+                            original = ?original_level,
+                            downgraded = ?downgraded_to,
+                            reason = %warning.reason,
+                            "L4 loop downgraded to L2 (model homogeneity)"
+                        );
+                        Some(format!(
+                            "L{}→L{}",
+                            original_level.as_u8(),
+                            downgraded_to.as_u8()
+                        ))
+                    }
+                    HomogeneityPolicy::NoHomogeneity { .. } => None,
+                    // L4 不应返回 NotCheckerMode，防御性 None。
+                    HomogeneityPolicy::NotCheckerMode { .. } => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // ---- 4. 构造 LongTask 步骤 ----
         let steps: Vec<StepInput> = loop_def
             .action
             .iter()
@@ -651,7 +845,7 @@ impl MasterOrchestrator {
             })
             .collect();
 
-        // ---- 3. 创建 + 启动 LongTask ----
+        // ---- 5. 创建 + 启动 LongTask ----
         let task = long_task_engine.create_task(
             loop_def.intent.clone(),
             steps,
@@ -668,16 +862,20 @@ impl MasterOrchestrator {
             target: "nebula.master.loop",
             loop_name = %loop_def.name,
             task_id = %task.id,
+            budget_status = %budget_status,
+            autonomy_downgraded = ?autonomy_downgraded,
             "loop started"
         );
 
-        // ---- 4. 返回报告 ----
+        // ---- 6. 返回报告 ----
         Ok(LoopRunReport {
             task_id: Some(task.id),
             loop_name: loop_def.name.clone(),
             values_verdict: "allow".to_string(),
             status: "started".to_string(),
             message: format!("Loop '{}' started", loop_def.name),
+            budget_status: Some(budget_status),
+            autonomy_downgraded,
         })
     }
 
@@ -1081,12 +1279,18 @@ mod tests {
 
     // ---- T-E-L-01: execute_loop() 测试 ----
 
-    /// 构造测试用 MasterOrchestrator + LongTaskEngine + 临时 SQLite 路径。
+    /// 构造测试用 MasterOrchestrator + LongTaskEngine + LlmGateway + 临时 SQLite 路径。
     ///
     /// - LLM 端点指向不存在的 127.0.0.1:1（测试不依赖 LLM 调用）
     /// - LongTaskEngine 用临时 SQLite + migration 037
     /// - ShadowWorkspaceEngine 用默认（run_command 会失败但测试不依赖执行结果）
-    fn make_master_and_engine() -> (MasterOrchestrator, LongTaskEngine, std::path::PathBuf) {
+    /// - T-E-L-06: 同时返回 LlmGateway,供测试构造 ReviewerAgent 做同质检测
+    fn make_master_and_engine() -> (
+        MasterOrchestrator,
+        LongTaskEngine,
+        Arc<crate::llm::LlmGateway>,
+        std::path::PathBuf,
+    ) {
         use std::time::Duration;
         let client = Arc::new(crate::llm::OllamaClient::new_with_timeout(
             "http://127.0.0.1:1",
@@ -1096,7 +1300,7 @@ mod tests {
             client, "m", "ollama", None, None, None, None, None,
         ));
         let swarm = Arc::new(SwarmOrchestrator::new_without_memory(
-            gw,
+            gw.clone(),
             Arc::new(crate::tools::ToolRegistry::new()),
         ));
         let master = MasterOrchestrator::new(swarm, None);
@@ -1113,17 +1317,32 @@ mod tests {
         }
         let shadow = Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
         let engine = LongTaskEngine::new(sqlite, shadow);
-        (master, engine, tmp)
+        (master, engine, gw, tmp)
     }
 
     /// 构造测试用 LoopDef（直接构造字段，不走 from_markdown 解析）。
+    /// 默认 autonomy=L2（不触发同质检测）。
     fn make_loop_def(name: &str, intent: &str, actions: Vec<&str>) -> LoopDef {
-        use crate::swarm::loop_def::AutonomyLevel;
+        make_loop_def_with_autonomy(
+            name,
+            intent,
+            actions,
+            crate::swarm::loop_def::AutonomyLevel::L2,
+        )
+    }
+
+    /// 构造测试用 LoopDef,可指定 autonomy level（供 T-E-L-06 同质检测测试）。
+    fn make_loop_def_with_autonomy(
+        name: &str,
+        intent: &str,
+        actions: Vec<&str>,
+        autonomy: crate::swarm::loop_def::AutonomyLevel,
+    ) -> LoopDef {
         LoopDef {
             name: name.to_string(),
             description: "test loop".to_string(),
             cadence: "0 9 * * 1-5".to_string(),
-            autonomy: AutonomyLevel::L2,
+            autonomy,
             budget_tokens: 50000,
             budget_minutes: 10,
             intent: intent.to_string(),
@@ -1137,21 +1356,40 @@ mod tests {
         }
     }
 
+    /// T-E-L-06: 构造 ReviewerAgent 并注入 Maker 模型描述符。
+    /// `maker_provider` / `maker_model` 设为 None 时不注入(跳过同质检测)。
+    fn make_reviewer(
+        gw: Arc<crate::llm::LlmGateway>,
+        maker: Option<ModelDescriptor>,
+    ) -> ReviewerAgent {
+        let mut reviewer = ReviewerAgent::new(gw);
+        if let Some(m) = maker {
+            reviewer = reviewer.with_maker_model(m);
+        }
+        reviewer
+    }
+
     #[tokio::test]
     async fn execute_loop_allow_path() {
-        let (master, engine, tmp) = make_master_and_engine();
+        let (master, engine, _gw, tmp) = make_master_and_engine();
         let loop_def = make_loop_def(
             "safe-read",
             "读取并总结文档",
             vec!["读取 README.md", "总结要点"],
         );
         let report = master
-            .execute_loop(&loop_def, &engine, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None)
             .await
             .expect("execute_loop should succeed on safe action");
         assert_eq!(report.status, "started");
         assert_eq!(report.values_verdict, "allow");
         assert!(report.task_id.is_some(), "task_id should be Some on allow");
+        // T-E-L-06: 未传 CostTracker → budget_status="n/a"
+        assert_eq!(report.budget_status.as_deref(), Some("n/a"));
+        assert!(
+            report.autonomy_downgraded.is_none(),
+            "L2 should not downgrade"
+        );
         // 验证 LongTask 确实被创建
         let task_id = report.task_id.as_ref().unwrap();
         let task = engine.get_task(task_id).expect("get_task should succeed");
@@ -1163,7 +1401,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_loop_deny_path() {
-        let (master, engine, tmp) = make_master_and_engine();
+        let (master, engine, _gw, tmp) = make_master_and_engine();
         // 身份证号触发 PrivacyGuard::Block → Verdict::Deny
         let loop_def = make_loop_def(
             "pii-leak",
@@ -1171,24 +1409,27 @@ mod tests {
             vec!["处理身份证号 11010119900307888X"],
         );
         let report = master
-            .execute_loop(&loop_def, &engine, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None)
             .await
             .expect("execute_loop should not error on deny");
         assert_eq!(report.status, "denied");
         assert_eq!(report.values_verdict, "deny");
         assert!(report.task_id.is_none(), "task_id must be None on deny");
         assert!(!report.message.is_empty(), "deny reason should be present");
+        // T-E-L-06: deny 路径不进入预算/同质检测,budget_status / autonomy_downgraded 均为 None
+        assert!(report.budget_status.is_none());
+        assert!(report.autonomy_downgraded.is_none());
         let _ = std::fs::remove_file(&tmp);
     }
 
     #[tokio::test]
     async fn execute_loop_bulk_plan_path() {
-        let (master, engine, tmp) = make_master_and_engine();
+        let (master, engine, _gw, tmp) = make_master_and_engine();
         // "批量更新所有配置" 触发 has_bulk_signal（"批量"+"所有"）→ NeedsPlan → Verdict::Plan。
         // 注意：不能用"批量删除...文件"——宪法规则 `批量删除.*文件` 会直接 Deny。
         let loop_def = make_loop_def("bulk-update", "批量更新配置", vec!["批量更新所有配置"]);
         let report = master
-            .execute_loop(&loop_def, &engine, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None)
             .await
             .expect("execute_loop should not error on plan");
         assert_eq!(report.status, "needs_confirmation");
@@ -1197,6 +1438,9 @@ mod tests {
             report.task_id.is_none(),
             "task_id must be None on plan (not yet started)"
         );
+        // T-E-L-06: plan 路径同样不进入预算/同质检测
+        assert!(report.budget_status.is_none());
+        assert!(report.autonomy_downgraded.is_none());
         let _ = std::fs::remove_file(&tmp);
     }
 
@@ -1208,6 +1452,8 @@ mod tests {
             values_verdict: "allow".to_string(),
             status: "started".to_string(),
             message: "Loop 'daily-triage' started".to_string(),
+            budget_status: Some("ok".to_string()),
+            autonomy_downgraded: None,
         };
         let json = serde_json::to_string(&report).expect("serialize");
         let de: LoopRunReport = serde_json::from_str(&json).expect("deserialize");
@@ -1216,5 +1462,487 @@ mod tests {
         assert_eq!(de.values_verdict, "allow");
         assert_eq!(de.status, "started");
         assert_eq!(de.message, "Loop 'daily-triage' started");
+        assert_eq!(de.budget_status.as_deref(), Some("ok"));
+        assert!(de.autonomy_downgraded.is_none());
+    }
+
+    // -------------------------------------------------------------------
+    // T-E-L-06: 预算门禁 + 同质检测 单测
+    // -------------------------------------------------------------------
+
+    /// 辅助:构造一个 CostTracker,内含当月 Automation/Cron/Background 来源
+    /// 的预填充记录,用于月度预算检查测试。
+    /// deepseek-chat 1M input = 0.14 USD,tokens = 1M。
+    ///
+    /// 使用公共 `record_async` API 注入记录(绕过 `records` 私有字段访问),
+    /// 通过 `CostRecord::new_with_context` 构造后显式覆盖 `source` 字段。
+    async fn make_tracker_with_loop_cost(
+        source: crate::llm::cost_tracker::CostSource,
+        records: u32,
+        input_tokens_per_record: u64,
+        output_tokens_per_record: u64,
+    ) -> crate::llm::CostTracker {
+        use crate::llm::cost_tracker::CostRecord;
+        let tracker = crate::llm::CostTracker::new();
+        for _ in 0..records {
+            let mut r = CostRecord::new_with_context(
+                "deepseek-chat",
+                input_tokens_per_record,
+                output_tokens_per_record,
+                Some("deepseek".to_string()),
+                None,
+                None,
+            );
+            r.source = source;
+            // 使用公共 record_async API 推入记录(store=None 时仅内存写入)。
+            tracker.record_async(r).await;
+        }
+        tracker
+    }
+
+    #[test]
+    fn check_monthly_budget_returns_na_when_no_tracker() {
+        // 未传入 CostTracker → 跳过检查,返回 "n/a"
+        let result = check_monthly_budget(None, Some(50.0), Some(5_000_000));
+        match result {
+            BudgetCheckResult::Ok(status) => assert_eq!(status, "n/a"),
+            other => panic!("expected Ok(n/a), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_ok_when_under_limit() {
+        // 用量远低于限制 → "ok"
+        // tracker 内有 1 条 Cron 记录: 1M tokens / $0.14
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Cron,
+            1,
+            1_000_000,
+            0,
+        )
+        .await;
+        let result = check_monthly_budget(Some(&tracker), Some(50.0), Some(5_000_000));
+        match result {
+            BudgetCheckResult::Ok(status) => assert_eq!(status, "ok"),
+            other => panic!("expected Ok(ok), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_warning_at_80_percent() {
+        // 80% 阈值:limit=1M tokens,used=0.8M → warning_80
+        // 1 条 Cron 记录: 0.8M input tokens / $0.112 (deepseek-chat 0.14/1M)
+        let tracker =
+            make_tracker_with_loop_cost(crate::llm::cost_tracker::CostSource::Cron, 1, 800_000, 0)
+                .await;
+        let result = check_monthly_budget(Some(&tracker), None, Some(1_000_000));
+        match result {
+            BudgetCheckResult::Ok(status) => assert_eq!(status, "warning_80"),
+            other => panic!("expected Ok(warning_80), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_exceeded_on_tokens() {
+        // Token 维度超限:limit=500K,used=1M → Exceeded
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Cron,
+            1,
+            1_000_000,
+            0,
+        )
+        .await;
+        let result = check_monthly_budget(Some(&tracker), None, Some(500_000));
+        match result {
+            BudgetCheckResult::Exceeded(reason) => {
+                assert!(
+                    reason.contains("exceeded"),
+                    "reason should mention exceeded: {reason}"
+                );
+                assert!(
+                    reason.contains("500000"),
+                    "reason should mention limit: {reason}"
+                );
+            }
+            other => panic!("expected Exceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_exceeded_on_usd() {
+        // USD 维度超限:limit=$0.10,used=$0.14 (1M deepseek-chat input) → Exceeded
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Automation,
+            1,
+            1_000_000,
+            0,
+        )
+        .await;
+        let result = check_monthly_budget(Some(&tracker), Some(0.10), None);
+        match result {
+            BudgetCheckResult::Exceeded(reason) => {
+                assert!(reason.contains("exceeded"), "reason: {reason}");
+            }
+            other => panic!("expected Exceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_zero_limit_means_unlimited() {
+        // limit=0 表示该维度不限制,即使用量很高也返回 ok
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Background,
+            5,
+            1_000_000,
+            500_000,
+        )
+        .await;
+        // tokens=0 → 不限制;usd=0.0 → 不限制
+        let result = check_monthly_budget(Some(&tracker), Some(0.0), Some(0));
+        match result {
+            BudgetCheckResult::Ok(status) => assert_eq!(status, "ok"),
+            other => panic!("expected Ok(ok), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn check_monthly_budget_excludes_chat_source() {
+        // Chat 来源记录不计入 loop_cost_this_month,即使 Chat 用量很高也只看
+        // Automation/Cron/Background。
+        let tracker = crate::llm::CostTracker::new();
+        // Chat 记录: 5M tokens / $0.70(若被错误计入会触发超限)
+        let mut r_chat = crate::llm::cost_tracker::CostRecord::new_with_context(
+            "deepseek-chat",
+            5_000_000,
+            0,
+            Some("deepseek".to_string()),
+            None,
+            None,
+        );
+        r_chat.source = crate::llm::cost_tracker::CostSource::Chat;
+        // 使用公共 record_async API 推入记录(store=None 时仅内存写入)。
+        tracker.record_async(r_chat).await;
+        // 限制 1M tokens / $0.10,但 Chat 不算 → 应为 ok
+        let result = check_monthly_budget(Some(&tracker), Some(0.10), Some(1_000_000));
+        match result {
+            BudgetCheckResult::Ok(status) => assert_eq!(status, "ok"),
+            other => panic!("expected Ok(ok) (Chat excluded), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_loop_monthly_budget_exceeded_returns_err() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let loop_def = make_loop_def("over-budget", "测试预算超限", vec!["读取文件"]);
+        // 构造 CostTracker:1 条 Cron 记录 1M tokens,limit=500K → 超限
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Cron,
+            1,
+            1_000_000,
+            0,
+        )
+        .await;
+        let result = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                Some(&tracker),
+                None,
+                Some(500_000),
+                None,
+            )
+            .await;
+        assert!(result.is_err(), "monthly budget exceeded should return Err");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("exceeded"),
+            "error should mention exceeded: {err}"
+        );
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_monthly_budget_warning_proceeds() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let loop_def = make_loop_def("near-limit", "测试 80% 告警", vec!["读取文件"]);
+        // 0.8M tokens / limit=1M → 80% 告警但仍执行
+        let tracker =
+            make_tracker_with_loop_cost(crate::llm::cost_tracker::CostSource::Cron, 1, 800_000, 0)
+                .await;
+        let report = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                Some(&tracker),
+                None,
+                Some(1_000_000),
+                None,
+            )
+            .await
+            .expect("80% threshold should proceed");
+        assert_eq!(report.status, "started");
+        assert_eq!(report.budget_status.as_deref(), Some("warning_80"));
+        // 等待后台 runner 结束
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_budget_ok_when_under_limit() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let loop_def = make_loop_def("under-budget", "测试预算正常", vec!["读取文件"]);
+        // 0.5M tokens / limit=5M → ok
+        let tracker =
+            make_tracker_with_loop_cost(crate::llm::cost_tracker::CostSource::Cron, 1, 500_000, 0)
+                .await;
+        let report = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                Some(&tracker),
+                Some(50.0),
+                Some(5_000_000),
+                None,
+            )
+            .await
+            .expect("under-limit should proceed");
+        assert_eq!(report.status, "started");
+        assert_eq!(report.budget_status.as_deref(), Some("ok"));
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_l4_homogeneity_downgrades_to_l2() {
+        let (master, engine, gw, tmp) = make_master_and_engine();
+        // L4 + Maker 与 Checker 用同一模型 → 触发降级
+        // gw 的 provider="ollama" + default_model="m",maker 设为相同 → 同质
+        let loop_def = make_loop_def_with_autonomy(
+            "l4-homogeneous",
+            "L4 同质检测",
+            vec!["执行蜂群任务"],
+            crate::swarm::loop_def::AutonomyLevel::L4,
+        );
+        let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("ollama", "m")));
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .await
+            .expect("execute_loop should not error on L4 homogeneity");
+        assert_eq!(report.status, "started");
+        assert_eq!(
+            report.autonomy_downgraded.as_deref(),
+            Some("L4→L2"),
+            "L4 + same model should downgrade to L2: {:?}",
+            report.autonomy_downgraded
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_l4_no_homogeneity_keeps_l4() {
+        let (master, engine, gw, tmp) = make_master_and_engine();
+        // L4 + Maker(deepseek) 与 Checker(ollama) 不同 → 不降级
+        let loop_def = make_loop_def_with_autonomy(
+            "l4-heterogeneous",
+            "L4 异构正常",
+            vec!["执行蜂群任务"],
+            crate::swarm::loop_def::AutonomyLevel::L4,
+        );
+        let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("deepseek", "deepseek-chat")));
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .await
+            .expect("execute_loop should succeed on L4 without homogeneity");
+        assert_eq!(report.status, "started");
+        assert!(
+            report.autonomy_downgraded.is_none(),
+            "L4 + different models should NOT downgrade: {:?}",
+            report.autonomy_downgraded
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_l4_without_reviewer_no_downgrade() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        // L4 但未传入 reviewer → 跳过同质检测,不降级
+        let loop_def = make_loop_def_with_autonomy(
+            "l4-no-checker",
+            "L4 无 Checker",
+            vec!["执行蜂群任务"],
+            crate::swarm::loop_def::AutonomyLevel::L4,
+        );
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, None)
+            .await
+            .expect("execute_loop should succeed without reviewer");
+        assert_eq!(report.status, "started");
+        assert!(
+            report.autonomy_downgraded.is_none(),
+            "L4 without reviewer should NOT downgrade: {:?}",
+            report.autonomy_downgraded
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_l4_without_maker_model_no_downgrade() {
+        let (master, engine, gw, tmp) = make_master_and_engine();
+        // L4 + reviewer 但未注入 maker_model → NoHomogeneity(向后兼容)
+        let loop_def = make_loop_def_with_autonomy(
+            "l4-legacy",
+            "L4 旧调用方",
+            vec!["执行蜂群任务"],
+            crate::swarm::loop_def::AutonomyLevel::L4,
+        );
+        let reviewer = make_reviewer(gw, None);
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .await
+            .expect("execute_loop should succeed without maker_model");
+        assert_eq!(report.status, "started");
+        assert!(
+            report.autonomy_downgraded.is_none(),
+            "L4 without maker_model should NOT downgrade: {:?}",
+            report.autonomy_downgraded
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_non_l4_skips_homogeneity_check() {
+        let (master, engine, gw, tmp) = make_master_and_engine();
+        // L2 + reviewer + maker=checker(同质)— 但 L2 不会触发同质检测
+        let loop_def = make_loop_def_with_autonomy(
+            "l2-skip-check",
+            "L2 跳过同质检测",
+            vec!["执行对话"],
+            crate::swarm::loop_def::AutonomyLevel::L2,
+        );
+        let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("ollama", "m")));
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .await
+            .expect("execute_loop should succeed for L2");
+        assert_eq!(report.status, "started");
+        // L2 不触发同质检测,即使 maker=checker
+        assert!(
+            report.autonomy_downgraded.is_none(),
+            "L2 should not trigger homogeneity check: {:?}",
+            report.autonomy_downgraded
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn loop_autonomy_to_global_maps_all_levels() {
+        use crate::swarm::loop_def::AutonomyLevel as LoopAutonomy;
+        // 验证所有 6 个等级的映射
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L0),
+            crate::autonomy::AutonomyLevel::L0InlineCompletion
+        );
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L1),
+            crate::autonomy::AutonomyLevel::L1DirectedEdit
+        );
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L2),
+            crate::autonomy::AutonomyLevel::L2Chat
+        );
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L3),
+            crate::autonomy::AutonomyLevel::L3Plan
+        );
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L4),
+            crate::autonomy::AutonomyLevel::L4Swarm
+        );
+        assert_eq!(
+            loop_autonomy_to_global(LoopAutonomy::L5),
+            crate::autonomy::AutonomyLevel::L5Background
+        );
+    }
+
+    #[test]
+    fn loop_run_report_with_downgrade_serde_round_trip() {
+        // 验证带降级标记的 LoopRunReport 序列化/反序列化 round-trip
+        let report = LoopRunReport {
+            task_id: Some("task-456".to_string()),
+            loop_name: "l4-loop".to_string(),
+            values_verdict: "allow".to_string(),
+            status: "started".to_string(),
+            message: "Loop 'l4-loop' started".to_string(),
+            budget_status: Some("warning_80".to_string()),
+            autonomy_downgraded: Some("L4→L2".to_string()),
+        };
+        let json = serde_json::to_string(&report).expect("serialize");
+        assert!(
+            json.contains("\"budget_status\":\"warning_80\""),
+            "json: {json}"
+        );
+        assert!(
+            json.contains("\"autonomy_downgraded\":\"L4→L2\""),
+            "json: {json}"
+        );
+        let de: LoopRunReport = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(de.budget_status.as_deref(), Some("warning_80"));
+        assert_eq!(de.autonomy_downgraded.as_deref(), Some("L4→L2"));
+    }
+
+    #[test]
+    fn loop_run_report_skips_none_fields_in_serde() {
+        // skip_serializing_if = "Option::is_none" 应让 None 字段不出现在 JSON 中
+        let report = LoopRunReport {
+            task_id: Some("task-789".to_string()),
+            loop_name: "simple".to_string(),
+            values_verdict: "allow".to_string(),
+            status: "started".to_string(),
+            message: "started".to_string(),
+            budget_status: None,
+            autonomy_downgraded: None,
+        };
+        let json = serde_json::to_string(&report).expect("serialize");
+        assert!(
+            !json.contains("budget_status"),
+            "None fields should be skipped: {json}"
+        );
+        assert!(
+            !json.contains("autonomy_downgraded"),
+            "None fields should be skipped: {json}"
+        );
+        // 反序列化时 None 字段回退为 None
+        let de: LoopRunReport = serde_json::from_str(&json).expect("deserialize");
+        assert!(de.budget_status.is_none());
+        assert!(de.autonomy_downgraded.is_none());
+    }
+
+    #[test]
+    fn loop_run_report_old_json_without_new_fields_deserializes() {
+        // 旧 JSON(无 budget_status / autonomy_downgraded 字段)反序列化时
+        // 新字段应回退为 None(#[serde(default)] 保证向后兼容)。
+        let old_json = r#"{
+            "task_id": "task-old",
+            "loop_name": "old-loop",
+            "values_verdict": "allow",
+            "status": "started",
+            "message": "started"
+        }"#;
+        let de: LoopRunReport = serde_json::from_str(old_json).expect("deserialize old json");
+        assert_eq!(de.task_id.as_deref(), Some("task-old"));
+        assert_eq!(de.loop_name, "old-loop");
+        assert!(de.budget_status.is_none(), "missing budget_status → None");
+        assert!(
+            de.autonomy_downgraded.is_none(),
+            "missing autonomy_downgraded → None"
+        );
     }
 }

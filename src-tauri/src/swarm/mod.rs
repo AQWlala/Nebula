@@ -30,6 +30,9 @@ pub mod master;
 // T-E-L-01: Loop 定义解析层（LOOP.md YAML frontmatter + Markdown body）。
 #[cfg(feature = "master-orchestrator")]
 pub mod loop_def;
+// T-E-L-06: Loop 预算配置解析层（loop-budget.md YAML frontmatter + Markdown 表格）。
+#[cfg(feature = "master-orchestrator")]
+pub mod loop_budget;
 pub mod negotiator;
 pub mod orchestrator;
 pub mod tool_loop;
@@ -76,3 +79,6 @@ pub use master::{
 // T-E-L-01: Loop 定义相关类型（LOOP.md 解析）。
 #[cfg(feature = "master-orchestrator")]
 pub use loop_def::{AutonomyLevel, LoopDef};
+// T-E-L-06: Loop 预算配置相关类型（loop-budget.md 解析）。
+#[cfg(feature = "master-orchestrator")]
+pub use loop_budget::{LoopBudgetConfig, LoopBudgetEntry};

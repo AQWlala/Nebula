@@ -640,6 +640,59 @@ impl AppState {
                 }
                 _ => base,
             };
+            // T-E-L-06: Loop 月度预算注入(80% warning / 100% exceeded)。
+            // 100% 超限时仅 emit `loop_budget_exceeded` 事件;`pause_all` 由前端
+            // 监听该事件后调用 Tauri 命令(Task 8)执行,避免在 bootstrap 中持有
+            // LongTaskEngine 引用(此时可能尚未创建)。
+            let loop_budget_tokens = config.loop_monthly_budget_tokens;
+            let loop_budget_usd = config.loop_monthly_budget_usd;
+            let base = if loop_budget_tokens.is_some() || loop_budget_usd.is_some() {
+                let app_for_loop_emit = app_handle.clone();
+                let callback: Arc<dyn Fn(crate::llm::cost_tracker::LoopBudgetAlert) + Send + Sync> =
+                    Arc::new(move |alert| match alert.level.as_str() {
+                        "warning" => {
+                            if let Err(e) = app_for_loop_emit.emit("loop_budget_warning", &alert) {
+                                tracing::warn!(
+                                    target: "nebula.cost_tracker",
+                                    error = %e,
+                                    "failed to emit loop_budget_warning event"
+                                );
+                            } else {
+                                info!(
+                                    target: "nebula.cost_tracker",
+                                    level = %alert.level,
+                                    ratio = alert.ratio,
+                                    used_tokens = alert.used_tokens,
+                                    used_usd = alert.used_usd,
+                                    "loop monthly budget warning; emitted loop_budget_warning"
+                                );
+                            }
+                        }
+                        "exceeded" => {
+                            if let Err(e) = app_for_loop_emit.emit("loop_budget_exceeded", &alert) {
+                                tracing::warn!(
+                                    target: "nebula.cost_tracker",
+                                    error = %e,
+                                    "failed to emit loop_budget_exceeded event"
+                                );
+                            } else {
+                                info!(
+                                    target: "nebula.cost_tracker",
+                                    level = %alert.level,
+                                    ratio = alert.ratio,
+                                    used_tokens = alert.used_tokens,
+                                    used_usd = alert.used_usd,
+                                    "loop monthly budget exceeded; emitted loop_budget_exceeded \
+                                     (pause_all triggered by frontend command)"
+                                );
+                            }
+                        }
+                        _ => {}
+                    });
+                base.with_loop_budget(loop_budget_tokens, loop_budget_usd, callback)
+            } else {
+                base
+            };
             let base = base.attach_store(sqlite.as_ref().clone());
             info!(
                 target: "nebula.cost_tracker",

@@ -90,6 +90,17 @@ pub struct AppConfig {
     /// T-E-A-12: 自动化(触发器/Cron/后台)每日预算(USD),None=不限制。
     /// 超阈值时 emit `budget_exceeded` 事件。env: NEBULA_AUTOMATION_DAILY_BUDGET_USD
     pub automation_daily_budget_usd: Option<f64>,
+    /// T-E-L-06: Loop 月度美元预算上限。
+    ///
+    /// 环境变量:NEBULA_LOOP_MONTHLY_BUDGET_USD
+    /// None 或 0.0 = 不限制。
+    /// 达到 80% → emit loop_budget_warning;达到 100% → pause_all + emit loop_budget_exceeded。
+    pub loop_monthly_budget_usd: Option<f64>,
+    /// T-E-L-06: Loop 月度 Token 预算上限。
+    ///
+    /// 环境变量:NEBULA_LOOP_MONTHLY_BUDGET_TOKENS
+    /// None 或 0 = 不限制。
+    pub loop_monthly_budget_tokens: Option<u64>,
     /// T-E-B-09: 启动时监控的文件夹列表(逗号分隔)。
     /// env: NEBULA_WATCH_PATHS
     pub watch_paths: Vec<String>,
@@ -257,6 +268,16 @@ impl AppConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .filter(|v: &f64| *v > 0.0),
+            // T-E-L-06: Loop 月度美元预算(None 或 0.0=不限制)。
+            loop_monthly_budget_usd: std::env::var("NEBULA_LOOP_MONTHLY_BUDGET_USD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .filter(|v: &f64| *v > 0.0),
+            // T-E-L-06: Loop 月度 Token 预算(None 或 0=不限制)。
+            loop_monthly_budget_tokens: std::env::var("NEBULA_LOOP_MONTHLY_BUDGET_TOKENS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .filter(|v: &u64| *v > 0),
             // T-E-S-40: OpenAI 兼容 provider 配置(可选)。
             openai_compat_base_url: std::env::var("NEBULA_OPENAI_COMPAT_URL").ok(),
             openai_compat_api_key: std::env::var("NEBULA_OPENAI_COMPAT_KEY").ok(),

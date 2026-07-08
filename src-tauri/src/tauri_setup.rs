@@ -465,6 +465,13 @@ pub fn run() {
             crate::commands::loop_templates_list,
             #[cfg(feature = "master-orchestrator")]
             crate::commands::loop_template_get,
+            // T-E-L-06: Loop 月度预算命令(status / reset / pause_all)。
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_budget_status,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_budget_reset,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_budget_pause_all,
             crate::commands::master_confirm,
             crate::commands::master_confirmation_status,
             crate::commands::master_pending_confirmations,
