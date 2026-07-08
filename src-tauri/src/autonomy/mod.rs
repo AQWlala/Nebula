@@ -184,6 +184,14 @@ impl AutonomyLevel {
     }
 }
 
+/// 默认自主度为 L2(对话模式)。
+/// 与 AutonomySlider 系统默认一致;CronTask 等结构体通过 `..Default::default()` 复用。
+impl Default for AutonomyLevel {
+    fn default() -> Self {
+        AutonomyLevel::L2Chat
+    }
+}
+
 /// 每级行为参数。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AutonomyConfig {

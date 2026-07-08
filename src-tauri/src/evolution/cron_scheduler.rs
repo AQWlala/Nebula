@@ -28,39 +28,87 @@ use tracing::{info, warn};
 use super::honcho::HonchoEngine;
 
 /// Cron 任务定义。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// T-E-L-02 扩展:新增 `cron_expr`(5 字段 cron 表达式)、`autonomy`(L0-L5 自主度)、
+/// `budget_tokens_*` / `budget_minutes_*`(预算)字段。旧字段 `hour` 保留向后兼容:
+/// 当 `cron_expr` 为 None 时,`should_run()` 回退到 `hour` 匹配。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CronTask {
     /// 任务名称(唯一标识)。
     pub name: String,
-    /// 每天执行的小时(0-23)。
+    /// 每天执行的小时(0-23)。旧字段,当 `cron_expr` 为 None 时使用。
     pub hour: u32,
     /// 任务是否启用。
     pub enabled: bool,
     /// 上次执行时间(UTC)。
     pub last_run: Option<DateTime<Utc>>,
+
+    /// T-E-L-02: 5 字段 cron 表达式(如 "0 9 * * 1-5")。
+    /// 若设置,`should_run()` 使用 `CronExpr::matches()` 而非 `hour`。
+    #[serde(default)]
+    pub cron_expr: Option<String>,
+
+    /// T-E-L-02: L0-L5 自主度(决定任务执行时是否需要审批)。
+    /// 默认 L2(对话);后台自动化任务建议设为 L5。
+    #[serde(default)]
+    pub autonomy: crate::autonomy::AutonomyLevel,
+
+    /// T-E-L-02: Token 预算上限(0 = 无限制)。
+    #[serde(default)]
+    pub budget_tokens_total: u64,
+
+    /// T-E-L-02: 已用 Token(AtomicU64 内存累加,异步落库)。
+    #[serde(default)]
+    pub budget_tokens_used: u64,
+
+    /// T-E-L-02: 时间预算上限-分钟(0 = 无限制)。
+    #[serde(default)]
+    pub budget_minutes_total: u64,
+
+    /// T-E-L-02: 已用时间-分钟。
+    #[serde(default)]
+    pub budget_minutes_used: u64,
 }
 
 impl CronTask {
     /// 默认三计时任务表。
+    ///
+    /// T-E-L-02: 每个任务现在带 5 字段 cron 表达式 + L5 自主度 + 预算。
     pub fn default_schedule() -> Vec<CronTask> {
+        use crate::autonomy::AutonomyLevel;
         vec![
             CronTask {
                 name: "memory-merge".to_string(),
                 hour: 3,
                 enabled: true,
                 last_run: None,
+                cron_expr: Some("0 3 * * *".to_string()),
+                autonomy: AutonomyLevel::L5Background,
+                budget_tokens_total: 50_000,
+                budget_minutes_total: 10,
+                ..Default::default()
             },
             CronTask {
                 name: "evolution-self-check".to_string(),
                 hour: 12,
                 enabled: true,
                 last_run: None,
+                cron_expr: Some("0 12 * * *".to_string()),
+                autonomy: AutonomyLevel::L5Background,
+                budget_tokens_total: 100_000,
+                budget_minutes_total: 30,
+                ..Default::default()
             },
             CronTask {
                 name: "evening-review".to_string(),
                 hour: 21,
                 enabled: true,
                 last_run: None,
+                cron_expr: Some("0 21 * * *".to_string()),
+                autonomy: AutonomyLevel::L5Background,
+                budget_tokens_total: 50_000,
+                budget_minutes_total: 15,
+                ..Default::default()
             },
         ]
     }
@@ -281,12 +329,55 @@ mod tests {
     }
 
     #[test]
+    fn default_schedule_has_cron_expr() {
+        // T-E-L-02: 每个默认任务都带 5 字段 cron 表达式。
+        let tasks = CronTask::default_schedule();
+        assert_eq!(tasks[0].cron_expr.as_deref(), Some("0 3 * * *"));
+        assert_eq!(tasks[1].cron_expr.as_deref(), Some("0 12 * * *"));
+        assert_eq!(tasks[2].cron_expr.as_deref(), Some("0 21 * * *"));
+    }
+
+    #[test]
+    fn default_schedule_autonomy_is_l5() {
+        // T-E-L-02: 默认任务都是后台自动化 → L5。
+        use crate::autonomy::AutonomyLevel;
+        let tasks = CronTask::default_schedule();
+        for t in &tasks {
+            assert_eq!(t.autonomy, AutonomyLevel::L5Background);
+        }
+    }
+
+    #[test]
+    fn default_schedule_has_budgets() {
+        // T-E-L-02: 每个任务都有 Token + 时间预算。
+        let tasks = CronTask::default_schedule();
+        for t in &tasks {
+            assert!(t.budget_tokens_total > 0, "task {} has no token budget", t.name);
+            assert!(t.budget_minutes_total > 0, "task {} has no time budget", t.name);
+            assert_eq!(t.budget_tokens_used, 0);
+            assert_eq!(t.budget_minutes_used, 0);
+        }
+    }
+
+    #[test]
+    fn cron_task_default_all_zero_budgets() {
+        // T-E-L-02: Default::default() 的预算字段全为 0(无限制)。
+        let task = CronTask::default();
+        assert_eq!(task.budget_tokens_total, 0);
+        assert_eq!(task.budget_tokens_used, 0);
+        assert_eq!(task.budget_minutes_total, 0);
+        assert_eq!(task.budget_minutes_used, 0);
+        assert_eq!(task.cron_expr, None);
+    }
+
+    #[test]
     fn should_run_when_hour_matches_and_never_run() {
         let task = CronTask {
             name: "test".to_string(),
             hour: 12,
             enabled: true,
             last_run: None,
+            ..Default::default()
         };
         let now = Utc::now().with_hour(12).unwrap();
         assert!(task.should_run(now));
@@ -299,6 +390,7 @@ mod tests {
             hour: 12,
             enabled: true,
             last_run: None,
+            ..Default::default()
         };
         let now = Utc::now().with_hour(15).unwrap();
         assert!(!task.should_run(now));
@@ -311,6 +403,7 @@ mod tests {
             hour: 12,
             enabled: false,
             last_run: None,
+            ..Default::default()
         };
         let now = Utc::now().with_hour(12).unwrap();
         assert!(!task.should_run(now));
@@ -324,6 +417,7 @@ mod tests {
             hour: 12,
             enabled: true,
             last_run: Some(now),
+            ..Default::default()
         };
         assert!(!task.should_run(now));
     }
@@ -340,6 +434,7 @@ mod tests {
             hour: 12,
             enabled: true,
             last_run: Some(yesterday),
+            ..Default::default()
         };
         let now = Utc::now().with_hour(12).unwrap();
         assert!(task.should_run(now));
