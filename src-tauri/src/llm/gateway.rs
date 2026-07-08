@@ -524,6 +524,16 @@ impl LlmGateway {
         &self.default_model
     }
 
+    /// T-E-L-03: Returns the active provider name configured for this gateway
+    /// (e.g. `"ollama"`, `"deepseek"`, `"anthropic"`, `"openai-compat"`).
+    ///
+    /// Used by `ReviewerAgent` (CheckerAgent) for model homogeneity detection
+    /// in the Maker-Checker pattern — when Maker and Checker share the same
+    /// provider+model, self-review is meaningless and autonomy is auto-downgraded.
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
+
     /// Sends a chat completion. Looks the response up in the prompt
     /// cache first; on miss, tries the local Ollama server and falls
     /// back to the remote endpoint on error.
