@@ -87,10 +87,12 @@ impl CronExpr {
     ///
     /// 这是 cron 的标准行为，确保 `"0 0 1 * 0"` 在每月 1 号**和**每周日都触发。
     pub fn matches(&self, dt: DateTime<Utc>) -> bool {
-        let min_match = self.minutes.contains(&(dt.minute() as u32));
-        let hour_match = self.hours.contains(&(dt.hour() as u32));
-        let dom_match = self.days_of_month.contains(&(dt.day() as u32));
-        let month_match = self.months.contains(&(dt.month() as u32));
+        // chrono 的 Timelike/Datelike minute()/hour()/day()/month() 已返回 u32,
+        // 无需 as u32 (clippy::unnecessary_cast)。
+        let min_match = self.minutes.contains(&dt.minute());
+        let hour_match = self.hours.contains(&dt.hour());
+        let dom_match = self.days_of_month.contains(&dt.day());
+        let month_match = self.months.contains(&dt.month());
         // chrono: Weekday::num_days_from_sunday() 返回 0=Sunday..=6=Saturday，与 cron 一致。
         let dow_match = self
             .days_of_week
