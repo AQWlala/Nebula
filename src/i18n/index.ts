@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0: lightweight i18n.
  *
  * Two-locale MVP (zh-CN, en-US).  Locale is read from
@@ -21,9 +21,12 @@ export type Locale = 'zh-CN' | 'en-US';
 
 export type Dict = typeof enUS;
 
+// T-D-F-05: 不再使用 `as unknown as Dict` 双重断言。
+// Dict 类型基于 en-US.json 推导,zh-CN.json 必须满足相同结构。
+// 若 zh-CN.json 缺少键,TypeScript 会在编译时报错(类型安全)。
 const DICTS: Record<Locale, Dict> = {
-  'en-US': enUS as Dict,
-  'zh-CN': zhCN as unknown as Dict,
+  'en-US': enUS,
+  'zh-CN': zhCN,
 };
 
 const STORAGE_KEY = 'nebula.locale';
