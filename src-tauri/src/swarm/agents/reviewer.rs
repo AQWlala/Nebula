@@ -2,8 +2,8 @@
 //!
 //! T-E-L-03: ReviewerAgent 升级为 CheckerAgent — 直接升级现有 reviewer.rs,
 //! 不新建 maker_checker.rs。新增能力(分 4 个 commit):
-//! - Commit 1: 模型同质检测(detect_model_homogeneity)
-//! - Commit 2: 对抗 prompt(adversarial_prompt)
+//! - Commit 1: 模型同质检测(detect_model_homogeneity) ✅
+//! - Commit 2: 对抗 prompt(adversarial_prompt) ✅
 //! - Commit 3: 独立 Context 通道(Checker 用独立 TeamContext + ShadowWorkspaceEngine worktree 隔离)
 //! - Commit 4: 自动降级 L4→L2(检测到模型同质时,enforce_homogeneity_policy 自动降级)
 //!
@@ -106,6 +106,50 @@ impl ReviewerAgent {
     /// 不需要调用方注入。
     pub fn checker_model(&self) -> ModelDescriptor {
         ModelDescriptor::new(self.llm.provider(), self.llm.default_model())
+    }
+
+    /// T-E-L-03: 生成对抗性审查 prompt。
+    ///
+    /// 与默认的「请审查以下工作」不同,对抗 prompt 显式要求 Checker
+    /// **假设 Maker 的输出存在致命缺陷**,并尽力找出。这能突破模型
+    /// 默认的「顺从/附和」倾向(sycophancy),迫使 Checker 主动寻找:
+    ///
+    /// - 隐藏的假设与边界条件
+    /// - 安全漏洞与权限提升路径
+    /// - 错误的推理链与逻辑谬误
+    /// - 性能瓶颈与资源泄漏
+    /// - 与既有代码/规范的冲突
+    ///
+    /// **设计依据**(7 专家评审):普通审查 prompt 容易让 Checker 沦为
+    /// 「橡皮图章」(rubber-stamp),尤其在 Maker 输出看起来合理时。
+    /// 对抗 prompt 把 Checker 的默认立场从「验证正确性」翻转为
+    /// 「证伪」(falsification),这是科学方法的核心 — 一个无法被证伪
+    /// 的方案才是稳妥的。
+    ///
+    /// **降级策略**:即使检测到模型同质(Commit 1),对抗 prompt 仍会
+    /// 发给 Checker — 同模型虽难以发现自己输出的盲点,但在对抗 prompt
+    /// 引导下仍可能发现部分问题(降级到 L2 后由人类最终裁决)。
+    ///
+    /// `work` 是 Maker 的输出文本(代码 / 文档 / 方案)。
+    /// 返回的字符串可直接作为 `ChatMessage::user()` 的内容。
+    pub fn adversarial_prompt(&self, work: &str) -> String {
+        format!(
+            "You are the Checker agent in a Maker-Checker pipeline.\n\
+             Your role is ADVERSARIAL review — assume the work below has FATAL flaws.\n\n\
+             Probe aggressively for:\n\
+             1. Hidden assumptions and unstated edge cases\n\
+             2. Security vulnerabilities and privilege escalation paths\n\
+             3. Logical fallacies and incorrect reasoning chains\n\
+             4. Performance bottlenecks and resource leaks\n\
+             5. Conflicts with existing code, specs, or conventions\n\
+             6. Missing error handling and recovery paths\n\
+             7. Test coverage gaps for failure modes\n\n\
+             --- WORK TO REVIEW ---\n{work}\n--- END WORK ---\n\n\
+             Falsify the work: try hard to break it. Only if you genuinely\n\
+             cannot find any flaw after thorough analysis, emit APPROVE.\n\
+             Otherwise emit REVISE (fixable) or REJECT (fundamentally broken).\n\
+             End your response with one of: APPROVE / REVISE / REJECT."
+        )
     }
 
     /// T-E-L-03: 检测 Maker 与 Checker 是否使用同一模型。
@@ -324,5 +368,106 @@ mod tests {
             .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
         assert!(agent.maker_model.is_some());
         assert!(agent.detect_model_homogeneity().is_some());
+    }
+
+    // ---- T-E-L-03 Commit 2: 对抗 prompt 测试 ----
+
+    #[test]
+    fn adversarial_prompt_includes_work_content() {
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("fn add(a, b) { a + b }");
+        assert!(
+            prompt.contains("fn add(a, b) { a + b }"),
+            "adversarial prompt must include the work content verbatim"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_instructs_adversarial_review() {
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("some work");
+        // 核心指令:假设有致命缺陷 + 对抗审查
+        assert!(
+            prompt.to_lowercase().contains("fatal"),
+            "prompt should assume FATAL flaws: {prompt}"
+        );
+        assert!(
+            prompt.to_lowercase().contains("adversarial"),
+            "prompt should mention ADVERSARIAL review: {prompt}"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_probes_specific_flaw_categories() {
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("work").to_lowercase();
+        // 7 个探测维度(至少检查关键的几个)
+        assert!(
+            prompt.contains("security"),
+            "should probe for security vulnerabilities"
+        );
+        assert!(prompt.contains("edge case"), "should probe for edge cases");
+        assert!(
+            prompt.contains("error handling"),
+            "should probe for missing error handling"
+        );
+        assert!(
+            prompt.contains("performance"),
+            "should probe for performance issues"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_ends_with_verdict_instruction() {
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("work");
+        // 必须以 APPROVE / REVISE / REJECT 三选一结尾(与原 system prompt 一致)
+        assert!(
+            prompt.contains("APPROVE"),
+            "prompt must mention APPROVE verdict"
+        );
+        assert!(
+            prompt.contains("REVISE"),
+            "prompt must mention REVISE verdict"
+        );
+        assert!(
+            prompt.contains("REJECT"),
+            "prompt must mention REJECT verdict"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_uses_falsification_language() {
+        // 对抗 prompt 的核心是「证伪」而非「验证」
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("work").to_lowercase();
+        assert!(
+            prompt.contains("falsif") || prompt.contains("break"),
+            "prompt should use falsification/break language: {prompt}"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_handles_empty_work() {
+        // 空工作内容不应 panic
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let prompt = agent.adversarial_prompt("");
+        assert!(
+            !prompt.is_empty(),
+            "prompt should not be empty even for empty work"
+        );
+        assert!(
+            prompt.contains("APPROVE"),
+            "verdict instruction must still be present"
+        );
+    }
+
+    #[test]
+    fn adversarial_prompt_is_deterministic() {
+        // 相同输入应产生相同输出(无随机性)
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let p1 = agent.adversarial_prompt("work X");
+        let p2 = agent.adversarial_prompt("work X");
+        assert_eq!(p1, p2, "adversarial_prompt must be deterministic");
     }
 }
