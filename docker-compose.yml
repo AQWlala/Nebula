@@ -12,9 +12,19 @@ services:
     environment:
       - NEBULA_GRPC=1
       - NEBULA_REST=1
+      # T-D-C-05: 容器内必须 bind 0.0.0.0,否则端口映射无法访问
+      - NEBULA_GRPC_ADDR=0.0.0.0:50051
+      - NEBULA_REST_ADDR=0.0.0.0:8080
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     restart: unless-stopped
+    # T-D-C-05: 覆盖 Dockerfile HEALTHCHECK（与 compose v2 兼容）
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
 volumes:
   nebula-data:
