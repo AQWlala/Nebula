@@ -8,8 +8,13 @@
 //! - `master_confirm(confirmation_id)` — 用户确认 L4 审批请求(防重放 + 5min 超时)。
 //! - `master_confirmation_status(confirmation_id)` — 查询 confirmation 状态(供 UI 显示倒计时)。
 //! - `master_pending_confirmations()` — 列出当前 pending 的审批请求(供 UI 渲染待确认列表)。
+//! - `loop_run(loop_md, workspace_id)` — 启动 Loop 执行模式(T-E-L-01)。
+//! - `loop_state(output_path)` — 生成 STATE.md 只读投影(T-E-L-01)。
+//! - `loop_templates_list()` — 列出 7 种 Loop 模板摘要(T-E-L-05)。
+//! - `loop_template_get(name)` — 按 name 获取完整 Loop 模板(T-E-L-05)。
 //!
 //! `master_confirm*` 命令始终可用(autonomy 模块无 feature gate)。
+//! `loop_*` 命令由 `master-orchestrator` feature 门控。
 
 use tauri::State;
 use tracing::instrument;
@@ -254,6 +259,155 @@ pub async fn loop_state(
     Ok(result.to_string_lossy().to_string())
 }
 
+// ---------------------------------------------------------------------------
+// T-E-L-05: Loop 模板库命令
+// ---------------------------------------------------------------------------
+
+/// Loop 模板摘要(列表项),供前端渲染模板卡片网格。
+///
+/// 来自 LOOP.md frontmatter,由 [`LoopDef::from_markdown`] 解析后提取。
+#[cfg(feature = "master-orchestrator")]
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LoopTemplateSummary {
+    /// Loop 名称(唯一标识,如 "ci-sweeper")。
+    pub name: String,
+    /// Loop 描述(人类可读)。
+    pub description: String,
+    /// 自主度等级 L0-L5。
+    pub autonomy: crate::swarm::loop_def::AutonomyLevel,
+    /// cron 表达式(如 "0 * * * *")或 "on-webhook"。
+    pub cadence: String,
+    /// 单次执行 Token 预算。
+    pub budget_tokens: u64,
+    /// 单次执行时间预算(分钟)。
+    pub budget_minutes: u32,
+}
+
+/// 完整 Loop 模板(含 LOOP.md 原文),供前端预览 + 传给 `loop_run`。
+#[cfg(feature = "master-orchestrator")]
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LoopTemplate {
+    /// 摘要部分(frontmatter 字段)。
+    #[serde(flatten)]
+    pub summary: LoopTemplateSummary,
+    /// LOOP.md 原文(YAML frontmatter + Markdown body),
+    /// 可直接传给 `loop_run` 命令执行。
+    pub content: String,
+}
+
+/// 内嵌的 7 种 Loop 模板(name, content)静态表。
+///
+/// 模板文件位于 `docs/skills/loop-engineering/templates/`,
+/// 通过 `include_str!` 在编译时内嵌到二进制中,
+/// 桌面应用无需携带 docs/ 目录。
+///
+/// 顺序固定,供 [`loop_templates_list`] 按稳定顺序返回。
+#[cfg(feature = "master-orchestrator")]
+static LOOP_TEMPLATES: &[(&str, &str)] = &[
+    (
+        "ci-sweeper",
+        include_str!("../../../docs/skills/loop-engineering/templates/ci-sweeper.md"),
+    ),
+    (
+        "pr-babysitter",
+        include_str!("../../../docs/skills/loop-engineering/templates/pr-babysitter.md"),
+    ),
+    (
+        "daily-triage",
+        include_str!("../../../docs/skills/loop-engineering/templates/daily-triage.md"),
+    ),
+    (
+        "code-review-loop",
+        include_str!("../../../docs/skills/loop-engineering/templates/code-review-loop.md"),
+    ),
+    (
+        "memory-consolidation",
+        include_str!("../../../docs/skills/loop-engineering/templates/memory-consolidation.md"),
+    ),
+    (
+        "skill-evolution",
+        include_str!("../../../docs/skills/loop-engineering/templates/skill-evolution.md"),
+    ),
+    (
+        "budget-guardian",
+        include_str!("../../../docs/skills/loop-engineering/templates/budget-guardian.md"),
+    ),
+];
+
+/// T-E-L-05: 列出所有 Loop 模板摘要。
+///
+/// 返回 7 种 Loop 模式的摘要列表(name / description / autonomy /
+/// cadence / budget),供前端 TemplatesDialog 的 automation 类别渲染卡片网格。
+///
+/// 模板在编译时内嵌(`include_str!`),无运行时文件 I/O。
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(fields(otel.kind = "loop_templates_list"))]
+pub async fn loop_templates_list() -> Result<Vec<LoopTemplateSummary>, CommandError> {
+    use crate::swarm::loop_def::LoopDef;
+
+    let mut summaries = Vec::with_capacity(LOOP_TEMPLATES.len());
+    for (name, content) in LOOP_TEMPLATES {
+        let def = LoopDef::from_markdown(content).map_err(|e| {
+            CommandError::internal(
+                "loop_templates_list",
+                &anyhow::anyhow!("内置模板 {name} 解析失败(编译时回归): {e}"),
+            )
+        })?;
+        summaries.push(LoopTemplateSummary {
+            name: def.name,
+            description: def.description,
+            autonomy: def.autonomy,
+            cadence: def.cadence,
+            budget_tokens: def.budget_tokens,
+            budget_minutes: def.budget_minutes,
+        });
+    }
+    Ok(summaries)
+}
+
+/// T-E-L-05: 按 name 获取完整 Loop 模板。
+///
+/// 返回 [`LoopTemplate`](含摘要 + LOOP.md 原文),前端可直接将
+/// `content` 传给 `loop_run` 命令启动 Loop。
+///
+/// `name` 不存在时返回 `None`(前端展示"模板不存在"提示)。
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(fields(otel.kind = "loop_template_get"))]
+pub async fn loop_template_get(name: String) -> Result<Option<LoopTemplate>, CommandError> {
+    use crate::swarm::loop_def::LoopDef;
+
+    let content = LOOP_TEMPLATES
+        .iter()
+        .find(|(n, _)| *n == name.as_str())
+        .map(|(_, c)| *c);
+    match content {
+        Some(md) => {
+            let def = LoopDef::from_markdown(md).map_err(|e| {
+                CommandError::internal(
+                    "loop_template_get",
+                    &anyhow::anyhow!("内置模板 {name} 解析失败(编译时回归): {e}"),
+                )
+            })?;
+            Ok(Some(LoopTemplate {
+                summary: LoopTemplateSummary {
+                    name: def.name,
+                    description: def.description,
+                    autonomy: def.autonomy,
+                    cadence: def.cadence,
+                    budget_tokens: def.budget_tokens,
+                    budget_minutes: def.budget_minutes,
+                },
+                content: md.to_string(),
+            }))
+        }
+        None => Ok(None),
+    }
+}
+
 /// M6 #82: 用户确认 L4 审批请求。
 ///
 /// 调用 `ConfirmationRegistry::mark_confirmed`:
@@ -289,4 +443,125 @@ pub async fn master_pending_confirmations(
     state: State<'_, AppState>,
 ) -> Result<Vec<PendingConfirmation>, CommandError> {
     Ok(state.confirmation_registry.all_pending())
+}
+
+// ---------------------------------------------------------------------------
+// T-E-L-05 Commit 2: Loop 模板库回归测试
+// ---------------------------------------------------------------------------
+
+/// `loop_templates_list` / `loop_template_get` 命令的核心不变式:
+/// 所有内嵌模板在编译时已固定(`include_str!`),运行时若任一模板
+/// 解析失败会返回 `CommandError::internal`。此测试模块在 CI 阶段
+/// 提前拦截模板格式回归(如 YAML 缩进 / 章节标题拼写错误)。
+#[cfg(all(test, feature = "master-orchestrator"))]
+mod loop_template_tests {
+    use super::*;
+    use crate::swarm::loop_def::{AutonomyLevel, LoopDef};
+
+    /// 内嵌模板数量必须正好是 7 种(对应 7 种 Loop 模式)。
+    /// 防止误删或误增模板。
+    #[test]
+    fn loop_templates_count_is_seven() {
+        assert_eq!(
+            LOOP_TEMPLATES.len(),
+            7,
+            "LOOP_TEMPLATES must contain exactly 7 templates (got {})",
+            LOOP_TEMPLATES.len()
+        );
+    }
+
+    /// 所有内嵌模板必须能被 `LoopDef::from_markdown` 成功解析。
+    /// 这是 `loop_templates_list` 命令的核心不变式 —— 任一解析失败
+    /// 会导致命令在运行时返回 InternalError。
+    #[test]
+    fn loop_templates_all_parse_successfully() {
+        for (name, content) in LOOP_TEMPLATES {
+            let def = LoopDef::from_markdown(content).unwrap_or_else(|e| {
+                panic!("内置模板 {name} 解析失败(模板格式回归): {e}")
+            });
+            // 解析出的 name 应与静态表的 key 一致
+            assert_eq!(
+                def.name, *name,
+                "模板 {name}: frontmatter.name 与 LOOP_TEMPLATES key 不一致"
+            );
+        }
+    }
+
+    /// 所有模板的 name 字段必须唯一(前端按 name 索引)。
+    #[test]
+    fn loop_templates_have_unique_names() {
+        let mut names: Vec<&str> = LOOP_TEMPLATES.iter().map(|(n, _)| *n).collect();
+        names.sort();
+        let duplicates: Vec<&str> = names
+            .windows(2)
+            .filter(|w| w[0] == w[1])
+            .map(|w| w[0])
+            .collect();
+        assert!(duplicates.is_empty(), "发现重复的模板 name: {duplicates:?}");
+    }
+
+    /// 所有模板必须包含非空的 description / cadence / intent,
+    /// 以及至少一条 Action(否则 Loop 无法执行)。
+    #[test]
+    fn loop_templates_have_non_empty_required_fields() {
+        for (name, content) in LOOP_TEMPLATES {
+            let def = LoopDef::from_markdown(content)
+                .unwrap_or_else(|e| panic!("模板 {name} 解析失败: {e}"));
+            assert!(
+                !def.description.is_empty(),
+                "模板 {name}: description 为空"
+            );
+            assert!(!def.cadence.is_empty(), "模板 {name}: cadence 为空");
+            assert!(!def.intent.is_empty(), "模板 {name}: intent 为空");
+            assert!(
+                !def.action.is_empty(),
+                "模板 {name}: action 为空(Loop 无法执行)"
+            );
+        }
+    }
+
+    /// 所有模板的 autonomy 必须在 L1-L5 范围内(L0 内联补全不适用于 Loop)。
+    #[test]
+    fn loop_templates_autonomy_in_valid_loop_range() {
+        for (name, content) in LOOP_TEMPLATES {
+            let def = LoopDef::from_markdown(content)
+                .unwrap_or_else(|e| panic!("模板 {name} 解析失败: {e}"));
+            assert!(
+                !matches!(def.autonomy, AutonomyLevel::L0),
+                "模板 {name}: autonomy=L0 不适用于 Loop(内联补全无需 Loop)"
+            );
+        }
+    }
+
+    /// `loop_template_get` 命令的查找逻辑 —— 存在的 name 应返回 Some,
+    /// 不存在的应返回 None(命令层映射为 Ok(None) 给前端)。
+    #[test]
+    fn loop_templates_lookup_by_name() {
+        let names: Vec<&str> = LOOP_TEMPLATES.iter().map(|(n, _)| *n).collect();
+        for name in &names {
+            let found = LOOP_TEMPLATES.iter().find(|(n, _)| n == name).map(|(_, c)| *c);
+            assert!(found.is_some(), "模板 {name} 应能被找到");
+        }
+        // 不存在的 name
+        let missing = LOOP_TEMPLATES
+            .iter()
+            .find(|(n, _)| *n == "non-existent-template")
+            .map(|(_, c)| *c);
+        assert!(missing.is_none(), "不存在的模板应返回 None");
+        // 确认所有期望的 7 个都在
+        for expected in [
+            "ci-sweeper",
+            "pr-babysitter",
+            "daily-triage",
+            "code-review-loop",
+            "memory-consolidation",
+            "skill-evolution",
+            "budget-guardian",
+        ] {
+            assert!(
+                names.contains(&expected),
+                "期望的模板 {expected} 不在 LOOP_TEMPLATES 中"
+            );
+        }
+    }
 }

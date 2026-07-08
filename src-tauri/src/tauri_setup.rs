@@ -460,6 +460,11 @@ pub fn run() {
             crate::commands::loop_run,
             #[cfg(feature = "master-orchestrator")]
             crate::commands::loop_state,
+            // T-E-L-05: Loop 模板库命令(编译时内嵌,无运行时文件 I/O)。
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_templates_list,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::loop_template_get,
             crate::commands::master_confirm,
             crate::commands::master_confirmation_status,
             crate::commands::master_pending_confirmations,
