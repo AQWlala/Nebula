@@ -25,7 +25,7 @@ pub async fn plan_pre_check(
     state: State<'_, AppState>,
     task: SwarmTask,
 ) -> Result<PreCheckResult, CommandError> {
-    Ok(state.swarm.pre_check(&task))
+    Ok(state.swarm.swarm.pre_check(&task))
 }
 
 /// 批准准奏请求。
@@ -35,7 +35,7 @@ pub async fn plan_approve_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.plan_engine().approve_confirmation(&request_id))
+    Ok(state.swarm.swarm.plan_engine().approve_confirmation(&request_id))
 }
 
 /// 拒绝准奏请求。
@@ -45,7 +45,7 @@ pub async fn plan_deny_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.plan_engine().deny_confirmation(&request_id))
+    Ok(state.swarm.swarm.plan_engine().deny_confirmation(&request_id))
 }
 
 /// 批准 Plan 请求。
@@ -55,7 +55,7 @@ pub async fn plan_approve_plan(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.plan_engine().approve_plan(&request_id))
+    Ok(state.swarm.swarm.plan_engine().approve_plan(&request_id))
 }
 
 /// 拒绝 Plan 请求。
@@ -65,7 +65,7 @@ pub async fn plan_reject_plan(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.plan_engine().reject_plan(&request_id))
+    Ok(state.swarm.swarm.plan_engine().reject_plan(&request_id))
 }
 
 /// 获取 Plan 请求详情（供前端展示方案步骤）。
@@ -75,7 +75,7 @@ pub async fn plan_get_plan(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<Option<PlanRequest>, CommandError> {
-    Ok(state.swarm.plan_engine().get_plan(&request_id))
+    Ok(state.swarm.swarm.plan_engine().get_plan(&request_id))
 }
 
 /// 获取准奏请求详情。
@@ -85,7 +85,7 @@ pub async fn plan_get_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<Option<ConfirmationRequest>, CommandError> {
-    Ok(state.swarm.plan_engine().get_confirmation(&request_id))
+    Ok(state.swarm.swarm.plan_engine().get_confirmation(&request_id))
 }
 
 /// 脱敏入口：在内容发送给 LLM 之前调用，返回脱敏后的内容。
@@ -95,5 +95,5 @@ pub async fn values_redact(
     state: State<'_, AppState>,
     content: String,
 ) -> Result<String, CommandError> {
-    Ok(state.swarm.values_layer().redact(&content))
+    Ok(state.swarm.swarm.values_layer().redact(&content))
 }

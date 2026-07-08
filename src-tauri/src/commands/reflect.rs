@@ -12,7 +12,7 @@ use crate::AppState;
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "reflect_now"))]
 pub async fn reflect_now(state: State<'_, AppState>) -> Result<Vec<Reflection>, CommandError> {
-    let engine = state.reflection.clone();
+    let engine = state.memory.reflection.clone();
     engine
         .reflect_now()
         .await
@@ -26,7 +26,7 @@ pub async fn list_reflections(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<Reflection>, CommandError> {
-    let engine = state.reflection.clone();
+    let engine = state.memory.reflection.clone();
     let lim = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || engine.list_recent(lim))
         .await
@@ -41,7 +41,7 @@ pub async fn get_reflection(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<Reflection>, CommandError> {
-    let engine = state.reflection.clone();
+    let engine = state.memory.reflection.clone();
     tokio::task::spawn_blocking(move || engine.get(&id))
         .await
         .map_err(|e| CommandError::internal("get_reflection", &anyhow::anyhow!("{e}")))?
@@ -56,7 +56,7 @@ pub async fn get_reflection(
 pub async fn self_reflect_now(
     state: State<'_, AppState>,
 ) -> Result<Vec<SelfReflection>, CommandError> {
-    let engine = state.self_reflection.clone();
+    let engine = state.memory.self_reflection.clone();
     engine
         .reflect_all()
         .await

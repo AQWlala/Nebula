@@ -82,3 +82,35 @@ pub use loop_def::{AutonomyLevel, LoopDef};
 // T-E-L-06: Loop 预算配置相关类型（loop-budget.md 解析）。
 #[cfg(feature = "master-orchestrator")]
 pub use loop_budget::{LoopBudgetConfig, LoopBudgetEntry};
+
+// T-D-C-08: master-orchestrator 运行时开关 (AtomicBool 模式,对齐 soul-system / evolution-engine)。
+// 默认关闭,启动时通过环境变量 MASTER_ORCHESTRATOR_ENABLED=1 开启,或通过 Tauri 命令运行时切换。
+pub static MASTER_ORCHESTRATOR_ENABLED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// 查询 MasterOrchestrator 是否启用。
+pub fn master_orchestrator_enabled() -> bool {
+    MASTER_ORCHESTRATOR_ENABLED.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// 设置 MasterOrchestrator 启用状态（Settings UI 调用）。
+pub fn set_master_orchestrator_enabled(on: bool) {
+    MASTER_ORCHESTRATOR_ENABLED.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// 启动时从环境变量 `MASTER_ORCHESTRATOR_ENABLED` 读取初始状态。
+///
+/// 应在 bootstrap 的 MasterOrchestrator 构造前调用一次。值为 `1` / `true` / `on` 时启用。
+pub fn init_master_orchestrator_from_env() {
+    let enabled = match std::env::var("MASTER_ORCHESTRATOR_ENABLED") {
+        Ok(v) => {
+            let lower = v.to_lowercase();
+            lower == "1" || lower == "true" || lower == "on"
+        }
+        Err(_) => false,
+    };
+    set_master_orchestrator_enabled(enabled);
+    if enabled {
+        tracing::info!(target: "nebula", "master-orchestrator enabled via env (T-D-C-08)");
+    }
+}

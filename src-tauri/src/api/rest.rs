@@ -67,7 +67,7 @@ impl RestApiServer {
         info!(target: "nebula.rest", addr = %self.addr, "REST API server starting");
         let state = self.state;
         let addr = self.addr;
-        let api_token = state.config.rest_api_token.clone();
+        let api_token = state.infra.config.rest_api_token.clone();
 
         let service = move |req: hyper::Request<hyper::body::Incoming>| {
             let state = state.clone();
@@ -93,12 +93,12 @@ impl RestApiServer {
                 let (status, resp_body) = match (method.as_str(), path.as_str()) {
                     ("GET", "/api/health") => (200, serde_json::json!({"status": "ok"})),
 
-                    ("GET", "/api/memories") => match state.sqlite.list_recent(50).await {
+                    ("GET", "/api/memories") => match state.memory.sqlite.list_recent(50).await {
                         Ok(memories) => (200, serde_json::json!({"memories": memories})),
                         Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                     },
 
-                    ("GET", "/api/skills") => match state.skills.list_skills(Default::default()) {
+                    ("GET", "/api/skills") => match state.swarm.skills.list_skills(Default::default()) {
                         Ok(skills) => (200, serde_json::json!({"skills": skills})),
                         Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                     },
@@ -133,7 +133,7 @@ impl RestApiServer {
                             .collect();
                         match chat_req.model.as_deref() {
                             Some(model) if !model.is_empty() => {
-                                match state.llm.chat_with_model(model, msgs).await {
+                                match state.llm.llm.chat_with_model(model, msgs).await {
                                     Ok(resp) => (
                                         200,
                                         serde_json::json!({
@@ -146,7 +146,7 @@ impl RestApiServer {
                                     Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                                 }
                             }
-                            _ => match state.llm.chat(msgs).await {
+                            _ => match state.llm.llm.chat(msgs).await {
                                 Ok(resp) => (
                                     200,
                                     serde_json::json!({
@@ -179,7 +179,7 @@ impl RestApiServer {
                                 ))
                             }
                         };
-                        match state.swarm.execute(task).await {
+                        match state.swarm.swarm.execute(task).await {
                             Ok(report) => (
                                 200,
                                 serde_json::json!({
@@ -214,8 +214,7 @@ impl RestApiServer {
                             }
                         };
                         let k = search_req.k.unwrap_or(10);
-                        match state
-                            .sponge
+                        match state.memory.sponge
                             .search_with_graph(&search_req.query, k, None)
                             .await
                         {

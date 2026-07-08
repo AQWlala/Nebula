@@ -302,7 +302,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn get(&self, req: GetMemoryRequest) -> Result<Memory, GrpcError> {
-        let sqlite = self.state.sqlite.clone();
+        let sqlite = self.state.memory.sqlite.clone();
         let id = req.id;
         let m = tokio::task::spawn(async move { sqlite.get(&id).await })
             .await
@@ -344,7 +344,7 @@ impl NebulaService for NebulaServiceImpl {
         } else {
             req.limit as usize
         };
-        let sqlite = self.state.sqlite.clone();
+        let sqlite = self.state.memory.sqlite.clone();
         let mems = tokio::task::spawn(async move { sqlite.list_recent(limit).await })
             .await
             .map_err(|e| GrpcError::internal(e.to_string()))?
@@ -355,7 +355,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn update_importance(&self, req: UpdateImportanceRequest) -> Result<Memory, GrpcError> {
-        let sqlite = self.state.sqlite.clone();
+        let sqlite = self.state.memory.sqlite.clone();
         let id = req.id.clone();
         let importance = req.importance.clamp(0.0, 1.0);
         let m = tokio::task::spawn(async move { sqlite.update_importance(&id, importance).await })
@@ -366,8 +366,8 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn delete(&self, req: DeleteRequest) -> Result<DeleteResponse, GrpcError> {
-        let sqlite = self.state.sqlite.clone();
-        let lance = self.state.lance.clone();
+        let sqlite = self.state.memory.sqlite.clone();
+        let lance = self.state.memory.lance.clone();
         let id = req.id.clone();
         let deleted = tokio::task::spawn(async move { sqlite.delete(&id).await })
             .await
@@ -382,7 +382,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn get_many(&self, req: GetManyRequest) -> Result<GetManyResponse, GrpcError> {
-        let sqlite = self.state.sqlite.clone();
+        let sqlite = self.state.memory.sqlite.clone();
         let ids = req.ids;
         let mems = tokio::task::spawn(async move { sqlite.get_many(&ids).await })
             .await
@@ -394,7 +394,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn get_stats(&self, _req: StatsRequest) -> Result<StatsResponse, GrpcError> {
-        let sqlite = self.state.sqlite.clone();
+        let sqlite = self.state.memory.sqlite.clone();
         let rows = tokio::task::spawn(async move { sqlite.counts_per_layer().await })
             .await
             .map_err(|e| GrpcError::internal(e.to_string()))?
@@ -477,7 +477,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn list_agents(&self, _req: ListAgentsRequest) -> Result<ListAgentsResponse, GrpcError> {
-        let agents = self.state.swarm.list_agents();
+        let agents = self.state.swarm.swarm.list_agents();
         Ok(ListAgentsResponse {
             agents: agents
                 .into_iter()
@@ -496,6 +496,7 @@ impl NebulaService for NebulaServiceImpl {
         let agent = self
             .state
             .swarm
+            .swarm
             .get_agent(&kind_str)
             .ok_or_else(|| GrpcError::not_found(format!("agent {kind_str}")))?;
         Ok(Agent {
@@ -510,7 +511,7 @@ impl NebulaService for NebulaServiceImpl {
         &self,
         _req: StreamEventsRequest,
     ) -> Pin<Box<dyn Stream<Item = Result<SwarmEvent, GrpcError>> + Send>> {
-        let bus = self.state.swarm.bus();
+        let bus = self.state.swarm.swarm.bus();
         let mut rx = bus.subscribe();
 
         let stream = async_stream::stream! {
@@ -546,7 +547,7 @@ impl NebulaService for NebulaServiceImpl {
     // ---- Reflect --------------------------------------------------------
 
     async fn reflect_now(&self, _req: ReflectRequest) -> Result<ReflectResponse, GrpcError> {
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let rows = engine
             .reflect_now()
             .await
@@ -565,7 +566,7 @@ impl NebulaService for NebulaServiceImpl {
         } else {
             req.limit as usize
         };
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let rows = tokio::task::spawn_blocking(move || engine.list_recent(limit))
             .await
             .map_err(|e| GrpcError::internal(e.to_string()))?
@@ -576,7 +577,7 @@ impl NebulaService for NebulaServiceImpl {
     }
 
     async fn get_reflection(&self, req: GetReflectionRequest) -> Result<Reflection, GrpcError> {
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let id = req.id;
         let r = tokio::task::spawn_blocking(move || engine.get(&id))
             .await
@@ -596,7 +597,7 @@ impl NebulaService for NebulaServiceImpl {
             .map_err(|e| GrpcError::internal(e.to_string()))?;
         Ok(CompleteResponse {
             text,
-            model: self.state.config.chat_model.clone(),
+            model: self.state.infra.config.chat_model.clone(),
             eval_count: 0,
             total_duration_ns: 0,
         })
@@ -618,9 +619,9 @@ impl NebulaService for NebulaServiceImpl {
             Some(req.model)
         };
         let resp = if let Some(ref m) = model {
-            self.state.llm.chat_with_model(m, msgs).await
+            self.state.llm.llm.chat_with_model(m, msgs).await
         } else {
-            self.state.llm.chat(msgs).await
+            self.state.llm.llm.chat(msgs).await
         }
         .map_err(|e| GrpcError::internal(e.to_string()))?;
         Ok(ChatResponse {
@@ -637,6 +638,7 @@ impl NebulaService for NebulaServiceImpl {
     async fn embed(&self, req: EmbedRequest) -> Result<EmbedResponse, GrpcError> {
         let v = self
             .state
+            .memory
             .embedder
             .embed(&req.text)
             .await
@@ -650,6 +652,7 @@ impl NebulaService for NebulaServiceImpl {
     async fn skill_create(&self, req: CreateSkillRequest) -> Result<Skill, GrpcError> {
         let r = self
             .state
+            .swarm
             .skills
             .create_skill(skill_types::CreateSkillRequest {
                 name: req.name,
@@ -671,6 +674,7 @@ impl NebulaService for NebulaServiceImpl {
     async fn skill_use(&self, req: UseSkillRequest) -> Result<UseSkillResponse, GrpcError> {
         let r = self
             .state
+            .swarm
             .skills
             .use_skill(skill_types::UseSkillRequest {
                 id: req.id,
@@ -691,6 +695,7 @@ impl NebulaService for NebulaServiceImpl {
     async fn skill_rate(&self, req: RateSkillRequest) -> Result<Skill, GrpcError> {
         let r = self
             .state
+            .swarm
             .skills
             .rate_skill(skill_types::RateSkillRequest {
                 id: req.id,
@@ -703,6 +708,7 @@ impl NebulaService for NebulaServiceImpl {
     async fn skill_list(&self, req: ListSkillsRequest) -> Result<ListSkillsResponse, GrpcError> {
         let r = self
             .state
+            .swarm
             .skills
             .list_skills(skill_types::ListSkillsRequest {
                 language: if req.language.is_empty() {
@@ -730,6 +736,7 @@ impl NebulaService for NebulaServiceImpl {
     ) -> Result<SearchSkillsResponse, GrpcError> {
         let r = self
             .state
+            .swarm
             .skills
             .search_skills(skill_types::SkillSearchRequest {
                 query: req.query,

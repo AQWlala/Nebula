@@ -1,4 +1,4 @@
-﻿//! T-E-S-39: SOUL.md / AGENTS.md / TOOLS.md persona commands.
+//! T-E-S-39: SOUL.md / AGENTS.md / TOOLS.md persona commands.
 //!
 //! Three Tauri commands for hot-reloading / reading / setting the persona
 //! configuration that prefixes the LLM system prompt.
@@ -22,12 +22,12 @@ use crate::AppState;
 pub async fn persona_reload(
     state: State<'_, AppState>,
 ) -> Result<crate::llm::persona::PersonaConfig, CommandError> {
-    let ws_root = state.editor.workspace_root().to_path_buf();
+    let ws_root = state.platform.editor.workspace_root().to_path_buf();
     let new_config = crate::llm::persona::PersonaConfig::load(&ws_root)
         .await
         .map_err(|e| CommandError::internal("persona_reload", &e))?;
     // 热更新:替换整个 PersonaConfig。
-    match state.config.persona.as_ref() {
+    match state.infra.config.persona.as_ref() {
         Some(pc) => {
             *pc.write() = new_config.clone();
         }
@@ -41,8 +41,8 @@ pub async fn persona_reload(
         }
     }
     // 同步推送到 swarm。
-    if let Some(pc) = state.config.persona.as_ref() {
-        state.swarm.set_persona(pc.clone());
+    if let Some(pc) = state.infra.config.persona.as_ref() {
+        state.swarm.swarm.set_persona(pc.clone());
     }
     Ok(new_config)
 }
@@ -54,7 +54,7 @@ pub async fn persona_get(
     state: State<'_, AppState>,
 ) -> Result<crate::llm::persona::PersonaConfig, CommandError> {
     Ok(state
-        .config
+        .infra.config
         .persona
         .as_ref()
         .map(|pc| pc.read().clone())
@@ -77,7 +77,7 @@ pub async fn persona_set_file(
     // 且 Arc 不允许 get_mut(除非是唯一的 Arc),我们无法在 None 时
     // 原地创建。采用策略:读取当前值(或默认),修改后通过 swarm 传播。
     let mut snapshot = state
-        .config
+        .infra.config
         .persona
         .as_ref()
         .map(|pc| pc.read().clone())
@@ -96,7 +96,7 @@ pub async fn persona_set_file(
     }
 
     // 写回缓存(若已存在)。
-    if let Some(pc) = state.config.persona.as_ref() {
+    if let Some(pc) = state.infra.config.persona.as_ref() {
         *pc.write() = snapshot.clone();
     } else {
         tracing::warn!(
@@ -106,8 +106,8 @@ pub async fn persona_set_file(
     }
 
     // 同步推送到 swarm。
-    if let Some(pc) = state.config.persona.as_ref() {
-        state.swarm.set_persona(pc.clone());
+    if let Some(pc) = state.infra.config.persona.as_ref() {
+        state.swarm.swarm.set_persona(pc.clone());
     }
 
     Ok(snapshot)

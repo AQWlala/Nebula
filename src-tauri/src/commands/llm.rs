@@ -42,9 +42,9 @@ pub async fn llm_chat(
         })
         .collect();
     let resp = if model_ref.is_empty() {
-        state.llm.chat(msgs).await
+        state.llm.llm.chat(msgs).await
     } else {
-        state.llm.chat_with_model(model_ref, msgs).await
+        state.llm.llm.chat_with_model(model_ref, msgs).await
     }
     .map_err(|e| CommandError::llm("llm_chat", &e))?;
     Ok(LlmChatDto {
@@ -70,7 +70,7 @@ pub struct LlmChatDto {
 #[instrument(skip(state, text), fields(otel.kind = "llm_embed"))]
 pub async fn llm_embed(state: State<'_, AppState>, text: String) -> Result<Vec<f32>, CommandError> {
     state
-        .embedder
+        .memory.embedder
         .embed(&text)
         .await
         .map_err(|e| CommandError::llm("llm_embed", &e))
@@ -111,7 +111,7 @@ pub async fn describe_screenshot(
     };
     state
         .llm
-        .describe_image(&state.config.vision_model, msg)
+        .llm.describe_image(&state.infra.config.vision_model, msg)
         .await
         .map_err(|e| CommandError::llm("describe_screenshot", &e))
 }

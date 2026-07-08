@@ -78,8 +78,8 @@ pub async fn backup_restore(app: tauri::AppHandle, date: String) -> Result<(), S
 fn resolve_db_paths(app: &tauri::AppHandle) -> Result<(PathBuf, PathBuf), String> {
     // 方案 A:从 AppState 获取实际路径
     if let Some(state) = app.try_state::<crate::AppState>() {
-        let db_path = PathBuf::from(&state.config.db_path);
-        let lance_dir = PathBuf::from(&state.config.lance_path);
+        let db_path = PathBuf::from(&state.infra.config.db_path);
+        let lance_dir = PathBuf::from(&state.infra.config.lance_path);
         return Ok((db_path, lance_dir));
     }
 

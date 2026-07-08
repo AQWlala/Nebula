@@ -49,13 +49,13 @@ pub async fn sidecar_list_status(
 ) -> Result<Vec<SidecarStatusInfo>, CommandError> {
     let mut result = Vec::new();
     for kind in SidecarKind::all() {
-        let status = state.sidecar_manager.status(kind);
+        let status = state.platform.sidecar_manager.status(kind);
         let pid = state
-            .sidecar_manager
+            .platform.sidecar_manager
             .listen_addr(kind)
             .map(|_| None)
             .unwrap_or(None); // 简化：进程内模式不暴露 pid
-        let addr = state.sidecar_manager.listen_addr(kind);
+        let addr = state.platform.sidecar_manager.listen_addr(kind);
         result.push(SidecarStatusInfo::from((kind, status, pid, addr)));
     }
     Ok(result)
@@ -67,7 +67,7 @@ pub async fn sidecar_list_status(
 pub async fn sidecar_start(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
-        .sidecar_manager
+        .platform.sidecar_manager
         .start(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_start", &anyhow::anyhow!("{}", e)))?;
@@ -80,7 +80,7 @@ pub async fn sidecar_start(state: State<'_, AppState>, kind: String) -> Result<b
 pub async fn sidecar_stop(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
-        .sidecar_manager
+        .platform.sidecar_manager
         .stop(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_stop", &anyhow::anyhow!("{}", e)))?;
@@ -95,9 +95,9 @@ pub async fn sidecar_restart(
     kind: String,
 ) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
-    let _ = state.sidecar_manager.stop(sidecar_kind).await;
+    let _ = state.platform.sidecar_manager.stop(sidecar_kind).await;
     state
-        .sidecar_manager
+        .platform.sidecar_manager
         .start(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_restart", &anyhow::anyhow!("{}", e)))?;

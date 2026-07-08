@@ -42,7 +42,7 @@ pub async fn trigger_create(
     }
     let id = config.id.clone();
     state
-        .trigger_engine
+        .swarm.trigger_engine
         .create(config)
         .map_err(|e| CommandError::internal("trigger_create", &e))?;
     Ok(id)
@@ -53,7 +53,7 @@ pub async fn trigger_create(
 #[instrument(skip(state), fields(otel.kind = "trigger_list"))]
 pub async fn trigger_list(state: State<'_, AppState>) -> Result<Vec<TriggerConfig>, CommandError> {
     state
-        .trigger_engine
+        .swarm.trigger_engine
         .list()
         .map_err(|e| CommandError::internal("trigger_list", &e))
 }
@@ -63,7 +63,7 @@ pub async fn trigger_list(state: State<'_, AppState>) -> Result<Vec<TriggerConfi
 #[instrument(skip(state), fields(otel.kind = "trigger_delete"))]
 pub async fn trigger_delete(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     state
-        .trigger_engine
+        .swarm.trigger_engine
         .delete(&id)
         .map_err(|e| CommandError::internal("trigger_delete", &e))
 }
@@ -77,7 +77,7 @@ pub async fn trigger_enable(
     enabled: bool,
 ) -> Result<(), CommandError> {
     state
-        .trigger_engine
+        .swarm.trigger_engine
         .set_enabled(&id, enabled)
         .map_err(|e| CommandError::internal("trigger_enable", &e))
 }
@@ -90,7 +90,7 @@ pub async fn trigger_fire_log(
     id: String,
 ) -> Result<Vec<FireLogRow>, CommandError> {
     state
-        .trigger_engine
+        .swarm.trigger_engine
         .fire_log(&id)
         .map_err(|e| CommandError::internal("trigger_fire_log", &e))
 }

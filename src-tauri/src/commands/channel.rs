@@ -10,7 +10,7 @@ use crate::AppState;
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "channel_status"))]
 pub async fn channel_status(state: State<'_, AppState>) -> Result<serde_json::Value, CommandError> {
-    match &state.message_bridge {
+    match &state.channels.message_bridge {
         Some(bridge) => Ok(serde_json::json!({
             "connected": bridge.status().connected,
             "endpoint_url": bridge.status().endpoint_url,
@@ -29,7 +29,7 @@ pub async fn channel_send(
     target: String,
     text: String,
 ) -> Result<bool, CommandError> {
-    match &state.message_bridge {
+    match &state.channels.message_bridge {
         Some(bridge) => {
             let req = crate::channel::types::ChannelSendRequest {
                 session_id: target.clone(),
@@ -56,7 +56,7 @@ pub async fn channel_send(
 pub async fn channel_poll(
     state: State<'_, AppState>,
 ) -> Result<Vec<serde_json::Value>, CommandError> {
-    match &state.message_bridge {
+    match &state.channels.message_bridge {
         Some(bridge) => Ok(bridge
             .poll()
             .await
@@ -71,7 +71,7 @@ pub async fn channel_poll(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "channel_ping"))]
 pub async fn channel_ping(state: State<'_, AppState>) -> Result<bool, CommandError> {
-    match &state.message_bridge {
+    match &state.channels.message_bridge {
         Some(bridge) => Ok(bridge.ping().await),
         None => Ok(false),
     }
@@ -85,7 +85,7 @@ pub async fn channel_list_adapters(
 ) -> Result<Vec<serde_json::Value>, CommandError> {
     #[cfg(feature = "channels")]
     {
-        let channels = state.channel_router.list_channels();
+        let channels = state.channels.channel_router.list_channels();
         Ok(channels
             .iter()
             .map(|(kind, status)| {
@@ -127,6 +127,7 @@ pub async fn channel_send_native(
             }
         };
         state
+            .channels
             .channel_router
             .send(&kind, &message, reply_to.as_deref())
             .await
@@ -150,6 +151,7 @@ pub async fn channel_start_all(state: State<'_, AppState>) -> Result<bool, Comma
     #[cfg(feature = "channels")]
     {
         state
+            .channels
             .channel_router
             .start_all()
             .await

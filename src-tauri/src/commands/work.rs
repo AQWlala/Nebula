@@ -22,7 +22,7 @@ pub async fn work_create_task(
     state: State<'_, AppState>,
     request: CreateTaskRequest,
 ) -> Result<WorkTask, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .create_task(
@@ -43,7 +43,7 @@ pub async fn work_get_task(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<WorkTask>, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .get_task(&id)
@@ -60,7 +60,7 @@ pub async fn work_list_tasks(
     status: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<WorkTask>, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     let parsed = status
         .map(|s| TaskStatus::from_str(&s))
         .transpose()
@@ -83,7 +83,7 @@ pub async fn work_set_status(
 ) -> Result<WorkTask, CommandError> {
     let parsed = TaskStatus::from_str(&status)
         .map_err(|e| CommandError::validation("work_set_status").with_details(e.to_string()))?;
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .set_status(&id, parsed)
@@ -109,7 +109,7 @@ pub async fn work_update_task(
     state: State<'_, AppState>,
     request: UpdateTaskRequest,
 ) -> Result<WorkTask, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .update_task(
@@ -131,7 +131,7 @@ pub async fn work_delete_task(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<bool, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .delete_task(&id)
@@ -173,7 +173,7 @@ pub async fn work_start_timer(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<WorkTask, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .start_timer(&id)
@@ -186,7 +186,7 @@ pub async fn work_start_timer(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "work_stop_timer"))]
 pub async fn work_stop_timer(state: State<'_, AppState>) -> Result<Option<WorkTask>, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .stop_timer()
@@ -203,7 +203,7 @@ pub async fn work_add_time(
     id: String,
     elapsed_ms: i64,
 ) -> Result<WorkTask, CommandError> {
-    let engine = state.work.clone();
+    let engine = state.platform.work.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .add_time(&id, elapsed_ms)
@@ -216,5 +216,5 @@ pub async fn work_add_time(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "work_active_timer"))]
 pub async fn work_active_timer(state: State<'_, AppState>) -> Result<Option<String>, CommandError> {
-    Ok(state.work.active_timer())
+    Ok(state.platform.work.active_timer())
 }

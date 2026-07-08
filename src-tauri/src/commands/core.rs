@@ -35,7 +35,7 @@ pub async fn health() -> Result<HealthDto, CommandError> {
 #[tauri::command]
 pub async fn health_full(state: State<'_, AppState>) -> Result<HealthDto, CommandError> {
     let ollama_status = {
-        let client = state.llm.ollama_client();
+        let client = state.llm.llm.ollama_client();
         match tokio::time::timeout(std::time::Duration::from_secs(2), client.ping()).await {
             Ok(true) => "ok".to_string(),
             Ok(false) => "down".to_string(),
@@ -74,7 +74,7 @@ pub async fn doctor_run(state: State<'_, AppState>) -> Result<DoctorReport, Comm
 pub async fn startup_report(
     state: State<'_, AppState>,
 ) -> Result<crate::perf::StartupReport, CommandError> {
-    Ok(state.startup_timer.report())
+    Ok(state.infra.startup_timer.report())
 }
 
 /// v1.0: live process sample.  Returns an empty struct when the
@@ -86,7 +86,7 @@ pub async fn startup_report(
 pub async fn perf_sample(
     state: State<'_, AppState>,
 ) -> Result<crate::perf::monitor::PerfSample, CommandError> {
-    Ok(state.perf_monitor.latest())
+    Ok(state.infra.perf_monitor.latest())
 }
 
 /// v0.2: Tauri command — snapshot the process-wide metrics.
@@ -111,7 +111,7 @@ pub async fn metrics_ttft(state: State<'_, AppState>) -> Result<TtftStats, Comma
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "migration_status"))]
 pub async fn migration_status(state: State<'_, AppState>) -> Result<MigrationStatus, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     tokio::task::spawn_blocking(move || {
         let conn = sqlite.raw_connection();
         let conn = conn.lock();
@@ -212,7 +212,7 @@ pub async fn save_app_settings(
     // can be a hot update.
     if let Some(ref extras) = settings.extra_shell_bins {
         for b in extras {
-            if !state.shell.is_allowed(b) {
+            if !state.platform.shell.is_allowed(b) {
                 tracing::warn!(
                     target: "nebula.cmd",
                     bin = %b,
@@ -225,7 +225,7 @@ pub async fn save_app_settings(
 
     // T-E-A-05: 热更新日预算到 LlmGateway(无需重启)。
     if let Some(budget) = &settings.daily_budget_usd {
-        state.llm.set_daily_budget(*budget);
+        state.llm.llm.set_daily_budget(*budget);
     }
 
     // T-E-B-09: 热更新文件夹监控路径。
@@ -237,15 +237,15 @@ pub async fn save_app_settings(
     if let Some(watch_paths) = &settings.watch_paths {
         let path_bufs: Vec<std::path::PathBuf> =
             watch_paths.iter().map(std::path::PathBuf::from).collect();
-        let needs_start = state.file_watcher_worker.lock().is_none();
+        let needs_start = state.memory.file_watcher_worker.lock().is_none();
         if needs_start && !path_bufs.is_empty() {
             // engine 尚未启动:先 start 再 spawn_worker。
-            state.file_watcher.start(path_bufs);
-            if let Some(handle) = state.file_watcher.clone().spawn_worker() {
-                *state.file_watcher_worker.lock() = Some(handle);
+            state.memory.file_watcher.start(path_bufs);
+            if let Some(handle) = state.memory.file_watcher.clone().spawn_worker() {
+                *state.memory.file_watcher_worker.lock() = Some(handle);
             }
         } else {
-            state.file_watcher.reload_paths(path_bufs);
+            state.memory.file_watcher.reload_paths(path_bufs);
         }
     }
 

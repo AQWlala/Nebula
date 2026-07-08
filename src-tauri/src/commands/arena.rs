@@ -1,6 +1,6 @@
 //! T-E-A-14: Arena A/B 测试 Tauri 命令。
 //!
-//! 3 个命令,均通过 `state.arena`(`Arc<ArenaLeaderboard>`)调用:
+//! 3 个命令,均通过 `state.llm.arena`(`Arc<ArenaLeaderboard>`)调用:
 //! * `arena_create_match(prompt, model_a, model_b) -> String` — 创建对战,返回 match_id;
 //! * `arena_vote(match_id, winner) -> ()` — 人工投票覆盖 winner;
 //! * `arena_leaderboard() -> Vec<(String, f32)>` — 按 ELO 降序返回排行榜。
@@ -29,7 +29,7 @@ pub async fn arena_create_match(
     model_b: String,
 ) -> Result<String, CommandError> {
     state
-        .arena
+        .llm.arena
         .create_match(prompt, model_a, model_b)
         .await
         .map_err(|e| CommandError::internal("arena_create_match", &e))
@@ -47,7 +47,7 @@ pub async fn arena_vote(
     winner: String,
 ) -> Result<(), CommandError> {
     state
-        .arena
+        .llm.arena
         .vote(&match_id, winner)
         .await
         .map_err(|e| CommandError::internal("arena_vote", &e))
@@ -61,5 +61,5 @@ pub async fn arena_vote(
 pub async fn arena_leaderboard(
     state: State<'_, AppState>,
 ) -> Result<Vec<(String, f32)>, CommandError> {
-    Ok(state.arena.leaderboard().await)
+    Ok(state.llm.arena.leaderboard().await)
 }

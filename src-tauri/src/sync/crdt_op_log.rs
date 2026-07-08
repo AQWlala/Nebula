@@ -245,7 +245,7 @@ use crate::AppState;
 #[tauri::command]
 #[allow(dead_code)]
 pub async fn crdt_op_stats(state: tauri::State<'_, AppState>) -> Result<CrdtOpStats, CommandError> {
-    let conn = state.sqlite.raw_connection();
+    let conn = state.memory.sqlite.raw_connection();
     tokio::task::spawn_blocking(move || {
         let log = CrdtOpLog::new(conn, String::new());
         log.stats()
@@ -263,7 +263,7 @@ pub async fn crdt_op_pending(
     state: tauri::State<'_, AppState>,
     limit: usize,
 ) -> Result<Vec<CrdtOpLogEntry>, CommandError> {
-    let conn = state.sqlite.raw_connection();
+    let conn = state.memory.sqlite.raw_connection();
     tokio::task::spawn_blocking(move || {
         let log = CrdtOpLog::new(conn, String::new());
         log.fetch_pending_ops(limit)

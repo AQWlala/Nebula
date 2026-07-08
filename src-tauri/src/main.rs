@@ -37,9 +37,9 @@ fn main() {
 
         // 启动 gRPC server
         #[cfg(feature = "grpc")]
-        if state.config.grpc_enabled {
+        if state.infra.config.grpc_enabled {
             match nebula_lib::grpc::start_server(
-                state.config.grpc_bind_addr.clone(),
+                state.infra.config.grpc_bind_addr.clone(),
                 state.clone(),
             )
             .await
@@ -47,10 +47,10 @@ fn main() {
                 Ok(handle) => {
                     tracing::info!(
                         target: "nebula",
-                        addr = %state.config.grpc_bind_addr,
+                        addr = %state.infra.config.grpc_bind_addr,
                         "gRPC server started (headless)"
                     );
-                    *state.grpc_server.lock() = Some(handle);
+                    *state.platform.grpc_server.lock() = Some(handle);
                 }
                 Err(e) => {
                     tracing::error!(
@@ -64,13 +64,13 @@ fn main() {
 
         // 启动 REST server
         #[cfg(feature = "rest-api")]
-        if state.config.rest_enabled {
-            let addr: std::net::SocketAddr = match state.config.rest_bind_addr.parse() {
+        if state.infra.config.rest_enabled {
+            let addr: std::net::SocketAddr = match state.infra.config.rest_bind_addr.parse() {
                 Ok(a) => a,
                 Err(e) => {
                     tracing::error!(
                         target: "nebula",
-                        addr = %state.config.rest_bind_addr,
+                        addr = %state.infra.config.rest_bind_addr,
                         error = %e,
                         "invalid rest_bind_addr, aborting REST server startup"
                     );

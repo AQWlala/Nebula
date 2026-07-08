@@ -430,7 +430,7 @@ impl CronScheduler {
             target: "nebula.cron",
             "evolution-self-check: 4-phase evolution run (delegated to EvolutionEngine)"
         );
-        // TODO: 当 AppState 注入 EvolutionEngine 后,通过 state.evolution_engine.run() 触发。
+        // TODO: 当 AppState 注入 EvolutionEngine 后,通过 state.swarm.evolution_engine.run() 触发。
         // 目前只记录日志,实际的引擎调用通过 evolution_run Tauri 命令手动触发。
         Ok(())
     }

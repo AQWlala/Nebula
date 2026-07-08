@@ -54,7 +54,7 @@ pub async fn swarm_execute(
 pub async fn swarm_list_agents(
     state: State<'_, AppState>,
 ) -> Result<Vec<(String, String, String, String)>, CommandError> {
-    Ok(state.swarm.list_agents())
+    Ok(state.swarm.swarm.list_agents())
 }
 
 /// v0.3: fetch a single swarm agent by kind.
@@ -64,7 +64,7 @@ pub async fn swarm_get_agent(
     state: State<'_, AppState>,
     kind: String,
 ) -> Result<Option<SwarmAgentInfo>, CommandError> {
-    Ok(state.swarm.get_agent(&kind).map(|a| SwarmAgentInfo {
+    Ok(state.swarm.swarm.get_agent(&kind).map(|a| SwarmAgentInfo {
         name: a.name,
         system_prompt: a.system_prompt,
         description: a.description,
@@ -95,7 +95,7 @@ pub async fn subscribe_events(
     state: State<'_, AppState>,
     on_event: tauri::ipc::Channel<crate::swarm::EventEnvelope<serde_json::Value>>,
 ) -> Result<(), CommandError> {
-    let mut rx = state.event_bus.subscribe();
+    let mut rx = state.swarm.event_bus.subscribe();
     loop {
         match rx.recv().await {
             Ok(envelope) => {
@@ -137,7 +137,7 @@ pub async fn swarm_cancel(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<bool, CommandError> {
-    let cancelled = state.swarm.cancel(&task_id);
+    let cancelled = state.swarm.swarm.cancel(&task_id);
     if cancelled {
         tracing::info!(
             target: "nebula.cmd",
@@ -158,7 +158,7 @@ pub async fn swarm_cancel(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "deadlock_status"))]
 pub async fn deadlock_status(state: State<'_, AppState>) -> Result<DeadlockStatus, CommandError> {
-    Ok(state.deadlock_detector.status())
+    Ok(state.swarm.deadlock_detector.status())
 }
 
 /// T-E-S-04: MoA(Mixture of Agents)执行命令。
@@ -196,7 +196,7 @@ pub async fn moa_execute(
     }
     let negotiator = crate::swarm::Negotiator::new();
     negotiator
-        .negotiate_moa(&prompt, &config, &state.llm)
+        .negotiate_moa(&prompt, &config, &state.llm.llm)
         .await
         .map_err(|e| CommandError::swarm("moa_execute", &e))
 }

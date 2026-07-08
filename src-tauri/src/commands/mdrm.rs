@@ -52,7 +52,7 @@ impl MdrmQueryParams {
 
 /// 从 AppState 的 sqlite store 构造 MdrmEngine。
 fn build_engine(state: &State<'_, AppState>) -> MdrmEngine {
-    MdrmEngine::new((*state.sqlite).clone())
+    MdrmEngine::new((*state.memory.sqlite).clone())
 }
 
 /// 时序维度:沿 `Before` 边追溯时间链。

@@ -82,6 +82,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         let req = request.into_inner();
         let m = self
             .state
+            .memory
             .sqlite
             .get(&req.id)
             .await
@@ -132,6 +133,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         };
         let mems = self
             .state
+            .memory
             .sqlite
             .list_recent(limit)
             .await
@@ -149,6 +151,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         let importance = req.importance.clamp(0.0, 1.0);
         let m = self
             .state
+            .memory
             .sqlite
             .update_importance(&req.id, importance)
             .await
@@ -163,12 +166,13 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         let req = request.into_inner();
         let deleted = self
             .state
+            .memory
             .sqlite
             .delete(&req.id)
             .await
             .map_err(|e| tonic::Status::internal(e.to_string()))?;
         if deleted {
-            if let Err(e) = self.state.lance.delete(&req.id).await {
+            if let Err(e) = self.state.memory.lance.delete(&req.id).await {
                 warn!(
                     target: "nebula.grpc",
                     error = ?e,
@@ -186,6 +190,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         let req = request.into_inner();
         let mems = self
             .state
+            .memory
             .sqlite
             .get_many(&req.ids)
             .await
@@ -202,6 +207,7 @@ impl generated::memory_service_server::MemoryService for TonicServiceImpl {
         let _req = request.into_inner();
         let rows = self
             .state
+            .memory
             .sqlite
             .counts_per_layer()
             .await
@@ -309,7 +315,7 @@ impl generated::swarm_service_server::SwarmService for TonicServiceImpl {
         request: tonic::Request<generated::ListAgentsRequest>,
     ) -> std::result::Result<tonic::Response<generated::ListAgentsResponse>, tonic::Status> {
         let _req = request.into_inner();
-        let agents = self.state.swarm.list_agents();
+        let agents = self.state.swarm.swarm.list_agents();
         Ok(tonic::Response::new(generated::ListAgentsResponse {
             agents: agents
                 .into_iter()
@@ -332,6 +338,7 @@ impl generated::swarm_service_server::SwarmService for TonicServiceImpl {
         let agent = self
             .state
             .swarm
+            .swarm
             .get_agent(&kind_str)
             .ok_or_else(|| tonic::Status::not_found(format!("agent {kind_str}")))?;
         Ok(tonic::Response::new(generated::Agent {
@@ -352,7 +359,7 @@ impl generated::swarm_service_server::SwarmService for TonicServiceImpl {
             task_id = %req.task_id,
             "stream_events subscription opened"
         );
-        let mut rx = self.state.swarm.bus().subscribe_events();
+        let mut rx = self.state.swarm.swarm.bus().subscribe_events();
 
         let stream = async_stream::stream! {
             loop {
@@ -389,7 +396,7 @@ impl generated::reflect_service_server::ReflectService for TonicServiceImpl {
         request: tonic::Request<generated::ReflectRequest>,
     ) -> std::result::Result<tonic::Response<generated::ReflectResponse>, tonic::Status> {
         let _req = request.into_inner();
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let rows = engine
             .reflect_now()
             .await
@@ -410,7 +417,7 @@ impl generated::reflect_service_server::ReflectService for TonicServiceImpl {
         } else {
             req.limit as usize
         };
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let rows = tokio::task::spawn_blocking(move || engine.list_recent(limit))
             .await
             .map_err(|e| tonic::Status::internal(e.to_string()))?
@@ -425,7 +432,7 @@ impl generated::reflect_service_server::ReflectService for TonicServiceImpl {
         request: tonic::Request<generated::GetReflectionRequest>,
     ) -> std::result::Result<tonic::Response<generated::Reflection>, tonic::Status> {
         let req = request.into_inner();
-        let engine = self.state.reflection.clone();
+        let engine = self.state.memory.reflection.clone();
         let id = req.id;
         let r = tokio::task::spawn_blocking(move || engine.get(&id))
             .await
@@ -454,7 +461,7 @@ impl generated::llm_service_server::LlmService for TonicServiceImpl {
             .map_err(|e| tonic::Status::internal(e.to_string()))?;
         Ok(tonic::Response::new(generated::CompleteResponse {
             text,
-            model: self.state.config.chat_model.clone(),
+            model: self.state.infra.config.chat_model.clone(),
             eval_count: 0,
             total_duration_ns: 0,
         }))
@@ -480,9 +487,9 @@ impl generated::llm_service_server::LlmService for TonicServiceImpl {
             Some(req.model)
         };
         let resp = if let Some(ref m) = model {
-            self.state.llm.chat_with_model(m, msgs).await
+            self.state.llm.llm.chat_with_model(m, msgs).await
         } else {
-            self.state.llm.chat(msgs).await
+            self.state.llm.llm.chat(msgs).await
         }
         .map_err(|e| tonic::Status::internal(e.to_string()))?;
         Ok(tonic::Response::new(generated::ChatResponse {
@@ -503,6 +510,7 @@ impl generated::llm_service_server::LlmService for TonicServiceImpl {
         let req = request.into_inner();
         let v = self
             .state
+            .memory
             .embedder
             .embed(&req.text)
             .await
@@ -528,6 +536,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
         let req = request.into_inner();
         let r = self
             .state
+            .swarm
             .skills
             .create_skill(skill_types::CreateSkillRequest {
                 name: req.name,
@@ -553,6 +562,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
         let req = request.into_inner();
         let r = self
             .state
+            .swarm
             .skills
             .use_skill(skill_types::UseSkillRequest {
                 id: req.id,
@@ -577,6 +587,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
         let req = request.into_inner();
         let r = self
             .state
+            .swarm
             .skills
             .rate_skill(skill_types::RateSkillRequest {
                 id: req.id,
@@ -593,6 +604,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
         let req = request.into_inner();
         let r = self
             .state
+            .swarm
             .skills
             .list_skills(skill_types::ListSkillsRequest {
                 language: if req.language.is_empty() {
@@ -621,6 +633,7 @@ impl generated::skill_service_server::SkillService for TonicServiceImpl {
         let req = request.into_inner();
         let r = self
             .state
+            .swarm
             .skills
             .search_skills(skill_types::SkillSearchRequest {
                 query: req.query,

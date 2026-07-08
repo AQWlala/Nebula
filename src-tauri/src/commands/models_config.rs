@@ -27,7 +27,7 @@ use crate::AppState;
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "models_config_load"))]
 pub async fn models_config_load(state: State<'_, AppState>) -> Result<ModelsConfig, CommandError> {
-    Ok(state.models_config.read().clone())
+    Ok(state.llm.models_config.read().clone())
 }
 
 /// 校验并保存整个 ModelsConfig。
@@ -47,13 +47,13 @@ pub async fn models_config_save(
     config
         .validate()
         .map_err(|e| CommandError::validation(format!("models_config validation: {e}")))?;
-    let path = state.config.models_config_path.clone();
+    let path = state.infra.config.models_config_path.clone();
     config
         .save(&path)
         .map_err(|e| CommandError::internal("models_config_save", &e))?;
     // 热更新内存副本。
     {
-        let mut guard = state.models_config.write();
+        let mut guard = state.llm.models_config.write();
         *guard = config.clone();
     }
     // 让 cost_tracker::model_price() 立即看到新 pricing。
@@ -73,7 +73,7 @@ pub async fn models_config_set_default(
     default_provider: String,
     default_model: String,
 ) -> Result<ModelsConfig, CommandError> {
-    let mut guard = state.models_config.write();
+    let mut guard = state.llm.models_config.write();
     guard.default_provider = default_provider.clone();
     guard.default_model = default_model.clone();
     // 校验新值合法(避免 RwLock 内留下非法状态)。
@@ -103,14 +103,14 @@ pub async fn models_config_set_default(
 pub async fn models_config_reload(
     state: State<'_, AppState>,
 ) -> Result<ModelsConfig, CommandError> {
-    let path = state.config.models_config_path.clone();
+    let path = state.infra.config.models_config_path.clone();
     let config = crate::llm::models_config::ModelsConfig::load(&path);
     config
         .validate()
         .map_err(|e| CommandError::validation(format!("models_config_reload: {e}")))?;
     // 热更新内存副本。
     {
-        let mut guard = state.models_config.write();
+        let mut guard = state.llm.models_config.write();
         *guard = config.clone();
     }
     // 让 cost_tracker::model_price() 立即看到新 pricing。
@@ -130,7 +130,7 @@ pub async fn models_config_add_provider(
     state: State<'_, AppState>,
     provider: ProviderConfig,
 ) -> Result<ModelsConfig, CommandError> {
-    let mut guard = state.models_config.write();
+    let mut guard = state.llm.models_config.write();
     if guard.providers.iter().any(|p| p.id == provider.id) {
         return Err(CommandError::validation(format!(
             "provider id `{}` already exists",
@@ -144,7 +144,7 @@ pub async fn models_config_add_provider(
     let snapshot = guard.clone();
     drop(guard);
     // 落盘。
-    let path = state.config.models_config_path.clone();
+    let path = state.infra.config.models_config_path.clone();
     snapshot
         .save(&path)
         .map_err(|e| CommandError::internal("models_config_add_provider", &e))?;
@@ -159,7 +159,7 @@ pub async fn models_config_remove_provider(
     state: State<'_, AppState>,
     provider_id: String,
 ) -> Result<ModelsConfig, CommandError> {
-    let mut guard = state.models_config.write();
+    let mut guard = state.llm.models_config.write();
     let target = guard
         .providers
         .iter()
@@ -181,7 +181,7 @@ pub async fn models_config_remove_provider(
         .map_err(|e| CommandError::validation(format!("models_config_remove_provider: {e}")))?;
     let snapshot = guard.clone();
     drop(guard);
-    let path = state.config.models_config_path.clone();
+    let path = state.infra.config.models_config_path.clone();
     snapshot
         .save(&path)
         .map_err(|e| CommandError::internal("models_config_remove_provider", &e))?;
@@ -265,7 +265,7 @@ pub async fn models_config_test_provider(
     state: State<'_, AppState>,
     provider_id: String,
 ) -> Result<ProviderTestResult, CommandError> {
-    let config = state.models_config.read().clone();
+    let config = state.llm.models_config.read().clone();
     let provider = config.find_provider(&provider_id).ok_or_else(|| {
         CommandError::internal(
             "models_config_test_provider",
@@ -277,7 +277,7 @@ pub async fn models_config_test_provider(
 
     // Ollama:用内置 OllamaClient ping。
     if provider.kind == crate::llm::models_config::ProviderKind::Ollama {
-        let ollama_client = state.llm.ollama_client();
+        let ollama_client = state.llm.llm.ollama_client();
         match tokio::time::timeout(std::time::Duration::from_secs(2), ollama_client.ping()).await {
             Ok(true) => {
                 return Ok(ProviderTestResult {

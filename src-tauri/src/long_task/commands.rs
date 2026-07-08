@@ -29,7 +29,7 @@ pub async fn long_task_create(
     workspace_id: Option<String>,
     plan_id: Option<String>,
 ) -> Result<LongTask, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .create_task(goal, steps, workspace_id, plan_id)
@@ -46,7 +46,7 @@ pub async fn long_task_get(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<Option<LongTask>, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .get_task(&task_id)
@@ -63,7 +63,7 @@ pub async fn long_task_list(
     state: State<'_, AppState>,
     status: Option<LongTaskStatus>,
 ) -> Result<Vec<LongTask>, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .list_tasks(status)
@@ -80,7 +80,7 @@ pub async fn long_task_steps(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<Vec<LongTaskStep>, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .get_steps(&task_id)
@@ -97,7 +97,7 @@ pub async fn long_task_start(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<LongTask, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .start(&task_id)
@@ -114,7 +114,7 @@ pub async fn long_task_pause(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<LongTask, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .pause(&task_id)
@@ -131,7 +131,7 @@ pub async fn long_task_resume(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<LongTask, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .resume(&task_id)
@@ -148,7 +148,7 @@ pub async fn long_task_cancel(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<LongTask, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .cancel(&task_id)
@@ -165,7 +165,7 @@ pub async fn long_task_delete(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<bool, CommandError> {
-    let engine = state.long_task_engine.clone();
+    let engine = state.swarm.long_task_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .delete_task(&task_id)

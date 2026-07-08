@@ -30,6 +30,43 @@ use crate::commands::error::CommandError;
 use crate::memory::values::risk_assessor::ActionKind;
 use crate::AppState;
 
+// ── T-D-C-08: master-orchestrator 运行时开关命令 ──
+
+/// 检查 MasterOrchestrator 是否启用，未启用时返回 clean error。
+#[cfg(feature = "master-orchestrator")]
+fn ensure_master_orchestrator_enabled(command: &str) -> Result<(), CommandError> {
+    if !crate::swarm::master_orchestrator_enabled() {
+        return Err(CommandError::validation(command)
+            .with_details("MasterOrchestrator is disabled at runtime (env MASTER_ORCHESTRATOR_ENABLED=1 or set via API)".to_string()));
+    }
+    Ok(())
+}
+
+/// 查询 MasterOrchestrator 运行时开关状态。
+///
+/// 返回 `true` 表示 MasterOrchestrator 已启用，`false` 表示已禁用。
+/// 即使 feature 编译了，运行时开关关闭时 master_run 等命令也会拒绝执行。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(fields(otel.kind = "master_orchestrator_enabled"))]
+pub async fn master_orchestrator_enabled() -> Result<bool, CommandError> {
+    Ok(crate::swarm::master_orchestrator_enabled())
+}
+
+/// 设置 MasterOrchestrator 运行时开关。
+///
+/// `enabled = true` 启用，`false` 禁用。
+/// 此开关仅影响运行时，不影响 feature flag 编译期决策。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(fields(otel.kind = "master_orchestrator_set_enabled"))]
+pub async fn master_orchestrator_set_enabled(enabled: bool) -> Result<(), CommandError> {
+    crate::swarm::set_master_orchestrator_enabled(enabled);
+    Ok(())
+}
+
+// ── 原有命令 ──
+
 /// M6 #82: 启动 MasterOrchestrator 编排 + 实时推送 MasterEvent。
 ///
 /// 设计要点:
@@ -54,6 +91,7 @@ pub async fn master_run(
     mode: crate::swarm::ExecuteMode,
     on_master_event: tauri::ipc::Channel<crate::swarm::MasterEvent>,
 ) -> Result<crate::swarm::MasterReport, CommandError> {
+    ensure_master_orchestrator_enabled("master_run")?;
     // 注入扫描(与 swarm_execute 一致)
     let scan = crate::security::injection_guard::full_injection_scan(&input);
     if let Some(severity) = scan.max_severity {
@@ -85,7 +123,7 @@ pub async fn master_run(
     let autonomy_level = autonomy::get_level();
     let verdict =
         state
-            .approval_gate
+            .infra.approval_gate
             .assess(ActionKind::RemoteLlmDispatch, &input, autonomy_level, None);
     if let crate::autonomy::ApprovalVerdict::ConfirmRequired {
         confirmation_id,
@@ -126,7 +164,7 @@ pub async fn master_run(
         let mut confirmed = false;
         loop {
             interval.tick().await;
-            match state.confirmation_registry.check(&confirmation_id) {
+            match state.infra.confirmation_registry.check(&confirmation_id) {
                 ConfirmationStatus::Confirmed => {
                     confirmed = true;
                     break;
@@ -157,7 +195,7 @@ pub async fn master_run(
         );
     }
 
-    let master = state.master_orchestrator.clone();
+    let master = state.swarm.master_orchestrator.clone();
     // 同步 mpsc channel:MasterOrchestrator::emit 是同步方法,
     // 通过 std::sync::mpsc::Sender 推送事件。
     let (tx, rx) = std::sync::mpsc::channel::<crate::swarm::MasterEvent>();
@@ -218,6 +256,7 @@ pub async fn loop_run(
     loop_md: String,
     workspace_id: Option<String>,
 ) -> Result<crate::swarm::LoopRunReport, CommandError> {
+    ensure_master_orchestrator_enabled("loop_run")?;
     use crate::swarm::agents::{ModelDescriptor, ReviewerAgent};
     use crate::swarm::loop_def::LoopDef;
 
@@ -228,24 +267,24 @@ pub async fn loop_run(
         CommandError::validation("loop_run").with_details(format!("LOOP.md 校验失败: {e}"))
     })?;
 
-    let master = state.master_orchestrator.clone();
-    let engine = state.long_task_engine.clone();
+    let master = state.swarm.master_orchestrator.clone();
+    let engine = state.swarm.long_task_engine.clone();
     // T-E-L-06: 构造 ReviewerAgent,注入 Maker 的模型描述符
     // (即 LlmGateway 自身的 provider + default_model),用于同质检测。
     // Maker 与 Checker 用同一 gateway,因此 maker_model == checker_model,
     // 若 loop_def.autonomy == L4,会触发降级到 L2。
-    let reviewer = ReviewerAgent::new(state.llm.clone()).with_maker_model(ModelDescriptor::new(
-        state.llm.provider(),
-        state.llm.default_model(),
+    let reviewer = ReviewerAgent::new(state.llm.llm.clone()).with_maker_model(ModelDescriptor::new(
+        state.llm.llm.provider(),
+        state.llm.llm.default_model(),
     ));
     let report = master
         .execute_loop(
             &loop_def,
             &engine,
             workspace_id,
-            Some(&state.cost_tracker),
-            state.config.loop_monthly_budget_usd,
-            state.config.loop_monthly_budget_tokens,
+            Some(&state.llm.cost_tracker),
+            state.infra.config.loop_monthly_budget_usd,
+            state.infra.config.loop_monthly_budget_tokens,
             Some(&reviewer),
         )
         .await
@@ -266,7 +305,8 @@ pub async fn loop_state(
     state: State<'_, AppState>,
     output_path: String,
 ) -> Result<String, CommandError> {
-    let engine = state.long_task_engine.clone();
+    ensure_master_orchestrator_enabled("loop_state")?;
+    let engine = state.swarm.long_task_engine.clone();
     let path = std::path::PathBuf::from(&output_path);
     // state_projection 是同步方法（文件 I/O + SQLite 查询，通常 <100ms）。
     // 用 spawn_blocking 避免阻塞 tokio executor。
@@ -368,6 +408,7 @@ static LOOP_TEMPLATES: &[(&str, &str)] = &[
 #[tauri::command]
 #[instrument(fields(otel.kind = "loop_templates_list"))]
 pub async fn loop_templates_list() -> Result<Vec<LoopTemplateSummary>, CommandError> {
+    ensure_master_orchestrator_enabled("loop_templates_list")?;
     use crate::swarm::loop_def::LoopDef;
 
     let mut summaries = Vec::with_capacity(LOOP_TEMPLATES.len());
@@ -401,6 +442,7 @@ pub async fn loop_templates_list() -> Result<Vec<LoopTemplateSummary>, CommandEr
 #[tauri::command]
 #[instrument(fields(otel.kind = "loop_template_get"))]
 pub async fn loop_template_get(name: String) -> Result<Option<LoopTemplate>, CommandError> {
+    ensure_master_orchestrator_enabled("loop_template_get")?;
     use crate::swarm::loop_def::LoopDef;
 
     let content = LOOP_TEMPLATES
@@ -483,7 +525,8 @@ pub struct LoopBudgetStatus {
 pub async fn loop_budget_status(
     state: State<'_, AppState>,
 ) -> Result<LoopBudgetStatus, CommandError> {
-    let tracker = state.cost_tracker.clone();
+    ensure_master_orchestrator_enabled("loop_budget_status")?;
+    let tracker = state.llm.cost_tracker.clone();
     let status = tokio::task::spawn_blocking(move || build_loop_budget_status(&tracker))
         .await
         .map_err(|e| {
@@ -510,7 +553,8 @@ pub async fn loop_budget_status(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "loop_budget_reset"))]
 pub async fn loop_budget_reset(state: State<'_, AppState>) -> Result<(), CommandError> {
-    let tracker = state.cost_tracker.clone();
+    ensure_master_orchestrator_enabled("loop_budget_reset")?;
+    let tracker = state.llm.cost_tracker.clone();
     tokio::task::spawn_blocking(move || tracker.reset_loop_budget_alerts())
         .await
         .map_err(|e| {
@@ -543,7 +587,8 @@ pub async fn loop_budget_reset(state: State<'_, AppState>) -> Result<(), Command
 pub async fn loop_budget_pause_all(
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, CommandError> {
-    let engine = state.long_task_engine.clone();
+    ensure_master_orchestrator_enabled("loop_budget_pause_all")?;
+    let engine = state.swarm.long_task_engine.clone();
     let paused = tokio::task::spawn_blocking(move || engine.pause_all())
         .await
         .map_err(|e| {
@@ -621,7 +666,7 @@ pub async fn master_confirm(
     state: State<'_, AppState>,
     confirmation_id: String,
 ) -> Result<ConfirmationStatus, CommandError> {
-    Ok(state.confirmation_registry.mark_confirmed(&confirmation_id))
+    Ok(state.infra.confirmation_registry.mark_confirmed(&confirmation_id))
 }
 
 /// M6 #82: 查询 confirmation 状态(供前端显示倒计时 / 防重放提示)。
@@ -631,7 +676,7 @@ pub async fn master_confirmation_status(
     state: State<'_, AppState>,
     confirmation_id: String,
 ) -> Result<ConfirmationStatus, CommandError> {
-    Ok(state.confirmation_registry.check(&confirmation_id))
+    Ok(state.infra.confirmation_registry.check(&confirmation_id))
 }
 
 /// M6 #82: 列出当前 pending 的审批请求(供 UI 渲染待确认列表)。
@@ -642,7 +687,7 @@ pub async fn master_confirmation_status(
 pub async fn master_pending_confirmations(
     state: State<'_, AppState>,
 ) -> Result<Vec<PendingConfirmation>, CommandError> {
-    Ok(state.confirmation_registry.all_pending())
+    Ok(state.infra.confirmation_registry.all_pending())
 }
 
 // ---------------------------------------------------------------------------

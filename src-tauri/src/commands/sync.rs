@@ -1,4 +1,4 @@
-﻿//! Sync (E2EE) commands — identity, encrypt, decrypt, send, recv, ack.
+//! Sync (E2EE) commands — identity, encrypt, decrypt, send, recv, ack.
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -117,7 +117,7 @@ pub async fn sync_send(
         .map_err(|e| {
             CommandError::validation("sync_send").with_details(format!("plaintext: {e}"))
         })?;
-    let transport = state.sync_transport.clone();
+    let transport = state.platform.sync_transport.clone();
     let fingerprint = pair.fingerprint.clone();
     let id = tokio::task::spawn_blocking(move || {
         sync_ops::send_sealed(&transport, &pair, &pt)
@@ -149,7 +149,7 @@ pub async fn sync_recv(
     state: State<'_, AppState>,
     request: RecvRequest,
 ) -> Result<RecvResponse, CommandError> {
-    let transport = state.sync_transport.clone();
+    let transport = state.platform.sync_transport.clone();
     let inbox_msgs: Vec<sync_ops::InboxMessage> = tokio::task::spawn_blocking(move || {
         transport
             .recv()
@@ -169,7 +169,7 @@ pub async fn sync_recv(
         match pair.decrypt(&msg.envelope) {
             Ok(_pt) => {
                 if request.ack {
-                    let _ = state.sync_transport.ack(&msg.id);
+                    let _ = state.platform.sync_transport.ack(&msg.id);
                 }
                 messages.push(msg);
             }
@@ -188,7 +188,7 @@ pub async fn sync_ack(
     state: State<'_, AppState>,
     envelope_id: String,
 ) -> Result<bool, CommandError> {
-    let transport = state.sync_transport.clone();
+    let transport = state.platform.sync_transport.clone();
     tokio::task::spawn_blocking(move || {
         transport
             .ack(&envelope_id)

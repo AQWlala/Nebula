@@ -34,7 +34,7 @@ pub async fn shadow_create(
     task_description: String,
     base_branch: Option<String>,
 ) -> Result<ShadowWorkspace, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .create(task_description, base_branch)
@@ -48,7 +48,7 @@ pub async fn shadow_create(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "shadow_list"))]
 pub async fn shadow_list(state: State<'_, AppState>) -> Result<Vec<ShadowWorkspace>, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.list())
         .await
         .map_err(|e| CommandError::internal("shadow_list_blocking", &anyhow::anyhow!(e)))
@@ -61,7 +61,7 @@ pub async fn shadow_status(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Option<ShadowWorkspace>, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.get(&workspace_id))
         .await
         .map_err(|e| CommandError::internal("shadow_status_blocking", &anyhow::anyhow!(e)))
@@ -74,7 +74,7 @@ pub async fn shadow_diff(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<String, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .diff(&workspace_id)
@@ -93,7 +93,7 @@ pub async fn shadow_run_command(
     program: String,
     args: Vec<String>,
 ) -> Result<String, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .run_command(&workspace_id, &program, &args)
@@ -110,7 +110,7 @@ pub async fn shadow_complete(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<ShadowWorkspace, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .complete(&workspace_id)
@@ -128,7 +128,7 @@ pub async fn shadow_fail(
     workspace_id: String,
     error: String,
 ) -> Result<ShadowWorkspace, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .fail(&workspace_id, error)
@@ -145,7 +145,7 @@ pub async fn shadow_merge(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<ShadowWorkspace, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .merge(&workspace_id)
@@ -162,7 +162,7 @@ pub async fn shadow_abort(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<ShadowWorkspace, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .abort(&workspace_id)
@@ -179,7 +179,7 @@ pub async fn shadow_cleanup(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .cleanup(&workspace_id)
@@ -206,7 +206,7 @@ pub async fn shadow_record(
     success: bool,
     message: String,
 ) -> Result<OperationRecord, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .record_operation(&workspace_id, kind, target, detail, success, message)
@@ -223,7 +223,7 @@ pub async fn shadow_recording_list(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<Vec<OperationRecord>, CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.get_recording(&workspace_id))
         .await
         .map_err(|e| CommandError::internal("shadow_recording_list_blocking", &anyhow::anyhow!(e)))
@@ -236,7 +236,7 @@ pub async fn shadow_recording_clear(
     state: State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), CommandError> {
-    let engine = state.shadow_engine.clone();
+    let engine = state.swarm.shadow_engine.clone();
     tokio::task::spawn_blocking(move || engine.clear_recording(&workspace_id))
         .await
         .map_err(|e| {

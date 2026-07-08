@@ -13,14 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 只跑 windows:项目仅发布 Windows 版本,mac/linux 的 Rust CI
-        # 不再跑(省 runner 时间,消除 mac/linux flaky)。
-        # 恢复:把下面数组改回 [ubuntu-latest, macos-latest, windows-latest]
-        # — 平台特定步骤(Install Linux deps / protoc 安装等)都有
-        # `if: matrix.os == ...` 守护,改 matrix 即可全部恢复。
-        # 注意:本文件末尾的 `web` job(前端测试)仍跑 ubuntu-latest,
-        # 那不是跨平台 Rust 验证,只是用便宜的 ubuntu runner 跑平台无关
-        # 的 npm test/typecheck,保持不变。
+        # T-D-C-01: 暂只推 Windows（macOS/Linux 后续 CI 就绪后开启）。
+        # 平台特定步骤已有 `if: matrix.os == ...` 守护，届时取消注释即可。
+        # web job(前端测试)仍在 ubuntu-latest 上运行。
         os: [windows-latest]
     steps:
       - uses: actions/checkout@v7
@@ -152,10 +147,12 @@ jobs:
           # entry points not present on the GitHub Actions Windows
           # Server runner.  Using --lib skips the integration test
           # binary so the lib tests can still run.
+          # T-D-C-01: 暂只跑 Windows;恢复跨平台时 else 分支跑 --lib 即可
+          # (集成测试在 rust-integration job)。
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 --lib > nextest-output.txt 2>&1
           else
-            cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 > nextest-output.txt 2>&1
+            cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 --lib > nextest-output.txt 2>&1
           fi
           nextest_exit=$?
           set -e

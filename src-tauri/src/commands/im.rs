@@ -58,7 +58,7 @@ pub async fn im_create_webhook_binding(
     let url = request.url.clone();
     let display_name = request.display_name.clone();
 
-    let engine = state.im_engine.clone();
+    let engine = state.channels.im_engine.clone();
     tokio::task::spawn_blocking(move || {
         let platform = ImPlatform::from_str_lossy(&platform_str)
             .map_err(|e| CommandError::validation(format!("invalid platform: {e}")))?;
@@ -76,7 +76,7 @@ pub async fn im_create_webhook_binding(
 pub async fn im_list_bindings(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::im::ImBinding>, CommandError> {
-    let engine = state.im_engine.clone();
+    let engine = state.channels.im_engine.clone();
     let bindings = tokio::task::spawn_blocking(move || {
         engine
             .list_bindings()
@@ -91,7 +91,7 @@ pub async fn im_list_bindings(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "im_delete_binding"))]
 pub async fn im_delete_binding(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    let engine = state.im_engine.clone();
+    let engine = state.channels.im_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .delete_binding(&id)
@@ -109,7 +109,7 @@ pub async fn im_set_enabled(
     id: String,
     enabled: bool,
 ) -> Result<(), CommandError> {
-    let engine = state.im_engine.clone();
+    let engine = state.channels.im_engine.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .set_enabled(&id, enabled)
@@ -130,7 +130,7 @@ pub async fn im_test_send(
 ) -> Result<(), CommandError> {
     let message = ImMessage::new(title, body);
     state
-        .im_engine
+        .channels.im_engine
         .test_send(&id, &message)
         .await
         .map_err(|e| CommandError::internal("im_test_send", &e))
@@ -149,7 +149,7 @@ pub async fn im_broadcast(
         markdown: request.markdown,
         level: request.level.unwrap_or_default(),
     };
-    let (success, failure) = state.im_engine.broadcast(message).await;
+    let (success, failure) = state.channels.im_engine.broadcast(message).await;
     Ok(BroadcastResult { success, failure })
 }
 

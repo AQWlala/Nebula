@@ -9,5 +9,5 @@ use crate::AppState;
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "share_chat"))]
 pub async fn share_chat(state: State<'_, AppState>) -> Result<String, CommandError> {
-    Ok(state.webchat_service.create_session())
+    Ok(state.channels.webchat_service.create_session())
 }

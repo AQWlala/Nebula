@@ -1,4 +1,4 @@
-﻿//! Chat commands — `chat` and `chat_stream`.
+//! Chat commands — `chat` and `chat_stream`.
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -129,7 +129,7 @@ pub async fn chat_stream(
 
     // T-S1-A-02: 同样注入记忆上下文到流式路径。
     let context_bundle = state
-        .orchestrator
+        .memory.orchestrator
         .assemble_context(&request.user_message, "system")
         .await
         .map_err(|e| CommandError::internal("chat_stream", &e))?;
@@ -151,7 +151,7 @@ pub async fn chat_stream(
     }
     msgs.push(ChatMessage::user(request.user_message.clone()));
 
-    let model = state.llm.default_model();
+    let model = state.llm.llm.default_model();
     let mut full_content = String::new();
 
     // T-E-D-02: TTFT(首响时间)埋点 — 记录 stream 启动时刻,
@@ -165,14 +165,14 @@ pub async fn chat_stream(
     // 注:dispatch_stream 远端路径内部就是转发 gateway.chat_stream,行为等价;
     // 本地路径走 OllamaClient.chat_stream,与 LlmGateway 的 ollama 路径一致。
     #[cfg(feature = "unified-dispatcher")]
-    let stream = if let Some(dispatcher) = &state.dispatcher {
+    let stream = if let Some(dispatcher) = &state.llm.dispatcher {
         use crate::llm::dispatcher::WorkType;
         dispatcher.dispatch_stream(WorkType::Chat, msgs)
     } else {
-        state.llm.chat_stream(msgs)
+        state.llm.llm.chat_stream(msgs)
     };
     #[cfg(not(feature = "unified-dispatcher"))]
-    let stream = state.llm.chat_stream(msgs);
+    let stream = state.llm.llm.chat_stream(msgs);
     use futures::StreamExt;
     let mut stream = stream;
     while let Some(result) = stream.next().await {
@@ -231,7 +231,7 @@ pub async fn chat_stream(
         // 注:turn_id 为空字符串时不编译(与原 Some(tid) 语义一致)。
         if !turn_id_for_wiki.is_empty() {
             if let Err(e) = state_for_wiki
-                .wiki
+                .platform.wiki
                 .compile_turn(&turn_id_for_wiki, &user_msg_for_wiki, &asst_msg_for_wiki)
                 .await
             {

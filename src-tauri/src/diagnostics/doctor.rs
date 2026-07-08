@@ -140,8 +140,8 @@ pub async fn run_doctor(state: &AppState) -> DoctorReport {
 /// 1. AppConfig 加载状态。state.config 在 bootstrap 时已加载,此处仅验证可读。
 async fn check_app_config(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let db_path = state.config.db_path.clone();
-    let lance_path = state.config.lance_path.clone();
+    let db_path = state.infra.config.db_path.clone();
+    let lance_path = state.infra.config.lance_path.clone();
     DoctorCheck {
         name: "app_config".to_string(),
         status: CheckStatus::Ok,
@@ -155,7 +155,7 @@ async fn check_app_config(state: &AppState) -> DoctorCheck {
 /// 有 key → Ok;无 key → Warn(本地 Ollama 仍可用)。
 async fn check_keychain(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let provider = state.config.llm_provider.clone();
+    let provider = state.infra.config.llm_provider.clone();
     // keychain 访问是 OS 阻塞调用,放 spawn_blocking 避免阻塞 runtime。
     let result = tokio::task::spawn_blocking(crate::security::keychain::resolve_deepseek_key).await;
     match result {
@@ -186,7 +186,7 @@ async fn check_keychain(state: &AppState) -> DoctorCheck {
 /// 3. SQLite — 读取内嵌 migration 状态,全部 applied → Ok。
 async fn check_sqlite(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     let result = tokio::task::spawn_blocking(move || {
         let conn = sqlite.raw_connection();
         let g = conn.lock();
@@ -242,17 +242,17 @@ async fn check_sqlite(state: &AppState) -> DoctorCheck {
 /// 保留 lance_path 目录检查作为辅助信息(向后兼容)。
 async fn check_lancedb(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let lance_path = state.config.lance_path.clone();
+    let lance_path = state.infra.config.lance_path.clone();
     // T-E-S-42: 调用 VectorStore::health_check 验证后端可用性。
     // trait 方法对 Lance/Qdrant/Chroma 各有实现,doctor 不需要关心具体后端。
-    let health = state.lance.health_check().await;
+    let health = state.memory.lance.health_check().await;
     let dir_exists = tokio::fs::metadata(&lance_path)
         .await
         .map(|m| m.is_dir())
         .unwrap_or(false);
     match health {
         Ok(()) => {
-            let backend = match state.config.vector_store_backend {
+            let backend = match state.infra.config.vector_store_backend {
                 crate::memory::vector_store::VectorStoreBackend::Lance => "LanceDB",
                 crate::memory::vector_store::VectorStoreBackend::Qdrant => "Qdrant",
                 crate::memory::vector_store::VectorStoreBackend::Chroma => "ChromaDB",
@@ -271,7 +271,7 @@ async fn check_lancedb(state: &AppState) -> DoctorCheck {
         Err(e) => {
             // health_check 失败:目录可能尚未创建(Lance 内存降级模式),
             // 或 Qdrant/Chroma 服务不可达。降级为 Warn 并附修复建议。
-            let suggestion = match state.config.vector_store_backend {
+            let suggestion = match state.infra.config.vector_store_backend {
                 crate::memory::vector_store::VectorStoreBackend::Lance => {
                     "检查 lance_path 目录权限或磁盘空间".to_string()
                 }
@@ -299,13 +299,13 @@ async fn check_lancedb(state: &AppState) -> DoctorCheck {
 /// 5. Ollama — ping /api/tags,2s 超时(由 run_one 包装)。失败 → Fail。
 async fn check_ollama(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let client = state.llm.ollama_client();
+    let client = state.llm.llm.ollama_client();
     let ping = client.ping().await;
     if ping {
         DoctorCheck {
             name: "ollama".to_string(),
             status: CheckStatus::Ok,
-            message: format!("Ollama 服务可用({})", state.config.ollama_url),
+            message: format!("Ollama 服务可用({})", state.infra.config.ollama_url),
             suggestion: None,
             latency_ms: start.elapsed().as_millis() as u64,
         }
@@ -324,7 +324,7 @@ async fn check_ollama(state: &AppState) -> DoctorCheck {
 /// `raw_state` 为 `#[cfg(test)]`;此处用 `is_over_daily_budget` 作为代理)。
 async fn check_gateway(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let over_budget = state.llm.is_over_daily_budget();
+    let over_budget = state.llm.llm.is_over_daily_budget();
     if over_budget {
         DoctorCheck {
             name: "gateway".to_string(),
@@ -351,7 +351,7 @@ async fn check_sidecar(state: &AppState) -> DoctorCheck {
     let mut running = 0usize;
     let mut stopped_names: Vec<String> = Vec::new();
     for kind in crate::sidecar::SidecarKind::all() {
-        if state.sidecar_manager.is_running(kind) {
+        if state.platform.sidecar_manager.is_running(kind) {
             running += 1;
         } else {
             stopped_names.push(kind.as_str().to_string());
@@ -385,7 +385,7 @@ async fn check_sidecar(state: &AppState) -> DoctorCheck {
 /// AppState 未常驻 IpcLayer,此处从 sidecar_manager 临时构造。
 async fn check_ipc(state: &AppState) -> DoctorCheck {
     let start = Instant::now();
-    let layer = crate::sidecar::ipc::IpcLayer::new(state.sidecar_manager.clone());
+    let layer = crate::sidecar::ipc::IpcLayer::new(state.platform.sidecar_manager.clone());
     let healthy = layer.all_healthy().await;
     if healthy {
         DoctorCheck {

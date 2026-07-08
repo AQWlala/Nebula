@@ -13,7 +13,7 @@ use crate::AppState;
 pub async fn writing_list_templates(
     state: State<'_, AppState>,
 ) -> Result<Vec<WritingTemplate>, CommandError> {
-    Ok(state.writing.list_templates())
+    Ok(state.platform.writing.list_templates())
 }
 
 #[tauri::command]
@@ -22,7 +22,7 @@ pub async fn writing_get_template(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<WritingTemplate>, CommandError> {
-    Ok(state.writing.get_template(&id))
+    Ok(state.platform.writing.get_template(&id))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +39,7 @@ pub async fn writing_create_document(
     state: State<'_, AppState>,
     request: CreateDocumentRequest,
 ) -> Result<Document, CommandError> {
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     let req = request;
     tokio::task::spawn_blocking(move || {
         engine
@@ -57,7 +57,7 @@ pub async fn writing_update_document(
     id: String,
     content: String,
 ) -> Result<Document, CommandError> {
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .update_document(&id, content)
@@ -73,7 +73,7 @@ pub async fn writing_get_document(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<Document>, CommandError> {
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .get_document(&id)
@@ -89,7 +89,7 @@ pub async fn writing_list_documents(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<Document>, CommandError> {
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .list_documents(limit.unwrap_or(50))
@@ -105,7 +105,7 @@ pub async fn writing_delete_document(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<bool, CommandError> {
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .delete_document(&id)
@@ -130,7 +130,7 @@ pub async fn writing_export(
 ) -> Result<DocumentExport, CommandError> {
     let format = ExportFormat::from_str(&request.format)
         .map_err(|e| CommandError::validation("writing_export").with_details(e.to_string()))?;
-    let engine = state.writing.clone();
+    let engine = state.platform.writing.clone();
     tokio::task::spawn_blocking(move || {
         engine
             .export(&request.id, format)

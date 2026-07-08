@@ -52,7 +52,7 @@ pub struct CreditsOverview {
 /// T-E-A-12: 附带 by_source 分桶,供前端 Chat vs Automation 分栏展示。
 #[tauri::command]
 pub async fn credits_overview(state: State<'_, AppState>) -> Result<CreditsOverview, CommandError> {
-    let tracker = &state.cost_tracker;
+    let tracker = &state.llm.cost_tracker;
     let metrics = crate::metrics::global();
     Ok(CreditsOverview {
         daily: tracker.aggregate_by_day(),

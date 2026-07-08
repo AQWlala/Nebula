@@ -57,7 +57,7 @@ impl NebulaService for AppState {
         // T-S1-A-02: MemoryOrchestrator 接入 chat 路径。
         // 根据用户消息组装相关记忆上下文，拼接到 system prompt 前。
         let context_bundle = self
-            .orchestrator
+            .memory.orchestrator
             .assemble_context(&req.user_message, "system")
             .await?;
 
@@ -70,7 +70,7 @@ impl NebulaService for AppState {
         // - Soul 启用且编译成功：用 CompiledSoul.system_prompt 替代 <soul> 部分，
         //   保留 AGENTS.md / TOOLS.md（PersonaConfig 仍提供）。
         // - Soul 未启用或编译失败：回退到 PersonaConfig 全量注入。
-        let persona_prefix = self.config.persona.as_ref().and_then(|pc| {
+        let persona_prefix = self.infra.config.persona.as_ref().and_then(|pc| {
             let guard = pc.read();
             if guard.is_empty() {
                 None
@@ -119,11 +119,11 @@ impl NebulaService for AppState {
         // 时走 `dispatch(WorkType::Chat)`;否则回退到 `LlmGateway::chat`。
         #[cfg(feature = "unified-dispatcher")]
         {
-            let resp = if let Some(dispatcher) = &self.dispatcher {
+            let resp = if let Some(dispatcher) = &self.llm.dispatcher {
                 use crate::llm::dispatcher::WorkType;
                 dispatcher.dispatch(WorkType::Chat, msgs).await?
             } else {
-                self.llm.chat(msgs).await?
+                self.llm.llm.chat(msgs).await?
             };
             // T-E-S-64: 调用 consistency::analyze 生成反幻觉报告。
             // trait 返回类型 `crate::llm::ChatResponse` 无法携带报告,
@@ -146,7 +146,7 @@ impl NebulaService for AppState {
         // 非 unified-dispatcher 编译路径:走旧 LlmGateway::chat(行为等价)。
         #[cfg(not(feature = "unified-dispatcher"))]
         {
-            let resp = { self.llm.chat(msgs).await? };
+            let resp = { self.llm.llm.chat(msgs).await? };
             // T-E-S-64: 调用 consistency::analyze 生成反幻觉报告。
             // trait 返回类型 `crate::llm::ChatResponse` 无法携带报告,
             // 此处仅做可观测性记录(risk_score / warning 数);前端 badge
@@ -176,7 +176,7 @@ impl NebulaService for AppState {
         if let Some(meta) = req.metadata {
             mem.metadata = meta;
         }
-        match self.sponge.absorb(mem).await? {
+        match self.memory.sponge.absorb(mem).await? {
             SpongeResult::Inserted { id } => Ok(StoreMemoryResponse {
                 id,
                 merged: false,
@@ -206,14 +206,14 @@ impl NebulaService for AppState {
         req: SearchMemoryRequest,
     ) -> anyhow::Result<Vec<SearchMemoryHit>> {
         let k = req.k.max(1);
-        let query_emb = self.embedder.embed(&req.query).await?;
-        let hits = self.lance.search(&query_emb, k).await?;
+        let query_emb = self.memory.embedder.embed(&req.query).await?;
+        let hits = self.memory.lance.search(&query_emb, k).await?;
         if hits.is_empty() {
             return Ok(Vec::new());
         }
         let ids: Vec<String> = hits.iter().map(|(id, _)| id.clone()).collect();
         let memories = self
-            .sqlite
+            .memory.sqlite
             .get_many(&ids)
             .await
             .map_err(|e| anyhow::anyhow!("get_many error: {e}"))?;
@@ -245,13 +245,13 @@ impl NebulaService for AppState {
     async fn swarm_execute(&self, task: SwarmTask) -> anyhow::Result<OrchestrationReport> {
         // M7b #94: service 层 injection_scan(swarm 任务描述扫描)。
         injection_guard_check("service.swarm_execute", &task.description)?;
-        self.swarm.execute(task).await
+        self.swarm.swarm.execute(task).await
     }
 
     async fn llm_complete(&self, prompt: String) -> anyhow::Result<String> {
         // M7b #94: service 层 injection_scan(裸 prompt 调用扫描)。
         injection_guard_check("service.llm_complete", &prompt)?;
-        self.llm.generate(&prompt).await
+        self.llm.llm.generate(&prompt).await
     }
 }
 

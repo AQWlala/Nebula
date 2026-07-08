@@ -12,7 +12,7 @@
 //! `#[allow(unused)]` 以避免 dead_code 警告。
 //!
 //! AppState 暂无 `inbox_manager` 字段,各命令现场用
-//! `state.sqlite.raw_connection()` + `state.channel_router` 构造
+//! `state.memory.sqlite.raw_connection()` + `state.channels.channel_router` 构造
 //! `InboxManager` / `InboxStore`。
 
 #![cfg(feature = "channels")]
@@ -26,14 +26,14 @@ use crate::AppState;
 
 /// 内部辅助:从 AppState 构造 `InboxStore`(只读路径用)。
 fn build_store(state: &AppState) -> Result<InboxStore, CommandError> {
-    let conn = state.sqlite.raw_connection();
+    let conn = state.memory.sqlite.raw_connection();
     InboxStore::new(conn).map_err(|e| CommandError::db("inbox_store_init", &anyhow::anyhow!("{e}")))
 }
 
 /// 内部辅助:从 AppState 构造 `InboxManager`(出站路径用)。
 fn build_manager(state: &AppState) -> Result<InboxManager, CommandError> {
     let store = build_store(state)?;
-    Ok(InboxManager::new(store, state.channel_router.clone()))
+    Ok(InboxManager::new(store, state.channels.channel_router.clone()))
 }
 
 /// 列出收件箱消息。按时间戳降序。

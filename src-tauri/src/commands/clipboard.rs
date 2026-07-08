@@ -1,4 +1,4 @@
-﻿//! T-E-C-14: 剪贴板监听 Tauri 命令。
+//! T-E-C-14: 剪贴板监听 Tauri 命令。
 //!
 //! 3 个命令,与 [`ClipboardWatcherEngine`] 配套:
 //! - `clipboard_watch_start()`  — 启动后台轮询 task
@@ -24,8 +24,8 @@ pub async fn clipboard_watch_start(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<(), CommandError> {
-    let sponge = state.sponge.clone();
-    let mut watcher = state.clipboard_watcher.lock().await;
+    let sponge = state.memory.sponge.clone();
+    let mut watcher = state.platform.clipboard_watcher.lock().await;
     watcher
         .start(sponge, app)
         .map_err(|e| CommandError::internal("clipboard_watch_start", &anyhow::anyhow!(e)))
@@ -35,7 +35,7 @@ pub async fn clipboard_watch_start(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "clipboard_watch_stop"))]
 pub async fn clipboard_watch_stop(state: State<'_, AppState>) -> Result<(), CommandError> {
-    let mut watcher = state.clipboard_watcher.lock().await;
+    let mut watcher = state.platform.clipboard_watcher.lock().await;
     watcher.stop();
     Ok(())
 }
@@ -44,6 +44,6 @@ pub async fn clipboard_watch_stop(state: State<'_, AppState>) -> Result<(), Comm
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "clipboard_watch_status"))]
 pub async fn clipboard_watch_status(state: State<'_, AppState>) -> Result<bool, CommandError> {
-    let watcher = state.clipboard_watcher.lock().await;
+    let watcher = state.platform.clipboard_watcher.lock().await;
     Ok(watcher.is_running())
 }

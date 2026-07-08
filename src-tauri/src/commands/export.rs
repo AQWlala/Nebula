@@ -120,7 +120,7 @@ pub async fn export_memories(
     format: String,
     path: String,
 ) -> Result<crate::memory::export::ExportManifest, CommandError> {
-    let exporter = crate::memory::export::DataExporter::new((*state.sqlite).clone());
+    let exporter = crate::memory::export::DataExporter::new((*state.memory.sqlite).clone());
     let p = std::path::PathBuf::from(&path);
     match format.as_str() {
         "jsonld" | "json-ld" => exporter
@@ -138,7 +138,7 @@ pub async fn import_memories(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<crate::memory::export::ImportResult, CommandError> {
-    let exporter = crate::memory::export::DataExporter::new((*state.sqlite).clone());
+    let exporter = crate::memory::export::DataExporter::new((*state.memory.sqlite).clone());
     let p = std::path::PathBuf::from(&path);
     exporter
         .import_jsonld(&p)

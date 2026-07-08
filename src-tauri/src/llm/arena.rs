@@ -53,7 +53,7 @@ pub struct ArenaMatch {
 }
 
 /// 进程内 Arena 排行榜。`Arc<ArenaLeaderboard>` 由 [`crate::AppState`]
-/// 持有,Tauri 命令通过 `state.arena` 调用。
+/// 持有,Tauri 命令通过 `state.llm.arena` 调用。
 ///
 /// **并发模型**:
 /// * `elo_scores: Mutex<HashMap<String, f32>>` 用 `parking_lot::Mutex`,

@@ -225,15 +225,13 @@ impl ChannelAdapter for TelegramAdapter {
             match message.parse::<i64>() {
                 Ok(id) => (id, message),
                 Err(_) => {
-                    warn!(target: "nebula.channel", "Telegram send: cannot parse chat_id from message");
-                    return Ok(());
+                    anyhow::bail!("Telegram send: cannot parse chat_id from message: {message}");
                 }
             }
         };
 
         if chat_id == 0 {
-            warn!(target: "nebula.channel", "Telegram send: chat_id is 0, skipping");
-            return Ok(());
+            anyhow::bail!("Telegram send: chat_id is 0, cannot send");
         }
 
         let url = self.api_url("sendMessage");
@@ -318,10 +316,15 @@ impl ChannelAdapter for DiscordAdapter {
         Ok(())
     }
 
-    async fn send(&self, message: &str, _reply_to: Option<&str>) -> Result<()> {
-        let payload = serde_json::json!({
+    async fn send(&self, message: &str, reply_to: Option<&str>) -> Result<()> {
+        let mut payload = serde_json::json!({
             "content": message,
         });
+        if let Some(ref_text) = reply_to {
+            payload["message_reference"] = serde_json::json!({
+                "message_id": ref_text,
+            });
+        }
         let resp = self
             .client
             .post(&self.webhook_url)

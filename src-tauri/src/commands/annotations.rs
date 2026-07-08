@@ -54,7 +54,7 @@ pub async fn annotation_upsert(
     // 同步 SQLite 写入走 spawn_blocking(与 SqliteStore 现有模式一致)。
     // store.upsert 返回 anyhow::Result,直接传 &e 给 CommandError::internal;
     // spawn_blocking 的 JoinError 用 anyhow::anyhow! 包装(参考 device.rs 模式)。
-    let db = state.sqlite.clone();
+    let db = state.memory.sqlite.clone();
     let ann_for_db = ann.clone();
     tokio::task::spawn_blocking(move || {
         let store = AnnotationStore::new(db);
@@ -75,7 +75,7 @@ pub async fn annotation_upsert(
         if let Some(ref c) = comment {
             if !c.trim().is_empty() {
                 let feedback = format!("User feedback (turn {}): {}", turn_id, c);
-                let sponge = state.sponge.clone();
+                let sponge = state.memory.sponge.clone();
                 let feedback_for_absorb = feedback.clone();
                 tokio::spawn(async move {
                     if let Err(e) = sponge
@@ -108,7 +108,7 @@ pub async fn annotation_list(
     state: State<'_, AppState>,
     limit: Option<u32>,
 ) -> Result<Vec<Annotation>, CommandError> {
-    let db = state.sqlite.clone();
+    let db = state.memory.sqlite.clone();
     tokio::task::spawn_blocking(move || {
         let store = AnnotationStore::new(db);
         store
@@ -122,7 +122,7 @@ pub async fn annotation_list(
 /// T-E-S-28: 聚合统计 good/bad 总数 + 按 model/agent 分桶。
 #[tauri::command]
 pub async fn annotation_stats(state: State<'_, AppState>) -> Result<AnnotationStats, CommandError> {
-    let db = state.sqlite.clone();
+    let db = state.memory.sqlite.clone();
     tokio::task::spawn_blocking(move || {
         let store = AnnotationStore::new(db);
         store
@@ -144,7 +144,7 @@ pub async fn annotation_export(
     state: State<'_, AppState>,
     format: String,
 ) -> Result<String, CommandError> {
-    let db = state.sqlite.clone();
+    let db = state.memory.sqlite.clone();
     tokio::task::spawn_blocking(move || {
         let store = AnnotationStore::new(db);
         store

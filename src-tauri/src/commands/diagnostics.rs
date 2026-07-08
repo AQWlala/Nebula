@@ -31,12 +31,12 @@ pub async fn subscribe_diagnostics(
     state: State<'_, AppState>,
     on_event: tauri::ipc::Channel<DiagnosticEvent>,
 ) -> Result<(), CommandError> {
-    if !state.config.diagnostics_channel_enabled {
+    if !state.infra.config.diagnostics_channel_enabled {
         return Err(CommandError::validation(
             "diagnostics channel disabled (set NEBULA_DIAGNOSTICS=1 to enable)",
         ));
     }
-    let mut rx = state.diagnostics.subscribe();
+    let mut rx = state.infra.diagnostics.subscribe();
     loop {
         match rx.recv().await {
             Ok(event) => {
@@ -51,7 +51,7 @@ pub async fn subscribe_diagnostics(
                     "subscribe_diagnostics lagged behind, emitting Dropped meta-event"
                 );
                 // 发出 Dropped 元事件,前端可见。
-                state.diagnostics.emit_dropped(n);
+                state.infra.diagnostics.emit_dropped(n);
                 continue;
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -85,16 +85,16 @@ pub async fn diagnostics_snapshot(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<DiagnosticsSnapshot, CommandError> {
-    if !state.config.diagnostics_channel_enabled {
+    if !state.infra.config.diagnostics_channel_enabled {
         return Ok(DiagnosticsSnapshot {
             last_seq: 0,
             events: Vec::new(),
-            capacity: state.config.diagnostics_buffer_capacity,
+            capacity: state.infra.config.diagnostics_buffer_capacity,
             enabled: false,
         });
     }
     let limit = limit.unwrap_or(50).min(500);
-    let mut rx = state.diagnostics.subscribe();
+    let mut rx = state.infra.diagnostics.subscribe();
     let mut events = Vec::with_capacity(limit);
     let deadline = tokio::time::Instant::now()
         + tokio::time::Duration::from_secs(std::cmp::min(SUBSCRIBE_TIMEOUT_SECS, 1));
@@ -116,7 +116,7 @@ pub async fn diagnostics_snapshot(
     Ok(DiagnosticsSnapshot {
         last_seq,
         events,
-        capacity: state.config.diagnostics_buffer_capacity,
+        capacity: state.infra.config.diagnostics_buffer_capacity,
         enabled: true,
     })
 }

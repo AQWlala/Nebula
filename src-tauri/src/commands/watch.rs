@@ -30,14 +30,14 @@ pub async fn watch_start(
 
     // 若 worker 尚未启动,先 start + spawn_worker;
     // 否则用 reload_paths 热更新。
-    let needs_start = state.file_watcher_worker.lock().is_none();
+    let needs_start = state.memory.file_watcher_worker.lock().is_none();
     if needs_start {
-        state.file_watcher.start(path_bufs);
-        if let Some(handle) = state.file_watcher.clone().spawn_worker() {
-            *state.file_watcher_worker.lock() = Some(handle);
+        state.memory.file_watcher.start(path_bufs);
+        if let Some(handle) = state.memory.file_watcher.clone().spawn_worker() {
+            *state.memory.file_watcher_worker.lock() = Some(handle);
         }
     } else {
-        state.file_watcher.reload_paths(path_bufs);
+        state.memory.file_watcher.reload_paths(path_bufs);
     }
     Ok(())
 }
@@ -47,9 +47,9 @@ pub async fn watch_start(
 #[instrument(skip(state), fields(otel.kind = "watch_stop"))]
 pub async fn watch_stop(state: State<'_, AppState>) -> Result<(), CommandError> {
     // 1. cancel + 清空 watchers + 清空 sender/receiver
-    state.file_watcher.stop().await;
+    state.memory.file_watcher.stop().await;
     // 2. 取出 worker handle 并 timeout-await(250ms)
-    let handle = state.file_watcher_worker.lock().take();
+    let handle = state.memory.file_watcher_worker.lock().take();
     if let Some(h) = handle {
         let _ = tokio::time::timeout(Duration::from_millis(250), h).await;
     }
@@ -60,12 +60,12 @@ pub async fn watch_stop(state: State<'_, AppState>) -> Result<(), CommandError> 
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "watch_status"))]
 pub async fn watch_status(state: State<'_, AppState>) -> Result<WatchStatus, CommandError> {
-    Ok(state.file_watcher.status())
+    Ok(state.memory.file_watcher.status())
 }
 
 /// 仅返回当前监控路径列表(字符串形式)。
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "watch_list_paths"))]
 pub async fn watch_list_paths(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
-    Ok(state.file_watcher.list_paths())
+    Ok(state.memory.file_watcher.list_paths())
 }

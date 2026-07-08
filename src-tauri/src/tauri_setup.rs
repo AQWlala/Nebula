@@ -81,15 +81,15 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match AppState::bootstrap(config.clone(), handle.clone()).await {
                     Ok(state) => {
-                        if let Some(h) = state.reflection.clone().spawn_worker() {
-                            *state.reflect_worker.lock() = Some(h);
+                        if let Some(h) = state.memory.reflection.clone().spawn_worker() {
+                            *state.memory.reflect_worker.lock() = Some(h);
                             info!(target: "nebula", "reflection worker started");
                         }
 
                         #[cfg(feature = "grpc")]
-                        if state.config.grpc_enabled {
+                        if state.infra.config.grpc_enabled {
                             match crate::grpc::start_server(
-                                state.config.grpc_bind_addr.clone(),
+                                state.infra.config.grpc_bind_addr.clone(),
                                 state.clone(),
                             )
                             .await
@@ -97,10 +97,10 @@ pub fn run() {
                                 Ok(handle) => {
                                     info!(
                                         target: "nebula",
-                                        addr = %state.config.grpc_bind_addr,
+                                        addr = %state.infra.config.grpc_bind_addr,
                                         "gRPC server started"
                                     );
-                                    *state.grpc_server.lock() = Some(handle);
+                                    *state.platform.grpc_server.lock() = Some(handle);
                                 }
                                 Err(e) => {
                                     error!(
@@ -117,7 +117,7 @@ pub fn run() {
                         if let Some(addr) = crate::metrics::exporter::bind_addr_from_env() {
                             let h = crate::metrics::exporter::start(
                                 addr.clone(),
-                                state.perf_monitor.clone(),
+                                state.infra.perf_monitor.clone(),
                             );
                             std::mem::forget(h);
                             info!(
@@ -129,15 +129,15 @@ pub fn run() {
 
                         #[cfg(feature = "mcp")]
                         {
-                            state.mcp_manager.connect_all().await;
-                            let mcp_tools = state.mcp_manager.list_all_tools().await;
+                            state.platform.mcp_manager.connect_all().await;
+                            let mcp_tools = state.platform.mcp_manager.list_all_tools().await;
                             if !mcp_tools.is_empty() {
                                 info!(target: "nebula", count = mcp_tools.len(), "MCP tools discovered");
                             }
-                            let tool_groups = state.mcp_manager.as_tool_implementations().await;
+                            let tool_groups = state.platform.mcp_manager.as_tool_implementations().await;
                             for (server_name, tools) in tool_groups {
                                 let count = tools.len();
-                                state.tool_registry.register_mcp_tools(&server_name, tools);
+                                state.infra.tool_registry.register_mcp_tools(&server_name, tools);
                                 info!(
                                     target: "nebula",
                                     server = %server_name,
@@ -149,33 +149,33 @@ pub fn run() {
 
                         {
                             let app_handle = handle.clone();
-                            let db_path = std::path::PathBuf::from(&state.config.db_path);
-                            let lance_dir = std::path::PathBuf::from(&state.config.lance_path);
+                            let db_path = std::path::PathBuf::from(&state.infra.config.db_path);
+                            let lance_dir = std::path::PathBuf::from(&state.infra.config.lance_path);
                             let scheduler = crate::backup::BackupScheduler::new(app_handle, db_path, lance_dir);
                             if let Err(e) = scheduler.start() {
                                 info!(target: "nebula.backup", error = ?e, "failed to start backup scheduler");
                             }
                         }
 
-                        let clipboard_auto_started = state.config.clipboard_watch_enabled;
+                        let clipboard_auto_started = state.infra.config.clipboard_watch_enabled;
                         if clipboard_auto_started {
                             let app_handle = handle.clone();
-                            let sponge = state.sponge.clone();
-                            let mut watcher = state.clipboard_watcher.lock().await;
+                            let sponge = state.memory.sponge.clone();
+                            let mut watcher = state.platform.clipboard_watcher.lock().await;
                             match watcher.start(sponge, app_handle) {
                                 Ok(_) => info!(target: "nebula", "clipboard watcher auto-started (T-E-C-14)"),
                                 Err(e) => warn!(target: "nebula", error = %e, "clipboard watcher auto-start failed"),
                             }
                         }
 
-                        let notification_svc = state.notification_service.clone();
-                        let swarm_bus = state.swarm.bus().clone();
+                        let notification_svc = state.platform.notification_service.clone();
+                        let swarm_bus = state.swarm.swarm.bus().clone();
 
                         handle.manage(state);
                         info!(target: "nebula", "app state ready");
 
                         {
-                            let sidecar_manager = handle.state::<crate::AppState>().sidecar_manager.clone();
+                            let sidecar_manager = handle.state::<crate::AppState>().platform.sidecar_manager.clone();
                             tauri::async_runtime::spawn(async move {
                                 if let Err(e) = sidecar_manager.bootstrap().await {
                                     warn!(target: "nebula.sidecar", error = ?e,
@@ -189,8 +189,8 @@ pub fn run() {
 
                         {
                             let state = handle.state::<crate::AppState>();
-                            let l0_cache = state.l0.clone();
-                            let sqlite_for_l0 = state.sqlite.clone();
+                            let l0_cache = state.memory.l0.clone();
+                            let sqlite_for_l0 = state.memory.sqlite.clone();
                             tauri::async_runtime::spawn(async move {
                                 l0_cache.prewarm_from_store(&sqlite_for_l0, 64).await;
                                 info!(target: "nebula.l0_cache",
@@ -200,9 +200,9 @@ pub fn run() {
 
                         {
                             let state = handle.state::<crate::AppState>();
-                            let ollama = state.llm.ollama_client().clone();
-                            let chat_model = state.config.chat_model.clone();
-                            let cfg_provider = state.config.llm_provider.clone();
+                            let ollama = state.llm.llm.ollama_client().clone();
+                            let chat_model = state.infra.config.chat_model.clone();
+                            let cfg_provider = state.infra.config.llm_provider.clone();
                             tauri::async_runtime::spawn(async move {
                                 if cfg_provider == "ollama" && !chat_model.is_empty() {
                                     if let Err(e) = ollama.warmup_model(&chat_model).await {
@@ -224,8 +224,8 @@ pub fn run() {
 
                         {
                             let state = handle.state::<crate::AppState>();
-                            let ollama = state.llm.ollama_client().clone();
-                            let vision_model = state.config.vision_model.clone();
+                            let ollama = state.llm.llm.ollama_client().clone();
+                            let vision_model = state.infra.config.vision_model.clone();
                             tauri::async_runtime::spawn(async move {
                                 if !vision_model.is_empty() {
                                     if let Err(e) = ollama.warmup_model(&vision_model).await {
@@ -454,6 +454,11 @@ pub fn run() {
             crate::commands::open_floating_ball,
             crate::commands::open_floating_progress,
             crate::commands::swarm_cancel,
+            // T-D-C-08: master-orchestrator 运行时开关命令
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::master_orchestrator_enabled,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::master_orchestrator_set_enabled,
             #[cfg(feature = "master-orchestrator")]
             crate::commands::master_run,
             #[cfg(feature = "master-orchestrator")]

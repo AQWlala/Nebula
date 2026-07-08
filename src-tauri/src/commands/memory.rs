@@ -63,7 +63,7 @@ pub async fn memory_get(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<Memory>, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     tokio::task::spawn(async move { sqlite.get(&id).await })
         .await
         .map_err(|e| CommandError::internal("memory_get", &anyhow::anyhow!("{e}")))?
@@ -77,7 +77,7 @@ pub async fn memory_list_recent(
     state: State<'_, AppState>,
     limit: usize,
 ) -> Result<Vec<Memory>, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     tokio::task::spawn(async move { sqlite.list_recent(limit.max(1)).await })
         .await
         .map_err(|e| CommandError::internal("memory_list_recent", &anyhow::anyhow!("{e}")))?
@@ -96,7 +96,7 @@ pub async fn memory_update_importance(
     id: String,
     importance: f32,
 ) -> Result<Memory, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     let sqlite_for_check = sqlite.clone();
     let id_clone = id.clone();
     let mem = tokio::task::spawn(async move { sqlite_for_check.get(&id_clone).await })
@@ -129,7 +129,7 @@ pub async fn memory_update_importance(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "memory_delete"))]
 pub async fn memory_delete(state: State<'_, AppState>, id: String) -> Result<bool, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     let id_for_thread = id.clone();
     let res = tokio::task::spawn(async move { sqlite.delete(&id_for_thread).await })
         .await
@@ -137,7 +137,7 @@ pub async fn memory_delete(state: State<'_, AppState>, id: String) -> Result<boo
     match res {
         Ok(deleted) => {
             if deleted {
-                if let Err(e) = state.lance.delete(&id).await {
+                if let Err(e) = state.memory.lance.delete(&id).await {
                     warn!(target: "nebula.cmd", error = ?e, "lance delete failed");
                 }
             }
@@ -155,7 +155,7 @@ pub async fn memory_get_many(
     state: State<'_, AppState>,
     ids: Vec<String>,
 ) -> Result<Vec<Memory>, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     tokio::task::spawn(async move { sqlite.get_many(&ids).await })
         .await
         .map_err(|e| CommandError::internal("memory_get_many", &anyhow::anyhow!("{e}")))?
@@ -180,7 +180,7 @@ pub async fn memory_query_dsl(
     query: String,
 ) -> Result<Vec<Memory>, CommandError> {
     let ast = crate::memory::query_dsl::parse_str(&query).map_err(CommandError::validation)?;
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     tokio::task::spawn(async move { sqlite.query_dsl(&ast).await })
         .await
         .map_err(|e| CommandError::internal("memory_query_dsl", &anyhow::anyhow!("{e}")))?
@@ -198,7 +198,7 @@ pub struct MemoryStats {
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "memory_stats"))]
 pub async fn memory_stats(state: State<'_, AppState>) -> Result<MemoryStats, CommandError> {
-    let sqlite = state.sqlite.clone();
+    let sqlite = state.memory.sqlite.clone();
     let rows = tokio::task::spawn(async move { sqlite.counts_per_layer().await })
         .await
         .map_err(|e| CommandError::internal("memory_stats", &anyhow::anyhow!("{e}")))?
@@ -224,7 +224,7 @@ pub async fn causal_trace_root_causes(
         max_depth: max_depth.unwrap_or(5),
         ..Default::default()
     };
-    let engine = state.causal_graph.clone();
+    let engine = state.memory.causal_graph.clone();
     let result = tokio::task::spawn_blocking(move || engine.trace_root_causes(&memory_id, &config))
         .await
         .map_err(|e| CommandError::internal("causal_trace_root_causes", &anyhow::anyhow!("{e}")))?;
@@ -243,7 +243,7 @@ pub async fn causal_find_effects(
         max_depth: max_depth.unwrap_or(5),
         ..Default::default()
     };
-    let engine = state.causal_graph.clone();
+    let engine = state.memory.causal_graph.clone();
     let result = tokio::task::spawn_blocking(move || engine.find_effects(&memory_id, &config))
         .await
         .map_err(|e| CommandError::internal("causal_find_effects", &anyhow::anyhow!("{e}")))?;
@@ -257,7 +257,7 @@ pub async fn causal_explain(
     state: State<'_, AppState>,
     memory_id: String,
 ) -> Result<Option<crate::memory::causal_graph::CausalChain>, CommandError> {
-    let engine = state.causal_graph.clone();
+    let engine = state.memory.causal_graph.clone();
     let result = tokio::task::spawn_blocking(move || engine.explain(&memory_id))
         .await
         .map_err(|e| CommandError::internal("causal_explain", &anyhow::anyhow!("{e}")))?;
@@ -271,7 +271,7 @@ pub async fn summary_generate(
     state: State<'_, AppState>,
     content: String,
 ) -> Result<crate::memory::types::MultiGranularity, CommandError> {
-    let engine = state.summary_engine.clone();
+    let engine = state.memory.summary_engine.clone();
     let mg = engine.generate(&content).await;
     Ok(mg)
 }
@@ -286,7 +286,7 @@ pub async fn summary_generate(
 pub async fn memory_branch_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::memory::version_control::MemoryBranch>, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.list_branches())
         .await
         .map_err(|e| CommandError::internal("memory_branch_list", &anyhow::anyhow!("{e}")))?
@@ -300,7 +300,7 @@ pub async fn memory_branch_create(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<crate::memory::version_control::MemoryBranch, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.create_branch(&name))
         .await
         .map_err(|e| CommandError::internal("memory_branch_create", &anyhow::anyhow!("{e}")))?
@@ -314,7 +314,7 @@ pub async fn memory_branch_checkout(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<(), CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.checkout(&name))
         .await
         .map_err(|e| CommandError::internal("memory_branch_checkout", &anyhow::anyhow!("{e}")))?
@@ -328,7 +328,7 @@ pub async fn memory_branch_delete(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<(), CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.delete_branch(&name))
         .await
         .map_err(|e| CommandError::internal("memory_branch_delete", &anyhow::anyhow!("{e}")))?
@@ -346,7 +346,7 @@ pub async fn memory_commit(
     author: String,
     message: String,
 ) -> Result<String, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.commit(&action, &target_id, &payload, &author, &message))
         .await
         .map_err(|e| CommandError::internal("memory_commit", &anyhow::anyhow!("{e}")))?
@@ -360,7 +360,7 @@ pub async fn memory_log(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<crate::memory::version_control::CommitRecord>, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     let limit = limit.unwrap_or(50);
     tokio::task::spawn_blocking(move || vc.log(limit))
         .await
@@ -376,7 +376,7 @@ pub async fn memory_diff(
     from_commit: String,
     to_commit: String,
 ) -> Result<crate::memory::version_control::CommitDiff, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.diff(&from_commit, &to_commit))
         .await
         .map_err(|e| CommandError::internal("memory_diff", &anyhow::anyhow!("{e}")))?
@@ -392,7 +392,7 @@ pub async fn memory_revert(
     author: String,
     message: String,
 ) -> Result<String, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.revert(&target_commit_id, &author, &message))
         .await
         .map_err(|e| CommandError::internal("memory_revert", &anyhow::anyhow!("{e}")))?
@@ -406,7 +406,7 @@ pub async fn memory_merge(
     state: State<'_, AppState>,
     source_branch: String,
 ) -> Result<Vec<String>, CommandError> {
-    let vc = state.version_control.clone();
+    let vc = state.memory.version_control.clone();
     tokio::task::spawn_blocking(move || vc.merge(&source_branch))
         .await
         .map_err(|e| CommandError::internal("memory_merge", &anyhow::anyhow!("{e}")))?
@@ -431,7 +431,7 @@ pub async fn memory_orchestrator_run(
     task: String,
 ) -> Result<ContextBundle, CommandError> {
     let bundle = state
-        .orchestrator
+        .memory.orchestrator
         .assemble_context(&task, "system")
         .await
         .map_err(|e| CommandError::internal("memory_orchestrator_run", &e))?;
@@ -474,9 +474,9 @@ pub async fn embed_image(
         std::env::var("NEBULA_CLIP_MODEL").unwrap_or_else(|_| DEFAULT_CLIP_MODEL.to_string());
 
     let embedder = ClipEmbedder::new(
-        OllamaClient::new(state.config.ollama_url.clone()),
+        OllamaClient::new(state.infra.config.ollama_url.clone()),
         model,
-        state.config.embedding_dim,
+        state.infra.config.embedding_dim,
     );
 
     embedder
@@ -553,7 +553,7 @@ pub async fn sponge_absorb_file(
 
     // 3. 调用 sponge.absorb_file;非文本文件(pdf/docx)由内部
     //    document_extractor 处理,文本类走 tokio::fs::read_to_string。
-    let sponge = state.sponge.clone();
+    let sponge = state.memory.sponge.clone();
     let result = sponge
         .absorb_file(
             &p,

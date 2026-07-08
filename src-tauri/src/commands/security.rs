@@ -45,7 +45,7 @@ pub struct DbEncryptionStatus {
     pub key_present: bool,
     /// SQLCipher 版本字符串(若可查询);当前始终 None(避免打开 DB 副作用)。
     pub cipher_version: Option<String>,
-    /// SQLite DB 文件路径(`state.config.db_path`)。
+    /// SQLite DB 文件路径(`state.infra.config.db_path`)。
     pub db_path: String,
 }
 
@@ -67,7 +67,7 @@ pub async fn db_encryption_status(
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     let key_present = crate::security::keychain::resolve_db_encryption_key().is_some();
-    let db_path = state.config.db_path.clone();
+    let db_path = state.infra.config.db_path.clone();
     let feature_enabled = cfg!(feature = "sqlcipher");
     // cipher_version 仅在 feature 启用时尝试查询;此处避免打开 DB 副作用,返回 None。
     // 前端如需版本号,可调 db_encryption_enable 后从返回值读 cipher_version。
@@ -113,7 +113,7 @@ pub async fn db_encryption_enable(
 
     // 3. 加密明文 DB(CipherMigrator::encrypt_plaintext_db)。
     //    重命名明文 DB → .plain.bak,用 key 打开新 DB,sqlcipher_export 导入。
-    let db_path = state.config.db_path.clone();
+    let db_path = state.infra.config.db_path.clone();
     let plain_path = Path::new(&db_path);
     let _backup =
         crate::memory::sqlite_cipher::CipherMigrator::encrypt_plaintext_db(plain_path, &key)
@@ -167,7 +167,7 @@ pub async fn db_encryption_disable(
 
     // 1. 解密(key 验证:CipherMigrator 内部 ATTACH 时验证 key;
     //    key 错则 sqlcipher_export 失败,"file is not a database")。
-    let db_path = state.config.db_path.clone();
+    let db_path = state.infra.config.db_path.clone();
     let enc_path = Path::new(&db_path);
     let _backup =
         crate::memory::sqlite_cipher::CipherMigrator::decrypt_to_plaintext(enc_path, &key)
@@ -207,7 +207,7 @@ pub async fn db_encryption_disable(
 pub fn oauth_list_providers(
     state: tauri::State<'_, crate::AppState>,
 ) -> Vec<crate::identity::OAuthProviderInfo> {
-    state.oauth_manager.list_providers()
+    state.platform.oauth_manager.list_providers()
 }
 
 /// Returns the authorization URL for a provider.  The front-end opens this
@@ -222,7 +222,7 @@ pub fn oauth_authorization_url(
 ) -> Result<String, CommandError> {
     let state_val = state_param.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     state
-        .oauth_manager
+        .platform.oauth_manager
         .authorization_url(&provider_id, &state_val)
         .map_err(|e| CommandError::internal("failed to build authorization URL", &e))
 }
@@ -235,7 +235,7 @@ pub async fn oauth_authorize(
     code: String,
 ) -> Result<(), CommandError> {
     state
-        .oauth_manager
+        .platform.oauth_manager
         .authorize(&provider_id, &code)
         .await
         .map_err(|e| CommandError::internal("OAuth authorization failed", &e))
@@ -248,7 +248,7 @@ pub async fn oauth_disconnect(
     provider_id: String,
 ) -> Result<(), CommandError> {
     state
-        .oauth_manager
+        .platform.oauth_manager
         .disconnect(&provider_id)
         .await
         .map_err(|e| CommandError::internal("OAuth disconnect failed", &e))
@@ -262,7 +262,7 @@ pub async fn oauth_status(
     provider_id: String,
 ) -> Result<bool, CommandError> {
     match state
-        .oauth_manager
+        .platform.oauth_manager
         .refresh_if_needed(&provider_id)
         .await
         .map_err(|e| CommandError::internal("OAuth status check failed", &e))?

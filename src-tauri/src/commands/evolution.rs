@@ -42,7 +42,7 @@ use tauri::Emitter;
 pub async fn evolution_log_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::evolution::engine::EvolutionLogEntry>, CommandError> {
-    let log = state.evolution_log.clone();
+    let log = state.swarm.evolution_log.clone();
     let entries = log
         .list_all()
         .map_err(|e| CommandError::internal("evolution_log_list", &anyhow::anyhow!("{e}")))?;
@@ -59,7 +59,7 @@ pub async fn evolution_log_get(
     state: State<'_, AppState>,
     entry_id: String,
 ) -> Result<Option<crate::evolution::engine::EvolutionLogEntry>, CommandError> {
-    let log = state.evolution_log.clone();
+    let log = state.swarm.evolution_log.clone();
     let entry = log
         .find_entry(&entry_id)
         .map_err(|e| CommandError::internal("evolution_log_get", &anyhow::anyhow!("{e}")))?;
@@ -79,7 +79,7 @@ pub async fn evolution_rollback(
     state: State<'_, AppState>,
     n: usize,
 ) -> Result<crate::evolution::engine::RollbackResult, CommandError> {
-    let roller = state.roller.clone();
+    let roller = state.swarm.roller.clone();
     let result = roller
         .rollback(n)
         .await
@@ -131,7 +131,7 @@ pub async fn evolution_run(
     app: tauri::AppHandle,
     master_id: Option<String>,
 ) -> Result<crate::evolution::engine::EvolutionResult, CommandError> {
-    let engine = state.evolution_engine.as_ref().ok_or_else(|| {
+    let engine = state.swarm.evolution_engine.as_ref().ok_or_else(|| {
         CommandError::internal(
             "evolution_run",
             &anyhow::anyhow!(
@@ -178,5 +178,5 @@ pub async fn evolution_run(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "evolution_engine_ready"))]
 pub async fn evolution_engine_ready(state: State<'_, AppState>) -> Result<bool, CommandError> {
-    Ok(state.evolution_engine.is_some())
+    Ok(state.swarm.evolution_engine.is_some())
 }

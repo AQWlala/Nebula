@@ -34,7 +34,7 @@ pub async fn wiki_compile(
     user_message: String,
     assistant_message: String,
 ) -> Result<WikiNote, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     if !compiler_enabled(&state) {
         return Err(CommandError::validation("wiki compiler disabled"));
     }
@@ -65,7 +65,7 @@ pub async fn wiki_list(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<Vec<WikiNote>, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     let limit = limit.unwrap_or(50);
     let offset = offset.unwrap_or(0);
     let notes = compiler
@@ -82,7 +82,7 @@ pub async fn wiki_read(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<WikiNoteReadResponse, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     let (note, markdown) = compiler
         .read(&id)
         .await
@@ -98,7 +98,7 @@ pub async fn wiki_search(
     query: String,
     limit: Option<u32>,
 ) -> Result<Vec<WikiNote>, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     let limit = limit.unwrap_or(20);
     let notes = compiler
         .search(&query, limit)
@@ -111,7 +111,7 @@ pub async fn wiki_search(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "wiki_delete"))]
 pub async fn wiki_delete(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     compiler
         .delete(&id)
         .await
@@ -137,7 +137,7 @@ pub async fn wiki_update_from_user(
     note_id: String,
     new_body: String,
 ) -> Result<(), CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     compiler
         .update_note_from_user(&note_id, new_body)
         .await
@@ -153,7 +153,7 @@ pub async fn wiki_update_from_user(
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "wiki_regen_index"))]
 pub async fn wiki_regen_index(state: State<'_, AppState>) -> Result<(), CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     if !compiler_enabled(&state) {
         return Err(CommandError::validation("wiki compiler disabled"));
     }
@@ -174,7 +174,7 @@ pub async fn wiki_backlinks(
     state: State<'_, AppState>,
     note_id: String,
 ) -> Result<Vec<WikiNote>, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     compiler
         .get_backlinks(&note_id)
         .map_err(|e| CommandError::db("wiki_backlinks", &e))
@@ -194,7 +194,7 @@ pub async fn wiki_get_card(
     state: State<'_, AppState>,
     slug: String,
 ) -> Result<KnowledgeCard, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     compiler
         .get_card(&slug)
         .await
@@ -203,7 +203,7 @@ pub async fn wiki_get_card(
 
 /// 检查 wiki 编译器是否启用(配置开关)。
 fn compiler_enabled(state: &State<'_, AppState>) -> bool {
-    state.wiki.is_enabled()
+    state.platform.wiki.is_enabled()
 }
 
 // ---------------------------------------------------------------------------
@@ -275,7 +275,7 @@ pub async fn obsidian_export_note(
     vault_path: String,
     note_id: String,
 ) -> Result<String, CommandError> {
-    let compiler = state.wiki.clone();
+    let compiler = state.platform.wiki.clone();
     if !compiler_enabled(&state) {
         return Err(CommandError::validation("wiki compiler disabled"));
     }

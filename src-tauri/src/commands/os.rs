@@ -15,7 +15,7 @@ use crate::AppState;
 #[instrument(skip(state), fields(otel.kind = "os_clipboard_read"))]
 pub async fn os_clipboard_read(state: State<'_, AppState>) -> Result<String, CommandError> {
     state
-        .clipboard
+        .platform.clipboard
         .read_text()
         .map_err(|e| CommandError::internal("os_clipboard_read", &e))
 }
@@ -27,7 +27,7 @@ pub async fn os_clipboard_write(
     text: String,
 ) -> Result<(), CommandError> {
     state
-        .clipboard
+        .platform.clipboard
         .write_text(&text)
         .map_err(|e| CommandError::internal("os_clipboard_write", &e))
 }
@@ -58,7 +58,7 @@ pub async fn os_shell_exec(
             .with_details("argv or command is required".to_string()));
     };
     let cwd: Option<PathBuf> = request.cwd.map(PathBuf::from);
-    let shell = state.shell.clone();
+    let shell = state.platform.shell.clone();
     let timeout = request.timeout_ms.map(std::time::Duration::from_millis);
     // v1.0.1 P0#3: `ShellExecutor::exec` is now `async` so the
     // timeout branch can `start_kill()` the child.  No more

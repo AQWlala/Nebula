@@ -20,5 +20,5 @@ pub async fn directed_edit(state: State<'_, AppState>, selected: String) -> Resu
         return Err("选区为空,请先选中文字".to_string());
     }
     let prompt = DIRECTED_EDIT_PROMPT_TEMPLATE.replace("{selected}", &selected);
-    state.llm.generate(&prompt).await.map_err(|e| e.to_string())
+    state.llm.llm.generate(&prompt).await.map_err(|e| e.to_string())
 }

@@ -1,4 +1,4 @@
-﻿//! T-E-A-11: Smart Prefetch Tauri 命令。
+//! T-E-A-11: Smart Prefetch Tauri 命令。
 //!
 //! 前端在打开文件 / 拖入文件时调用 `prefetch_for_file`,后台触发
 //! [`PrefetchEngine::prefetch`] 三路检索历史对话并预热 SemanticCache。
@@ -48,7 +48,7 @@ pub async fn prefetch_for_file(
     if path.trim().is_empty() {
         return Err(CommandError::validation("prefetch_for_file: path is empty"));
     }
-    let engine = state.prefetch.clone();
+    let engine = state.llm.prefetch.clone();
     let stats = engine.prefetch(&path).await;
     Ok(stats)
 }

@@ -14,7 +14,7 @@ pub async fn skill_create(
     request: skill_types::CreateSkillRequest,
 ) -> Result<skill_types::Skill, CommandError> {
     state
-        .skills
+        .swarm.skills
         .create_skill(request)
         .map_err(|e| CommandError::db("skill_create", &e))
 }
@@ -41,7 +41,7 @@ pub async fn skill_use(
     }
 
     state
-        .skills
+        .swarm.skills
         .use_skill(request)
         .await
         .map_err(|e| CommandError::internal("skill_use", &e))
@@ -54,7 +54,7 @@ pub async fn skill_rate(
     request: skill_types::RateSkillRequest,
 ) -> Result<skill_types::Skill, CommandError> {
     state
-        .skills
+        .swarm.skills
         .rate_skill(request)
         .map_err(|e| CommandError::db("skill_rate", &e))
 }
@@ -66,7 +66,7 @@ pub async fn skill_list(
     request: skill_types::ListSkillsRequest,
 ) -> Result<Vec<skill_types::Skill>, CommandError> {
     state
-        .skills
+        .swarm.skills
         .list_skills(request)
         .map_err(|e| CommandError::db("skill_list", &e))
 }
@@ -78,7 +78,7 @@ pub async fn skill_search(
     request: skill_types::SkillSearchRequest,
 ) -> Result<Vec<skill_types::Skill>, CommandError> {
     state
-        .skills
+        .swarm.skills
         .search_skills(request)
         .map_err(|e| CommandError::db("skill_search", &e))
 }
@@ -92,7 +92,7 @@ pub async fn skill_search(
 pub async fn skill_tags(
     state: State<'_, AppState>,
 ) -> Result<Vec<skill_types::TagCount>, CommandError> {
-    Ok(state.skills.all_tags())
+    Ok(state.swarm.skills.all_tags())
 }
 
 /// Stub: import skill from external registry (v1.2 eco compatibility).
@@ -112,7 +112,7 @@ pub async fn skill_import(
                 .with_details(format!("unknown source: {other}")))
         }
     };
-    let importer = crate::skills::importer::SkillImporter::new(state.skills.store().clone());
+    let importer = crate::skills::importer::SkillImporter::new(state.swarm.skills.store().clone());
     let result = match source {
         crate::skills::importer::SkillSource::AgentskillsIo => {
             importer.import_from_url(&identifier).await
@@ -152,7 +152,7 @@ pub async fn skill_export_clawhub(
     output_path: Option<String>,
 ) -> Result<serde_json::Value, CommandError> {
     let skill = state
-        .skills
+        .swarm.skills
         .store()
         .get(&skill_id)
         .map_err(|e| CommandError::db("skill_export_clawhub", &e))?
@@ -198,7 +198,7 @@ pub async fn marketplace_search(
     query: crate::skills::marketplace::MarketplaceQuery,
 ) -> Result<crate::skills::marketplace::MarketplaceResponse, CommandError> {
     state
-        .marketplace
+        .swarm.marketplace
         .search(&query)
         .map_err(|e| CommandError::internal("marketplace_search", &e))
 }
@@ -216,7 +216,7 @@ pub async fn marketplace_quick_search(
         ..Default::default()
     };
     state
-        .marketplace
+        .swarm.marketplace
         .search(&q)
         .map_err(|e| CommandError::internal("marketplace_quick_search", &e))
 }
@@ -230,7 +230,7 @@ pub async fn marketplace_install(
     identifier: String,
 ) -> Result<crate::skills::marketplace::SkillEntry, CommandError> {
     state
-        .marketplace
+        .swarm.marketplace
         .install(&source, &identifier)
         .map_err(|e| CommandError::internal("marketplace_install", &e))
 }
@@ -241,7 +241,7 @@ pub async fn marketplace_install(
 pub async fn marketplace_check_updates(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::skills::marketplace::UpdateInfo>, CommandError> {
-    Ok(state.marketplace.check_updates())
+    Ok(state.swarm.marketplace.check_updates())
 }
 
 /// Refresh marketplace index.
@@ -251,7 +251,7 @@ pub async fn marketplace_refresh(
     state: State<'_, AppState>,
 ) -> Result<crate::skills::marketplace::MarketplaceStats, CommandError> {
     state
-        .marketplace
+        .swarm.marketplace
         .refresh()
         .map_err(|e| CommandError::internal("marketplace_refresh", &e))
 }
@@ -262,7 +262,7 @@ pub async fn marketplace_refresh(
 pub async fn marketplace_stats(
     state: State<'_, AppState>,
 ) -> Result<crate::skills::marketplace::MarketplaceStats, CommandError> {
-    Ok(state.marketplace.stats())
+    Ok(state.swarm.marketplace.stats())
 }
 
 /// Get all tags with frequencies.
@@ -271,7 +271,7 @@ pub async fn marketplace_stats(
 pub async fn marketplace_tags(
     state: State<'_, AppState>,
 ) -> Result<Vec<(String, usize)>, CommandError> {
-    Ok(state.marketplace.all_tags())
+    Ok(state.swarm.marketplace.all_tags())
 }
 
 /// Generate publish manifest for a skill.
@@ -282,7 +282,7 @@ pub async fn marketplace_generate_manifest(
     skill_id: String,
 ) -> Result<crate::skills::marketplace::PublishManifest, CommandError> {
     state
-        .marketplace
+        .swarm.marketplace
         .generate_manifest(&skill_id)
         .map_err(|e| CommandError::internal("marketplace_generate_manifest", &e))
 }
@@ -313,7 +313,7 @@ pub async fn skill_publish(
 
     // 1. 读取 skill。
     let skill = state
-        .skills
+        .swarm.skills
         .store()
         .get(&skill_id)
         .map_err(|e| CommandError::db("skill_publish", &e))?
@@ -325,7 +325,7 @@ pub async fn skill_publish(
 
     // 3. 生成 PublishManifest 并校验。
     let manifest = state
-        .marketplace
+        .swarm.marketplace
         .generate_manifest(&skill_id)
         .map_err(|e| CommandError::internal("skill_publish", &e))?;
     crate::skills::marketplace::SkillMarketplace::validate_manifest(&manifest)
@@ -345,7 +345,7 @@ pub async fn skill_publish(
         }
         "file" => {
             // 默认导出到 <db_dir>/skills_export/。
-            let db_path = std::path::Path::new(&state.config.db_path);
+            let db_path = std::path::Path::new(&state.infra.config.db_path);
             let out_dir = db_path
                 .parent()
                 .map(|p| p.join("skills_export"))
@@ -377,7 +377,7 @@ pub async fn skill_audit_list(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<crate::skills::audit::SkillAuditEntry>, CommandError> {
-    let logger = state.skill_audit_logger.clone();
+    let logger = state.swarm.skill_audit_logger.clone();
     tokio::task::spawn_blocking(move || {
         logger
             .list(limit.unwrap_or(50))
@@ -394,7 +394,7 @@ pub async fn skill_audit_list_for_skill(
     skill_id: String,
     limit: Option<usize>,
 ) -> Result<Vec<crate::skills::audit::SkillAuditEntry>, CommandError> {
-    let logger = state.skill_audit_logger.clone();
+    let logger = state.swarm.skill_audit_logger.clone();
     tokio::task::spawn_blocking(move || {
         logger
             .list_for_skill(&skill_id, limit.unwrap_or(50))
@@ -414,7 +414,7 @@ pub async fn skill_audit_list_for_skill(
 pub async fn cost_summary(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::llm::cost_tracker::DailyAggregate>, CommandError> {
-    Ok(state.cost_tracker.aggregate_by_day())
+    Ok(state.llm.cost_tracker.aggregate_by_day())
 }
 
 /// T-E-S-20: 返回当前所有 exec 审批请求快照（按创建时间升序）。
@@ -423,5 +423,5 @@ pub async fn cost_summary(
 pub async fn exec_approval_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::skills::exec_approval::ExecApprovalRequest>, CommandError> {
-    Ok(state.exec_approval.list_all())
+    Ok(state.swarm.exec_approval.list_all())
 }

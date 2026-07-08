@@ -42,6 +42,6 @@ pub async fn openapi_register_tools(
     if let Some(token) = bearer_token {
         server = server.with_auth(OpenApiAuth::Bearer(token));
     }
-    let count = state.tool_registry.register_openapi_tools(server);
+    let count = state.infra.tool_registry.register_openapi_tools(server);
     Ok(count)
 }

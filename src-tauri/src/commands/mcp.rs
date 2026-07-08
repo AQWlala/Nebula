@@ -19,7 +19,7 @@ use super::error::{CommandError, ErrorCode};
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "mcp_list_servers"))]
 pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
-    Ok(state.mcp_manager.list_servers())
+    Ok(state.platform.mcp_manager.list_servers())
 }
 
 #[tauri::command]
@@ -28,7 +28,7 @@ pub async fn mcp_add_server(
     state: State<'_, AppState>,
     config: McpServerConfig,
 ) -> Result<bool, CommandError> {
-    state.mcp_manager.add_server(config);
+    state.platform.mcp_manager.add_server(config);
     Ok(true)
 }
 
@@ -38,9 +38,9 @@ pub async fn mcp_remove_server(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<bool, CommandError> {
-    state.mcp_manager.remove_server(&name);
+    state.platform.mcp_manager.remove_server(&name);
     // T-E-S-30: 同步清理 ToolRegistry 中对应前缀(mcp_<server>_)的工具。
-    state.tool_registry.unregister_server(&name);
+    state.infra.tool_registry.unregister_server(&name);
     Ok(true)
 }
 
@@ -55,10 +55,10 @@ pub async fn mcp_list_tools(
     server_id: String,
 ) -> Result<Vec<McpTool>, CommandError> {
     if server_id.is_empty() {
-        return Ok(state.mcp_manager.list_all_tools().await);
+        return Ok(state.platform.mcp_manager.list_all_tools().await);
     }
     state
-        .mcp_manager
+        .platform.mcp_manager
         .list_tools_for_server(&server_id)
         .await
         .map_err(|e| CommandError {
@@ -82,7 +82,7 @@ pub async fn mcp_invoke_tool(
     params: serde_json::Value,
 ) -> Result<McpToolResult, CommandError> {
     state
-        .mcp_manager
+        .platform.mcp_manager
         .invoke_tool(&server_id, &tool_name, params)
         .await
         .map_err(|e| CommandError {
@@ -105,7 +105,7 @@ pub async fn mcp_invoke_tool(
 pub async fn mcp_server_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<McpServerInfo>, CommandError> {
-    Ok(state.mcp_registry.list())
+    Ok(state.platform.mcp_registry.list())
 }
 
 /// 启动指定的 MCP server(stdio 子进程)。
@@ -119,7 +119,7 @@ pub async fn mcp_server_start(
     name: String,
 ) -> Result<(), CommandError> {
     state
-        .mcp_registry
+        .platform.mcp_registry
         .start(&name)
         .await
         .map_err(|e| CommandError {
@@ -134,7 +134,7 @@ pub async fn mcp_server_start(
 #[instrument(skip(state), fields(otel.kind = "mcp_server_stop"))]
 pub async fn mcp_server_stop(state: State<'_, AppState>, name: String) -> Result<(), CommandError> {
     state
-        .mcp_registry
+        .platform.mcp_registry
         .stop(&name)
         .await
         .map_err(|e| CommandError {
@@ -154,7 +154,7 @@ pub async fn mcp_server_status(
     name: String,
 ) -> Result<McpServerStatus, CommandError> {
     state
-        .mcp_registry
+        .platform.mcp_registry
         .status(&name)
         .ok_or_else(|| CommandError {
             code: ErrorCode::NotFound,
@@ -176,7 +176,7 @@ pub async fn mcp_server_logs(
 ) -> Result<Vec<String>, CommandError> {
     let tail = tail.unwrap_or(100);
     state
-        .mcp_registry
+        .platform.mcp_registry
         .logs(&name, tail)
         .await
         .map_err(|e| CommandError {

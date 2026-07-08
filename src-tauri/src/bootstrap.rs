@@ -377,6 +377,10 @@ impl AppState {
             )))
         };
 
+        // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关
+        #[cfg(feature = "master-orchestrator")]
+        crate::swarm::init_master_orchestrator_from_env();
+
         // M5 #68 / M6 #82: ApprovalGate + ConfirmationRegistry + MasterOrchestrator
         let confirmation_registry = Arc::new(crate::autonomy::ConfirmationRegistry::new());
         let approval_gate = Arc::new(crate::autonomy::ApprovalGate::new(
@@ -386,18 +390,28 @@ impl AppState {
         info!(target: "nebula", "approval gate + confirmation registry ready (M5 #68)");
         #[cfg(feature = "master-orchestrator")]
         let master_orchestrator = {
-            #[cfg(feature = "unified-dispatcher")]
-            let dispatcher = dispatcher.clone();
-            #[cfg(not(feature = "unified-dispatcher"))]
-            let dispatcher: Option<
-                Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
-            > = None;
-            let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
-                swarm.clone(),
-                dispatcher,
-            ));
-            info!(target: "nebula", "MasterOrchestrator ready (M6 #82, master-orchestrator feature on)");
-            mo
+            if crate::swarm::master_orchestrator_enabled() {
+                #[cfg(feature = "unified-dispatcher")]
+                let dispatcher = dispatcher.clone();
+                #[cfg(not(feature = "unified-dispatcher"))]
+                let dispatcher: Option<
+                    Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
+                > = None;
+                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
+                    swarm.clone(),
+                    dispatcher,
+                ));
+                info!(target: "nebula", "MasterOrchestrator ready (M6 #82, runtime ON, T-D-C-08)");
+                mo
+            } else {
+                // 运行时开关关闭时仍构造占位 Arc，避免 Option 化整个字段
+                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
+                    swarm.clone(),
+                    None,
+                ));
+                warn!(target: "nebula", "MasterOrchestrator disabled at runtime (T-D-C-08); commands will reject");
+                mo
+            }
         };
 
         // M6 #78: EvolutionEngine + EvolutionLog + Roller 构造。
@@ -436,84 +450,96 @@ impl AppState {
         };
 
         Ok(Self {
-            config: Arc::new(config),
-            sqlite,
-            lance,
-            embedder,
-            llm,
-            sponge,
-            blackhole,
-            swarm,
-            reflection,
-            skills,
-            writing,
-            work,
-            editor,
-            clipboard,
-            shell,
-            sync_transport,
-            reflect_worker: Arc::new(Mutex::new(None)),
-            #[cfg(feature = "grpc")]
-            grpc_server: Arc::new(Mutex::new(None)),
-            startup_timer: startup,
-            perf_monitor,
-            skill_extractor,
-            skill_composer,
-            marketplace,
-            skill_audit_logger,
-            #[cfg(feature = "channels")]
-            message_bridge,
-            #[cfg(feature = "channels")]
-            channel_router: Self::bootstrap_channel_router(),
-            tool_registry,
-            #[cfg(feature = "channels")]
-            webchat_service: WebChatService::new(),
-            device_manager,
-            #[cfg(feature = "mcp")]
-            mcp_manager,
-            l0,
-            orchestrator,
-            summary_engine,
-            causal_graph,
-            version_control,
-            sidecar_manager,
-            self_reflection,
-            exec_approval,
-            cost_tracker,
-            inline_completion,
-            diagnostics,
-            file_watcher,
-            file_watcher_worker,
-            clipboard_watcher,
-            models_config,
-            notification_service,
-            snapshot_engine,
-            deadlock_detector,
-            event_bus,
-            trigger_engine,
-            scenario_templates,
-            im_engine,
-            storage,
-            prefetch,
-            wiki,
-            #[cfg(feature = "mcp")]
-            mcp_registry,
-            arena,
-            approval_gate,
-            confirmation_registry,
-            #[cfg(feature = "master-orchestrator")]
-            master_orchestrator,
-            #[cfg(feature = "evolution-engine")]
-            evolution_engine,
-            #[cfg(feature = "evolution-engine")]
-            evolution_log,
-            #[cfg(feature = "evolution-engine")]
-            roller,
-            #[cfg(feature = "unified-dispatcher")]
-            dispatcher,
-            oauth_manager: Arc::new(crate::identity::OAuthManager::new()),
-            shadow_engine,
-            long_task_engine,
+            memory: crate::app_state::MemorySubsystem {
+                sqlite,
+                lance,
+                embedder,
+                sponge,
+                blackhole,
+                reflection,
+                reflect_worker: Arc::new(Mutex::new(None)),
+                l0,
+                orchestrator,
+                summary_engine,
+                causal_graph,
+                version_control,
+                self_reflection,
+                file_watcher,
+                file_watcher_worker,
+            },
+            llm: crate::app_state::LlmSubsystem {
+                llm,
+                cost_tracker,
+                prefetch,
+                models_config,
+                arena,
+                inline_completion,
+                #[cfg(feature = "unified-dispatcher")]
+                dispatcher,
+            },
+            swarm: crate::app_state::SwarmSubsystem {
+                swarm,
+                skills,
+                skill_extractor,
+                skill_composer,
+                marketplace,
+                skill_audit_logger,
+                exec_approval,
+                event_bus,
+                deadlock_detector,
+                trigger_engine,
+                scenario_templates,
+                shadow_engine,
+                long_task_engine,
+                #[cfg(feature = "master-orchestrator")]
+                master_orchestrator,
+                #[cfg(feature = "evolution-engine")]
+                evolution_engine,
+                #[cfg(feature = "evolution-engine")]
+                evolution_log,
+                #[cfg(feature = "evolution-engine")]
+                roller,
+            },
+            channels: crate::app_state::ChannelSubsystem {
+                #[cfg(feature = "channels")]
+                message_bridge,
+                #[cfg(feature = "channels")]
+                channel_router: Self::bootstrap_channel_router(),
+                #[cfg(feature = "channels")]
+                webchat_service: WebChatService::new(),
+                im_engine,
+            },
+            platform: crate::app_state::PlatformSubsystem {
+                writing,
+                work,
+                editor,
+                clipboard,
+                shell,
+                sync_transport,
+                device_manager,
+                notification_service,
+                snapshot_engine,
+                storage,
+                oauth_manager: Arc::new(crate::identity::OAuthManager::new()),
+                #[cfg(feature = "grpc")]
+                grpc_server: Arc::new(Mutex::new(None)),
+                #[cfg(feature = "mcp")]
+                mcp_manager,
+                #[cfg(feature = "mcp")]
+                mcp_registry,
+                sidecar_manager,
+                wiki,
+                clipboard_watcher,
+            },
+            infra: crate::app_state::InfraSubsystem {
+                config: Arc::new(config),
+                startup_timer: startup,
+                perf_monitor,
+                tool_registry,
+                diagnostics,
+                approval_gate,
+                confirmation_registry,
+            },
         })
     }
 
@@ -1027,10 +1053,10 @@ impl AppState {
     /// server to stop, and awaits both joins with a brief grace
     /// period. Idempotent and safe to call from Tauri shutdown.
     pub async fn shutdown(&self) {
-        let notify = self.reflection.shutdown_handle();
+        let notify = self.memory.reflection.shutdown_handle();
         notify.notify_waiters();
 
-        let worker = { self.reflect_worker.lock().take() };
+        let worker = { self.memory.reflect_worker.lock().take() };
         if let Some(h) = worker {
             match tokio::time::timeout(Duration::from_millis(250), h).await {
                 Ok(_) => info!(target: "nebula", "reflection worker stopped"),
@@ -1040,23 +1066,23 @@ impl AppState {
 
         #[cfg(feature = "grpc")]
         {
-            let grpc = { self.grpc_server.lock().take() };
+            let grpc = { self.platform.grpc_server.lock().take() };
             if let Some(h) = grpc {
                 h.shutdown().await;
             }
         }
 
         {
-            self.file_watcher_worker.lock().take();
+            self.memory.file_watcher_worker.lock().take();
         }
-        self.file_watcher.stop().await;
+        self.memory.file_watcher.stop().await;
 
         {
-            let mut watcher = self.clipboard_watcher.lock().await;
+            let mut watcher = self.platform.clipboard_watcher.lock().await;
             watcher.stop();
         }
 
-        self.trigger_engine.stop();
+        self.swarm.trigger_engine.stop();
     }
 
     /// M1 任务 #23: 尝试 Soul 编译（cfg-gated）。
@@ -1068,9 +1094,9 @@ impl AppState {
             return None;
         }
 
-        let compiler = self.config.soul_compiler.as_ref()?;
+        let compiler = self.infra.config.soul_compiler.as_ref()?;
 
-        let soul_md_text = self.config.persona.as_ref().and_then(|pc| {
+        let soul_md_text = self.infra.config.persona.as_ref().and_then(|pc| {
             let guard = pc.read();
             guard.soul_md.clone()
         })?;

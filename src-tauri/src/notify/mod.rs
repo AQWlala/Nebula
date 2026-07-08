@@ -125,7 +125,7 @@ impl NotificationService {
             .app
             .as_ref()
             .and_then(|app| app.try_state::<crate::AppState>())
-            .map(|s| s.config.notifications_enabled)
+            .map(|s| s.infra.config.notifications_enabled)
             .unwrap_or(true);
 
         if config_enabled {
@@ -146,7 +146,7 @@ impl NotificationService {
             .app
             .as_ref()
             .and_then(|app| app.try_state::<crate::AppState>())
-            .map(|s| s.config.notifications_enabled)
+            .map(|s| s.infra.config.notifications_enabled)
             .unwrap_or(true);
 
         if config_enabled {
@@ -167,7 +167,7 @@ impl NotificationService {
             .app
             .as_ref()
             .and_then(|app| app.try_state::<crate::AppState>())
-            .map(|s| s.config.notifications_enabled)
+            .map(|s| s.infra.config.notifications_enabled)
             .unwrap_or(true);
 
         if config_enabled {
@@ -191,7 +191,7 @@ impl NotificationService {
         tauri::async_runtime::spawn(async move {
             if let Some(state) = app.try_state::<crate::AppState>() {
                 let message = crate::im::ImMessage::new(title_owned, body_owned);
-                let (success, failure) = state.im_engine.broadcast(message).await;
+                let (success, failure) = state.channels.im_engine.broadcast(message).await;
                 tracing::debug!(
                     target: "nebula.notify",
                     success, failure,
@@ -223,7 +223,7 @@ impl NotificationService {
             .app
             .as_ref()
             .and_then(|app| app.try_state::<crate::AppState>())
-            .map(|s| s.config.floating_ball_task_badge)
+            .map(|s| s.infra.config.floating_ball_task_badge)
             .unwrap_or(true);
 
         let count = self.active_tasks.load(Ordering::SeqCst);

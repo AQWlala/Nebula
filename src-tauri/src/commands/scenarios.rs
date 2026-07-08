@@ -23,7 +23,7 @@ pub async fn scenario_list(
     state: State<'_, AppState>,
     category: Option<ScenarioCategory>,
 ) -> Result<Vec<ScenarioTemplate>, CommandError> {
-    let engine = &state.scenario_templates;
+    let engine = &state.swarm.scenario_templates;
     let result: Vec<ScenarioTemplate> = match category {
         Some(cat) => engine.list_by_category(cat).into_iter().cloned().collect(),
         None => engine.list().to_vec(),
@@ -40,7 +40,7 @@ pub async fn scenario_get(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<ScenarioTemplate>, CommandError> {
-    Ok(state.scenario_templates.get_by_id(&id).cloned())
+    Ok(state.swarm.scenario_templates.get_by_id(&id).cloned())
 }
 
 /// scenario_instantiate 的请求 DTO。
@@ -67,6 +67,6 @@ pub async fn scenario_instantiate(
     request: InstantiateScenarioRequest,
 ) -> Result<Option<SwarmTask>, CommandError> {
     Ok(state
-        .scenario_templates
+        .swarm.scenario_templates
         .instantiate(&request.id, &request.user_input))
 }

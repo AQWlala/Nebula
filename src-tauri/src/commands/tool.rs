@@ -20,7 +20,7 @@ pub struct ToolDescriptor {
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "tool_list"))]
 pub async fn tool_list(state: State<'_, AppState>) -> Result<Vec<ToolDescriptor>, CommandError> {
-    let tools = state.tool_registry.list_all();
+    let tools = state.infra.tool_registry.list_all();
     Ok(tools
         .into_iter()
         .map(|(name, description, schema)| ToolDescriptor {
@@ -44,7 +44,7 @@ pub async fn tool_invoke(
         arguments,
     };
     state
-        .tool_registry
+        .infra.tool_registry
         .invoke(input)
         .map_err(|e| CommandError::internal("tool_invoke", &e))
 }

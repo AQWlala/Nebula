@@ -45,11 +45,11 @@ pub async fn cost_report(
 ) -> Result<CostReport, CommandError> {
     match group_by.as_deref() {
         Some("source") => Ok(CostReport::BySource(
-            state.cost_tracker.aggregate_by_source(month),
+            state.llm.cost_tracker.aggregate_by_source(month),
         )),
         // 默认与 "model" 都走按模型聚合(向后兼容)。
         _ => Ok(CostReport::ByModel(
-            state.cost_tracker.aggregate_by_model(month),
+            state.llm.cost_tracker.aggregate_by_model(month),
         )),
     }
 }
