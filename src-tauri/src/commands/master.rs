@@ -476,9 +476,8 @@ mod loop_template_tests {
     #[test]
     fn loop_templates_all_parse_successfully() {
         for (name, content) in LOOP_TEMPLATES {
-            let def = LoopDef::from_markdown(content).unwrap_or_else(|e| {
-                panic!("内置模板 {name} 解析失败(模板格式回归): {e}")
-            });
+            let def = LoopDef::from_markdown(content)
+                .unwrap_or_else(|e| panic!("内置模板 {name} 解析失败(模板格式回归): {e}"));
             // 解析出的 name 应与静态表的 key 一致
             assert_eq!(
                 def.name, *name,
@@ -507,10 +506,7 @@ mod loop_template_tests {
         for (name, content) in LOOP_TEMPLATES {
             let def = LoopDef::from_markdown(content)
                 .unwrap_or_else(|e| panic!("模板 {name} 解析失败: {e}"));
-            assert!(
-                !def.description.is_empty(),
-                "模板 {name}: description 为空"
-            );
+            assert!(!def.description.is_empty(), "模板 {name}: description 为空");
             assert!(!def.cadence.is_empty(), "模板 {name}: cadence 为空");
             assert!(!def.intent.is_empty(), "模板 {name}: intent 为空");
             assert!(
@@ -539,7 +535,10 @@ mod loop_template_tests {
     fn loop_templates_lookup_by_name() {
         let names: Vec<&str> = LOOP_TEMPLATES.iter().map(|(n, _)| *n).collect();
         for name in &names {
-            let found = LOOP_TEMPLATES.iter().find(|(n, _)| n == name).map(|(_, c)| *c);
+            let found = LOOP_TEMPLATES
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, c)| *c);
             assert!(found.is_some(), "模板 {name} 应能被找到");
         }
         // 不存在的 name
