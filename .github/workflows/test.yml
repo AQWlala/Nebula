@@ -399,6 +399,92 @@ jobs:
           path: src-tauri/audit-output.txt
           if-no-files-found: ignore
 
+  # T-D-T-04: 在 Linux 上跑集成测试（Windows 因 STATUS_ENTRYPOINT_NOT_FOUND 跳过）。
+  # Linux 不依赖 WebView2/COM，可以正常加载集成测试二进制。
+  # 本 job 只跑集成测试（--tests），单元测试仍由上面的 rust-windows-latest job 负责。
+  rust-integration:
+    name: rust-integration-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: true
+          prefix-key: v2-integration-
+      - name: Install Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev protobuf-compiler
+      - name: Install protoc
+        run: sudo apt-get install -y protobuf-compiler
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Build integration tests
+        working-directory: src-tauri
+        timeout-minutes: 180
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_PROFILE_DEV_DEBUG: "0"
+        run: |
+          cargo build --tests --features grpc,channels
+      - name: Run integration tests
+        working-directory: src-tauri
+        timeout-minutes: 90
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_PROFILE_DEV_DEBUG: "0"
+        run: |
+          cargo nextest run --features grpc,channels --no-fail-fast --test-threads 1 --tests > nextest-integration-output.txt 2>&1
+          nextest_exit=$?
+          echo "nextest exited with code $nextest_exit"
+          cat nextest-integration-output.txt
+          exit $nextest_exit
+      - name: Report failed tests
+        if: always()
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set +e +o pipefail
+          echo "=== Integration test result summary ==="
+          if [ -f nextest-integration-output.txt ]; then
+            echo "File size: $(wc -c < nextest-integration-output.txt) bytes, $(wc -l < nextest-integration-output.txt) lines"
+            failures=$(grep -E "^\s+(FAIL|CANCEL|ERROR|ABORT)\b|panicked at|Terminating|^error:|test result|Tests:" nextest-integration-output.txt | head -n 10)
+            if [ -n "$failures" ]; then
+              echo "--- Failures (as annotations) ---"
+              echo "$failures" | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            else
+              echo "--- No failure lines found, showing tail of output ---"
+              grep -v '^[[:space:]]*$' nextest-integration-output.txt | tail -n 10 | while IFS= read -r line; do
+                echo "::error::$line"
+              done
+            fi
+            summary=$(grep -E "Summary|Tests:|test result|passed|failed" nextest-integration-output.txt | head -n 5)
+            if [ -n "$summary" ]; then
+              echo "--- Summary ---"
+              echo "$summary"
+            fi
+          else
+            echo "::error::nextest-integration-output.txt not found — Test step may not have run"
+          fi
+      - name: Upload integration test output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nextest-integration-output-linux
+          path: src-tauri/nextest-integration-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
   web:
     name: web-test
     runs-on: ubuntu-latest

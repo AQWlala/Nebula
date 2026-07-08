@@ -3,12 +3,44 @@
 //! [`init_tracing`] installs the `tracing` subscriber with optional
 //! JSON formatting, OpenTelemetry OTLP export, Trusted Diagnostics
 //! layer, and daily-rotated log files.
+//!
+//! T-D-B-01: 8 路 match 组合爆炸重构为 builder pattern。
+//! 原实现用 `match (otel_layer, nb_writer, use_json)` 产生 8 个分支，
+//! 现在用 `Vec<Box<dyn Layer>>` 收集所有可选层，最后统一 with() 一次。
 
 use std::path::PathBuf;
 
 use tracing_subscriber::{
-    fmt, layer::SubscriberExt as _, registry, util::SubscriberInitExt as _, EnvFilter,
+    fmt,
+    layer::{Layer, SubscriberExt as _},
+    registry, util::SubscriberInitExt as _, EnvFilter, Registry,
 };
+
+type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
+
+/// 构建可选的 fmt layer，统一处理 `use_json` 和 `nb_writer` 两个维度。
+///
+/// 返回 `BoxedLayer` 以便调用方统一 with()。
+fn build_fmt_layer(
+    use_json: bool,
+    nb_writer: Option<tracing_appender::non_blocking::NonBlocking>,
+) -> BoxedLayer {
+    // 先构造基础 layer，再按需附加 writer 和 json 格式。
+    // tracing_subscriber 的 fmt::Layer 支持 with_writer + json 链式调用，
+    // 但返回类型不同（fmt::Layer vs fmt::Layer<JsonFields>），
+    // 所以用 boxed trait object 统一类型。
+    if use_json {
+        match nb_writer {
+            Some(nb) => Box::new(fmt::layer().with_writer(nb).json()),
+            None => Box::new(fmt::layer().json()),
+        }
+    } else {
+        match nb_writer {
+            Some(nb) => Box::new(fmt::layer().with_writer(nb)),
+            None => Box::new(fmt::layer()),
+        }
+    }
+}
 
 /// Installs the `tracing` subscriber. Safe to call multiple times.
 ///
@@ -22,6 +54,10 @@ use tracing_subscriber::{
 ///
 /// v1.1.9: 默认日志目录。即使未设置 `NEBULA_LOG_DIR`,也写入
 /// 平台默认的 app data 目录,以便用户在遇到启动崩溃时能找到日志。
+///
+/// T-D-B-01: 8 路 match 组合爆炸重构为 builder pattern。
+/// 原实现用 `match (otel_layer, nb_writer, use_json)` 产生 8 个分支，
+/// 现在用 `Vec<BoxedLayer>` 收集所有可选层，最后统一 with() 一次。
 pub fn init_tracing() {
     static INIT: once_cell::sync::OnceCell<()> = once_cell::sync::OnceCell::new();
     INIT.get_or_init(|| {
@@ -35,18 +71,17 @@ pub fn init_tracing() {
         // 由 NEBULA_OTLP_ENDPOINT 环境变量控制；未设置则返回 None。
         // T-E-S-29: 整个 OTel 路径门控 `otel` feature — feature off 时
         // 不编译 opentelemetry 依赖,otel_layer 始终为 None。
-        // 用 `tracing_subscriber::layer::Identity`(实现 Layer<Registry>)
-        // 作为 feature off 时的占位类型,保证 match 两个分支类型一致。
         #[cfg(feature = "otel")]
-        let otel_layer = {
+        let otel_layer: Option<BoxedLayer> = {
             let otel_endpoint = crate::observability::otel::otlp_endpoint_from_env();
             let otel_service = crate::observability::otel::otlp_service_name_from_env();
             otel_endpoint
                 .as_ref()
                 .and_then(|ep| crate::observability::otel::try_build_layer(ep, &otel_service))
+                .map(|l| Box::new(l) as BoxedLayer)
         };
         #[cfg(not(feature = "otel"))]
-        let otel_layer: Option<tracing_subscriber::layer::Identity> = None;
+        let otel_layer: Option<BoxedLayer> = None;
 
         // T-E-S-27: Trusted Diagnostics Layer。
         // 用全局单例 bus 避免与 AppState::bootstrap 的循环依赖:
@@ -97,74 +132,28 @@ pub fn init_tracing() {
                 None
             };
 
-        // 用 match 方式分别构建 subscriber 再 try_init。
-        // OTel 层必须先加到 bare Registry 上
-        // (它实现 Layer<Registry> 而非 Layer<Layered<...>>)。
-        // T-E-S-27: DiagnosticsLayer 用 Option<L> 形式加入 — 当
-        // NEBULA_DIAGNOSTICS=0 时为 None,tracing_subscriber 对
-        // Option<L> 有通用的 Layer 实现空操作。
-        match (otel_layer, nb_writer, use_json) {
-            (Some(otel), Some(nb), true) => {
-                let _ = registry()
-                    .with(otel)
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().with_writer(nb).json())
-                    .try_init();
-            }
-            (Some(otel), Some(nb), false) => {
-                let _ = registry()
-                    .with(otel)
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().with_writer(nb))
-                    .try_init();
-            }
-            (Some(otel), None, true) => {
-                let _ = registry()
-                    .with(otel)
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().json())
-                    .try_init();
-            }
-            (Some(otel), None, false) => {
-                let _ = registry()
-                    .with(otel)
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer())
-                    .try_init();
-            }
-            (None, Some(nb), true) => {
-                let _ = registry()
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().with_writer(nb).json())
-                    .try_init();
-            }
-            (None, Some(nb), false) => {
-                let _ = registry()
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().with_writer(nb))
-                    .try_init();
-            }
-            (None, None, true) => {
-                let _ = registry()
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer().json())
-                    .try_init();
-            }
-            (None, None, false) => {
-                let _ = registry()
-                    .with(diagnostics_layer)
-                    .with(filter)
-                    .with(fmt::layer())
-                    .try_init();
-            }
+        // T-D-B-01: 统一构建 subscriber，不再 8 路 match。
+        // 用 Vec<BoxedLayer> 收集所有可选层，Vec<L> 实现了 Layer<S>，
+        // 这样避免了 Box<dyn Layer<Registry>> 不实现 Layer<Layered<...>> 的问题。
+        // OTel 层放在 Vec 第一个位置（它实现 Layer<Registry> 而非 Layer<Layered<...>>），
+        // 通过 Vec 整体加到 bare Registry 上等价于直接 with(otel)。
+        let fmt_layer = build_fmt_layer(use_json, nb_writer);
+
+        let mut layers: Vec<BoxedLayer> = Vec::new();
+        if let Some(otel) = otel_layer {
+            layers.push(otel);
         }
+        if let Some(diag) = diagnostics_layer {
+            layers.push(Box::new(diag));
+        }
+        layers.push(fmt_layer);
+
+        // EnvFilter 不 box：它对所有 S: Subscriber 实现 Layer<S>，
+        // 所以可以加到 Layered<Vec<BoxedLayer>, Registry> 上。
+        let _ = registry()
+            .with(layers)
+            .with(filter)
+            .try_init();
     });
 }
 
