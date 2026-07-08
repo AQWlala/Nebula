@@ -199,6 +199,29 @@ export interface InstantiateScenarioRequest {
   user_input: string;
 }
 
+// -----------------------------------------------------------------------
+// T-E-L-05: Loop 模板库类型(镜像 src-tauri/src/commands/master.rs)
+// -----------------------------------------------------------------------
+
+/** Loop 自主度等级(serde rename_all = "UPPERCASE")。 */
+export type LoopAutonomyLevel = 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5';
+
+/** Loop 模板摘要(loop_templates_list 命令返回)。 */
+export interface LoopTemplateSummary {
+  /** Loop 名称(唯一标识,如 "ci-sweeper")。 */
+  name: string;
+  /** Loop 描述(人类可读)。 */
+  description: string;
+  /** 自主度等级 L0-L5。 */
+  autonomy: LoopAutonomyLevel;
+  /** cron 表达式(如 "0 * * * *")或 "on-webhook"。 */
+  cadence: string;
+  /** 单次执行 Token 预算。 */
+  budget_tokens: number;
+  /** 单次执行时间预算(分钟)。 */
+  budget_minutes: number;
+}
+
 /** v1.0.1 (P0#08): per-agent result row.  The backend may now
  *  return stdout / stderr / elapsed_ms / status for each agent
  *  so the UI can show expandable failure details and a
@@ -643,6 +666,20 @@ export class nebulaAPI {
    */
   static scenarioInstantiate(req: InstantiateScenarioRequest): Promise<SwarmTask | null> {
     return invoke('scenario_instantiate', { request: req });
+  }
+
+  // -----------------------------------------------------------------------
+  // T-E-L-05: Loop 模板库(loop_templates_list / loop_template_get)
+  // -----------------------------------------------------------------------
+
+  /**
+   * T-E-L-05: 列出 7 种 Loop 模板摘要。
+   *
+   * 由 `master-orchestrator` feature 门控;未启用时后端返回
+   * `command not found` 错误,前端应 catch 并降级为空列表。
+   */
+  static loopTemplatesList(): Promise<LoopTemplateSummary[]> {
+    return invoke('loop_templates_list');
   }
 
   static llmComplete(prompt: string, model?: string): Promise<string> {

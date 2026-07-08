@@ -1,4 +1,4 @@
-﻿/**
+/**
  * T-E-C-13: 工作场景模板选择器对话框。
  *
  * 左侧分类树(写作 / 编码 / 管理)+ 右侧模板卡片网格。
@@ -15,6 +15,7 @@ import {
   type ScenarioTemplate,
   type ScenarioCategory,
   type SwarmTask,
+  type LoopTemplateSummary,
 } from '../lib/tauri';
 import { toast } from './Toast';
 import { Spinner } from './Spinner';
@@ -26,15 +27,26 @@ interface TemplatesDialogProps {
   onSwarmStarted?: (task: SwarmTask) => void;
 }
 
-/** 分类元信息:icon 图标 + i18n label。 */
-const CATEGORY_META: Record<ScenarioCategory, { icon: string }> = {
+/**
+ * T-E-L-05: 左侧分类树条目类型。
+ * - scenario: 传统工作场景模板(writing/coding/management)
+ * - automation: Loop 自动化模板(T-E-L-05 新增,默认只露 2 个入口)
+ */
+type CategoryKey = ScenarioCategory | 'automation';
+
+/** 分类元信息:icon 图标。 */
+const CATEGORY_META: Record<CategoryKey, { icon: string }> = {
   writing: { icon: '✍️' },
   coding: { icon: '💻' },
   management: { icon: '📋' },
+  automation: { icon: '🔄' },
 };
 
-/** 分类顺序(左侧树从上到下)。 */
-const CATEGORY_ORDER: ScenarioCategory[] = ['writing', 'coding', 'management'];
+/** 分类顺序(左侧树从上到下)。automation 放最后(高级功能)。 */
+const CATEGORY_ORDER: CategoryKey[] = ['writing', 'coding', 'management', 'automation'];
+
+/** T-E-L-05: automation 类别默认展示的 Loop 模板数量(收起状态)。 */
+const AUTOMATION_DEFAULT_COUNT = 2;
 
 /** 角色 badge 颜色映射 + i18n label。 */
 const ROLE_BADGE: Record<string, { color: string; bg: string }> = {
@@ -44,7 +56,7 @@ const ROLE_BADGE: Record<string, { color: string; bg: string }> = {
 };
 
 /** i18n label lookups: convert const Record maps to function form. */
-const categoryLabel = (c: ScenarioCategory): string => t(`templatesDialog.category.${c}`);
+const categoryLabel = (c: CategoryKey): string => t(`templatesDialog.category.${c}`);
 const roleLabel = (r: string): string => {
   // only known roles have translation keys; unknown roles fall back to raw text.
   if (r === 'writer' || r === 'coder' || r === 'manager') {
@@ -55,14 +67,18 @@ const roleLabel = (r: string): string => {
 
 export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProps) {
   const [templates, setTemplates] = useState<ScenarioTemplate[]>([]);
+  // T-E-L-05: Loop 自动化模板(独立拉取,master-orchestrator feature 门控)。
+  const [loopTemplates, setLoopTemplates] = useState<LoopTemplateSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<ScenarioCategory>('writing');
+  const [selectedCategory, setSelectedCategory] = useState<CategoryKey>('writing');
+  // T-E-L-05: automation 类别展开状态(false=只露 2 个,true=全部)。
+  const [automationExpanded, setAutomationExpanded] = useState(false);
   // 当前选中要实例化的模板(id)。非 null 时显示用户输入弹层。
   const [pendingTemplate, setPendingTemplate] = useState<ScenarioTemplate | null>(null);
   const [userInput, setUserInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 拉取全部模板(一次性)。
+  // 拉取全部场景模板(一次性)。
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -82,7 +98,29 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
     };
   }, []);
 
-  // 按分类分组。
+  // T-E-L-05: 拉取 Loop 模板(独立请求,master-orchestrator 未启用时降级为空)。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await nebulaAPI.loopTemplatesList();
+        if (!cancelled) {
+          setLoopTemplates(list);
+        }
+      } catch (e) {
+        // master-orchestrator feature 未启用时后端返回 command not found,
+        // 降级为空列表(automation 类别显示"暂无模板"),不弹 toast 避免噪音。
+        if (!cancelled) {
+          setLoopTemplates([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 按分类分组(场景模板)。
   const grouped = useMemo(() => {
     const map: Record<ScenarioCategory, ScenarioTemplate[]> = {
       writing: [],
@@ -95,7 +133,16 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
     return map;
   }, [templates]);
 
-  const currentList = grouped[selectedCategory] ?? [];
+  // T-E-L-05: automation 类别当前展示的 Loop 模板列表。
+  // 收起时只露 AUTOMATION_DEFAULT_COUNT 个,展开时全部。
+  const automationList = useMemo(() => {
+    if (automationExpanded) return loopTemplates;
+    return loopTemplates.slice(0, AUTOMATION_DEFAULT_COUNT);
+  }, [loopTemplates, automationExpanded]);
+
+  // 当前选中类别的模板列表(scenario 类别用 grouped,automation 用 automationList)。
+  const isAutomation = selectedCategory === 'automation';
+  const currentList = isAutomation ? [] : grouped[selectedCategory as ScenarioCategory] ?? [];
 
   /** 提交用户输入,实例化模板并启动蜂群。 */
   async function handleSubmit() {
@@ -171,7 +218,9 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
               >
                 {CATEGORY_ORDER.map((cat) => {
                   const meta = CATEGORY_META[cat];
-                  const count = grouped[cat].length;
+                  // T-E-L-05: automation 类别计数来自 loopTemplates,非 grouped。
+                  const count =
+                    cat === 'automation' ? loopTemplates.length : grouped[cat].length;
                   const active = selectedCategory === cat;
                   return (
                     <button
@@ -215,7 +264,60 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                   overflowY: 'auto',
                 }}
               >
-                {currentList.length === 0 ? (
+                {isAutomation ? (
+                  // T-E-L-05: automation 类别 — 渲染 Loop 模板卡片
+                  // 默认只露 AUTOMATION_DEFAULT_COUNT 个,展开按钮切换全部/收起
+                  automationList.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '40px',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      {t('templatesDialog.categoryEmpty')}
+                    </div>
+                  ) : (
+                    <div>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                          gap: '10px',
+                        }}
+                      >
+                        {automationList.map((tpl) => (
+                          <LoopTemplateCard key={tpl.name} template={tpl} />
+                        ))}
+                      </div>
+                      {/* 展开/收起按钮:Loop 模板超过默认数量时显示 */}
+                      {loopTemplates.length > AUTOMATION_DEFAULT_COUNT && (
+                        <button
+                          onClick={() => setAutomationExpanded(!automationExpanded)}
+                          style={{
+                            display: 'block',
+                            margin: '12px auto 0',
+                            padding: '6px 16px',
+                            cursor: 'pointer',
+                            border: '1px solid var(--border)',
+                            borderRadius: '4px',
+                            background: 'transparent',
+                            color: 'var(--accent-neon)',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {automationExpanded
+                            ? t('templatesDialog.automationCollapse')
+                            : t('templatesDialog.automationExpand', {
+                                count: loopTemplates.length - AUTOMATION_DEFAULT_COUNT,
+                              })}
+                        </button>
+                      )}
+                    </div>
+                  )
+                ) : currentList.length === 0 ? (
                   <div
                     style={{
                       padding: '40px',
@@ -512,6 +614,157 @@ function TemplateCard({ template, onUse }: TemplateCardProps) {
       >
         {t('templatesDialog.use')}
       </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// T-E-L-05: Loop 模板卡片子组件
+// ---------------------------------------------------------------------------
+
+/** Loop 自主度等级 badge 颜色映射。 */
+const AUTONOMY_BADGE: Record<string, { color: string; bg: string }> = {
+  L0: { color: '#9e9e9e', bg: 'rgba(158,158,158,0.12)' },
+  L1: { color: '#2196f3', bg: 'rgba(33,150,243,0.12)' },
+  L2: { color: '#4caf50', bg: 'rgba(76,175,80,0.12)' },
+  L3: { color: '#ff9800', bg: 'rgba(255,152,0,0.12)' },
+  L4: { color: '#e91e63', bg: 'rgba(233,30,99,0.12)' },
+  L5: { color: '#9c27b0', bg: 'rgba(156,39,176,0.12)' },
+};
+
+interface LoopTemplateCardProps {
+  template: LoopTemplateSummary;
+}
+
+/**
+ * T-E-L-05: Loop 模板卡片 — 展示 Loop 名称、描述、自主度 badge、
+ * cron 表达式和预算信息。
+ *
+ * 与场景模板 [`TemplateCard`] 不同,Loop 模板暂不支持直接"使用"启动
+ * (需先经过 `loop_run` 命令,涉及 LoopEngine + 预算审批流程),
+ * 当前只做展示 + 预览。后续 T-E-L-06(预算管理)完成后可加"创建 Loop"按钮。
+ */
+function LoopTemplateCard({ template }: LoopTemplateCardProps) {
+  const badge = AUTONOMY_BADGE[template.autonomy] ?? {
+    color: 'var(--text-muted)',
+    bg: 'transparent',
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '10px',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        background: 'transparent',
+        transition: 'all 0.15s',
+        minHeight: '140px',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-neon)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '6px',
+        }}
+      >
+        <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+          {template.name}
+        </strong>
+        <span
+          style={{
+            fontSize: '10px',
+            padding: '1px 6px',
+            borderRadius: '3px',
+            color: badge.color,
+            background: badge.bg,
+            border: `1px solid ${badge.color}`,
+          }}
+        >
+          {template.autonomy}
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize: '11px',
+          color: 'var(--text-secondary)',
+          flex: 1,
+          marginBottom: '8px',
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+        }}
+      >
+        {template.description}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '4px',
+          marginBottom: '8px',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '10px',
+            padding: '1px 5px',
+            borderRadius: '3px',
+            background: 'var(--bg-secondary, rgba(255,255,255,0.05))',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          ⏰ {template.cadence}
+        </span>
+        {template.budget_tokens > 0 && (
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              background: 'var(--bg-secondary, rgba(255,255,255,0.05))',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {(template.budget_tokens / 1000).toFixed(0)}k tok
+          </span>
+        )}
+        {template.budget_minutes > 0 && (
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              background: 'var(--bg-secondary, rgba(255,255,255,0.05))',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {template.budget_minutes}min
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          fontStyle: 'italic',
+        }}
+      >
+        {t('templatesDialog.automationPreview')}
+      </div>
     </div>
   );
 }

@@ -571,6 +571,7 @@
   "templatesDialog.category.writing": "写作",
   "templatesDialog.category.coding": "编码",
   "templatesDialog.category.management": "管理",
+  "templatesDialog.category.automation": "自动化",
   "templatesDialog.role.writer": "写手",
   "templatesDialog.role.coder": "编码",
   "templatesDialog.role.manager": "管理",
@@ -593,6 +594,9 @@
   "templatesDialog.starting": "启动中…",
   "templatesDialog.startSwarm": "🚀 启动蜂群",
   "templatesDialog.use": "使用 →",
+  "templatesDialog.automationExpand": "展开剩余 {count} 个 →",
+  "templatesDialog.automationCollapse": "收起 ↑",
+  "templatesDialog.automationPreview": "Loop 模板预览(需启用 master-orchestrator)",
 
   "visualCreatorDialog.canvas.label": "Canvas 画布",
   "visualCreatorDialog.canvas.description": "生成独立 HTML5 Canvas 可视化(图表 / 动画 / 数据图)",

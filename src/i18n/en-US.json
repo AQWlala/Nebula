@@ -571,6 +571,7 @@
   "templatesDialog.category.writing": "Writing",
   "templatesDialog.category.coding": "Coding",
   "templatesDialog.category.management": "Management",
+  "templatesDialog.category.automation": "Automation",
   "templatesDialog.role.writer": "Writer",
   "templatesDialog.role.coder": "Coder",
   "templatesDialog.role.manager": "Manager",
@@ -593,6 +594,9 @@
   "templatesDialog.starting": "Starting…",
   "templatesDialog.startSwarm": "🚀 Start Swarm",
   "templatesDialog.use": "Use →",
+  "templatesDialog.automationExpand": "Show {count} more →",
+  "templatesDialog.automationCollapse": "Collapse ↑",
+  "templatesDialog.automationPreview": "Loop template preview (requires master-orchestrator)",
 
   "visualCreatorDialog.canvas.label": "Canvas",
   "visualCreatorDialog.canvas.description": "Generate standalone HTML5 Canvas visualizations (charts / animations / data graphics)",
