@@ -74,7 +74,7 @@ mod tests {
         if let Some(k) = api_key {
             builder = builder.header("x-api-key", k);
         }
-        builder.body(()).unwrap()
+        builder.body(()).expect("create should succeed")
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
     fn malformed_authorization_header_rejected() {
         let mut builder = Request::builder().uri("/api/memories");
         builder = builder.header("authorization", "NotBearer abc");
-        let req = builder.body(()).unwrap();
+        let req = builder.body(()).expect("create should succeed");
         let result = check_auth(&req, &Some("abc".to_string()));
         assert!(result.is_err());
     }

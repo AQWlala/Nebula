@@ -800,7 +800,7 @@ fn strip_fences(raw: &str) -> String {
         after_opening[after_opening
             .find(':')
             .or_else(|| after_opening.find('：'))
-            .unwrap()
+            .expect("must succeed")
             + 1..]
             .trim_start()
             .to_string()
@@ -925,14 +925,14 @@ mod tests {
             std::process::id(),
             n
         ));
-        let store = Arc::new(SqliteStore::open(&p).unwrap());
+        let store = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
         // Apply migration 002 so the importance column + join table
         // exist.
         crate::memory::migration::run_migrations(
             &store.raw_connection().lock(),
             crate::memory::migration::bundled_migrations_dir(),
         )
-        .unwrap();
+        .expect("test op should succeed");
         (p, store)
     }
 
@@ -958,7 +958,7 @@ mod tests {
     async fn reflect_now_with_no_candidates_returns_empty() {
         let (p, store) = temp_db();
         let engine = ReflectionEngine::new(store, None, ReflectConfig::default());
-        let r = engine.reflect_now().await.unwrap();
+        let r = engine.reflect_now().await.expect("task should complete");
         assert!(r.is_empty());
         cleanup(&p);
     }
@@ -968,16 +968,16 @@ mod tests {
         let (p, store) = temp_db();
         store
             .insert_guarded(&high_importance_mem("a", "Tauri 启动失败，端口占用"))
-            .unwrap();
+            .expect("test op should succeed");
         store
             .insert_guarded(&high_importance_mem("b", "Tauri 启动失败，权限问题"))
-            .unwrap();
+            .expect("test op should succeed");
         store
             .insert_guarded(&high_importance_mem("c", "数据库连接超时"))
-            .unwrap();
+            .expect("test op should succeed");
 
         let engine = ReflectionEngine::new(store, None, ReflectConfig::default());
-        let r = engine.reflect_now().await.unwrap();
+        let r = engine.reflect_now().await.expect("task should complete");
         assert_eq!(r.len(), 1);
         let refl = &r[0];
         assert_eq!(refl.layer, MemoryLayer::L5);
@@ -997,14 +997,14 @@ mod tests {
         let (p, store) = temp_db();
         store
             .insert_guarded(&high_importance_mem("x", "something"))
-            .unwrap();
+            .expect("test op should succeed");
         let engine = ReflectionEngine::new(store.clone(), None, ReflectConfig::default());
         let r = tokio::runtime::Runtime::new()
-            .unwrap()
+            .expect("test op should succeed")
             .block_on(engine.reflect_now())
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(r.len(), 1);
-        let listed = engine.list_recent(10).unwrap();
+        let listed = engine.list_recent(10).expect("engine op should succeed");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].id, r[0].id);
         assert_eq!(listed[0].source_memories, vec!["x".to_string()]);
@@ -1044,7 +1044,7 @@ mod tests {
         let (p, store) = temp_db();
         store
             .insert_guarded(&high_importance_mem("a", "x"))
-            .unwrap();
+            .expect("test op should succeed");
         let engine = Arc::new(ReflectionEngine::new(store, None, ReflectConfig::default()));
         let e1 = engine.clone();
         let e2 = engine.clone();
@@ -1053,11 +1053,11 @@ mod tests {
         // used two sequential `Runtime::new().block_on()` calls,
         // which meant the second call always saw the first call
         // complete first — so single-flight never triggered.
-        let h1 = tokio::spawn(async move { e1.reflect_now().await.unwrap() });
-        let h2 = tokio::spawn(async move { e2.reflect_now().await.unwrap() });
+        let h1 = tokio::spawn(async move { e1.reflect_now().await.expect("task should complete") });
+        let h2 = tokio::spawn(async move { e2.reflect_now().await.expect("task should complete") });
         let (r1, r2) = tokio::join!(h1, h2);
-        let r1 = r1.unwrap();
-        let r2 = r2.unwrap();
+        let r1 = r1.expect("test op should succeed");
+        let r2 = r2.expect("test op should succeed");
         // At most one of the two calls is allowed to produce a row;
         // the other is short-circuited.
         assert!(r1.len() + r2.len() <= 1);
@@ -1069,15 +1069,15 @@ mod tests {
         let (p, store) = temp_db();
         store
             .insert_guarded(&high_importance_mem("m1", "a"))
-            .unwrap();
+            .expect("test op should succeed");
         store
             .insert_guarded(&high_importance_mem("m2", "b"))
-            .unwrap();
+            .expect("test op should succeed");
         let engine = ReflectionEngine::new(store.clone(), None, ReflectConfig::default());
         let r = tokio::runtime::Runtime::new()
-            .unwrap()
+            .expect("test op should succeed")
             .block_on(engine.reflect_now())
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(r.len(), 1);
         // Each source memory must be linked to the reflection.
         for m in &["m1", "m2"] {
@@ -1089,7 +1089,7 @@ mod tests {
                     params![m, r[0].id],
                     |row| row.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(n, 1, "missing join row for {m}");
         }
         cleanup(&p);
@@ -1150,7 +1150,7 @@ mod tests {
             confidence: 0.5,
             created_at: 1,
         };
-        let s = serde_json::to_string(&r).unwrap();
+        let s = serde_json::to_string(&r).expect("serialize should succeed");
         assert!(s.contains("\"layer\":\"L5\""));
         assert!(s.contains("\"memory_type\":\"metacognitive\""));
     }
@@ -1160,19 +1160,19 @@ mod tests {
         let (p, store) = temp_db();
         store
             .insert_guarded(&high_importance_mem("a", "alpha"))
-            .unwrap();
+            .expect("test op should succeed");
         store
             .insert_guarded(&high_importance_mem("b", "beta"))
-            .unwrap();
+            .expect("test op should succeed");
 
         let engine = ReflectionEngine::new(store.clone(), None, ReflectConfig::default());
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let r1 = rt.block_on(engine.reflect_now()).unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
+        let r1 = rt.block_on(engine.reflect_now()).expect("lock should succeed");
         assert_eq!(r1.len(), 1);
         assert_ne!(r1[0].trigger_kind, "dedup_replay");
 
         // Second call within the same day should hit the dedup path.
-        let r2 = rt.block_on(engine.reflect_now()).unwrap();
+        let r2 = rt.block_on(engine.reflect_now()).expect("lock should succeed");
         assert_eq!(r2.len(), 1);
         assert_eq!(r2[0].id, r1[0].id, "id should be reused");
         assert_eq!(r2[0].trigger_kind, "dedup_replay");
@@ -1238,7 +1238,7 @@ mod tests {
         let (p, store) = temp_db();
         let rc = store.raw_connection();
         let conn = rc.lock();
-        let result = find_duplicate_reflection(&conn, &[], 0).unwrap();
+        let result = find_duplicate_reflection(&conn, &[], 0).expect("query should succeed");
         assert!(result.is_none());
         cleanup(&p);
     }
@@ -1270,7 +1270,7 @@ mod tests {
             "worker did not exit within 100 ms (elapsed = {elapsed:?})"
         );
         // The handle itself must not be in error.
-        joined.unwrap().expect("worker join");
+        joined.expect("task should complete").expect("worker join");
         cleanup(&p);
     }
 }

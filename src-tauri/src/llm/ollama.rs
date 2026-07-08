@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn chat_message_without_tool_calls_serializes_without_field() {
         let msg = ChatMessage::user("hello");
-        let json = serde_json::to_string(&msg).unwrap();
+        let json = serde_json::to_string(&msg).expect("serialize should succeed");
         // 不含 "tool_calls" 字段
         assert!(!json.contains("tool_calls"));
         assert!(!json.contains("tool_call_id"));
@@ -754,9 +754,9 @@ mod tests {
                 }
             ]
         }"#;
-        let resp: ChatResponse = serde_json::from_str(json).unwrap();
+        let resp: ChatResponse = serde_json::from_str(json).expect("parse should succeed");
         assert!(resp.tool_calls.is_some());
-        let calls = resp.tool_calls.unwrap();
+        let calls = resp.tool_calls.expect("test op should succeed");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].id, "call_abc123");
         assert_eq!(calls[0].function.name, "shell");
@@ -776,12 +776,12 @@ mod tests {
             )]),
             tool_choice: Some("auto".to_string()),
         };
-        let json = serde_json::to_string(&req).unwrap();
+        let json = serde_json::to_string(&req).expect("serialize should succeed");
         assert!(json.contains("\"tools\""));
         assert!(json.contains("\"tool_choice\":\"auto\""));
-        let back: ChatRequest = serde_json::from_str(&json).unwrap();
+        let back: ChatRequest = serde_json::from_str(&json).expect("parse should succeed");
         assert!(back.tools.is_some());
-        assert_eq!(back.tools.unwrap().len(), 1);
+        assert_eq!(back.tools.expect("assertion value").len(), 1);
     }
 
     // T-E-S-51: GenerateRequest/GenerateOptions 序列化测试。
@@ -793,7 +793,7 @@ mod tests {
             stream: false,
             options: None,
         };
-        let json = serde_json::to_string(&req).unwrap();
+        let json = serde_json::to_string(&req).expect("serialize should succeed");
         // options 字段必须被 skip_serializing_if 省略 — wire format
         // 与未加字段前完全一致(向后兼容)。
         assert!(!json.contains("options"));
@@ -812,7 +812,7 @@ mod tests {
                 temperature: Some(0.2),
             }),
         };
-        let json = serde_json::to_string(&req).unwrap();
+        let json = serde_json::to_string(&req).expect("serialize should succeed");
         assert!(json.contains("\"options\""));
         assert!(json.contains("\"num_predict\":20"));
         assert!(json.contains("\"temperature\":0.2"));
@@ -838,8 +838,8 @@ mod tests {
         /// `ps_body` 是 /api/ps 的固定响应;对 /api/generate 返回最小成功响应。
         /// `generate_count` 在每次收到 POST /api/generate 时自增。
         fn start(ps_body: &'static str) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             let generate_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let gen_counter = generate_count.clone();
@@ -897,7 +897,7 @@ mod tests {
         let ps_body = r#"{"models":[{"name":"qwen2.5:3b"},{"name":"test-model"}]}"#;
         let server = MockOllamaServer::start(ps_body);
         let client = OllamaClient::new(server.base_url.clone());
-        client.warmup_model("test-model").await.unwrap();
+        client.warmup_model("test-model").await.expect("task should complete");
         // 不应触发 /api/generate。
         assert_eq!(server.generate_calls(), 0);
     }
@@ -909,7 +909,7 @@ mod tests {
         let ps_body = r#"{"models":[]}"#;
         let server = MockOllamaServer::start(ps_body);
         let client = OllamaClient::new(server.base_url.clone());
-        client.warmup_model("test-model").await.unwrap();
+        client.warmup_model("test-model").await.expect("task should complete");
         // 应触发一次 /api/generate。
         assert_eq!(server.generate_calls(), 1);
     }
@@ -925,12 +925,12 @@ mod tests {
             images: vec!["iVBORw0KGgoAAAANSUhEUg==".to_string()],
             ..Default::default()
         };
-        let json = serde_json::to_string(&msg).unwrap();
+        let json = serde_json::to_string(&msg).expect("serialize should succeed");
         // JSON 应包含 "images" 字段且为数组。
         assert!(json.contains("\"images\""));
         assert!(json.contains("iVBORw0KGgoAAAANSUhEUg=="));
         // 反序列化回 ChatMessage,字段应保持一致。
-        let back: ChatMessage = serde_json::from_str(&json).unwrap();
+        let back: ChatMessage = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(back.role, "user");
         assert_eq!(back.content, "describe this image");
         assert_eq!(back.images.len(), 1);
@@ -941,14 +941,14 @@ mod tests {
     #[test]
     fn test_chat_message_skip_empty_images() {
         let msg = ChatMessage::user("hello");
-        let json = serde_json::to_string(&msg).unwrap();
+        let json = serde_json::to_string(&msg).expect("serialize should succeed");
         // 空 images 不应出现在 JSON 中(skip_serializing_if = Vec::is_empty)。
         assert!(
             !json.contains("images"),
             "empty images must be omitted from JSON; got: {json}"
         );
         // 反序列化仍应得到空 Vec(serde default)。
-        let back: ChatMessage = serde_json::from_str(&json).unwrap();
+        let back: ChatMessage = serde_json::from_str(&json).expect("parse should succeed");
         assert!(back.images.is_empty());
     }
 
@@ -969,7 +969,7 @@ mod tests {
             stream: false,
             ..Default::default()
         };
-        let json = serde_json::to_string(&req).unwrap();
+        let json = serde_json::to_string(&req).expect("serialize should succeed");
         // 请求体应包含 model / messages / stream / images 字段。
         assert!(json.contains("\"model\":\"qwen2.5-vl:3b\""));
         assert!(json.contains("\"messages\""));
@@ -977,7 +977,7 @@ mod tests {
         assert!(json.contains("\"images\""));
         assert!(json.contains("BASE64PNGDATA"));
         // 反序列化 round-trip 保持字段一致。
-        let back: ChatRequest = serde_json::from_str(&json).unwrap();
+        let back: ChatRequest = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(back.model, "qwen2.5-vl:3b");
         assert_eq!(back.messages.len(), 1);
         assert_eq!(back.messages[0].images.len(), 1);
@@ -1003,8 +1003,8 @@ mod tests {
         /// POST /api/chat. On 200, returns a minimal valid
         /// `ChatResponse` body so `chat()` can deserialize.
         fn start(always_status: u16) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
@@ -1058,8 +1058,8 @@ mod tests {
         /// M3 #49: 启动一个 mock 服务器,每个请求处理前 sleep `delay`。
         /// 用于测试 Semaphore 限流:串行 vs 并行执行时间可区分。
         fn start_with_delay(always_status: u16, delay: Duration) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
@@ -1118,8 +1118,8 @@ mod tests {
     async fn test_retry_on_network_error() {
         // Bind a port, then immediately release it, so the port is
         // unbound and TCP connect gets RST ("connection refused").
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+        let port = listener.local_addr().expect("test op should succeed").port();
         drop(listener);
         let base_url = format!("http://127.0.0.1:{port}");
 
@@ -1298,8 +1298,8 @@ mod tests {
         /// `lines` 是 NDJSON 每行的内容(已序列化 JSON 字符串)。
         /// 服务器将所有行合并为一个 chunk 返回(模拟流式但单次发送)。
         fn start(lines: Vec<String>) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
@@ -1328,8 +1328,8 @@ mod tests {
 
         /// 启动一个返回 HTTP 错误的 mock 服务器(用于测试错误流)。
         fn start_with_error(status: u16) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
@@ -1407,7 +1407,7 @@ mod tests {
         let mut stream = client.chat_stream("x", vec![ChatMessage::user("hi")]);
         let result = stream.next().await;
         assert!(result.is_some(), "stream should yield at least one item");
-        match result.unwrap() {
+        match result.expect("test op should succeed") {
             Ok(_) => panic!("expected Err on HTTP 400"),
             Err(e) => {
                 let msg = format!("{e}");
@@ -1425,8 +1425,8 @@ mod tests {
         use futures::StreamExt;
 
         // Bind a port, then immediately release it.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+        let port = listener.local_addr().expect("test op should succeed").port();
         drop(listener);
         let base_url = format!("http://127.0.0.1:{port}");
 
@@ -1434,7 +1434,7 @@ mod tests {
         let mut stream = client.chat_stream("x", vec![ChatMessage::user("hi")]);
         let result = stream.next().await;
         assert!(result.is_some());
-        match result.unwrap() {
+        match result.expect("test op should succeed") {
             Ok(_) => panic!("expected Err on dead port"),
             Err(e) => {
                 let msg = format!("{e}");

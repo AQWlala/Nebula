@@ -284,8 +284,8 @@ mod tests {
             },
         ];
         for c in cases {
-            let s = serde_json::to_string(&c).unwrap();
-            let back: CostDecision = serde_json::from_str(&s).unwrap();
+            let s = serde_json::to_string(&c).expect("serialize should succeed");
+            let back: CostDecision = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(back, c);
         }
     }

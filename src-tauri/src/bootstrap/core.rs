@@ -1,8 +1,3 @@
-//! Headless bootstrap — constructs [`AppState`] without an `AppHandle`.
-//!
-//! Used by non-Tauri contexts (tests, CLI, daemon) that want the same
-//! [`AppState`] wiring without spawning a window.
-
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -14,20 +9,11 @@ use crate::app_config::AppConfig;
 use crate::app_state::AppState;
 #[cfg(feature = "channels")]
 use crate::channel::webchat::WebChatService;
-use crate::llm::gateway::LlmGateway;
-use crate::llm::ollama::OllamaClient;
-use crate::llm::openai_compat::OpenAICompatClient;
 use crate::llm::prefetch::PrefetchEngine;
-use crate::llm::semantic_cache::SemanticCache;
-use crate::memory::blackhole::BlackholeEngine;
 use crate::memory::causal_graph::CausalGraphEngine;
-use crate::memory::embedder::Embedder;
 use crate::memory::l0_cache::L0Cache;
 use crate::memory::orchestrator::MemoryOrchestrator;
-use crate::memory::sponge::SpongeEngine;
-use crate::memory::sqlite_store::SqliteStore;
 use crate::memory::summarizer::SummaryEngine;
-use crate::memory::vector_store::VectorStore;
 use crate::memory::version_control::MemoryVersionControl;
 use crate::os::ShellExecutor;
 use crate::perf::StartupTimer;
@@ -37,16 +23,22 @@ use crate::work::WorkEngine;
 use crate::writing::WritingEngine;
 
 impl AppState {
-    /// T-E-C-20: headless 模式 bootstrap — 无 `AppHandle`,跳过桌面特有功能。
-    pub async fn bootstrap_headless(mut config: AppConfig) -> anyhow::Result<Self> {
-        info!(target: "nebula", "bootstrapping app state (headless, T-E-C-20)");
+    /// Bootstraps a fully-wired [`AppState`] from the given config.
+    ///
+    /// On failure all already-initialised subsystems are dropped; the
+    /// returned `anyhow::Error` carries the full context chain.
+    pub async fn bootstrap(
+        mut config: AppConfig,
+        app_handle: tauri::AppHandle,
+    ) -> anyhow::Result<Self> {
+        info!(target: "nebula", "bootstrapping app state");
         let startup = StartupTimer::start();
         startup.mark("bootstrap.start");
 
-        // Phase 1: storage
+        // Phase 1: storage (SQLite + migrations + LanceDB)
         let (sqlite, lance) = Self::bootstrap_storage(&config, &startup).await?;
 
-        // Phase 2: AI core — headless 变体,无需 AppHandle
+        // Phase 2: AI core (embedder, LLM, sponge, blackhole)
         let (
             embedder,
             llm,
@@ -57,16 +49,17 @@ impl AppState {
             inline_completion,
             models_config,
             semantic_cache,
-        ) = Self::bootstrap_ai_core_headless(&config, &sqlite, &lance, &startup).await?;
+        ) = Self::bootstrap_ai_core(&config, &sqlite, &lance, &startup, &app_handle).await?;
 
-        // Smart Prefetch
+        // T-E-A-11: Smart Prefetch 引擎 — 与 LlmGateway 共享同一 Arc<SemanticCache>。
         let prefetch = Arc::new(PrefetchEngine::with_default_config(
             sqlite.clone(),
             lance.clone(),
             embedder.clone(),
-            semantic_cache.clone(),
+            semantic_cache,
         ));
         startup.mark("bootstrap.prefetch");
+        info!(target: "nebula", "prefetch engine ready (T-E-A-11)");
 
         // Phase 3: swarm + reflection
         let tool_registry = Arc::new(ToolRegistry::new());
@@ -80,18 +73,28 @@ impl AppState {
             &tool_registry,
         );
 
-        // persona
+        // T-E-S-39: 预加载 SOUL.md/AGENTS.md/TOOLS.md persona。
         let persona_cache = {
             let ws_root = std::path::Path::new(&config.editor_workspace);
             match crate::llm::persona::PersonaConfig::load(ws_root).await {
                 Ok(p) => {
                     if !p.is_empty() {
-                        info!(target: "nebula", "persona loaded (headless)");
+                        info!(
+                            target: "nebula",
+                            soul = p.soul_md.is_some(),
+                            agents = p.agents_md.is_some(),
+                            tools = p.tools_md.is_some(),
+                            "persona loaded from workspace root"
+                        );
                     }
                     Some(Arc::new(parking_lot::RwLock::new(p)))
                 }
                 Err(e) => {
-                    warn!(target: "nebula", error = %e, "persona load failed (headless)");
+                    warn!(
+                        target: "nebula",
+                        error = %e,
+                        "failed to preload persona; chat will proceed without it"
+                    );
                     None
                 }
             }
@@ -100,78 +103,101 @@ impl AppState {
             swarm.set_persona(pc.clone());
         }
         config.persona = persona_cache;
+        startup.mark("bootstrap.persona");
 
-        // Self-Reflection
+        // v2.0: 真正的 Self-Reflection 引擎（L5 元认知层升级）。
         let self_reflection = Arc::new(crate::memory::self_reflection::SelfReflectionEngine::new(
             sqlite.clone(),
             swarm.values_layer().clone(),
             reflection.config().clone(),
         ));
+        startup.mark("bootstrap.self_reflection");
 
-        // Phase 4: skills
+        // Phase 4: skills ecosystem
         let (skills, skill_extractor, skill_composer, marketplace, skill_audit_logger) =
             Self::bootstrap_skills(&config, &sqlite, &llm, &exec_approval);
         swarm.set_composer(skill_composer.clone());
 
-        // L0 + Orchestrator
+        // v1.4: L0 缓存层 + Memory Orchestrator。
         let l0 = Arc::new(L0Cache::new());
         let mut orchestrator_builder =
             MemoryOrchestrator::new(sqlite.clone(), lance.clone(), embedder.clone(), l0.clone())
                 .with_sponge(sponge.clone());
         if let Some(acl) = sponge.acl() {
             orchestrator_builder = orchestrator_builder.with_acl(acl.clone());
+            info!(target: "nebula", "ACL loaded into MemoryOrchestrator");
         }
         let orchestrator = Arc::new(orchestrator_builder);
+        startup.mark("bootstrap.memory_orchestrator");
 
-        // Summary + CausalGraph
+        // v1.5: 多粒度摘要引擎 + 因果图谱引擎。
         let summary_engine = Arc::new(SummaryEngine::new(llm.clone()));
         let causal_graph = Arc::new(CausalGraphEngine::new((*sqlite).clone()));
+        startup.mark("bootstrap.causal_graph");
 
-        // Version Control
+        // v1.6: Git 风格记忆版本控制引擎。
         let version_control = Arc::new(MemoryVersionControl::new(sqlite.clone()));
+        startup.mark("bootstrap.version_control");
 
-        // Sidecar (headless: 仅进程内模式)
+        // v2.0: Sidecar 进程管理器（默认进程内模式，sidecar 二进制存在时自动切换）。
         let data_dir = std::path::Path::new(&config.db_path)
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| std::path::PathBuf::from("."));
         let sidecar_manager = crate::sidecar::SidecarManager::new(data_dir);
+        startup.mark("bootstrap.sidecar_manager");
 
-        // Workspace tooling
+        // Phase 5: workspace tooling + final assembly
+        #[cfg(feature = "channels")]
+        let message_bridge = Self::bootstrap_message_bridge();
         let writing = Arc::new(WritingEngine::new(sqlite.clone(), Some(sponge.clone())));
         let work = Arc::new(WorkEngine::new(sqlite.clone()));
         let editor = Self::bootstrap_editor(&config);
-        // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root。
+        startup.mark("bootstrap.editor");
+        // T-E-C-08: Shadow Workspace 引擎 — 注入 repo root 以启用 git worktree 隔离。
         let shadow_engine =
             Arc::new(crate::shadow_workspace::ShadowWorkspaceEngine::with_default());
         shadow_engine.set_repo_root(editor.workspace_root().to_path_buf());
-        // T-E-C-10: 长任务引擎(复用 sqlite + shadow_engine)。
+        // T-E-C-10: 长任务引擎 — 复用 sqlite + shadow_engine,bootstrap 时恢复 Running→Paused。
         let long_task_engine = Arc::new(crate::long_task::LongTaskEngine::new(
             sqlite.clone(),
             shadow_engine.clone(),
         ));
-        let _ = long_task_engine.bootstrap();
+        if let Err(e) = long_task_engine.bootstrap() {
+            tracing::warn!(target: "nebula", error = %e, "long_task bootstrap failed");
+        } else {
+            tracing::info!(target: "nebula", "long_task engine bootstrapped");
+        }
         let clipboard = Self::bootstrap_clipboard();
         let shell = Arc::new(ShellExecutor::new());
         tool_registry.register(Arc::new(ShellTool::new((*shell).clone())));
         let sync_transport = Self::bootstrap_sync(&config);
+        startup.mark("bootstrap.end");
 
-        // Perf monitor (headless: 仍采样,可由 /metrics 端点暴露)
+        // v1.8: 启动性能监控器（后台 1Hz 采样 RSS/CPU）。
         // T-D-B-03: handle 存入 InfraSubsystem 替代 std::mem::forget。
         let (perf_handle, perf_monitor) =
             crate::perf::monitor::PerfMonitor::start(std::time::Duration::from_secs(1));
+        info!(target: "nebula", "perf monitor started");
 
         let device_manager = Arc::new(parking_lot::Mutex::new(DeviceManager::new(
             sqlite.raw_connection(),
         )));
 
-        // Diagnostics
+        // T-E-S-27: 拿到全局 DiagnosticsBus 单例,装入 AppState。
         let diagnostics = Arc::clone(crate::diagnostics::bus::global());
+        info!(
+            target: "nebula",
+            enabled = config.diagnostics_channel_enabled,
+            capacity = config.diagnostics_buffer_capacity,
+            "diagnostics bus ready (T-E-S-27)"
+        );
 
-        // T-E-S-26: EventBus (全局单例)
+        // T-E-S-26: 拿到全局 EventBus 单例,装入 AppState。
         let event_bus = Arc::clone(crate::swarm::event_bus::global());
+        info!(target: "nebula", "event bus ready (T-E-S-26)");
 
-        // File watcher (headless: 仍支持,目录监控不依赖 GUI)
+        // T-E-B-09: 构造 FileWatcherEngine。
         let file_watcher = Arc::new(crate::memory::file_watcher::FileWatcherEngine::new(
             sponge.clone(),
         ));
@@ -187,28 +213,44 @@ impl AppState {
             if let Some(handle) = file_watcher.clone().spawn_worker() {
                 *file_watcher_worker.lock() = Some(handle);
             }
+            info!(
+                target: "nebula",
+                count = config.watch_paths.len(),
+                "file watcher started (T-E-B-09)"
+            );
         }
 
-        // Clipboard watcher (headless: 构造但不启动)
+        // T-E-C-14: 构造 ClipboardWatcherEngine。此处只构造不启动。
         let clipboard_watcher: Arc<tokio::sync::Mutex<crate::os::ClipboardWatcherEngine>> =
             Arc::new(tokio::sync::Mutex::new(
                 crate::os::ClipboardWatcherEngine::new(),
             ));
+        info!(
+            target: "nebula",
+            enabled = config.clipboard_watch_enabled,
+            "clipboard watcher engine ready (T-E-C-14)"
+        );
 
-        // Storage backend
+        // T-E-S-44: 统一存储后端(Local/S3/WebDAV)。
         let storage = crate::storage::StorageBackendFactory::from_config(&config.storage_backend)
             .context("initializing storage backend")?;
+        info!(
+            target: "nebula",
+            kind = config.storage_backend.kind,
+            "storage backend ready (T-E-S-44)"
+        );
 
-        // Snapshot engine
+        // T-E-S-24: 文件快照回滚引擎。
         let snapshot_engine = Arc::new(
             crate::snapshot::SnapshotEngine::new(storage.clone())
                 .context("initializing snapshot engine")?,
         );
+        info!(target: "nebula", "snapshot engine ready (T-E-S-24)");
 
-        // T-E-C-20: headless 模式 NotificationService。
-        let notification_service = Arc::new(crate::notify::NotificationService::new_headless());
+        // T-E-S-57: 后台通知服务。
+        let notification_service = Arc::new(crate::notify::NotificationService::new(app_handle));
 
-        // Trigger engine
+        // T-E-S-54: 事件触发器引擎 — 构造 + start()。
         let trigger_engine = Arc::new(crate::triggers::TriggerEngine::new(
             sqlite.clone(),
             swarm.bus().clone(),
@@ -217,17 +259,24 @@ impl AppState {
             notification_service.clone(),
         ));
         trigger_engine.clone().start();
+        info!(target: "nebula", "trigger engine started (T-E-S-54)");
 
-        // Scenario templates
+        // T-E-C-13: 工作场景模板引擎。
         let scenario_templates = Arc::new(
             crate::scenarios::TemplateEngine::load()
                 .context("loading scenario templates from scenarios.json")?,
         );
+        info!(
+            target: "nebula",
+            count = scenario_templates.list().len(),
+            "scenario template engine loaded (T-E-C-13)"
+        );
 
-        // IM engine
+        // T-E-C-17: IM 绑定引擎。
         let im_engine = Arc::new(crate::im::ImEngine::new(sqlite.clone()));
+        info!(target: "nebula", "IM engine ready (T-E-C-17)");
 
-        // Wiki
+        // T-E-B-01: LLM Wiki 编译引擎。
         let wiki_config = crate::wiki::WikiConfig {
             enabled: config.wiki_enabled,
             subdir: config.wiki_subdir.clone(),
@@ -244,9 +293,17 @@ impl AppState {
                 version_control.clone(),
             ),
         );
+        info!(
+            target: "nebula",
+            enabled = config.wiki_enabled,
+            subdir = %config.wiki_subdir,
+            "wiki compiler ready (T-E-B-01) + memory sync wired (T-E-B-03)"
+        );
 
+        // T-E-S-32: MCP — 提前构造 mcp_manager 作为变量,供 mcp_registry 复用。
         #[cfg(feature = "mcp")]
         let mcp_manager = Arc::new(crate::mcp::client::McpManager::new());
+
         #[cfg(feature = "mcp")]
         let mcp_registry = {
             let log_dir = crate::tracing_setup::default_log_dir()
@@ -256,8 +313,12 @@ impl AppState {
                 log_dir,
             ))
         };
+        #[cfg(feature = "mcp")]
+        {
+            info!(target: "nebula", "MCP server registry ready (T-E-S-32)");
+        }
 
-        // T-E-A-14: Arena A/B 测试 — headless 模式同样构造 leaderboard。
+        // T-E-A-14: Arena A/B 测试。
         let arena = Arc::new(
             crate::llm::arena::ArenaLeaderboard::new().with_store(sqlite.as_ref().clone()),
         );
@@ -265,12 +326,12 @@ impl AppState {
             warn!(
                 target: "nebula",
                 error = %e,
-                "arena leaderboard load_from_store failed (headless); starting empty (T-E-A-14)"
+                "arena leaderboard load_from_store failed; starting with empty leaderboard (T-E-A-14)"
             );
         }
-        info!(target: "nebula", "arena leaderboard ready (headless, T-E-A-14)");
+        info!(target: "nebula", "arena leaderboard ready (T-E-A-14)");
 
-        // M7a #86 (headless): UnifiedModelDispatcher — 顶层共享实例。
+        // M7a #86: UnifiedModelDispatcher — 顶层共享实例。
         #[cfg(feature = "unified-dispatcher")]
         let dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = {
             use crate::llm::dispatcher::{ModelPolicy, UnifiedModelDispatcher};
@@ -285,17 +346,17 @@ impl AppState {
             )))
         };
 
-        // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关 (headless)
+        // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关
         #[cfg(feature = "master-orchestrator")]
         crate::swarm::init_master_orchestrator_from_env();
 
-        // M5 #68 / M6 #82 (headless): ApprovalGate + ConfirmationRegistry + MasterOrchestrator
+        // M5 #68 / M6 #82: ApprovalGate + ConfirmationRegistry + MasterOrchestrator
         let confirmation_registry = Arc::new(crate::autonomy::ConfirmationRegistry::new());
         let approval_gate = Arc::new(crate::autonomy::ApprovalGate::new(
             crate::autonomy::WorkerRiskMap::new(),
             confirmation_registry.clone(),
         ));
-        info!(target: "nebula", "approval gate ready (headless, M5 #68)");
+        info!(target: "nebula", "approval gate + confirmation registry ready (M5 #68)");
         #[cfg(feature = "master-orchestrator")]
         let master_orchestrator = {
             if crate::swarm::master_orchestrator_enabled() {
@@ -309,24 +370,30 @@ impl AppState {
                     swarm.clone(),
                     dispatcher,
                 ));
-                info!(target: "nebula", "MasterOrchestrator ready (headless, M6 #82, runtime ON, T-D-C-08)");
+                info!(target: "nebula", "MasterOrchestrator ready (M6 #82, runtime ON, T-D-C-08)");
                 mo
             } else {
-                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(swarm.clone(), None));
-                warn!(target: "nebula", "MasterOrchestrator disabled at runtime (headless, T-D-C-08)");
+                // 运行时开关关闭时仍构造占位 Arc，避免 Option 化整个字段
+                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
+                    swarm.clone(),
+                    None,
+                ));
+                warn!(target: "nebula", "MasterOrchestrator disabled at runtime (T-D-C-08); commands will reject");
                 mo
             }
         };
 
-        // M6 #78: EvolutionEngine + EvolutionLog + Roller 构造(headless)。
+        // M6 #78: EvolutionEngine + EvolutionLog + Roller 构造。
         #[cfg(feature = "evolution-engine")]
         let (evolution_engine, evolution_log, roller) = {
             use crate::evolution::engine::{
                 EvolutionEngine, EvolutionEngineConfig, EvolutionLog, Roller,
             };
             use std::path::PathBuf;
-            let log = Arc::new(EvolutionLog::new(PathBuf::from("evolution_log.md")));
-            let roller = Arc::new(Roller::new(log.clone(), PathBuf::from("SOUL.md")));
+            let log_path = PathBuf::from("evolution_log.md");
+            let soul_md_path = PathBuf::from("SOUL.md");
+            let log = Arc::new(EvolutionLog::new(log_path));
+            let roller = Arc::new(Roller::new(log.clone(), soul_md_path));
             let engine = {
                 #[cfg(feature = "unified-dispatcher")]
                 let dispatcher_opt = dispatcher.clone();
@@ -335,18 +402,19 @@ impl AppState {
                     Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
                 > = None;
                 if let Some(dispatcher) = dispatcher_opt {
+                    let config = EvolutionEngineConfig::default();
                     Some(Arc::new(EvolutionEngine::new(
                         dispatcher,
                         sqlite.clone(),
                         sponge.clone(),
                         log.clone(),
-                        EvolutionEngineConfig::default(),
+                        config,
                     )))
                 } else {
                     None
                 }
             };
-            info!(target: "nebula", "EvolutionLog + Roller ready (headless, M6 #78); engine={}", engine.is_some());
+            info!(target: "nebula", "EvolutionLog + Roller ready (M6 #78, evolution-engine feature on); engine={}", engine.is_some());
             (engine, log, roller)
         };
 
@@ -403,7 +471,7 @@ impl AppState {
             },
             channels: crate::app_state::ChannelSubsystem {
                 #[cfg(feature = "channels")]
-                message_bridge: None,
+                message_bridge,
                 #[cfg(feature = "channels")]
                 channel_router: Self::bootstrap_channel_router(),
                 #[cfg(feature = "channels")]
@@ -443,152 +511,5 @@ impl AppState {
                 confirmation_registry,
             },
         })
-    }
-
-    /// T-E-C-20: headless 变体的 AI 核心初始化 — 无预算告警回调。
-    async fn bootstrap_ai_core_headless(
-        config: &AppConfig,
-        sqlite: &Arc<SqliteStore>,
-        lance: &Arc<dyn VectorStore>,
-        startup: &StartupTimer,
-    ) -> anyhow::Result<(
-        Arc<Embedder>,
-        Arc<LlmGateway>,
-        Arc<SpongeEngine>,
-        Arc<BlackholeEngine>,
-        Arc<crate::skills::exec_approval::ExecApprovalTracker>,
-        Arc<crate::llm::cost_tracker::CostTracker>,
-        Arc<crate::editor::InlineCompletionEngine>,
-        Arc<parking_lot::RwLock<crate::llm::models_config::ModelsConfig>>,
-        Arc<SemanticCache>,
-    )> {
-        let models_config_value =
-            crate::llm::models_config::ModelsConfig::load(&config.models_config_path);
-
-        let embedder = Arc::new(Embedder::new(
-            OllamaClient::new(config.ollama_url.clone()),
-            config.embed_model.clone(),
-            config.embedding_dim,
-        ));
-        let ollama = Arc::new(OllamaClient::new(config.ollama_url.clone()));
-
-        let inline_model = std::env::var("NEBULA_INLINE_MODEL")
-            .unwrap_or_else(|_| "qwen2.5-coder:0.5b".to_string());
-        let inline_completion = Arc::new(crate::editor::InlineCompletionEngine::new(
-            ollama.clone(),
-            inline_model,
-        ));
-
-        let ollama_for_compress = ollama.clone();
-        let ak = crate::security::keychain::resolve_anthropic_key();
-        let am = std::env::var("NEBULA_ANTHROPIC_MODEL").ok();
-
-        let exec_approval = Arc::new(crate::skills::exec_approval::ExecApprovalTracker::new(
-            config.exec_approval_timeout_secs,
-        ));
-
-        let cost_tracker = {
-            use crate::llm::cost_tracker::CostTracker;
-            let base = CostTracker::new();
-            let base = base.attach_store(sqlite.as_ref().clone());
-            Arc::new(base)
-        };
-
-        let mut llm_builder = LlmGateway::new(
-            ollama,
-            config.chat_model.clone(),
-            config.llm_provider.clone(),
-            Some(config.deepseek_api_url.clone()),
-            crate::security::keychain::resolve_deepseek_key(),
-            config.remote_fallback_url.clone(),
-            ak,
-            am,
-        );
-
-        let semantic_cache: Arc<SemanticCache> = Arc::new(
-            crate::llm::semantic_cache::SemanticCache::default_config(
-                lance.clone(),
-                embedder.clone(),
-            )
-            .with_sqlite(sqlite.clone()),
-        );
-        if config.semantic_cache_enabled {
-            llm_builder = llm_builder.with_semantic_cache(semantic_cache.clone());
-        }
-        if config.cost_tracker_enabled {
-            llm_builder = llm_builder.with_cost_tracker(cost_tracker.clone());
-        }
-        if config.token_juice_enabled {
-            let compressor = Arc::new(crate::llm::token_juice::TokenJuiceCompressor::new(
-                ollama_for_compress.clone(),
-                config.chat_model.clone(),
-                crate::llm::token_juice::TokenJuiceConfig::default(),
-            ));
-            llm_builder = llm_builder.with_token_juice(compressor);
-        }
-        if config.router_enabled {
-            let router = Arc::new(crate::llm::model_router::ModelRouter::new(
-                ollama_for_compress.clone(),
-                config.router_classifier_model.clone(),
-            ));
-            llm_builder = llm_builder.with_model_router(router);
-        }
-        if config.daily_budget_usd > 0.0 {
-            llm_builder = llm_builder.with_daily_budget(config.daily_budget_usd);
-        }
-        if let Some(base_url) = config.openai_compat_base_url.as_ref() {
-            let model = config
-                .openai_compat_model
-                .clone()
-                .unwrap_or_else(|| "local-model".to_string());
-            let client = OpenAICompatClient::new(
-                base_url.clone(),
-                crate::security::keychain::resolve_openai_compat_key(),
-                model,
-            );
-            llm_builder = llm_builder.with_openai_compat(client);
-        }
-        let llm = Arc::new(llm_builder);
-        startup.mark("bootstrap.llm");
-
-        let sponge = {
-            let mut sponge_builder =
-                SpongeEngine::new(sqlite.clone(), lance.clone(), embedder.clone());
-            sponge_builder = sponge_builder.with_cost_tracker(cost_tracker.clone());
-            match Self::load_acl_from_store(&sqlite) {
-                Ok(acl) => {
-                    sponge_builder = sponge_builder.with_acl(Arc::new(acl));
-                }
-                Err(e) => {
-                    warn!(target: "nebula", error = %e, "ACL load failed (headless)");
-                }
-            }
-            Arc::new(sponge_builder)
-        };
-        let blackhole = Arc::new(BlackholeEngine::new(
-            sqlite.clone(),
-            lance.clone(),
-            config.blackhole_threshold_days,
-        ));
-
-        crate::llm::cost_tracker::update_models_config_override(models_config_value.clone());
-        let models_config = Arc::new(parking_lot::RwLock::new(models_config_value));
-
-        match crate::security::keychain::migrate_env_to_keychain() {
-            Ok(n) if n > 0 => info!(target: "nebula", count = n, "migrated env keys (headless)"),
-            _ => {}
-        }
-
-        Ok((
-            embedder,
-            llm,
-            sponge,
-            blackhole,
-            exec_approval,
-            cost_tracker,
-            inline_completion,
-            models_config,
-            semantic_cache,
-        ))
     }
 }

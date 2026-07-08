@@ -422,7 +422,7 @@ mod tests {
         let chain = FilterChain::new();
         chain.register(Arc::new(AllowAll));
         let req = FilterRequest::new("hi");
-        let out = chain.apply_request(req).await.unwrap();
+        let out = chain.apply_request(req).await.expect("task should complete");
         assert_eq!(out.prompt, "hi");
     }
 
@@ -431,7 +431,7 @@ mod tests {
         let chain = FilterChain::new();
         chain.register(Arc::new(PrefixModifier));
         let req = FilterRequest::new("hi");
-        let out = chain.apply_request(req).await.unwrap();
+        let out = chain.apply_request(req).await.expect("task should complete");
         assert_eq!(out.prompt, "[mod] hi");
     }
 
@@ -474,9 +474,9 @@ mod tests {
         let out = reg
             .invoke("echo", serde_json::json!({"x": 1}))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(out.success);
-        assert_eq!(out.data.unwrap()["x"], 1);
+        assert_eq!(out.data.expect("assertion value")["x"], 1);
     }
 
     #[tokio::test]
@@ -506,7 +506,7 @@ mod tests {
         let tools = Arc::new(ToolRegistry::new());
         let chain = PipeChain::new(tools);
         chain.register(Arc::new(UppercasePipe));
-        let out = chain.run_pipe(PipeInput::new("hello")).unwrap();
+        let out = chain.run_pipe(PipeInput::new("hello")).expect("create should succeed");
         assert_eq!(out.prompt, "HELLO");
     }
 
@@ -522,13 +522,13 @@ mod tests {
         let req = reg
             .apply_filters_request(FilterRequest::new("hi"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(req.prompt, "hi");
 
         let out = reg
             .invoke_action("echo", serde_json::json!({}))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(out.success);
     }
 }

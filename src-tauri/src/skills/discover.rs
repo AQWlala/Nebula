@@ -367,7 +367,7 @@ mod tests {
     #[test]
     fn test_parse_frontmatter_required_fields() {
         let yaml = "id: my-skill\nname: My Skill\ndescription: A test\n";
-        let meta = parse_frontmatter(yaml).unwrap();
+        let meta = parse_frontmatter(yaml).expect("parse should succeed");
         assert_eq!(meta.id, "my-skill");
         assert_eq!(meta.name, "My Skill");
         assert_eq!(meta.description, "A test");
@@ -382,15 +382,15 @@ mod tests {
     #[test]
     fn test_parse_frontmatter_inline_list() {
         let yaml = "id: s1\nname: S1\ntags: [\"a\", \"b\", \"c\"]\n";
-        let meta = parse_frontmatter(yaml).unwrap();
-        assert_eq!(meta.tags.unwrap(), vec!["a", "b", "c"]);
+        let meta = parse_frontmatter(yaml).expect("parse should succeed");
+        assert_eq!(meta.tags.expect("assertion value"), vec!["a", "b", "c"]);
     }
 
     #[test]
     fn test_parse_frontmatter_yaml_list() {
         let yaml = "id: s1\nname: S1\ntags:\n  - alpha\n  - beta\n";
-        let meta = parse_frontmatter(yaml).unwrap();
-        assert_eq!(meta.tags.unwrap(), vec!["alpha", "beta"]);
+        let meta = parse_frontmatter(yaml).expect("parse should succeed");
+        assert_eq!(meta.tags.expect("assertion value"), vec!["alpha", "beta"]);
     }
 
     #[test]

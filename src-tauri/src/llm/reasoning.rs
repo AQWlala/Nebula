@@ -77,8 +77,8 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         let chain = ReasoningChain::from_text("test");
-        let json = serde_json::to_string(&chain).unwrap();
-        let de: ReasoningChain = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&chain).expect("serialize should succeed");
+        let de: ReasoningChain = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(de.steps.len(), 1);
     }
 }

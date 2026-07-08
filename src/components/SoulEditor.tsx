@@ -250,7 +250,8 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
   // 加载 SOUL.md
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     setLoading(true);
     (async () => {
       try {
@@ -268,7 +269,7 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
             text = '';
           }
         }
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setRawText(text);
         const parsed = parseSoulMd(text);
         setPreamble(parsed.preamble);
@@ -281,11 +282,11 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
       } catch (e) {
         toast.error(t('soulEditor.toast.loadFailed.title'), String(e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, [open]);
 

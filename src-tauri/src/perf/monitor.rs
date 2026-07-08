@@ -50,6 +50,11 @@ impl PerfSample {
 }
 
 /// Owning handle to a running monitor.  Drop = stop.
+///
+/// T-D-B-03: Clone 语义为"共享 abort 标志"——任一 clone Drop 即停止。
+/// 这允许将 handle 存入 AppState 并在 shutdown 时正常 Drop,
+/// 替代 `std::mem::forget` 的临时方案。
+#[derive(Clone)]
 pub struct MonitorHandle {
     abort: Arc<Mutex<bool>>,
 }

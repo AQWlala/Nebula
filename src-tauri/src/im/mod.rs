@@ -326,8 +326,8 @@ mod tests {
     #[test]
     fn im_platform_serde_lowercase_roundtrip() {
         for p in [ImPlatform::Feishu, ImPlatform::Wecom, ImPlatform::Dingtalk] {
-            let json = serde_json::to_string(&p).unwrap();
-            let back: ImPlatform = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&p).expect("serialize should succeed");
+            let back: ImPlatform = serde_json::from_str(&json).expect("parse should succeed");
             assert_eq!(p, back, "roundtrip failed for {p:?}: json={json}");
         }
     }
@@ -335,15 +335,15 @@ mod tests {
     #[test]
     fn im_platform_serde_lowercase_strings() {
         assert_eq!(
-            serde_json::to_string(&ImPlatform::Feishu).unwrap(),
+            serde_json::to_string(&ImPlatform::Feishu).expect("serialize should succeed"),
             "\"feishu\""
         );
         assert_eq!(
-            serde_json::to_string(&ImPlatform::Wecom).unwrap(),
+            serde_json::to_string(&ImPlatform::Wecom).expect("serialize should succeed"),
             "\"wecom\""
         );
         assert_eq!(
-            serde_json::to_string(&ImPlatform::Dingtalk).unwrap(),
+            serde_json::to_string(&ImPlatform::Dingtalk).expect("serialize should succeed"),
             "\"dingtalk\""
         );
     }
@@ -351,11 +351,11 @@ mod tests {
     #[test]
     fn im_platform_from_str_lossy() {
         assert_eq!(
-            ImPlatform::from_str_lossy("Feishu").unwrap(),
+            ImPlatform::from_str_lossy("Feishu").expect("parse should succeed"),
             ImPlatform::Feishu
         );
         assert_eq!(
-            ImPlatform::from_str_lossy("WECOM").unwrap(),
+            ImPlatform::from_str_lossy("WECOM").expect("parse should succeed"),
             ImPlatform::Wecom
         );
         assert!(ImPlatform::from_str_lossy("unknown").is_err());
@@ -368,14 +368,14 @@ mod tests {
         let kind = BindingKind::Webhook {
             url: "https://open.feishu.cn/open-apis/bot/v2/hook/abc".to_string(),
         };
-        let json = serde_json::to_string(&kind).unwrap();
+        let json = serde_json::to_string(&kind).expect("serialize should succeed");
         // tag = "kind", rename_all = "snake_case"
         assert!(json.contains("\"kind\":\"webhook\""), "json={json}");
         assert!(
             json.contains("\"url\":\"https://open.feishu.cn"),
             "json={json}"
         );
-        let back: BindingKind = serde_json::from_str(&json).unwrap();
+        let back: BindingKind = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(kind, back);
     }
 
@@ -386,9 +386,9 @@ mod tests {
             display_name: "Alice".to_string(),
             has_refresh_token: true,
         };
-        let json = serde_json::to_string(&kind).unwrap();
+        let json = serde_json::to_string(&kind).expect("serialize should succeed");
         assert!(json.contains("\"kind\":\"oauth_user\""), "json={json}");
-        let back: BindingKind = serde_json::from_str(&json).unwrap();
+        let back: BindingKind = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(kind, back);
     }
 
@@ -417,20 +417,20 @@ mod tests {
             ImMessageLevel::Warning,
             ImMessageLevel::Error,
         ] {
-            let json = serde_json::to_string(&l).unwrap();
-            let back: ImMessageLevel = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&l).expect("serialize should succeed");
+            let back: ImMessageLevel = serde_json::from_str(&json).expect("parse should succeed");
             assert_eq!(l, back);
         }
         assert_eq!(
-            serde_json::to_string(&ImMessageLevel::Info).unwrap(),
+            serde_json::to_string(&ImMessageLevel::Info).expect("serialize should succeed"),
             "\"info\""
         );
         assert_eq!(
-            serde_json::to_string(&ImMessageLevel::Warning).unwrap(),
+            serde_json::to_string(&ImMessageLevel::Warning).expect("serialize should succeed"),
             "\"warning\""
         );
         assert_eq!(
-            serde_json::to_string(&ImMessageLevel::Error).unwrap(),
+            serde_json::to_string(&ImMessageLevel::Error).expect("serialize should succeed"),
             "\"error\""
         );
     }
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn create_webhook_binding_rejects_private_ip() {
         // 用 in-memory sqlite 构造 engine。
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().expect("create should succeed");
         // 创建 im_bindings 表(模拟 migration)。
         conn.execute_batch(
             "CREATE TABLE im_bindings (
@@ -478,7 +478,7 @@ mod tests {
                 created_at INTEGER NOT NULL, last_used_at INTEGER
             );",
         )
-        .unwrap();
+        .expect("test op should succeed");
         // 由于 ImEngine 依赖 SqliteStore(需要完整 schema),此处仅测 SsrfGuard 直接行为。
         // ImEngine 的 SSRF 集成通过 webhook 模块的 SSRF 测试覆盖。
         let guard = SsrfGuard::new();

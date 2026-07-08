@@ -199,6 +199,9 @@ pub struct InfraSubsystem {
     pub startup_timer: StartupTimer,
     /// v1.8: 性能监控器（后台 1Hz 采样 RSS/CPU）。
     pub perf_monitor: crate::perf::monitor::PerfMonitor,
+    /// T-D-B-03: PerfMonitor 后台任务的 abort 句柄。
+    /// 存入 AppState 替代 `std::mem::forget`,shutdown 时正常 Drop 停止采样。
+    pub perf_handle: crate::perf::monitor::MonitorHandle,
     /// v1.1 P0-2: tool registry with registered tools (shell, etc.).
     pub tool_registry: Arc<ToolRegistry>,
     /// T-E-S-27: Trusted Diagnostics 通道。

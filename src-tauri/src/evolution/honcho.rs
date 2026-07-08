@@ -563,7 +563,7 @@ mod tests {
         let content = r#"```json
 [{"thesis":"用户喜欢Rust","antithesis":"","synthesis":"用户偏好Rust","confidence":0.9}]
 ```"#;
-        let layers = parse_dialectic_response(content).unwrap();
+        let layers = parse_dialectic_response(content).expect("parse should succeed");
         assert_eq!(layers.len(), 1);
         assert_eq!(layers[0].thesis, "用户喜欢Rust");
         assert_eq!(layers[0].confidence, 0.9);
@@ -572,13 +572,13 @@ mod tests {
     #[test]
     fn parse_dialectic_response_handles_plain_json() {
         let content = r#"[{"thesis":"A","antithesis":"B","synthesis":"C","confidence":0.5}]"#;
-        let layers = parse_dialectic_response(content).unwrap();
+        let layers = parse_dialectic_response(content).expect("parse should succeed");
         assert_eq!(layers.len(), 1);
     }
 
     #[test]
     fn parse_dialectic_response_empty_on_garbage() {
-        let layers = parse_dialectic_response("not json").unwrap();
+        let layers = parse_dialectic_response("not json").expect("parse should succeed");
         assert!(layers.is_empty());
     }
 }

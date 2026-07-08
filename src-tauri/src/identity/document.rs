@@ -73,7 +73,7 @@ mod tests {
         let pk = [7u8; 32];
         let did_key = DidKey::from_public_key(&pk);
         let doc = DidDocument::from_did_key(&did_key);
-        let json = serde_json::to_string(&doc).unwrap();
+        let json = serde_json::to_string(&doc).expect("serialize should succeed");
         assert!(json.contains("\"@context\""));
         assert!(json.contains("\"keyAgreement\""));
     }

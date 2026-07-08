@@ -251,13 +251,13 @@ mod tests {
         // 正确 Bearer token → 通过
         let mut req = tonic::Request::new(());
         req.metadata_mut()
-            .insert("authorization", "Bearer secret123".parse().unwrap());
+            .insert("authorization", "Bearer secret123".parse().expect("insert should succeed"));
         assert!(interceptor.validate(&req).is_ok());
 
         // 错误 token → 拒绝
         let mut req = tonic::Request::new(());
         req.metadata_mut()
-            .insert("authorization", "Bearer wrong".parse().unwrap());
+            .insert("authorization", "Bearer wrong".parse().expect("insert should succeed"));
         assert!(interceptor.validate(&req).is_err());
     }
 }

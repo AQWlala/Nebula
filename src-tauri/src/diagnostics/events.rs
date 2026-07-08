@@ -125,7 +125,7 @@ mod tests {
             reason: "value conflict".to_string(),
             seq: 1,
         };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"l4_deny\""), "got: {s}");
         assert!(s.contains("\"memory_id\":\"mem-1\""));
         assert!(s.contains("\"reason\":\"value conflict\""));
@@ -139,7 +139,7 @@ mod tests {
             resource: "mem://x".to_string(),
             seq: 2,
         };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"acl_rejected\""));
         assert!(s.contains("\"user\":\"alice\""));
     }
@@ -151,7 +151,7 @@ mod tests {
             pattern: "ignore_prev".to_string(),
             seq: 3,
         };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"injection_guard_hit\""));
         assert!(s.contains("\"pattern\":\"ignore_prev\""));
     }
@@ -163,7 +163,7 @@ mod tests {
             exit_code: 137,
             seq: 4,
         };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"sidecar_crash\""));
         assert!(s.contains("\"exit_code\":137"));
     }
@@ -175,7 +175,7 @@ mod tests {
             message: "slow query".to_string(),
             seq: 5,
         };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"tracing_warn\""));
         assert!(s.contains("\"target\":\"nebula.diagnostic\""));
     }
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn dropped_serializes_with_kind_tag() {
         let evt = DiagnosticEvent::Dropped { count: 10, seq: 6 };
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"dropped\""));
         assert!(s.contains("\"count\":10"));
     }

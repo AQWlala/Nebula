@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0: status bar.
  * v1.8: 真正轮询 `perf_sample` + `metrics` 命令，展示：
  *   - current mode
@@ -60,7 +60,8 @@ export function StatusBar() {
   const rssOver = rssBudgetBytes.value != null && (perf?.rss_bytes ?? 0) > rssBudgetBytes.value;
 
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     async function tick() {
       try {
         // v1.8: 真正调用后端 perf_sample（RSS）+ metrics（计数器/延迟）。
@@ -68,7 +69,7 @@ export function StatusBar() {
           invokeTauri<PerfSample>('perf_sample'),
           invokeTauri<MetricsSnapshot>('metrics'),
         ]);
-        if (!cancelled) {
+        if (!ac.signal.aborted) {
           if (perfSample) setPerf(perfSample);
           if (metricsSnap) setMetrics(metricsSnap);
         }
@@ -79,7 +80,7 @@ export function StatusBar() {
     tick();
     const id = setInterval(tick, 2000);
     return () => {
-      cancelled = true;
+      ac.abort();
       clearInterval(id);
     };
   }, []);

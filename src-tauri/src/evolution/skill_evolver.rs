@@ -473,7 +473,7 @@ mod tests {
     fn list_skills_request_serializes() {
         // guard against accidental breaking change to ListSkillsRequest.
         let r = ListSkillsRequest::default();
-        let s = serde_json::to_string(&r).unwrap();
+        let s = serde_json::to_string(&r).expect("serialize should succeed");
         assert!(s.contains("\"limit\":"));
     }
 }

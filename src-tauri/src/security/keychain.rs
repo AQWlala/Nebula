@@ -645,7 +645,7 @@ mod tests {
         let tmp_dir = std::env::temp_dir().join("nebula-test-keychain-tec20");
         let _ = std::fs::create_dir_all(&tmp_dir);
         let key_file = tmp_dir.join("NEBULA_ANTHROPIC_KEY");
-        std::fs::write(&key_file, "test_fallback_file_TEC20\n").unwrap();
+        std::fs::write(&key_file, "test_fallback_file_TEC20\n").expect("update should succeed");
 
         let saved_dir = save_env("NEBULA_KEYCHAIN_DIR");
         std::env::set_var("NEBULA_KEYCHAIN_DIR", tmp_dir.to_string_lossy().to_string());

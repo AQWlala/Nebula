@@ -397,7 +397,7 @@ mod tests {
         let id = E2eeIdentity::generate();
         let pk_b64 = id.public_key_b64();
         // Re-parse the public key.
-        let bytes = B64.decode(pk_b64.as_bytes()).unwrap();
+        let bytes = B64.decode(pk_b64.as_bytes()).expect("test op should succeed");
         assert_eq!(bytes.len(), 32);
     }
 
@@ -412,19 +412,19 @@ mod tests {
         let bob = E2eeIdentity::generate();
         let alice_pub = alice.public_key_b64();
         let bob_pub = bob.public_key_b64();
-        let alice_pair = Pair::new(alice.clone(), &bob_pub).unwrap();
-        let bob_pair = Pair::new(bob.clone(), &alice_pub).unwrap();
+        let alice_pair = Pair::new(alice.clone(), &bob_pub).expect("create should succeed");
+        let bob_pair = Pair::new(bob.clone(), &alice_pub).expect("create should succeed");
 
         // The cached salts differ (they were generated independently).
         assert_ne!(alice_pair.session.salt(), bob_pair.session.salt());
 
-        let env = alice_pair.encrypt(b"hello bob").unwrap();
-        let pt = bob_pair.decrypt(&env).unwrap();
+        let env = alice_pair.encrypt(b"hello bob").expect("test op should succeed");
+        let pt = bob_pair.decrypt(&env).expect("test op should succeed");
         assert_eq!(pt, b"hello bob");
 
         // And the other direction also works.
-        let env2 = bob_pair.encrypt(b"hello alice").unwrap();
-        let pt2 = alice_pair.decrypt(&env2).unwrap();
+        let env2 = bob_pair.encrypt(b"hello alice").expect("test op should succeed");
+        let pt2 = alice_pair.decrypt(&env2).expect("test op should succeed");
         assert_eq!(pt2, b"hello alice");
     }
 
@@ -436,8 +436,8 @@ mod tests {
         // the envelope's salt — decryption must still succeed.
         let alice = E2eeIdentity::generate();
         let bob = E2eeIdentity::generate();
-        let alice_pair = Pair::new(alice.clone(), &bob.public_key_b64()).unwrap();
-        let bob_pair = Pair::new(bob.clone(), &alice.public_key_b64()).unwrap();
+        let alice_pair = Pair::new(alice.clone(), &bob.public_key_b64()).expect("create should succeed");
+        let bob_pair = Pair::new(bob.clone(), &alice.public_key_b64()).expect("create should succeed");
         // Sanity: cached salts differ.
         assert_ne!(alice_pair.session.salt(), bob_pair.session.salt());
 
@@ -445,11 +445,11 @@ mod tests {
         // clearly distinct.
         let env = alice_pair
             .encrypt(b"the quick brown fox jumps over the lazy dog")
-            .unwrap();
+            .expect("test op should succeed");
 
         // Bob must be able to decrypt even though his cached
         // salt does not match the one in the envelope.
-        let pt = bob_pair.decrypt(&env).unwrap();
+        let pt = bob_pair.decrypt(&env).expect("test op should succeed");
         assert_eq!(pt, b"the quick brown fox jumps over the lazy dog");
     }
 
@@ -459,18 +459,18 @@ mod tests {
         // The "peer" is the same device; this still exercises the
         // AEAD code path.
         let peer_pub = local.public_key_b64();
-        let pair = Pair::new(local, &peer_pub).unwrap();
+        let pair = Pair::new(local, &peer_pub).expect("create should succeed");
         let plaintext = b"the quick brown fox jumps over the lazy dog";
-        let env = pair.encrypt(plaintext).unwrap();
-        let pt = pair.decrypt(&env).unwrap();
+        let env = pair.encrypt(plaintext).expect("test op should succeed");
+        let pt = pair.decrypt(&env).expect("test op should succeed");
         assert_eq!(pt, plaintext);
     }
 
     #[test]
     fn tampered_ciphertext_is_rejected() {
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).unwrap();
-        let mut env = pair.encrypt(b"top secret").unwrap();
+        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let mut env = pair.encrypt(b"top secret").expect("test op should succeed");
         // Flip a bit deep inside the ciphertext.
         let last = env.ciphertext.len() - 1;
         env.ciphertext[last] ^= 0x01;
@@ -482,13 +482,13 @@ mod tests {
     fn wrong_session_key_fails() {
         let a = E2eeIdentity::generate();
         let b = E2eeIdentity::generate();
-        let pair_ab = Pair::new(a, &b.public_key_b64()).unwrap();
+        let pair_ab = Pair::new(a, &b.public_key_b64()).expect("create should succeed");
         let pair_cc = Pair::new(
             E2eeIdentity::generate(),
             &E2eeIdentity::generate().public_key_b64(),
         )
-        .unwrap();
-        let env = pair_ab.encrypt(b"x").unwrap();
+        .expect("test op should succeed");
+        let env = pair_ab.encrypt(b"x").expect("test op should succeed");
         assert!(pair_cc.decrypt(&env).is_err());
     }
 
@@ -500,9 +500,9 @@ mod tests {
         // which we no longer surface).
         let alice = E2eeIdentity::generate();
         let bob = E2eeIdentity::generate();
-        let pair_a = Pair::new(alice, &bob.public_key_b64()).unwrap();
-        let pair_b = Pair::new(bob, &pair_a.local.public_key_b64()).unwrap();
-        let mut env = pair_a.encrypt(b"salty").unwrap();
+        let pair_a = Pair::new(alice, &bob.public_key_b64()).expect("create should succeed");
+        let pair_b = Pair::new(bob, &pair_a.local.public_key_b64()).expect("create should succeed");
+        let mut env = pair_a.encrypt(b"salty").expect("test op should succeed");
         env.salt[0] ^= 0xff;
         let err = pair_b.decrypt(&env).unwrap_err();
         assert!(err.to_string().contains("AES-GCM"));
@@ -521,19 +521,19 @@ mod tests {
     #[test]
     fn wire_format_round_trip() {
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).unwrap();
-        let env = pair.encrypt(b"wire-format-test").unwrap();
-        let json = env.to_b64_json().unwrap();
-        let back = EncryptedEnvelope::from_b64_json(&json).unwrap();
-        let pt = pair.decrypt(&back).unwrap();
+        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let env = pair.encrypt(b"wire-format-test").expect("test op should succeed");
+        let json = env.to_b64_json().expect("test op should succeed");
+        let back = EncryptedEnvelope::from_b64_json(&json).expect("test op should succeed");
+        let pt = pair.decrypt(&back).expect("test op should succeed");
         assert_eq!(pt, b"wire-format-test");
     }
 
     #[test]
     fn version_mismatch_is_rejected() {
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).unwrap();
-        let mut env = pair.encrypt(b"v").unwrap();
+        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let mut env = pair.encrypt(b"v").expect("test op should succeed");
         env.v = 99;
         let err = pair.decrypt(&env).unwrap_err();
         assert!(err.to_string().contains("version"));
@@ -547,11 +547,11 @@ mod tests {
         // all of them.
         let alice = E2eeIdentity::generate();
         let bob = E2eeIdentity::generate();
-        let pair_a = Pair::new(alice, &bob.public_key_b64()).unwrap();
-        let pair_b = Pair::new(bob, &pair_a.local.public_key_b64()).unwrap();
+        let pair_a = Pair::new(alice, &bob.public_key_b64()).expect("create should succeed");
+        let pair_b = Pair::new(bob, &pair_a.local.public_key_b64()).expect("create should succeed");
         for i in 0..16 {
-            let env = pair_a.encrypt(format!("message {i}").as_bytes()).unwrap();
-            let pt = pair_b.decrypt(&env).unwrap();
+            let env = pair_a.encrypt(format!("message {i}").as_bytes()).expect("test op should succeed");
+            let pt = pair_b.decrypt(&env).expect("test op should succeed");
             assert_eq!(pt, format!("message {i}").as_bytes());
         }
     }

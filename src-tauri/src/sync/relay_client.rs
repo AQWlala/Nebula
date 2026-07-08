@@ -389,7 +389,7 @@ mod tests {
 
     /// 构造内存 SQLite 并建 crdt_op_log 表(不依赖 migration runner)。
     fn make_op_log() -> Arc<CrdtOpLog> {
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory().expect("create should succeed");
         conn.execute_batch(
             "CREATE TABLE crdt_op_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -406,7 +406,7 @@ mod tests {
             CREATE INDEX idx_crdt_op_log_status ON crdt_op_log(status);
             CREATE INDEX idx_crdt_op_log_memory ON crdt_op_log(memory_id);",
         )
-        .unwrap();
+        .expect("test op should succeed");
         Arc::new(CrdtOpLog::new(
             Arc::new(Mutex::new(conn)),
             "dev-test".to_string(),
@@ -431,7 +431,7 @@ mod tests {
             "device_id": "dev-1",
             "token": "tok"
         }"#;
-        let cfg: RelayConfig = serde_json::from_str(json).unwrap();
+        let cfg: RelayConfig = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(cfg.server_url, "https://relay.example.com");
         assert_eq!(cfg.device_id, "dev-1");
         assert_eq!(cfg.token, "tok");
@@ -448,7 +448,7 @@ mod tests {
             "pull_interval_secs": 120,
             "batch_size": 50
         }"#;
-        let cfg: RelayConfig = serde_json::from_str(json).unwrap();
+        let cfg: RelayConfig = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(cfg.pull_interval_secs, 120);
         assert_eq!(cfg.batch_size, 50);
     }
@@ -466,7 +466,7 @@ mod tests {
             },
             make_op_log(),
         );
-        let n = client.push().await.unwrap();
+        let n = client.push().await.expect("task should complete");
         assert_eq!(n, 0);
     }
 
@@ -475,7 +475,7 @@ mod tests {
         // server_url 非空但 op_log 为空 — 应在 fetch_pending_ops 后早退,
         // 不触达网络。
         let client = RelayClient::new(make_config("https://relay.example.com"), make_op_log());
-        let n = client.push().await.unwrap();
+        let n = client.push().await.expect("task should complete");
         assert_eq!(n, 0);
     }
 
@@ -491,7 +491,7 @@ mod tests {
             },
             make_op_log(),
         );
-        let n = client.pull().await.unwrap();
+        let n = client.pull().await.expect("task should complete");
         assert_eq!(n, 0);
     }
 

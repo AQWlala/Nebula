@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_to_skill_md_generates_yaml_front_matter() {
         let skill = sample_skill();
-        let md = SkillExporter::to_skill_md(&skill).unwrap();
+        let md = SkillExporter::to_skill_md(&skill).expect("test op should succeed");
 
         // 1. 必须以 YAML front-matter 起始分隔符开头。
         assert!(
@@ -243,8 +243,8 @@ mod tests {
     fn test_round_trip() {
         // Skill → SKILL.md → from_skill_md → 字段一致(8 个核心字段)。
         let original = sample_skill();
-        let md = SkillExporter::to_skill_md(&original).unwrap();
-        let parsed = SkillImporter::from_skill_md(&md).unwrap();
+        let md = SkillExporter::to_skill_md(&original).expect("test op should succeed");
+        let parsed = SkillImporter::from_skill_md(&md).expect("parse should succeed");
 
         // 8 个核心字段无损往返。
         assert_eq!(parsed.name, original.name, "name round-trip mismatch");
@@ -310,8 +310,8 @@ mod tests {
             capabilities: caps,
         };
 
-        let md = SkillExporter::to_skill_md(&skill).unwrap();
-        let parsed = SkillImporter::from_skill_md(&md).unwrap();
+        let md = SkillExporter::to_skill_md(&skill).expect("test op should succeed");
+        let parsed = SkillImporter::from_skill_md(&md).expect("parse should succeed");
 
         // 反向 + 正向映射后,能力集应当完全一致(full_trust)。
         assert_eq!(
@@ -333,7 +333,7 @@ mod tests {
         let dir =
             std::env::temp_dir().join(format!("nebula-exporter-test-{}", uuid::Uuid::new_v4()));
 
-        let path = SkillExporter::export_to_dir(&skill, &dir).unwrap();
+        let path = SkillExporter::export_to_dir(&skill, &dir).expect("test op should succeed");
 
         // 1. 返回路径必须是 <dir>/<skill.name>/SKILL.md
         assert!(path.ends_with("SKILL.md"));
@@ -342,8 +342,8 @@ mod tests {
 
         // 2. 文件必须存在且内容可被 from_skill_md 解析。
         assert!(path.exists(), "SKILL.md file must exist at {path:?}");
-        let content = std::fs::read_to_string(&path).unwrap();
-        let parsed = SkillImporter::from_skill_md(&content).unwrap();
+        let content = std::fs::read_to_string(&path).expect("get should succeed");
+        let parsed = SkillImporter::from_skill_md(&content).expect("parse should succeed");
         assert_eq!(parsed.name, "text-summarizer");
 
         // 3. 清理。

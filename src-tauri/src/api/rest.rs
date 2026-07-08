@@ -24,7 +24,7 @@ fn json_response(status: u16, body: serde_json::Value) -> hyper::Response<BoxBod
         .status(status)
         .header("content-type", "application/json")
         .body(full_body(body_bytes))
-        .unwrap()
+        .expect("must succeed")
 }
 
 async fn read_body(body: &mut hyper::body::Incoming) -> Option<serde_json::Value> {

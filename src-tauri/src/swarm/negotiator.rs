@@ -603,11 +603,11 @@ mod tests {
             "a",
             "only path",
         )];
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let llm = std::sync::Arc::new(crate::llm::LlmGateway::new_test());
         let result = rt
             .block_on(n.negotiate_paths_with_arbitration(outputs, &llm))
-            .unwrap();
+            .expect("test op should succeed");
         assert!(!result.conflict_detected, "single path has no conflict");
         assert_eq!(result.chosen.author, "a");
     }
@@ -647,7 +647,7 @@ mod tests {
         let result = n
             .negotiate_paths_with_arbitration(outputs, &gw)
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 仲裁失败 → 回退 highest_confidence。
         assert_eq!(
             result.method,
@@ -670,7 +670,7 @@ mod tests {
         let result = n
             .negotiate_paths_with_arbitration(outputs, &llm)
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(!result.conflict_detected);
         assert_eq!(result.chosen.body, "no outputs to negotiate");
     }
@@ -687,8 +687,8 @@ mod tests {
             strategy: MoAStrategy::Voting,
             scoring_model: Some("deepseek:deepseek-chat".into()),
         };
-        let json = serde_json::to_string(&config).unwrap();
-        let deserialized: MoAConfig = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&config).expect("serialize should succeed");
+        let deserialized: MoAConfig = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(deserialized.participants, config.participants);
         assert_eq!(deserialized.strategy, MoAStrategy::Voting);
         assert_eq!(deserialized.scoring_model, config.scoring_model);
@@ -699,8 +699,8 @@ mod tests {
             strategy: MoAStrategy::Cascading,
             scoring_model: None,
         };
-        let json2 = serde_json::to_string(&config_cascading).unwrap();
-        let deser2: MoAConfig = serde_json::from_str(&json2).unwrap();
+        let json2 = serde_json::to_string(&config_cascading).expect("serialize should succeed");
+        let deser2: MoAConfig = serde_json::from_str(&json2).expect("parse should succeed");
         assert_eq!(deser2.strategy, MoAStrategy::Cascading);
         assert!(deser2.scoring_model.is_none());
     }
@@ -767,7 +767,7 @@ mod tests {
         let result = n
             .vote_on_responses("test prompt", &responses, "ollama", &gw)
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 所有评分都回退到 5,取第一个(provider_a)
         assert_eq!(result.author, "provider_a");
         assert_eq!(result.body, "Good answer from A");
@@ -794,7 +794,7 @@ mod tests {
         let result = n
             .cascade_responses("test prompt", &providers, &gw)
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 所有 provider 失败 → accumulated 保持空
         assert!(result.body.is_empty());
     }

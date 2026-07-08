@@ -326,40 +326,40 @@ mod tests {
         let (store, path) = temp_store();
 
         // 插入。
-        store.insert(&sample_row("t1")).unwrap();
-        store.insert(&sample_row("t2")).unwrap();
+        store.insert(&sample_row("t1")).expect("insert should succeed");
+        store.insert(&sample_row("t2")).expect("insert should succeed");
 
         // list。
-        let all = store.list().unwrap();
+        let all = store.list().expect("update should succeed");
         assert_eq!(all.len(), 2);
 
         // get。
-        let got = store.get("t1").unwrap();
+        let got = store.get("t1").expect("get should succeed");
         assert_eq!(got.name, "trigger-t1");
         assert_eq!(got.fire_count, 0);
 
         // set_enabled。
-        store.set_enabled("t1", false).unwrap();
-        let got = store.get("t1").unwrap();
+        store.set_enabled("t1", false).expect("update should succeed");
+        let got = store.get("t1").expect("get should succeed");
         assert_eq!(got.enabled, 0);
 
         // record_fire。
         store
             .record_fire("t1", 1700000001_000, 1, None, Some(r#"{"x":1}"#))
-            .unwrap();
-        let got = store.get("t1").unwrap();
+            .expect("test op should succeed");
+        let got = store.get("t1").expect("get should succeed");
         assert_eq!(got.fire_count, 1);
         assert_eq!(got.last_fired_at, Some(1700000001_000));
 
         // list_fire_log。
-        let logs = store.list_fire_log("t1").unwrap();
+        let logs = store.list_fire_log("t1").expect("update should succeed");
         assert_eq!(logs.len(), 1);
         assert!(logs[0].success);
         assert_eq!(logs[0].payload.as_deref(), Some(r#"{"x":1}"#));
 
         // delete。
-        store.delete("t1").unwrap();
-        let all = store.list().unwrap();
+        store.delete("t1").expect("update should succeed");
+        let all = store.list().expect("update should succeed");
         assert_eq!(all.len(), 1);
 
         cleanup(&path);
@@ -368,15 +368,15 @@ mod tests {
     #[test]
     fn test_trigger_store_record_fire_multiple() {
         let (store, path) = temp_store();
-        store.insert(&sample_row("t1")).unwrap();
+        store.insert(&sample_row("t1")).expect("insert should succeed");
         for i in 0..3 {
             store
                 .record_fire("t1", 1700000000_000 + i, 1, None, None)
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let got = store.get("t1").unwrap();
+        let got = store.get("t1").expect("get should succeed");
         assert_eq!(got.fire_count, 3);
-        let logs = store.list_fire_log("t1").unwrap();
+        let logs = store.list_fire_log("t1").expect("update should succeed");
         assert_eq!(logs.len(), 3);
         // DESC 排序:最新的在前。
         assert_eq!(logs[0].fired_at, 1700000000002);
@@ -386,9 +386,9 @@ mod tests {
     #[test]
     fn test_trigger_store_failed_fire_logs_error() {
         let (store, path) = temp_store();
-        store.insert(&sample_row("t1")).unwrap();
-        store.record_fire("t1", 1, 0, Some("boom"), None).unwrap();
-        let logs = store.list_fire_log("t1").unwrap();
+        store.insert(&sample_row("t1")).expect("insert should succeed");
+        store.record_fire("t1", 1, 0, Some("boom"), None).expect("update should succeed");
+        let logs = store.list_fire_log("t1").expect("update should succeed");
         assert_eq!(logs.len(), 1);
         assert!(!logs[0].success);
         assert_eq!(logs[0].error.as_deref(), Some("boom"));
@@ -400,13 +400,13 @@ mod tests {
         let (store, path) = temp_store();
 
         // 初始无状态。
-        assert!(store.get_watch_state("w1").unwrap().is_none());
+        assert!(store.get_watch_state("w1").expect("get should succeed").is_none());
 
         // 写入 url_hash + fire_at。
         store
             .set_watch_state("w1", Some("hash_v1"), None, Some(1700000000_000))
-            .unwrap();
-        let row = store.get_watch_state("w1").unwrap().unwrap();
+            .expect("test op should succeed");
+        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
         assert_eq!(row.trigger_id, "w1");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v1"));
         assert_eq!(row.last_value, None);
@@ -415,8 +415,8 @@ mod tests {
         // 更新 last_value(COALESCE 保留 last_url_hash + last_fire_at)。
         store
             .set_watch_state("w1", None, Some("evt_uid_1"), None)
-            .unwrap();
-        let row = store.get_watch_state("w1").unwrap().unwrap();
+            .expect("test op should succeed");
+        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v1")); // 保留
         assert_eq!(row.last_value.as_deref(), Some("evt_uid_1")); // 新值
         assert_eq!(row.last_fire_at, Some(1700000000_000)); // 保留
@@ -424,14 +424,14 @@ mod tests {
         // 更新 url_hash(其他列保留)。
         store
             .set_watch_state("w1", Some("hash_v2"), None, None)
-            .unwrap();
-        let row = store.get_watch_state("w1").unwrap().unwrap();
+            .expect("test op should succeed");
+        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v2"));
         assert_eq!(row.last_value.as_deref(), Some("evt_uid_1")); // 保留
 
         // 删除。
-        store.delete_watch_state("w1").unwrap();
-        assert!(store.get_watch_state("w1").unwrap().is_none());
+        store.delete_watch_state("w1").expect("update should succeed");
+        assert!(store.get_watch_state("w1").expect("get should succeed").is_none());
 
         cleanup(&path);
     }

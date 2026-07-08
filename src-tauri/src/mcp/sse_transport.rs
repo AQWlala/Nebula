@@ -715,7 +715,7 @@ mod tests {
         };
         let r = SseTransport::new_with_config("https://1.1.1.1/sse".to_string(), None, cfg);
         assert!(r.is_ok());
-        let transport = r.unwrap();
+        let transport = r.expect("test op should succeed");
         assert_eq!(transport.reconnect_config.max_reconnect_attempts, 7);
         assert_eq!(
             transport.reconnect_config.initial_reconnect_delay,
@@ -732,7 +732,7 @@ mod tests {
     fn sse_transport_new_uses_default_reconnect_config() {
         let r = SseTransport::new("https://1.1.1.1/sse".to_string(), None);
         assert!(r.is_ok());
-        let transport = r.unwrap();
+        let transport = r.expect("test op should succeed");
         assert_eq!(transport.reconnect_config.max_reconnect_attempts, 10);
         assert_eq!(
             transport.reconnect_config.initial_reconnect_delay,
@@ -785,13 +785,13 @@ mod tests {
     fn sse_transport_accepts_public_url() {
         let r = SseTransport::new("https://1.1.1.1/sse".to_string(), Some("key".to_string()));
         assert!(r.is_ok(), "public URL should pass SSRF check");
-        let transport = r.unwrap();
+        let transport = r.expect("test op should succeed");
         assert_eq!(transport.base_url, "https://1.1.1.1/sse");
         assert_eq!(transport.api_key.as_deref(), Some("key"));
         // listener_handle 应为 None(未 start)。
         assert!(transport.listener_handle.is_none());
         // post_url 初始为空。
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let post_url = rt.block_on(transport.post_url.read()).clone();
         assert!(post_url.is_empty());
     }

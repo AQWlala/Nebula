@@ -1,4 +1,4 @@
-﻿//! T-S4-A-02: Team Context Pool — 跨任务共享上下文区。
+//! T-S4-A-02: Team Context Pool — 跨任务共享上下文区。
 //!
 //! 与 [`super::context::TeamContext`]（单次 `execute()` 内的临时上下文）不同,
 //! `TeamContextPool` 是一个**跨任务持久**的共享内存区,允许不同 swarm 执行
@@ -282,7 +282,7 @@ mod tests {
         // 手动将条目 last_accessed 回拨到 100 秒前模拟过期。
         {
             let mut map = pool.entries.write();
-            let vec = map.get_mut("t").unwrap();
+            let vec = map.get_mut("t").expect("get should succeed");
             for e in vec.iter_mut() {
                 e.last_accessed -= 100;
             }
@@ -317,7 +317,7 @@ mod tests {
         // 回拨到 1 秒前(未过期,接近 TTL)。
         {
             let mut map = pool.entries.write();
-            let vec = map.get_mut("t").unwrap();
+            let vec = map.get_mut("t").expect("get should succeed");
             vec[0].last_accessed -= 1;
         }
         // get 会重置 last_accessed。
@@ -361,7 +361,7 @@ mod tests {
         // 回拨过期。
         {
             let mut map = pool.entries.write();
-            let vec = map.get_mut("t").unwrap();
+            let vec = map.get_mut("t").expect("get should succeed");
             for e in vec.iter_mut() {
                 e.last_accessed -= 100;
             }

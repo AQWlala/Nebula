@@ -263,7 +263,7 @@ mod tests {
             "nebula_seeder_viz_test_{}.db",
             uuid::Uuid::new_v4()
         ));
-        let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
+        let sqlite = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
         {
             let rc = sqlite.raw_connection();
             let g = rc.lock();
@@ -271,7 +271,7 @@ mod tests {
                 &g,
                 crate::memory::migration::bundled_migrations_dir(),
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
         let client = Arc::new(OllamaClient::new_with_timeout(
             "http://127.0.0.1:1",
@@ -299,14 +299,14 @@ mod tests {
                 limit: 200,
                 ..Default::default()
             })
-            .unwrap()
+            .expect("test op should succeed")
     }
 
     /// T-E-S-38 验收:seed_demo_skills 后 list_skills 包含三个 creator。
     #[test]
     fn seed_demo_skills_includes_three_viz_creators() {
         let (p, engine) = temp_engine();
-        seed_demo_skills(&engine).unwrap();
+        seed_demo_skills(&engine).expect("test op should succeed");
         let skills = list_all(&engine);
         let names: Vec<&str> = skills.iter().map(|s| s.name.as_str()).collect();
         assert!(names.contains(&"canvas-creator"), "canvas-creator missing");
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn seed_demo_skills_is_idempotent_for_viz_creators() {
         let (p, engine) = temp_engine();
-        seed_demo_skills(&engine).unwrap();
+        seed_demo_skills(&engine).expect("test op should succeed");
         let after_first = list_all(&engine)
             .into_iter()
             .filter(|s| {
@@ -335,7 +335,7 @@ mod tests {
             })
             .count();
         // 第二次 seed 应全部跳过。
-        seed_demo_skills(&engine).unwrap();
+        seed_demo_skills(&engine).expect("test op should succeed");
         let after_second = list_all(&engine)
             .into_iter()
             .filter(|s| {
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn three_viz_creators_use_llm_language() {
         let (p, engine) = temp_engine();
-        seed_demo_skills(&engine).unwrap();
+        seed_demo_skills(&engine).expect("test op should succeed");
         let skills = list_all(&engine);
         for name in ["canvas-creator", "mermaid-creator", "mindmap-creator"] {
             let s = skills
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn three_viz_creators_have_nonempty_capabilities() {
         let (p, engine) = temp_engine();
-        seed_demo_skills(&engine).unwrap();
+        seed_demo_skills(&engine).expect("test op should succeed");
         let skills = list_all(&engine);
         for name in ["canvas-creator", "mermaid-creator", "mindmap-creator"] {
             let s = skills

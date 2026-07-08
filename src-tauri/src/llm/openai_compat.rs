@@ -290,7 +290,7 @@ mod tests {
     fn usage_parsing_default_zero() {
         // 缺失 usage 字段时回退到 (0, 0)。
         let json = r#"{"choices":[{"message":{"role":"assistant","content":"hi"}}]}"#;
-        let resp: OpenAIChatResponse = serde_json::from_str(json).unwrap();
+        let resp: OpenAIChatResponse = serde_json::from_str(json).expect("create should succeed");
         assert!(resp.usage.is_none());
     }
 
@@ -300,8 +300,8 @@ mod tests {
             "choices":[{"message":{"role":"assistant","content":"hi"}}],
             "usage":{"prompt_tokens":12,"completion_tokens":3}
         }"#;
-        let resp: OpenAIChatResponse = serde_json::from_str(json).unwrap();
-        let u = resp.usage.unwrap();
+        let resp: OpenAIChatResponse = serde_json::from_str(json).expect("create should succeed");
+        let u = resp.usage.expect("test op should succeed");
         assert_eq!(u.prompt_tokens, 12);
         assert_eq!(u.completion_tokens, 3);
     }
@@ -319,7 +319,7 @@ mod tests {
             }],
             "usage":{"prompt_tokens":5,"completion_tokens":2}
         }"#;
-        let resp: OpenAIChatResponse = serde_json::from_str(json).unwrap();
+        let resp: OpenAIChatResponse = serde_json::from_str(json).expect("create should succeed");
         let msg = &resp.choices[0].message;
         assert_eq!(msg.content, "final answer");
         assert_eq!(
@@ -335,7 +335,7 @@ mod tests {
             "choices":[{"message":{"role":"assistant","content":"hello"}}],
             "usage":{"prompt_tokens":1,"completion_tokens":1}
         }"#;
-        let resp: OpenAIChatResponse = serde_json::from_str(json).unwrap();
+        let resp: OpenAIChatResponse = serde_json::from_str(json).expect("create should succeed");
         assert!(resp.choices[0].message.reasoning_content.is_none());
     }
 }

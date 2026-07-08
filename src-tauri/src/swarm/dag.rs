@@ -692,9 +692,9 @@ mod tests {
     #[test]
     fn worker_capability_serde_snake_case() {
         let cap = WorkerCapability::MediaProcess;
-        let s = serde_json::to_string(&cap).unwrap();
+        let s = serde_json::to_string(&cap).expect("serialize should succeed");
         assert_eq!(s, "\"media_process\"");
-        let de: WorkerCapability = serde_json::from_str(&s).unwrap();
+        let de: WorkerCapability = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(de, cap);
     }
 
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn failure_strategy_serde_snake_case() {
-        let s = serde_json::to_string(&FailureStrategy::Manual).unwrap();
+        let s = serde_json::to_string(&FailureStrategy::Manual).expect("serialize should succeed");
         assert_eq!(s, "\"manual\"");
     }
 
@@ -749,8 +749,8 @@ mod tests {
         let st = SubTask::new("st_1", "test prompt")
             .with_work_type_hint(WorkType::Chat)
             .with_capabilities(vec![WorkerCapability::Search, WorkerCapability::Summarize]);
-        let json = serde_json::to_string(&st).unwrap();
-        let de: SubTask = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&st).expect("serialize should succeed");
+        let de: SubTask = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(de.id, "st_1");
         assert_eq!(de.prompt, "test prompt");
         assert_eq!(de.work_type_hint, Some(WorkType::Chat));
@@ -851,8 +851,8 @@ mod tests {
             .add_edge("a", "b")
             .add_edge("b", "c")
             .build()
-            .unwrap();
-        let layers = dag.topological_layers().unwrap();
+            .expect("test op should succeed");
+        let layers = dag.topological_layers().expect("test op should succeed");
         assert_eq!(layers.len(), 3);
         assert_eq!(layers[0].len(), 1); // a
         assert_eq!(layers[1].len(), 1); // b
@@ -868,8 +868,8 @@ mod tests {
             .add_edge("a", "c")
             .add_edge("b", "c")
             .build()
-            .unwrap();
-        let layers = dag.topological_layers().unwrap();
+            .expect("test op should succeed");
+        let layers = dag.topological_layers().expect("test op should succeed");
         assert_eq!(layers.len(), 2); // 2 层
         assert_eq!(layers[0].len(), 2); // a 和 b 在第 0 层(可并行)
         assert_eq!(layers[1].len(), 1); // c 在第 1 层
@@ -889,8 +889,8 @@ mod tests {
             .add_edge("b", "d")
             .add_edge("c", "d")
             .build()
-            .unwrap();
-        let layers = dag.topological_layers().unwrap();
+            .expect("test op should succeed");
+        let layers = dag.topological_layers().expect("test op should succeed");
         assert_eq!(layers.len(), 3); // 3 层
         assert_eq!(layers[0].len(), 1); // a
         assert_eq!(layers[1].len(), 2); // b, c 并行
@@ -905,7 +905,7 @@ mod tests {
             .add_node(SubTask::new("alpha", "first"))
             .add_node(SubTask::new("beta", "second"))
             .build()
-            .unwrap();
+            .expect("test op should succeed");
         let alpha = dag.node_by_id("alpha").expect("found");
         assert_eq!(alpha.prompt, "first");
         assert!(dag.node_by_id("nonexistent").is_none());
@@ -920,8 +920,8 @@ mod tests {
             .add_edge("a", "b")
             .add_edge("a", "c")
             .build()
-            .unwrap();
-        let a_idx = dag.node_index_by_id("a").unwrap();
+            .expect("test op should succeed");
+        let a_idx = dag.node_index_by_id("a").expect("test op should succeed");
         let deps = dag.dependencies(a_idx);
         assert!(deps.is_empty(), "a has no dependencies");
         let dependents = dag.dependents(a_idx);

@@ -452,8 +452,8 @@ mod tests {
             risk_tier: RiskTier::Low,
             reason: "ok".to_string(),
         };
-        let s1 = serde_json::to_string(&v1).unwrap();
-        let back: ApprovalVerdict = serde_json::from_str(&s1).unwrap();
+        let s1 = serde_json::to_string(&v1).expect("serialize should succeed");
+        let back: ApprovalVerdict = serde_json::from_str(&s1).expect("parse should succeed");
         match back {
             ApprovalVerdict::Allow { risk_tier, reason } => {
                 assert_eq!(risk_tier, RiskTier::Low);
@@ -469,9 +469,9 @@ mod tests {
             created_at: 12345,
             diff: Some("@@".to_string()),
         };
-        let s2 = serde_json::to_string(&v2).unwrap();
+        let s2 = serde_json::to_string(&v2).expect("serialize should succeed");
         assert!(s2.contains("\"kind\":\"confirm_required\""));
-        let back2: ApprovalVerdict = serde_json::from_str(&s2).unwrap();
+        let back2: ApprovalVerdict = serde_json::from_str(&s2).expect("parse should succeed");
         match back2 {
             ApprovalVerdict::ConfirmRequired {
                 risk_tier,

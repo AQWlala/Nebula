@@ -130,7 +130,7 @@ mod tests {
     #[tokio::test]
     async fn bm25_search_returns_relevant_memories() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // Insert three memories with distinct content.
         let m1 = make_memory("bm25-fox", "the quick brown fox jumps over the lazy dog");
@@ -139,12 +139,12 @@ mod tests {
             "rust is a systems programming language focused on safety",
         );
         let m3 = make_memory("bm25-mixed", "fox in rust the lazy dog programming");
-        store.insert(&m1).await.unwrap();
-        store.insert(&m2).await.unwrap();
-        store.insert(&m3).await.unwrap();
+        store.insert(&m1).await.expect("insert should succeed");
+        store.insert(&m2).await.expect("insert should succeed");
+        store.insert(&m3).await.expect("insert should succeed");
 
         let searcher = Bm25Searcher::new(&store);
-        let hits = searcher.search("fox", 10).await.unwrap();
+        let hits = searcher.search("fox", 10).await.expect("query should succeed");
 
         // Both m1 and m3 contain "fox".
         let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
@@ -182,15 +182,15 @@ mod tests {
     #[tokio::test]
     async fn bm25_search_respects_limit() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         for i in 0..5 {
             let m = make_memory(&format!("bm25-lim-{i}"), "alpha beta gamma delta");
-            store.insert(&m).await.unwrap();
+            store.insert(&m).await.expect("insert should succeed");
         }
 
         let searcher = Bm25Searcher::new(&store);
-        let hits = searcher.search("alpha", 2).await.unwrap();
+        let hits = searcher.search("alpha", 2).await.expect("query should succeed");
         assert_eq!(hits.len(), 2, "limit=2 should return 2 hits");
 
         let _ = std::fs::remove_file(path);
@@ -200,13 +200,13 @@ mod tests {
     #[tokio::test]
     async fn bm25_search_empty_query_returns_empty() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let m = make_memory("bm25-empty", "some content here");
-        store.insert(&m).await.unwrap();
+        store.insert(&m).await.expect("insert should succeed");
 
         let searcher = Bm25Searcher::new(&store);
-        assert!(searcher.search("", 10).await.unwrap().is_empty());
-        assert!(searcher.search("   ", 10).await.unwrap().is_empty());
+        assert!(searcher.search("", 10).await.expect("query should succeed").is_empty());
+        assert!(searcher.search("   ", 10).await.expect("query should succeed").is_empty());
 
         let _ = std::fs::remove_file(path);
     }
@@ -215,19 +215,19 @@ mod tests {
     #[tokio::test]
     async fn bm25_search_excludes_compressed() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         let m_alive = make_memory("bm25-alive", "searchable keyword zeta");
         let m_compressed = make_memory("bm25-compressed", "searchable keyword zeta");
-        store.insert(&m_alive).await.unwrap();
-        store.insert(&m_compressed).await.unwrap();
+        store.insert(&m_alive).await.expect("insert should succeed");
+        store.insert(&m_compressed).await.expect("insert should succeed");
         store
             .update_compressed_from("bm25-compressed", "summary-x")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let searcher = Bm25Searcher::new(&store);
-        let hits = searcher.search("zeta", 10).await.unwrap();
+        let hits = searcher.search("zeta", 10).await.expect("query should succeed");
         let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
         assert!(ids.contains(&"bm25-alive"));
         assert!(!ids.contains(&"bm25-compressed"));

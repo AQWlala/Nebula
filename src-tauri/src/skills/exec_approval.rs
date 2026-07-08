@@ -298,7 +298,7 @@ mod tests {
         // 立即检查：尚未超时。
         assert!(!tracker.check_timeout_fail_closed(&req.id));
         assert_eq!(
-            tracker.status(&req.id).unwrap(),
+            tracker.status(&req.id).expect("test op should succeed"),
             ExecApprovalStatus::Pending
         );
 
@@ -306,7 +306,7 @@ mod tests {
         thread::sleep(Duration::from_millis(1100));
         assert!(tracker.check_timeout_fail_closed(&req.id));
         assert_eq!(
-            tracker.status(&req.id).unwrap(),
+            tracker.status(&req.id).expect("test op should succeed"),
             ExecApprovalStatus::TimeoutFailClosed
         );
         assert!(tracker.is_timeout_fail_closed(&req.id));
@@ -325,7 +325,7 @@ mod tests {
         // 已是终态，check 不应改写。
         assert!(!tracker.check_timeout_fail_closed(&req.id));
         assert_eq!(
-            tracker.status(&req.id).unwrap(),
+            tracker.status(&req.id).expect("test op should succeed"),
             ExecApprovalStatus::Approved
         );
     }
@@ -337,10 +337,10 @@ mod tests {
         let (req, _notify) = tracker.request("skill-3", "exec rm");
         assert!(tracker.deny(&req.id));
         assert!(!tracker.is_approved(&req.id));
-        assert_eq!(tracker.status(&req.id).unwrap(), ExecApprovalStatus::Denied);
+        assert_eq!(tracker.status(&req.id).expect("assertion value"), ExecApprovalStatus::Denied);
         thread::sleep(Duration::from_millis(1100));
         assert!(!tracker.check_timeout_fail_closed(&req.id));
-        assert_eq!(tracker.status(&req.id).unwrap(), ExecApprovalStatus::Denied);
+        assert_eq!(tracker.status(&req.id).expect("assertion value"), ExecApprovalStatus::Denied);
     }
 
     /// T-E-S-20: `mark_timeout_fail_closed` 直接将 Pending 标记为
@@ -372,7 +372,7 @@ mod tests {
         assert_eq!(expired[0].status, ExecApprovalStatus::TimeoutFailClosed);
         // r1 仍为 Approved。
         assert_eq!(
-            tracker.status(&r1.id).unwrap(),
+            tracker.status(&r1.id).expect("test op should succeed"),
             ExecApprovalStatus::Approved
         );
     }

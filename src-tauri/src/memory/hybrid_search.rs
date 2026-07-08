@@ -209,12 +209,12 @@ mod tests {
     #[tokio::test]
     async fn vector_search_returns_nearest_first() {
         let path = std::env::temp_dir().join(format!("nebula_hybrid_vec_{}", uuid::Uuid::new_v4()));
-        let store = LanceStore::open(&path, 4).await.unwrap();
-        store.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.unwrap();
-        store.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.unwrap();
-        store.upsert("c", &[0.9, 0.1, 0.0, 0.0]).await.unwrap();
+        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        store.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("update should succeed");
+        store.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.expect("update should succeed");
+        store.upsert("c", &[0.9, 0.1, 0.0, 0.0]).await.expect("update should succeed");
 
-        let hits = store.search(&[1.0, 0.0, 0.0, 0.0], 3).await.unwrap();
+        let hits = store.search(&[1.0, 0.0, 0.0, 0.0], 3).await.expect("query should succeed");
         assert_eq!(hits.len(), 3);
         // "a" is an exact match → should be top or tied with "c".
         let top_ids: std::collections::HashSet<&str> =

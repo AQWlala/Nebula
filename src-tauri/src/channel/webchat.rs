@@ -123,8 +123,8 @@ mod tests {
     fn record_message_increments_count() {
         let svc = WebChatService::new();
         let token = svc.create_session();
-        svc.record_message(&token).unwrap();
-        let session = svc.sessions.get(&token).unwrap();
+        svc.record_message(&token).expect("test op should succeed");
+        let session = svc.sessions.get(&token).expect("get should succeed");
         assert_eq!(session.message_count, 1);
     }
 }

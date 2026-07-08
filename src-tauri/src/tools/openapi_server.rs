@@ -541,7 +541,7 @@ paths:
         let spec = sample_spec_json("https://api.example.com");
         let server = OpenApiToolServer::from_spec(&spec);
         assert!(server.is_ok(), "JSON parse should succeed");
-        let server = server.unwrap();
+        let server = server.expect("test op should succeed");
         assert_eq!(server.base_url, "https://api.example.com");
         assert!(server.auth.is_none());
     }
@@ -551,14 +551,14 @@ paths:
         let spec = sample_spec_yaml("https://api.example.com");
         let server = OpenApiToolServer::from_spec(&spec);
         assert!(server.is_ok(), "YAML parse should succeed");
-        let server = server.unwrap();
+        let server = server.expect("test op should succeed");
         assert_eq!(server.base_url, "https://api.example.com");
     }
 
     #[test]
     fn test_list_tool_definitions() {
         let spec = sample_spec_json("https://api.example.com");
-        let server = OpenApiToolServer::from_spec(&spec).unwrap();
+        let server = OpenApiToolServer::from_spec(&spec).expect("create should succeed");
         let defs = server.list_tool_definitions();
         assert_eq!(defs.len(), 2, "should have 2 tool definitions");
 
@@ -566,21 +566,21 @@ paths:
         assert!(names.contains(&"getUser"));
         assert!(names.contains(&"createUser"));
 
-        let get_user = defs.iter().find(|d| d.name == "getUser").unwrap();
+        let get_user = defs.iter().find(|d| d.name == "getUser").expect("query should succeed");
         assert_eq!(get_user.method, "get");
         assert_eq!(get_user.path, "/users/{userId}");
         assert_eq!(get_user.description, "Get a user by ID");
         // parameters schema 应包含 userId
-        let props = get_user.parameters["properties"].as_object().unwrap();
+        let props = get_user.parameters["properties"].as_object().expect("get should succeed");
         assert!(props.contains_key("userId"));
-        let required = get_user.parameters["required"].as_array().unwrap();
+        let required = get_user.parameters["required"].as_array().expect("get should succeed");
         assert!(required.iter().any(|r| r == "userId"));
     }
 
     #[test]
     fn test_bearer_auth_injection() {
         let server = OpenApiToolServer::from_spec(&sample_spec_json("https://api.example.com"))
-            .unwrap()
+            .expect("test op should succeed")
             .with_auth(OpenApiAuth::Bearer("my-secret-token".into()));
 
         let header = server.auth_header().expect("auth header should be set");
@@ -592,7 +592,7 @@ paths:
     #[test]
     fn test_apikey_auth_injection() {
         let server = OpenApiToolServer::from_spec(&sample_spec_json("https://api.example.com"))
-            .unwrap()
+            .expect("test op should succeed")
             .with_auth(OpenApiAuth::ApiKey {
                 header: "X-API-Key".into(),
                 value: "abc123".into(),
@@ -607,9 +607,9 @@ paths:
     fn test_ssrf_block_private_ip() {
         // spec 指向 127.0.0.1(默认 SSRF 拦截)
         let spec = sample_spec_json("http://127.0.0.1:8080");
-        let server = OpenApiToolServer::from_spec(&spec).unwrap();
+        let server = OpenApiToolServer::from_spec(&spec).expect("create should succeed");
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(result.is_err(), "should block 127.0.0.1");
@@ -625,11 +625,11 @@ paths:
         status_code: u16,
         response_body: String,
     ) -> (String, std::thread::JoinHandle<()>) {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+        let port = listener.local_addr().expect("test op should succeed").port();
         let url = format!("http://127.0.0.1:{}", port);
         let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let (mut stream, _) = listener.accept().expect("test op should succeed");
             let mut buf = [0u8; 8192];
             let _ = std::io::Read::read(&mut stream, &mut buf);
             let response = format!(
@@ -649,11 +649,11 @@ paths:
     /// 这样可以可靠捕获 reqwest 发送的完整请求头(包括 Authorization / X-API-Key),
     /// 避免单次 read 只读到部分缓冲区导致 echo 缺失鉴权 header。
     fn start_echo_server() -> (String, std::thread::JoinHandle<()>) {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+        let port = listener.local_addr().expect("test op should succeed").port();
         let url = format!("http://127.0.0.1:{}", port);
         let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let (mut stream, _) = listener.accept().expect("test op should succeed");
             // 设置 read 超时,避免对端不发完整请求时永久阻塞
             let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
 
@@ -699,14 +699,14 @@ paths:
         // spec 指向 mock 服务器,允许内网 IP
         let spec = sample_spec_json(&mock_url);
         let server = OpenApiToolServer::from_spec(&spec)
-            .unwrap()
+            .expect("test op should succeed")
             .with_allow_private(true);
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(result.is_ok(), "execute should succeed");
-        let body = result.unwrap();
+        let body = result.expect("test op should succeed");
         assert!(body.contains("Alice"), "body should contain Alice");
 
         // 等待 mock 服务器线程结束
@@ -720,11 +720,11 @@ paths:
 
         let spec = sample_spec_json(&mock_url);
         let server = OpenApiToolServer::from_spec(&spec)
-            .unwrap()
+            .expect("test op should succeed")
             .with_allow_private(true)
             .with_auth(OpenApiAuth::Bearer("test-bearer-xyz".into()));
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(
@@ -732,7 +732,7 @@ paths:
             "execute should succeed, err: {:?}",
             result.err()
         );
-        let echoed = result.unwrap();
+        let echoed = result.expect("test op should succeed");
         // reqwest/hyper 默认将 header 名小写化(HTTP/2 规范要求,HTTP/1.1 大小写不敏感),
         // 所以这里用大小写不敏感比较验证 Bearer header 注入。
         let echoed_lower = echoed.to_lowercase();
@@ -750,14 +750,14 @@ paths:
 
         let spec = sample_spec_json(&mock_url);
         let server = OpenApiToolServer::from_spec(&spec)
-            .unwrap()
+            .expect("test op should succeed")
             .with_allow_private(true)
             .with_auth(OpenApiAuth::ApiKey {
                 header: "X-API-Key".into(),
                 value: "key-abc-123".into(),
             });
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt.block_on(async { server.execute("getUser", &json!({"userId": 42})).await });
 
         assert!(
@@ -765,7 +765,7 @@ paths:
             "execute should succeed, err: {:?}",
             result.err()
         );
-        let echoed = result.unwrap();
+        let echoed = result.expect("test op should succeed");
         // reqwest 会把 header 名小写化(如 `x-api-key: key-abc-123`),
         // 所以用大小写不敏感比较验证 API key header 注入。
         let echoed_lower = echoed.to_lowercase();
@@ -780,9 +780,9 @@ paths:
     #[test]
     fn test_adapter_tool_metadata() {
         let spec = sample_spec_json("https://api.example.com");
-        let server = Arc::new(OpenApiToolServer::from_spec(&spec).unwrap());
+        let server = Arc::new(OpenApiToolServer::from_spec(&spec).expect("create should succeed"));
         let defs = server.list_tool_definitions();
-        let def = defs.into_iter().find(|d| d.name == "getUser").unwrap();
+        let def = defs.into_iter().find(|d| d.name == "getUser").expect("query should succeed");
         let adapter = OpenApiToolAdapter::new(server, def);
 
         assert_eq!(adapter.name(), "getUser");
@@ -796,7 +796,7 @@ paths:
         use crate::tools::ToolRegistry;
 
         let spec = sample_spec_json("https://api.example.com");
-        let server = OpenApiToolServer::from_spec(&spec).unwrap();
+        let server = OpenApiToolServer::from_spec(&spec).expect("create should succeed");
 
         let registry = ToolRegistry::new();
         let count = registry.register_openapi_tools(server);

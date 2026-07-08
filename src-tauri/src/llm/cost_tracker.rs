@@ -1580,17 +1580,17 @@ mod tests {
         // 第一条：2025-01-06（周一）所在周
         let mut r1 = CostRecord::new("deepseek-chat", 1_000_000, 0);
         r1.timestamp = chrono::DateTime::parse_from_rfc3339("2025-01-06T12:00:00Z")
-            .unwrap()
+            .expect("test op should succeed")
             .with_timezone(&Utc);
         // 第二条：2025-01-13（下一周一）所在周
         let mut r2 = CostRecord::new("deepseek-chat", 1_000_000, 0);
         r2.timestamp = chrono::DateTime::parse_from_rfc3339("2025-01-13T12:00:00Z")
-            .unwrap()
+            .expect("test op should succeed")
             .with_timezone(&Utc);
         // 第三条：2025-01-08（与 r1 同周）
         let mut r3 = CostRecord::new("deepseek-chat", 1_000_000, 0);
         r3.timestamp = chrono::DateTime::parse_from_rfc3339("2025-01-08T12:00:00Z")
-            .unwrap()
+            .expect("test op should succeed")
             .with_timezone(&Utc);
         // 直接塞进 records，绕过 record() 以注入特定时间戳。
         {
@@ -1806,11 +1806,11 @@ mod tests {
         let now = Utc::now();
         let last_month_date = if now.month() == 1 {
             // 1 月 → 去年 12 月
-            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
         };
-        r_last_month.timestamp = last_month_date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        r_last_month.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last_month);
@@ -1871,9 +1871,9 @@ mod tests {
             (CostSource::Background, "\"background\""),
         ];
         for (variant, expected) in cases {
-            let s = serde_json::to_string(&variant).unwrap();
+            let s = serde_json::to_string(&variant).expect("serialize should succeed");
             assert_eq!(s, expected, "serialize {:?} → {}", variant, s);
-            let back: CostSource = serde_json::from_str(&s).unwrap();
+            let back: CostSource = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(back, variant, "deserialize {}", s);
         }
     }
@@ -1900,7 +1900,7 @@ mod tests {
             "task": "chat",
             "agent": "orchestrator"
         }"#;
-        let rec: CostRecord = serde_json::from_str(old_json).unwrap();
+        let rec: CostRecord = serde_json::from_str(old_json).expect("parse should succeed");
         assert_eq!(rec.model, "deepseek-chat");
         assert_eq!(
             rec.source,
@@ -1918,10 +1918,10 @@ mod tests {
         let mut rec = CostRecord::new("deepseek-chat", 100, 50);
         rec.source = CostSource::Automation;
         rec.trigger_id = Some("trig-123".to_string());
-        let s = serde_json::to_string(&rec).unwrap();
+        let s = serde_json::to_string(&rec).expect("serialize should succeed");
         assert!(s.contains("\"source\":\"automation\""), "json: {s}");
         assert!(s.contains("\"trigger_id\":\"trig-123\""), "json: {s}");
-        let back: CostRecord = serde_json::from_str(&s).unwrap();
+        let back: CostRecord = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(back.source, CostSource::Automation);
         assert_eq!(back.trigger_id.as_deref(), Some("trig-123"));
     }
@@ -2024,11 +2024,11 @@ mod tests {
         let mut r_last = CostRecord::new("deepseek-chat", 100_000, 0);
         let now = Utc::now();
         let last_month_date = if now.month() == 1 {
-            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
         };
-        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last);
@@ -2141,7 +2141,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test op should succeed")
                 .as_nanos()
         ));
         let _ = std::fs::remove_file(&tmp);
@@ -2443,11 +2443,11 @@ mod tests {
         );
         let now = Utc::now();
         let last_month_date = if now.month() == 1 {
-            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).unwrap()
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
         };
-        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last);

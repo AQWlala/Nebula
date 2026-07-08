@@ -420,7 +420,7 @@ impl<'a> Lexer<'a> {
 /// Example:
 /// ```
 /// use nebula_lib::memory::query_dsl::parse_str;
-/// let ast = parse_str("FROM L3 WHERE kind=fact AND importance>0.7").unwrap();
+/// let ast = parse_str("FROM L3 WHERE kind=fact AND importance>0.7").expect("must succeed");
 /// ```
 pub fn parse_str(input: &str) -> Result<QueryAst, String> {
     let tokens = Lexer::new(input).tokenize()?;
@@ -852,7 +852,7 @@ mod tests {
 
     #[test]
     fn test_lexer_basic() {
-        let tokens = Lexer::new("FROM L3 WHERE kind=fact").tokenize().unwrap();
+        let tokens = Lexer::new("FROM L3 WHERE kind=fact").tokenize().expect("create should succeed");
         // FROM, L3, WHERE, kind, =, fact, Eof → 7 tokens.
         assert_eq!(tokens.len(), 7);
         assert!(matches!(tokens[0], Token::From));
@@ -861,11 +861,11 @@ mod tests {
 
     #[test]
     fn test_lexer_keywords_case_insensitive() {
-        let tokens = Lexer::new("from L3 where kind=fact").tokenize().unwrap();
+        let tokens = Lexer::new("from L3 where kind=fact").tokenize().expect("create should succeed");
         assert!(matches!(tokens[0], Token::From));
         assert!(matches!(tokens[2], Token::Where));
 
-        let tokens = Lexer::new("FROM L3 WHERE KIND=FACT").tokenize().unwrap();
+        let tokens = Lexer::new("FROM L3 WHERE KIND=FACT").tokenize().expect("create should succeed");
         assert!(matches!(tokens[0], Token::From));
         assert!(matches!(tokens[2], Token::Where));
     }
@@ -874,7 +874,7 @@ mod tests {
     fn test_lexer_operators() {
         let tokens = Lexer::new("a = b != c > d >= e < f <= g")
             .tokenize()
-            .unwrap();
+            .expect("test op should succeed");
         let ops: Vec<_> = tokens
             .iter()
             .filter(|t| {
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_lexer_string_literal() {
-        let tokens = Lexer::new("'hello world'").tokenize().unwrap();
+        let tokens = Lexer::new("'hello world'").tokenize().expect("create should succeed");
         match &tokens[0] {
             Token::String(s) => assert_eq!(s, "hello world"),
             other => panic!("expected String, got {other:?}"),
@@ -899,7 +899,7 @@ mod tests {
     #[test]
     fn test_lexer_string_escape() {
         // SQL-style: '' inside a string is a literal apostrophe.
-        let tokens = Lexer::new("'it''s'").tokenize().unwrap();
+        let tokens = Lexer::new("'it''s'").tokenize().expect("create should succeed");
         match &tokens[0] {
             Token::String(s) => assert_eq!(s, "it's"),
             other => panic!("expected String, got {other:?}"),
@@ -908,7 +908,7 @@ mod tests {
 
     #[test]
     fn test_lexer_number() {
-        let tokens = Lexer::new("0.7 42 1e5").tokenize().unwrap();
+        let tokens = Lexer::new("0.7 42 1e5").tokenize().expect("create should succeed");
         match &tokens[0] {
             Token::Number(n) => assert!((n - 0.7).abs() < 1e-9),
             other => panic!("expected Number, got {other:?}"),
@@ -939,7 +939,7 @@ mod tests {
 
     #[test]
     fn test_parser_simple_query() {
-        let ast = Parser::parse_str("FROM L3").unwrap();
+        let ast = Parser::parse_str("FROM L3").expect("parse should succeed");
         assert_eq!(ast.from, LayerSpec::Layer(MemoryLayer::L3));
         assert!(ast.where_clause.is_none());
         assert!(ast.order.is_none());
@@ -948,13 +948,13 @@ mod tests {
 
     #[test]
     fn test_parser_from_star() {
-        let ast = Parser::parse_str("FROM *").unwrap();
+        let ast = Parser::parse_str("FROM *").expect("parse should succeed");
         assert_eq!(ast.from, LayerSpec::All);
     }
 
     #[test]
     fn test_parser_where_clause() {
-        let ast = Parser::parse_str("FROM L3 WHERE kind=fact").unwrap();
+        let ast = Parser::parse_str("FROM L3 WHERE kind=fact").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Cmp(Field::Kind, CmpOp::Eq, Value::String(s)) => {
@@ -966,7 +966,7 @@ mod tests {
 
     #[test]
     fn test_parser_in_clause() {
-        let ast = Parser::parse_str("FROM L3 WHERE layer IN (L3, L4, L5)").unwrap();
+        let ast = Parser::parse_str("FROM L3 WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::In(Field::Layer, values) => {
@@ -978,7 +978,7 @@ mod tests {
 
     #[test]
     fn test_parser_in_clause_with_strings() {
-        let ast = Parser::parse_str("FROM * WHERE kind IN ('fact', 'event')").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE kind IN ('fact', 'event')").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::In(Field::Kind, values) => {
@@ -991,7 +991,7 @@ mod tests {
     #[test]
     fn test_parser_not_and_or_precedence() {
         // NOT a AND b OR c  ==  ((NOT a) AND b) OR c
-        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Or(left, right) => {
@@ -1011,7 +1011,7 @@ mod tests {
     fn test_parser_parens_override_precedence() {
         // a OR (b AND c) — the AND must be grouped inside the OR's right.
         let ast =
-            Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)").unwrap();
+            Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Or(_, right) => {
@@ -1023,7 +1023,7 @@ mod tests {
 
     #[test]
     fn test_parser_order_limit() {
-        let ast = Parser::parse_str("FROM L3 ORDER BY created_at ASC LIMIT 50").unwrap();
+        let ast = Parser::parse_str("FROM L3 ORDER BY created_at ASC LIMIT 50").expect("create should succeed");
         let order = ast.order.expect("order clause");
         assert_eq!(order.field, Field::CreatedAt);
         assert_eq!(order.direction, OrderDir::Asc);
@@ -1032,7 +1032,7 @@ mod tests {
 
     #[test]
     fn test_parser_order_default_desc() {
-        let ast = Parser::parse_str("FROM L3 ORDER BY importance").unwrap();
+        let ast = Parser::parse_str("FROM L3 ORDER BY importance").expect("parse should succeed");
         let order = ast.order.expect("order clause");
         assert_eq!(order.field, Field::Importance);
         assert_eq!(order.direction, OrderDir::Desc);
@@ -1040,7 +1040,7 @@ mod tests {
 
     #[test]
     fn test_parser_bare_bool_field() {
-        let ast = Parser::parse_str("FROM * WHERE pinned").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE pinned").expect("parse should succeed");
         match ast.where_clause.expect("where clause") {
             Expr::Bool(Field::Pinned) => {}
             other => panic!("expected Bool(Pinned), got {other:?}"),
@@ -1049,7 +1049,7 @@ mod tests {
 
     #[test]
     fn test_parser_null_value() {
-        let ast = Parser::parse_str("FROM * WHERE last_access=NULL").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE last_access=NULL").expect("parse should succeed");
         match ast.where_clause.expect("where clause") {
             Expr::Cmp(Field::LastAccess, CmpOp::Eq, Value::Null) => {}
             other => panic!("expected Cmp(LastAccess, Eq, Null), got {other:?}"),
@@ -1084,7 +1084,7 @@ mod tests {
 
     #[test]
     fn test_translate_sql_generation() {
-        let ast = Parser::parse_str("FROM L3 WHERE kind=fact AND importance>0.7").unwrap();
+        let ast = Parser::parse_str("FROM L3 WHERE kind=fact AND importance>0.7").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.starts_with("SELECT "));
         assert!(sql.contains("FROM memories"));
@@ -1105,7 +1105,7 @@ mod tests {
 
     #[test]
     fn test_translate_params_binding() {
-        let ast = Parser::parse_str("FROM L1 LIMIT 25").unwrap();
+        let ast = Parser::parse_str("FROM L1 LIMIT 25").expect("parse should succeed");
         let (_, params) = translate(&ast);
         // layer + limit
         assert_eq!(params.len(), 2);
@@ -1115,14 +1115,14 @@ mod tests {
 
     #[test]
     fn test_translate_injects_compressed_from_null() {
-        let ast = Parser::parse_str("FROM L3").unwrap();
+        let ast = Parser::parse_str("FROM L3").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("compressed_from IS NULL"));
     }
 
     #[test]
     fn test_translate_injects_compressed_from_null_with_where() {
-        let ast = Parser::parse_str("FROM L3 WHERE kind=fact").unwrap();
+        let ast = Parser::parse_str("FROM L3 WHERE kind=fact").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("compressed_from IS NULL"));
         assert!(sql.contains("memory_type = ?"));
@@ -1138,7 +1138,7 @@ mod tests {
             ("meta", "metacognitive"),
         ];
         for (alias, expected) in cases {
-            let ast = Parser::parse_str(&format!("FROM * WHERE kind={alias}")).unwrap();
+            let ast = Parser::parse_str(&format!("FROM * WHERE kind={alias}")).expect("parse should succeed");
             let (_, params) = translate(&ast);
             // params: [kind_value, limit]
             assert_eq!(
@@ -1152,14 +1152,14 @@ mod tests {
     #[test]
     fn test_translate_kind_passthrough() {
         // Direct memory type names pass through unchanged.
-        let ast = Parser::parse_str("FROM * WHERE kind=semantic").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE kind=semantic").expect("parse should succeed");
         let (_, params) = translate(&ast);
         assert_eq!(params[0], SqlValue::Text("semantic".to_string()));
     }
 
     #[test]
     fn test_translate_default_order_and_limit() {
-        let ast = Parser::parse_str("FROM *").unwrap();
+        let ast = Parser::parse_str("FROM *").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("ORDER BY created_at DESC"));
         assert!(sql.contains("LIMIT ?"));
@@ -1168,7 +1168,7 @@ mod tests {
 
     #[test]
     fn test_translate_explicit_order_and_limit() {
-        let ast = Parser::parse_str("FROM * ORDER BY importance ASC LIMIT 10").unwrap();
+        let ast = Parser::parse_str("FROM * ORDER BY importance ASC LIMIT 10").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("ORDER BY importance ASC"));
         assert!(sql.contains("LIMIT ?"));
@@ -1177,7 +1177,7 @@ mod tests {
 
     #[test]
     fn test_translate_pinned_bool_to_int() {
-        let ast = Parser::parse_str("FROM * WHERE pinned=true").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE pinned=true").expect("parse should succeed");
         let (_, params) = translate(&ast);
         // params: [pinned_int, limit]
         assert_eq!(params[0], SqlValue::Integer(1));
@@ -1185,21 +1185,21 @@ mod tests {
 
     #[test]
     fn test_translate_pinned_false_to_int() {
-        let ast = Parser::parse_str("FROM * WHERE archived=false").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE archived=false").expect("parse should succeed");
         let (_, params) = translate(&ast);
         assert_eq!(params[0], SqlValue::Integer(0));
     }
 
     #[test]
     fn test_translate_bare_bool() {
-        let ast = Parser::parse_str("FROM * WHERE pinned").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE pinned").expect("parse should succeed");
         let (_, params) = translate(&ast);
         assert_eq!(params[0], SqlValue::Integer(1));
     }
 
     #[test]
     fn test_translate_in_clause_params() {
-        let ast = Parser::parse_str("FROM * WHERE layer IN (L3, L4, L5)").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("IN (?, ?, ?)"));
         // params: [L3, L4, L5, limit]
@@ -1212,24 +1212,24 @@ mod tests {
     #[test]
     fn test_translate_null_handling() {
         // = NULL → IS NULL
-        let ast = Parser::parse_str("FROM * WHERE last_access=NULL").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE last_access=NULL").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("last_access IS NULL"));
 
         // != NULL → IS NOT NULL
-        let ast = Parser::parse_str("FROM * WHERE last_access!=NULL").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE last_access!=NULL").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("last_access IS NOT NULL"));
 
         // > NULL → 1 = 0 (always false)
-        let ast = Parser::parse_str("FROM * WHERE last_access>NULL").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE last_access>NULL").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("1 = 0"));
     }
 
     #[test]
     fn test_translate_not_and_or_sql() {
-        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").unwrap();
+        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         // NOT pinned → NOT (pinned = ?)
         assert!(sql.contains("NOT"));
@@ -1248,7 +1248,7 @@ mod tests {
 
     #[test]
     fn test_sql_injection_prevention_value_is_parametrised() {
-        let ast = Parser::parse_str("FROM L3 WHERE content='; DROP TABLE memories--'").unwrap();
+        let ast = Parser::parse_str("FROM L3 WHERE content='; DROP TABLE memories--'").expect("delete should succeed");
         let (sql, params) = translate(&ast);
         // The dangerous text must NOT appear in the SQL string.
         assert!(!sql.contains("DROP TABLE"));
@@ -1298,7 +1298,7 @@ mod tests {
 
     #[test]
     fn test_translate_from_star_no_layer_filter() {
-        let ast = Parser::parse_str("FROM *").unwrap();
+        let ast = Parser::parse_str("FROM *").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         // FROM * must NOT add a layer = ? predicate.
         assert!(!sql.contains("layer = ?"));
@@ -1320,7 +1320,7 @@ mod tests {
         let ast = Parser::parse_str(
             "FROM L4 WHERE kind=event AND importance>=0.5 OR pinned ORDER BY created_at ASC LIMIT 50",
         )
-        .unwrap();
+        .expect("test op should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("layer = ?"));
         assert!(sql.contains("compressed_from IS NULL"));

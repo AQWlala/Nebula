@@ -352,7 +352,7 @@ mod tests {
         let system = req.system.expect("system should be present");
         // 应为 content-block 数组形式,且包含 cache_control。
         assert!(system.is_array(), "system should be a content-block array");
-        let arr = system.as_array().unwrap();
+        let arr = system.as_array().expect("test op should succeed");
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["type"], serde_json::json!("text"));
         assert_eq!(arr[0]["text"], serde_json::json!(long_system));
@@ -370,7 +370,7 @@ mod tests {
             "cache_creation_input_tokens": 200,
             "cache_read_input_tokens": 300
         }"#;
-        let usage: AnthropicUsage = serde_json::from_str(json).unwrap();
+        let usage: AnthropicUsage = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
         assert_eq!(usage.cache_creation_input_tokens, 200);
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_anthropic_usage_default() {
         let json = r#"{}"#;
-        let usage: AnthropicUsage = serde_json::from_str(json).unwrap();
+        let usage: AnthropicUsage = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(usage.input_tokens, 0);
         assert_eq!(usage.output_tokens, 0);
         assert_eq!(usage.cache_creation_input_tokens, 0);

@@ -346,14 +346,14 @@ mod tests {
                     duration_ms: 100 + i as u32,
                     created_at: i as i64,
                 })
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let r = ledger.recent(3).unwrap();
+        let r = ledger.recent(3).expect("test op should succeed");
         assert_eq!(r.len(), 3);
         assert_eq!(r[0].id, "o4");
         let s = ledger
             .by_source(OutcomeSource::Skill, "skill_0", 100)
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(s.len(), 3); // i ∈ {0,2,4}
         assert!(s.iter().all(|o| o.source_id == "skill_0"));
     }
@@ -377,7 +377,7 @@ mod tests {
             duration_ms: 42,
             created_at: 1,
         };
-        let s = serde_json::to_string(&o).unwrap();
+        let s = serde_json::to_string(&o).expect("serialize should succeed");
         assert!(s.contains("\"source\":\"skill\""));
         assert!(s.contains("\"status\":\"success\""));
     }

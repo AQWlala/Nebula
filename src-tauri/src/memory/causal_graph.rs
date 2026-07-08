@@ -401,11 +401,11 @@ mod tests {
             SourceKind::System,
         );
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         rt.block_on(async {
             // 直接用 insert_guarded_spawn（绕过 sponge 以隔离测试）
             for m in [&a, &b, &c] {
-                store.insert_guarded_spawn(m).await.unwrap();
+                store.insert_guarded_spawn(m).await.expect("insert should succeed");
             }
             // M7b #90 分类 A: add_relation 是 async fn,必须在 async 上下文中
             // .await 才会执行。原实现 `let _ = store.add_relation(&rel_ab);`
@@ -413,8 +413,8 @@ mod tests {
             // / find_effects / explain 都找不到链条。
             let rel_ab = MemoryRelation::new(a.id.clone(), b.id.clone(), RelationKind::Causes);
             let rel_bc = MemoryRelation::new(b.id.clone(), c.id.clone(), RelationKind::Causes);
-            store.add_relation(&rel_ab).await.unwrap();
-            store.add_relation(&rel_bc).await.unwrap();
+            store.add_relation(&rel_ab).await.expect("update should succeed");
+            store.add_relation(&rel_bc).await.expect("update should succeed");
         });
 
         (a.id, b.id, c.id)
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn trace_root_causes_finds_chain() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let (a_id, b_id, c_id) = seed_chain(&store);
 
         let engine = CausalGraphEngine::new(store.clone());
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn find_effects_traces_downstream() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let (a_id, b_id, c_id) = seed_chain(&store);
 
         let engine = CausalGraphEngine::new(store.clone());
@@ -476,14 +476,14 @@ mod tests {
     #[test]
     fn explain_provides_full_path() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let (a_id, _b_id, c_id) = seed_chain(&store);
 
         let engine = CausalGraphEngine::new(store.clone());
         let chain = engine.explain(&c_id);
 
         assert!(chain.is_some(), "explain should return a chain");
-        let ch = chain.unwrap();
+        let ch = chain.expect("test op should succeed");
         let path_ids: Vec<&str> = ch.path_ids();
         assert!(
             path_ids.contains(&a_id.as_str()),

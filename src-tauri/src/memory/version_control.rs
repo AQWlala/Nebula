@@ -459,12 +459,12 @@ mod tests {
     }
 
     fn setup() -> MemoryVersionControl {
-        let store = SqliteStore::open(&temp_db_path()).unwrap();
+        let store = SqliteStore::open(&temp_db_path()).expect("create should succeed");
         // 运行 migrations 以创建 memory_branches 表
         {
             let conn = store.raw_connection();
             let g = conn.lock();
-            crate::memory::migration::run_bundled_migrations(&g).unwrap();
+            crate::memory::migration::run_bundled_migrations(&g).expect("test op should succeed");
         }
         MemoryVersionControl::new(Arc::new(store))
     }
@@ -472,9 +472,9 @@ mod tests {
     #[test]
     fn active_branch_defaults_to_main() {
         let vc = setup();
-        let active = vc.get_active_branch().unwrap();
+        let active = vc.get_active_branch().expect("get should succeed");
         assert!(active.is_some());
-        let b = active.unwrap();
+        let b = active.expect("test op should succeed");
         assert_eq!(b.name, "main");
         assert!(b.is_active);
     }
@@ -482,25 +482,25 @@ mod tests {
     #[test]
     fn list_branches_includes_main() {
         let vc = setup();
-        let branches = vc.list_branches().unwrap();
+        let branches = vc.list_branches().expect("test op should succeed");
         assert!(branches.iter().any(|b| b.name == "main"));
     }
 
     #[test]
     fn create_and_checkout_branch() {
         let vc = setup();
-        vc.create_branch("experiment").unwrap();
-        vc.checkout("experiment").unwrap();
-        let active = vc.get_active_branch().unwrap().unwrap();
+        vc.create_branch("experiment").expect("create should succeed");
+        vc.checkout("experiment").expect("test op should succeed");
+        let active = vc.get_active_branch().expect("get should succeed").expect("get should succeed");
         assert_eq!(active.name, "experiment");
     }
 
     #[test]
     fn delete_branch_works() {
         let vc = setup();
-        vc.create_branch("temp").unwrap();
-        vc.delete_branch("temp").unwrap();
-        let branches = vc.list_branches().unwrap();
+        vc.create_branch("temp").expect("create should succeed");
+        vc.delete_branch("temp").expect("delete should succeed");
+        let branches = vc.list_branches().expect("test op should succeed");
         assert!(!branches.iter().any(|b| b.name == "temp"));
     }
 
@@ -514,8 +514,8 @@ mod tests {
     #[test]
     fn cannot_delete_active_branch() {
         let vc = setup();
-        vc.create_branch("active").unwrap();
-        vc.checkout("active").unwrap();
+        vc.create_branch("active").expect("create should succeed");
+        vc.checkout("active").expect("test op should succeed");
         let err = vc.delete_branch("active").unwrap_err();
         assert!(format!("{err}").contains("active branch"));
     }
@@ -531,8 +531,8 @@ mod tests {
                 "test",
                 "test commit",
             )
-            .unwrap();
-        let active = vc.get_active_branch().unwrap().unwrap();
+            .expect("test op should succeed");
+        let active = vc.get_active_branch().expect("get should succeed").expect("get should succeed");
         assert_eq!(active.head_commit_id, Some(cid));
     }
 
@@ -540,15 +540,15 @@ mod tests {
     fn log_returns_commits_in_desc_order() {
         let vc = setup();
         vc.commit("store", "mem-1", &serde_json::json!({}), "test", "first")
-            .unwrap();
+            .expect("test op should succeed");
         // M7b #90 分类 A: commit 用 chrono::Utc::now().timestamp()(秒级精度),
         // log 用 ORDER BY created_at DESC。10ms 间隔可能落在同一秒,导致排序
         // 不稳定。sleep(1100ms) 确保时间戳严格递增,测试不再 flaky。
         std::thread::sleep(std::time::Duration::from_millis(1100));
         vc.commit("store", "mem-2", &serde_json::json!({}), "test", "second")
-            .unwrap();
+            .expect("test op should succeed");
 
-        let logs = vc.log(10).unwrap();
+        let logs = vc.log(10).expect("test op should succeed");
         assert_eq!(logs.len(), 2);
         // 最新的在前
         assert_eq!(logs[0].message, "second");
@@ -560,13 +560,13 @@ mod tests {
         let vc = setup();
         let c1 = vc
             .commit("store", "mem-1", &serde_json::json!({}), "test", "c1")
-            .unwrap();
+            .expect("test op should succeed");
         std::thread::sleep(std::time::Duration::from_millis(10));
         let c2 = vc
             .commit("store", "mem-2", &serde_json::json!({}), "test", "c2")
-            .unwrap();
+            .expect("test op should succeed");
 
-        let diff = vc.diff(&c1, &c2).unwrap();
+        let diff = vc.diff(&c1, &c2).expect("test op should succeed");
         assert_eq!(diff.commits.len(), 1);
         assert_eq!(diff.commits[0].id, c2);
         assert!(diff.affected_memory_ids.contains(&"mem-2".to_string()));
@@ -577,13 +577,13 @@ mod tests {
         let vc = setup();
         let c1 = vc
             .commit("store", "mem-1", &serde_json::json!({}), "test", "original")
-            .unwrap();
+            .expect("test op should succeed");
         // M7b #90 分类 A: commit 和 revert 同秒会导致 log ORDER BY 不稳定。
         // sleep(1100ms) 确保 revert 的时间戳严格大于 c1。
         std::thread::sleep(std::time::Duration::from_millis(1100));
-        let revert_id = vc.revert(&c1, "user", "mistake").unwrap();
+        let revert_id = vc.revert(&c1, "user", "mistake").expect("test op should succeed");
 
-        let logs = vc.log(10).unwrap();
+        let logs = vc.log(10).expect("test op should succeed");
         assert_eq!(logs.len(), 2);
         assert_eq!(logs[0].id, revert_id);
         assert_eq!(logs[0].action, "revert");
@@ -594,11 +594,11 @@ mod tests {
         let vc = setup();
         // 在 main 上创建一个 commit
         vc.commit("store", "mem-1", &serde_json::json!({}), "test", "main-1")
-            .unwrap();
+            .expect("test op should succeed");
 
         // 创建 feature 分支并切换
-        vc.create_branch("feature").unwrap();
-        vc.checkout("feature").unwrap();
+        vc.create_branch("feature").expect("create should succeed");
+        vc.checkout("feature").expect("test op should succeed");
         vc.commit(
             "store",
             "mem-2",
@@ -606,7 +606,7 @@ mod tests {
             "test",
             "feature-1",
         )
-        .unwrap();
+        .expect("test op should succeed");
         vc.commit(
             "store",
             "mem-3",
@@ -614,15 +614,15 @@ mod tests {
             "test",
             "feature-2",
         )
-        .unwrap();
+        .expect("test op should succeed");
 
         // 切回 main 并合并
-        vc.checkout("main").unwrap();
-        let merged = vc.merge("feature").unwrap();
+        vc.checkout("main").expect("test op should succeed");
+        let merged = vc.merge("feature").expect("test op should succeed");
         assert_eq!(merged.len(), 2);
 
         // main 的 log 应包含合并来的 commit
-        let logs = vc.log(10).unwrap();
+        let logs = vc.log(10).expect("test op should succeed");
         assert!(logs.len() >= 3); // main-1 + feature-1 + feature-2
     }
 }

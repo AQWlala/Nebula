@@ -123,7 +123,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test op should succeed")
                 .as_nanos()
         ));
         let _ = std::fs::remove_file(&tmp);
@@ -142,7 +142,7 @@ mod tests {
     #[tokio::test]
     async fn health_check_returns_ok() {
         let h = make_handler();
-        assert!(h.health_check().await.unwrap());
+        assert!(h.health_check().await.expect("task should complete"));
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod tests {
             permissions: vec![],
             capabilities: Default::default(),
         };
-        h.create_skill(req).unwrap();
+        h.create_skill(req).expect("create should succeed");
         let skills = h
             .list_skills(ListSkillsRequest {
                 language: None,

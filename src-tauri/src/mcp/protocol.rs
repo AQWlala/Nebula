@@ -148,9 +148,9 @@ mod tests {
     #[test]
     fn request_serializes_with_id_and_params() {
         let req = JsonRpcRequest::new("tools/list", 1).with_params(serde_json::json!({}));
-        let frame = write_frame(&req).unwrap();
+        let frame = write_frame(&req).expect("update should succeed");
         assert!(frame.ends_with('\n'));
-        let parsed: Value = serde_json::from_str(frame.trim()).unwrap();
+        let parsed: Value = serde_json::from_str(frame.trim()).expect("parse should succeed");
         assert_eq!(parsed["jsonrpc"], "2.0");
         assert_eq!(parsed["method"], "tools/list");
         assert_eq!(parsed["id"], 1);
@@ -159,8 +159,8 @@ mod tests {
     #[test]
     fn notification_omits_id() {
         let req = JsonRpcRequest::notification("initialized");
-        let json = serde_json::to_string(&req).unwrap();
-        let parsed: Value = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&req).expect("serialize should succeed");
+        let parsed: Value = serde_json::from_str(&json).expect("parse should succeed");
         assert!(parsed.get("id").is_none() || parsed["id"].is_null());
         assert_eq!(parsed["method"], "initialized");
     }
@@ -168,11 +168,11 @@ mod tests {
     #[test]
     fn response_result_parsed() {
         let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}"#;
-        let resp = parse_frame(raw).unwrap();
+        let resp = parse_frame(raw).expect("parse should succeed");
         assert_eq!(resp.id, Value::from(1));
         assert!(resp.result.is_some());
         assert!(resp.error.is_none());
-        let v = resp.result_value().unwrap();
+        let v = resp.result_value().expect("test op should succeed");
         assert_eq!(v["tools"], serde_json::json!([]));
     }
 
@@ -180,7 +180,7 @@ mod tests {
     fn response_error_propagates() {
         let raw =
             r#"{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"method not found"}}"#;
-        let resp = parse_frame(raw).unwrap();
+        let resp = parse_frame(raw).expect("parse should succeed");
         let err = resp.result_value().unwrap_err();
         assert!(format!("{}", err).contains("-32601"));
         assert!(format!("{}", err).contains("method not found"));

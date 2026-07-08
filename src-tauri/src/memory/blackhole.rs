@@ -439,7 +439,7 @@ mod tests {
 
         let tmp = std::env::temp_dir().join(format!("nebula_lock_test_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
-        let store = Arc::new(SqliteStore::open(&tmp).unwrap());
+        let store = Arc::new(SqliteStore::open(&tmp).expect("create should succeed"));
         let store2 = store.clone();
 
         let main_held_lock = Arc::new(AtomicBool::new(false));

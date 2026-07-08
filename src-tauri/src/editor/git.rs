@@ -1,4 +1,4 @@
-﻿//! v0.5: Git integration.
+//! v0.5: Git integration.
 //!
 //! A small wrapper around the `git` CLI (v0.5 deliberately avoids
 //! `git2`'s libgit2 native dependency).  All commands run inside the
@@ -196,9 +196,9 @@ mod tests {
             eprintln!("git not available; skipping");
             return;
         }
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
         init(dir.path()).expect("init");
-        fs::write(dir.path().join("a.txt"), "hello").unwrap();
+        fs::write(dir.path().join("a.txt"), "hello").expect("update should succeed");
         let s = status(dir.path()).expect("status");
         assert!(!s.clean, "expected dirty status after writing a file");
         let hash = commit(dir.path(), "initial commit").expect("commit");
@@ -215,11 +215,11 @@ mod tests {
         if !git_available() {
             return;
         }
-        let dir = tempfile::tempdir().unwrap();
-        init(dir.path()).unwrap();
-        fs::write(dir.path().join("b.txt"), "first").unwrap();
-        commit(dir.path(), "first").unwrap();
-        fs::write(dir.path().join("b.txt"), "first\nsecond").unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        init(dir.path()).expect("create should succeed");
+        fs::write(dir.path().join("b.txt"), "first").expect("update should succeed");
+        commit(dir.path(), "first").expect("test op should succeed");
+        fs::write(dir.path().join("b.txt"), "first\nsecond").expect("update should succeed");
         let d = diff(dir.path(), "").expect("diff");
         assert!(d.body.contains("+second"));
     }
@@ -229,8 +229,8 @@ mod tests {
         if !git_available() {
             return;
         }
-        let dir = tempfile::tempdir().unwrap();
-        init(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        init(dir.path()).expect("create should succeed");
         assert!(commit(dir.path(), "   ").is_err());
     }
 }

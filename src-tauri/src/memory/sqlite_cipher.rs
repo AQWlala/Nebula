@@ -189,7 +189,7 @@ mod tests {
         let enc_store = SqliteStore::open_encrypted(&path, &key).expect("open_encrypted");
         let got = enc_store.get("cipher-test-001").await.expect("get");
         assert!(got.is_some(), "migrated memory must exist in encrypted db");
-        let got = got.unwrap();
+        let got = got.expect("test op should succeed");
         assert_eq!(got.content, "encrypt test content");
         assert_eq!(got.layer, MemoryLayer::L3);
 

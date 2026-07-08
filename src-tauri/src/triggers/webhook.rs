@@ -356,7 +356,7 @@ mod tests {
         let sig = hex_encode(&mac);
 
         let mut headers = HeaderMap::new();
-        headers.insert("X-Signature", sig.parse().unwrap());
+        headers.insert("X-Signature", sig.parse().expect("insert should succeed"));
         let result = verify_signature(secret, body, &headers);
         assert!(result.is_ok());
     }
@@ -366,7 +366,7 @@ mod tests {
         let secret = "my_secret";
         let body = b"hello world";
         let mut headers = HeaderMap::new();
-        headers.insert("X-Signature", "deadbeef".parse().unwrap());
+        headers.insert("X-Signature", "deadbeef".parse().expect("insert should succeed"));
         let result = verify_signature(secret, body, &headers);
         assert!(result.is_err());
         let (status, msg) = result.unwrap_err();

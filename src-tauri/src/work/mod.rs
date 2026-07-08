@@ -1,4 +1,4 @@
-﻿//! v0.5: Work mode backend — kanban-style task management.
+//! v0.5: Work mode backend — kanban-style task management.
 //!
 //! Tasks live in the `work_tasks` table introduced by
 //! `004_v05.sql`.  The engine exposes a small CRUD surface plus a
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn task_status_round_trip() {
         for s in [TaskStatus::Todo, TaskStatus::Doing, TaskStatus::Done] {
-            assert_eq!(TaskStatus::from_str(s.as_str()).unwrap(), s);
+            assert_eq!(TaskStatus::from_str(s.as_str()).expect("parse should succeed"), s);
         }
         assert!(TaskStatus::from_str("nope").is_err());
     }

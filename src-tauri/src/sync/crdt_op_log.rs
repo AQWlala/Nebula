@@ -280,7 +280,7 @@ mod tests {
 
     /// 构造一个内存 SQLite 并手动建表(不依赖 migration runner)。
     fn make_log() -> CrdtOpLog {
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory().expect("create should succeed");
         conn.execute_batch(
             "CREATE TABLE crdt_op_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -297,7 +297,7 @@ mod tests {
             CREATE INDEX idx_crdt_op_log_status ON crdt_op_log(status);
             CREATE INDEX idx_crdt_op_log_memory ON crdt_op_log(memory_id);",
         )
-        .unwrap();
+        .expect("test op should succeed");
         CrdtOpLog::new(Arc::new(Mutex::new(conn)), "dev-test".to_string())
     }
 
@@ -319,14 +319,14 @@ mod tests {
     fn record_and_fetch_round_trip() {
         let log = make_log();
 
-        let op_id = log.record_op(&make_version("m1", 1, 100)).unwrap();
+        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
         assert!(!op_id.is_empty());
 
         // 第二条 op,created_at 更晚(用稍后的调用时刻)。
         std::thread::sleep(std::time::Duration::from_millis(10));
-        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).unwrap();
+        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
 
-        let pending = log.fetch_pending_ops(10).unwrap();
+        let pending = log.fetch_pending_ops(10).expect("get should succeed");
         assert_eq!(pending.len(), 2);
         // 按 created_at 升序:m1 在前。
         assert_eq!(pending[0].memory_id, "m1");
@@ -344,18 +344,18 @@ mod tests {
     #[test]
     fn mark_consumed_hides_from_pending() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).unwrap();
-        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).unwrap();
+        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
 
         // 标记第一条已消费。
-        log.mark_consumed(&op_id).unwrap();
+        log.mark_consumed(&op_id).expect("test op should succeed");
 
-        let pending = log.fetch_pending_ops(10).unwrap();
+        let pending = log.fetch_pending_ops(10).expect("get should succeed");
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].memory_id, "m2");
 
         // consumed_at 已写入。
-        let stats = log.stats().unwrap();
+        let stats = log.stats().expect("test op should succeed");
         assert_eq!(stats.consumed, 1);
         assert_eq!(stats.pending, 1);
     }
@@ -363,14 +363,14 @@ mod tests {
     #[test]
     fn mark_failed_hides_from_pending() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).unwrap();
+        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
 
-        log.mark_failed(&op_id).unwrap();
+        log.mark_failed(&op_id).expect("test op should succeed");
 
-        let pending = log.fetch_pending_ops(10).unwrap();
+        let pending = log.fetch_pending_ops(10).expect("get should succeed");
         assert!(pending.is_empty());
 
-        let stats = log.stats().unwrap();
+        let stats = log.stats().expect("test op should succeed");
         assert_eq!(stats.failed, 1);
         assert_eq!(stats.pending, 0);
         assert_eq!(stats.total, 1);
@@ -379,15 +379,15 @@ mod tests {
     #[test]
     fn stats_counts_all_states() {
         let log = make_log();
-        let a = log.record_op(&make_version("m1", 1, 100)).unwrap();
-        let b = log.record_op(&make_version("m2", 1, 200)).unwrap();
-        let _c = log.record_op(&make_version("m3", 1, 300)).unwrap();
+        let a = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        let b = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
+        let _c = log.record_op(&make_version("m3", 1, 300)).expect("test op should succeed");
 
-        log.mark_consumed(&a).unwrap();
-        log.mark_failed(&b).unwrap();
+        log.mark_consumed(&a).expect("test op should succeed");
+        log.mark_failed(&b).expect("test op should succeed");
         // c 保持 pending。
 
-        let stats = log.stats().unwrap();
+        let stats = log.stats().expect("test op should succeed");
         assert_eq!(stats.pending, 1);
         assert_eq!(stats.consumed, 1);
         assert_eq!(stats.failed, 1);
@@ -397,8 +397,8 @@ mod tests {
     #[test]
     fn prune_removes_old_consumed() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).unwrap();
-        log.mark_consumed(&op_id).unwrap();
+        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        log.mark_consumed(&op_id).expect("test op should succeed");
 
         // 手动把 consumed_at 改到 30 天前,模拟过期数据。
         {
@@ -408,15 +408,15 @@ mod tests {
                 "UPDATE crdt_op_log SET consumed_at = ?1 WHERE op_id = ?2",
                 params![old_ts, op_id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
 
         // 清理 7 天前的已消费 op。
-        let deleted = log.prune_consumed_older_than(7).unwrap();
+        let deleted = log.prune_consumed_older_than(7).expect("delete should succeed");
         assert_eq!(deleted, 1);
 
         // 统计应不再含此条。
-        let stats = log.stats().unwrap();
+        let stats = log.stats().expect("test op should succeed");
         assert_eq!(stats.consumed, 0);
         assert_eq!(stats.total, 0);
     }
@@ -427,9 +427,9 @@ mod tests {
         for i in 0..5 {
             let _ = log
                 .record_op(&make_version(&format!("m{i}"), 1, 100 + i))
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let pending = log.fetch_pending_ops(3).unwrap();
+        let pending = log.fetch_pending_ops(3).expect("get should succeed");
         assert_eq!(pending.len(), 3);
     }
 

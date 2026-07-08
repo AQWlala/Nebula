@@ -1102,7 +1102,7 @@ pub fn extract_links(markdown: &str) -> Vec<String> {
     use regex::Regex;
     use std::sync::OnceLock;
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"\[\[([a-z0-9-]+)\]\]").unwrap());
+    let re = RE.get_or_init(|| Regex::new(r"\[\[([a-z0-9-]+)\]\]").expect("valid regex"));
 
     let mut seen = std::collections::HashSet::new();
     let mut links = Vec::new();
@@ -1130,7 +1130,7 @@ pub fn extract_wiki_links(body: &str) -> Vec<String> {
     use regex::Regex;
     use std::sync::OnceLock;
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"\[\[([^\]]+)\]\]").unwrap());
+    let re = RE.get_or_init(|| Regex::new(r"\[\[([^\]]+)\]\]").expect("valid regex"));
     re.captures_iter(body)
         .map(|cap| cap[1].to_string())
         .collect()
@@ -1216,7 +1216,7 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir =
             std::env::temp_dir().join(format!("nebula_wiki_test_{}_{}", std::process::id(), n));
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
 
         let db_path = dir.join("test.db");
         let storage_root = dir.join("storage");
@@ -1349,8 +1349,8 @@ mod tests {
     fn resolve_note_path_basic() {
         let compiler = WikiCompiler {
             llm: Arc::new(LlmGateway::new_test()),
-            storage: Arc::new(LocalBackend::new(std::env::temp_dir()).unwrap()),
-            sqlite: Arc::new(SqliteStore::open(":memory:").unwrap()),
+            storage: Arc::new(LocalBackend::new(std::env::temp_dir()).expect("create should succeed")),
+            sqlite: Arc::new(SqliteStore::open(":memory:").expect("create should succeed")),
             config: WikiConfig::default(),
             _log_lock: tokio::sync::Mutex::new(()),
             sponge: None,
@@ -1402,7 +1402,7 @@ mod tests {
                 "UPDATE wiki_notes SET turn_id = ?1 WHERE id = ?2",
                 params!["turn-123", &note.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
 
         // compile_turn 同 turn_id 应短路,不调 LLM。
@@ -1418,12 +1418,12 @@ mod tests {
     #[tokio::test]
     async fn list_returns_notes_desc_by_created_at() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let n1 = compiler.compile_raw(Some("First"), "a").await.unwrap();
+        let n1 = compiler.compile_raw(Some("First"), "a").await.expect("task should complete");
         // 微小延迟确保 created_at 不同。
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        let n2 = compiler.compile_raw(Some("Second"), "b").await.unwrap();
+        let n2 = compiler.compile_raw(Some("Second"), "b").await.expect("task should complete");
 
-        let list = compiler.list(10, 0).await.unwrap();
+        let list = compiler.list(10, 0).await.expect("task should complete");
         assert_eq!(list.len(), 2);
         // DESC:第二个(更晚创建)在前。
         assert_eq!(list[0].id, n2.id);
@@ -1435,7 +1435,7 @@ mod tests {
     #[tokio::test]
     async fn delete_idempotent() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let note = compiler.compile_raw(Some("待删除"), "内容").await.unwrap();
+        let note = compiler.compile_raw(Some("待删除"), "内容").await.expect("task should complete");
 
         // 第一次删除成功。
         compiler.delete(&note.id).await.expect("delete first");
@@ -1458,11 +1458,11 @@ mod tests {
         let _n1 = compiler
             .compile_raw(Some("Rust 笔记"), "Rust 是一门系统级编程语言")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let _n2 = compiler
             .compile_raw(Some("Python 笔记"), "Python 是动态类型语言")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         // FTS5 搜索 "rust"。
         let hits = compiler.search("rust", 10).await.expect("search");
@@ -1481,13 +1481,13 @@ mod tests {
     async fn ensure_unique_slug_appends_suffix() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
         // 第一条 note slug = "test"。
-        let _n1 = compiler.compile_raw(Some("test"), "内容1").await.unwrap();
+        let _n1 = compiler.compile_raw(Some("test"), "内容1").await.expect("task should complete");
         // 第二条相同 title,slug 应追加 -2。
-        let n2 = compiler.compile_raw(Some("test"), "内容2").await.unwrap();
+        let n2 = compiler.compile_raw(Some("test"), "内容2").await.expect("task should complete");
         assert_eq!(n2.slug, "test-2");
 
         // 第三条相同 title,slug 应追加 -3。
-        let n3 = compiler.compile_raw(Some("test"), "内容3").await.unwrap();
+        let n3 = compiler.compile_raw(Some("test"), "内容3").await.expect("task should complete");
         assert_eq!(n3.slug, "test-3");
 
         cleanup(paths, dir);
@@ -1496,7 +1496,7 @@ mod tests {
     #[tokio::test]
     async fn get_by_turn_id_returns_existing() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let note = compiler.compile_raw(Some("标题"), "内容").await.unwrap();
+        let note = compiler.compile_raw(Some("标题"), "内容").await.expect("task should complete");
         // 手动设置 turn_id。
         {
             let conn = compiler.sqlite.raw_connection();
@@ -1505,14 +1505,14 @@ mod tests {
                 "UPDATE wiki_notes SET turn_id = ?1 WHERE id = ?2",
                 params!["turn-xyz", &note.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
 
-        let found = compiler.get_by_turn_id("turn-xyz").await.unwrap();
+        let found = compiler.get_by_turn_id("turn-xyz").await.expect("get should succeed");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().id, note.id);
+        assert_eq!(found.expect("assertion value").id, note.id);
 
-        let missing = compiler.get_by_turn_id("nonexistent").await.unwrap();
+        let missing = compiler.get_by_turn_id("nonexistent").await.expect("get should succeed");
         assert!(missing.is_none());
 
         cleanup(paths, dir);
@@ -1522,8 +1522,8 @@ mod tests {
     async fn path_sandbox_rejects_traversal_in_storage() {
         // LocalBackend 直接拒绝 `..` 路径,验证沙箱。
         let dir = std::env::temp_dir().join("nebula_wiki_sandbox_test");
-        std::fs::create_dir_all(&dir).unwrap();
-        let backend = LocalBackend::new(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
+        let backend = LocalBackend::new(&dir).expect("create should succeed");
         let result = backend.write("../escape.txt", b"evil").await;
         assert!(result.is_err(), "path traversal should be rejected");
         let _ = std::fs::remove_dir_all(&dir);
@@ -1677,18 +1677,18 @@ mod tests {
         let n1 = compiler
             .compile_raw(Some("Low"), "low importance note")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 微小延迟确保 created_at 不同。
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
         let n2 = compiler
             .compile_raw(Some("Mid"), "mid importance note")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
         let n3 = compiler
             .compile_raw(Some("High"), "high importance note")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         // 手动设置不同 importance(n1=0.1, n2=0.5, n3=0.9)。
         {
@@ -1698,17 +1698,17 @@ mod tests {
                 "UPDATE wiki_notes SET importance = ?1 WHERE id = ?2",
                 params![0.1f32, &n1.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
             g.execute(
                 "UPDATE wiki_notes SET importance = ?1 WHERE id = ?2",
                 params![0.5f32, &n2.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
             g.execute(
                 "UPDATE wiki_notes SET importance = ?1 WHERE id = ?2",
                 params![0.9f32, &n3.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
 
         compiler
@@ -1751,7 +1751,7 @@ mod tests {
             std::process::id(),
             SEQ.fetch_add(1, Ordering::Relaxed)
         ));
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
         let db_path = dir.join("test.db");
         let storage_root = dir.join("storage");
 
@@ -1972,12 +1972,12 @@ mod tests {
         let _target = compiler
             .compile_raw(Some("Other"), "target note content")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建含 [[other]] 链接的源笔记。
         let source = compiler
             .compile_raw(Some("Source"), "This links to [[other]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 验证 wiki_note_links 有一行。
         {
             let conn = compiler.sqlite.raw_connection();
@@ -1988,7 +1988,7 @@ mod tests {
                     params![&source.id],
                     |r| r.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(count, 1, "should have 1 link row");
         }
         cleanup(paths, dir);
@@ -2002,12 +2002,12 @@ mod tests {
         let _target = compiler
             .compile_raw(Some("Other"), "target note content")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建含 [[other]] 的源笔记。
         let source = compiler
             .compile_raw(Some("Source"), "Links to [[other]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 验证链接已建立。
         {
             let conn = compiler.sqlite.raw_connection();
@@ -2018,7 +2018,7 @@ mod tests {
                     params![&source.id],
                     |r| r.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(count, 1, "should have 1 link after initial persist");
         }
         // 手动调用 update_backlinks 清空链接(模拟编辑后无链接)。
@@ -2035,7 +2035,7 @@ mod tests {
                     params![&source.id],
                     |r| r.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(count, 0, "stale link should be removed");
         }
         cleanup(paths, dir);
@@ -2049,18 +2049,18 @@ mod tests {
         let note_b = compiler
             .compile_raw(Some("B Target"), "target note")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建 A(含 [[b-target]] 指向 B)。
         // 注意:slugify("B Target") = "b-target"。
         let note_a = compiler
             .compile_raw(Some("A Source"), "Links to [[b-target]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建 C(含 [[b-target]] 指向 B)。
         let note_c = compiler
             .compile_raw(Some("C Source"), "Also links to [[b-target]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 验证 get_backlinks(B) 返回 [A, C]。
         let backlinks = compiler.get_backlinks(&note_b.id).expect("get_backlinks");
         let backlink_ids: Vec<&str> = backlinks.iter().map(|n| n.id.as_str()).collect();
@@ -2084,12 +2084,12 @@ mod tests {
         let note_b = compiler
             .compile_raw(Some("B Target"), "target note")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建 A(含 [[b-target]] 指向 B)。
         let _note_a = compiler
             .compile_raw(Some("A Source"), "Links to [[b-target]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 验证链接已建立。
         {
             let conn = compiler.sqlite.raw_connection();
@@ -2100,7 +2100,7 @@ mod tests {
                     params![&note_b.id],
                     |r| r.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(count, 1, "should have 1 link to B");
         }
         // 删除 B。
@@ -2115,7 +2115,7 @@ mod tests {
                     params![&note_b.id],
                     |r| r.get(0),
                 )
-                .unwrap();
+                .expect("test op should succeed");
             assert_eq!(count, 0, "links to B should be cascade-deleted");
         }
         cleanup(paths, dir);
@@ -2195,12 +2195,12 @@ mod tests {
         let note_b = compiler
             .compile_raw(Some("B Target"), "B 的定义行\n\n正文含 [[rust]] 链接。")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 创建 A(含 [[b-target]] 指向 B)。
         let note_a = compiler
             .compile_raw(Some("A Source"), "Links to [[b-target]].")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let card = compiler
             .get_card("b-target")
@@ -2277,14 +2277,14 @@ mod tests {
         }
 
         fn calls_snapshot(&self) -> Vec<String> {
-            self.calls.lock().unwrap().clone()
+            self.calls.lock().expect("lock should succeed").clone()
         }
     }
 
     #[async_trait::async_trait]
     impl MemoryRevectorizer for MockRevectorizer {
         async fn absorb_text(&self, content: &str) -> Result<()> {
-            self.calls.lock().unwrap().push(content.to_string());
+            self.calls.lock().expect("serialize should succeed").push(content.to_string());
             Ok(())
         }
     }
@@ -2306,7 +2306,7 @@ mod tests {
             std::process::id(),
             n
         ));
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
         let db_path = dir.join("sync.db");
         let storage_root = dir.join("storage");
 
@@ -2354,7 +2354,7 @@ mod tests {
                 params![&note.id],
                 |r| r.get(0),
             )
-            .unwrap()
+            .expect("test op should succeed")
         };
         assert_eq!(body, "更新后的内容");
 
@@ -2367,7 +2367,7 @@ mod tests {
                 params![&note.id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
-            .unwrap()
+            .expect("test op should succeed")
         };
         // 使用 >= 而非 >: compile_raw 和 update_note_from_user 都用
         // chrono::Utc::now().timestamp_millis() 取时间戳,在快速 CI 上
@@ -2391,7 +2391,7 @@ mod tests {
         let note = compiler
             .compile_raw(Some("待更新笔记"), "原始")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         compiler
             .update_note_from_user(&note.id, "新内容".to_string())
@@ -2428,7 +2428,7 @@ mod tests {
     async fn test_update_note_from_user_version_recorded() {
         let (compiler, _sponge, vc, _sqlite, _storage, dir, paths) = harness_with_sync();
 
-        let note = compiler.compile_raw(Some("版本测试"), "v1").await.unwrap();
+        let note = compiler.compile_raw(Some("版本测试"), "v1").await.expect("task should complete");
 
         compiler
             .update_note_from_user(&note.id, "v2 内容".to_string())
@@ -2469,7 +2469,7 @@ mod tests {
         let note = compiler
             .compile_raw(Some("向量化测试"), "原内容")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         // 调用前 mock 应无调用。
         assert!(
@@ -2500,10 +2500,10 @@ mod tests {
         let note = compiler
             .compile_raw(Some("文件重写测试"), "原文件内容")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         // 调用前文件应为初始内容。
-        let before = String::from_utf8(storage.read(&note.path).await.unwrap()).unwrap();
+        let before = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
         assert!(before.contains("原文件内容"));
 
         compiler
@@ -2512,7 +2512,7 @@ mod tests {
             .expect("update");
 
         // 验证文件已被新内容覆盖。
-        let after = String::from_utf8(storage.read(&note.path).await.unwrap()).unwrap();
+        let after = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
         assert_eq!(after, "重写后的文件内容");
         assert!(
             !after.contains("原文件内容"),
@@ -2531,7 +2531,7 @@ mod tests {
         // 直接用 test_harness(未注入 sponge / vc)。
         let (compiler, sqlite, storage, dir, paths) = test_harness();
 
-        let note = compiler.compile_raw(Some("降级测试"), "原").await.unwrap();
+        let note = compiler.compile_raw(Some("降级测试"), "原").await.expect("task should complete");
 
         // 调用应成功,不报错。
         compiler
@@ -2548,17 +2548,17 @@ mod tests {
                 params![&note.id],
                 |r| r.get(0),
             )
-            .unwrap()
+            .expect("test op should succeed")
         };
         assert_eq!(body, "新内容无 sponge");
 
         // 文件已重写。
-        let file = String::from_utf8(storage.read(&note.path).await.unwrap()).unwrap();
+        let file = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
         assert_eq!(file, "新内容无 sponge");
 
         // _log.md 也应有 Updated 事件(append_log 不依赖 sponge)。
         let log_bytes = storage.read("wiki/_log.md").await.expect("read _log.md");
-        let log = String::from_utf8(log_bytes).unwrap();
+        let log = String::from_utf8(log_bytes).expect("test op should succeed");
         assert!(log.contains("✏️ Updated"), "log should have Updated event");
 
         cleanup(paths, dir);

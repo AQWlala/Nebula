@@ -112,7 +112,7 @@ impl NebulaService for AppState {
             msgs.push(ChatMessage::system(&final_sys));
         } else if final_prefix.is_some() {
             // 无原 system prompt 但有 persona/Soul:单独注入。
-            msgs.push(ChatMessage::system(final_prefix.as_deref().unwrap()));
+            msgs.push(ChatMessage::system(final_prefix.as_deref().expect("must succeed")));
         }
         msgs.push(ChatMessage::user(req.user_message));
         // M7a #86: ADR-003 Phase 4 — chat 走 UnifiedModelDispatcher。
@@ -262,10 +262,10 @@ mod tests {
     #[test]
     fn swarm_agent_kind_parses_known_values() {
         use crate::swarm::agents::AgentKind;
-        assert_eq!("coder".parse::<AgentKind>().unwrap(), AgentKind::Coder);
-        assert_eq!("writer".parse::<AgentKind>().unwrap(), AgentKind::Writer);
+        assert_eq!("coder".parse::<AgentKind>().expect("parse should succeed"), AgentKind::Coder);
+        assert_eq!("writer".parse::<AgentKind>().expect("update should succeed"), AgentKind::Writer);
         assert_eq!(
-            "reviewer".parse::<AgentKind>().unwrap(),
+            "reviewer".parse::<AgentKind>().expect("parse should succeed"),
             AgentKind::Reviewer
         );
         assert!("unknown".parse::<AgentKind>().is_err());

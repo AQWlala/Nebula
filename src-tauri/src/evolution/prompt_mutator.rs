@@ -1,4 +1,4 @@
-﻿//! PromptSelfMutator: rewrite `Agent::system_prompt` from runtime
+//! PromptSelfMutator: rewrite `Agent::system_prompt` from runtime
 //! outcomes, with snapshot/rollback for safety.
 //!
 //! Hard guarantees:
@@ -255,7 +255,7 @@ mod tests {
         Arc<InMemoryOutcomeLedger>,
     ) {
         // in-memory sqlite so we can test snapshot/restore end-to-end
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().expect("create should succeed");
         conn.execute_batch(
             "CREATE TABLE prompt_snapshots (
                 id TEXT PRIMARY KEY,
@@ -266,7 +266,7 @@ mod tests {
                 restored_to_id TEXT
             );",
         )
-        .unwrap();
+        .expect("test op should succeed");
         let m = Arc::new(parking_lot::Mutex::new(conn));
         let ledger = Arc::new(InMemoryOutcomeLedger::default());
         (m, ledger)
@@ -280,11 +280,11 @@ mod tests {
             SqlitePromptSelfMutator::new(m.clone(), ledger, Arc::new(NoopPromptMutator), cfg);
         let s1 = mutator
             .snapshot("coder", "hello v1", Some("first"))
-            .unwrap();
+            .expect("test op should succeed");
         let _s2 = mutator
             .snapshot("coder", "hello v2", Some("second"))
-            .unwrap();
-        let restored = mutator.rollback_to(&s1).unwrap();
+            .expect("test op should succeed");
+        let restored = mutator.rollback_to(&s1).expect("update should succeed");
         assert_eq!(restored, Some("coder".to_string()));
     }
 
@@ -294,7 +294,7 @@ mod tests {
         let cfg = EvolutionConfig::default();
         let mutator = SqlitePromptSelfMutator::new(
             Arc::new(parking_lot::Mutex::new(
-                rusqlite::Connection::open_in_memory().unwrap(),
+                rusqlite::Connection::open_in_memory().expect("create should succeed"),
             )),
             ledger.clone(),
             Arc::new(NoopPromptMutator),
@@ -313,9 +313,9 @@ mod tests {
                     duration_ms: 0,
                     created_at: i as i64,
                 })
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).unwrap();
+        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).expect("test op should succeed");
         assert!(mutator.should_rollback(&recent, 1.0));
     }
 
@@ -325,7 +325,7 @@ mod tests {
         let cfg = EvolutionConfig::default();
         let mutator = SqlitePromptSelfMutator::new(
             Arc::new(parking_lot::Mutex::new(
-                rusqlite::Connection::open_in_memory().unwrap(),
+                rusqlite::Connection::open_in_memory().expect("create should succeed"),
             )),
             ledger.clone(),
             Arc::new(NoopPromptMutator),
@@ -343,9 +343,9 @@ mod tests {
                     duration_ms: 0,
                     created_at: i as i64,
                 })
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).unwrap();
+        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).expect("test op should succeed");
         // baseline = 0.95 → 0% drop
         assert!(!mutator.should_rollback(&recent, 0.95));
     }
@@ -358,6 +358,6 @@ mod tests {
         // prompt_mutator_window (default 30) > 0 outcomes recorded → returns None.
         let got = mutator.run_once("coder", "hello v1");
         assert!(got.is_ok());
-        assert!(got.unwrap().is_none());
+        assert!(got.expect("assertion value").is_none());
     }
 }

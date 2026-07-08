@@ -403,7 +403,7 @@ cloud_ratio_threshold: 0.7
         assert!(!cr.is_local);
 
         // 最后一行 — budget-guardian
-        let last = cfg.loops.last().unwrap();
+        let last = cfg.loops.last().expect("test op should succeed");
         assert_eq!(last.name, "budget-guardian");
         assert_eq!(last.tokens_per_run, 1_000);
         assert!(last.is_local);

@@ -1,4 +1,4 @@
-﻿//! v0.5: cross-device transport (local-only).
+//! v0.5: cross-device transport (local-only).
 //!
 //! For v0.5 the transport is intentionally local: encrypted
 //! envelopes are written to a per-pair "inbox" directory on disk
@@ -186,27 +186,27 @@ mod tests {
 
     #[test]
     fn send_and_recv_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
-        let transport = LocalTransport::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let transport = LocalTransport::new(dir.path()).expect("create should succeed");
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).unwrap();
+        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
 
-        let id = send_sealed(&transport, &pair, b"hello").unwrap();
-        let msgs = recv_all_unsealed(&transport, &pair).unwrap();
+        let id = send_sealed(&transport, &pair, b"hello").expect("send should succeed");
+        let msgs = recv_all_unsealed(&transport, &pair).expect("recv should succeed");
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0].0, id);
         assert_eq!(msgs[0].1, b"hello");
 
         // Ack removes the file.
-        assert!(transport.ack(&id).unwrap());
-        let msgs2 = transport.recv().unwrap();
+        assert!(transport.ack(&id).expect("assertion value"));
+        let msgs2 = transport.recv().expect("recv should succeed");
         assert!(msgs2.is_empty());
     }
 
     #[test]
     fn envelope_id_with_path_traversal_is_sanitised() {
-        let dir = tempfile::tempdir().unwrap();
-        let transport = LocalTransport::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let transport = LocalTransport::new(dir.path()).expect("create should succeed");
         let path = transport.path_for("../../../etc/passwd");
         // The result must be rooted inside the inbox.
         assert!(path.starts_with(&transport.inbox_root));
@@ -220,14 +220,14 @@ mod tests {
         use std::time::SystemTime;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("test op should succeed")
             .as_secs() as i64;
-        let dir = tempfile::tempdir().unwrap();
-        let transport = LocalTransport::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let transport = LocalTransport::new(dir.path()).expect("create should succeed");
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).unwrap();
-        let id = send_sealed(&transport, &pair, b"t").unwrap();
-        let msgs = transport.recv().unwrap();
+        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let id = send_sealed(&transport, &pair, b"t").expect("send should succeed");
+        let msgs = transport.recv().expect("recv should succeed");
         assert_eq!(msgs.len(), 1);
         assert!(msgs[0].received_at <= now + 1);
         assert!(msgs[0].received_at >= now - 5);

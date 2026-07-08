@@ -384,7 +384,7 @@ mod tests {
             };
             build_payload(ImPlatform::Feishu, &m)["card"]["header"]["template"]
                 .as_str()
-                .unwrap()
+                .expect("test op should succeed")
                 .to_string()
         };
         assert_eq!(mk(ImMessageLevel::Info), "blue");

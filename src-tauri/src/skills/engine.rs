@@ -1131,7 +1131,7 @@ mod tests {
             "nebula_skill_engine_test_{}.db",
             uuid::Uuid::new_v4()
         ));
-        let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
+        let sqlite = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
         {
             let rc = sqlite.raw_connection();
             let g = rc.lock();
@@ -1139,7 +1139,7 @@ mod tests {
                 &g,
                 crate::memory::migration::bundled_migrations_dir(),
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
         (p, sqlite)
     }
@@ -1211,7 +1211,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(s.name, "demo");
         assert!(s.created_at > 0);
         cleanup(&p);
@@ -1231,13 +1231,13 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         let rated = eng
             .rate_skill(RateSkillRequest {
                 id: s.id.clone(),
                 rating: 99.0, // clamped to 5.0
             })
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(rated.rating_count, 1);
         assert!((rated.avg_rating - 5.0).abs() < 1e-6);
         cleanup(&p);
@@ -1257,7 +1257,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         let res = eng
             .use_skill(UseSkillRequest {
                 id: s.id,
@@ -1300,7 +1300,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         let res = eng
             .use_skill(UseSkillRequest {
                 id: s.id,
@@ -1341,7 +1341,7 @@ mod tests {
                     source_memory_id: None,
                     ..Default::default()
                 })
-                .unwrap();
+                .expect("test op should succeed");
             let res = eng
                 .use_skill(UseSkillRequest {
                     id: s.id,
@@ -1377,7 +1377,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         let start = Instant::now();
         let res = eng
             .use_skill(UseSkillRequest {
@@ -1432,7 +1432,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         let res = eng
             .use_skill(UseSkillRequest {
                 id: s.id,
@@ -1546,7 +1546,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test op should succeed")
                 .as_nanos()
         ));
         std::fs::create_dir_all(&tmp_dir).expect("create tmp dir");
@@ -1637,7 +1637,7 @@ mod tests {
                 source_memory_id: None,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(s.name, "compat-test");
         let listed = eng
             .list_skills(ListSkillsRequest {
@@ -1646,7 +1646,7 @@ mod tests {
                 limit: 10,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test op should succeed");
         assert!(
             listed.iter().any(|x| x.id == s.id),
             "old list_skills must work"
@@ -1672,7 +1672,7 @@ mod tests {
             input: serde_json::json!({"msg": "facade"}),
             timeout_ms: 1000,
         };
-        let resp = eng.execute_skill_request(req).await.unwrap();
+        let resp = eng.execute_skill_request(req).await.expect("task should complete");
         assert!(resp.error.is_none(), "echo via facade should succeed");
         assert_eq!(resp.output, serde_json::json!({"msg": "facade"}));
 

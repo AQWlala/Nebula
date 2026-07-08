@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_skill_to_skill_md_generates_yaml() {
-        let md = skill_to_skill_md(&sample_skill()).unwrap();
+        let md = skill_to_skill_md(&sample_skill()).expect("test op should succeed");
 
         // 必须以 YAML front-matter 起始分隔符开头。
         assert!(
@@ -417,8 +417,8 @@ mod tests {
         use crate::skills::importer::SkillImporter;
 
         let original = sample_skill();
-        let md = skill_to_skill_md(&original).unwrap();
-        let parsed = SkillImporter::from_skill_md(&md).unwrap();
+        let md = skill_to_skill_md(&original).expect("test op should succeed");
+        let parsed = SkillImporter::from_skill_md(&md).expect("parse should succeed");
 
         assert_eq!(parsed.name, original.name);
         assert_eq!(parsed.description, original.description);
@@ -435,14 +435,14 @@ mod tests {
         let out_dir = std::env::temp_dir().join(format!("nebula_pub_dir_{}", uuid::Uuid::new_v4()));
         let publisher = FilePublisher::new(&out_dir);
         let manifest = sample_manifest();
-        let skill_md = skill_to_skill_md(&sample_skill()).unwrap();
+        let skill_md = skill_to_skill_md(&sample_skill()).expect("test op should succeed");
 
-        let result = publisher.publish(&skill_md, &manifest, None).await.unwrap();
+        let result = publisher.publish(&skill_md, &manifest, None).await.expect("send should succeed");
         assert_eq!(result.target, "file");
         assert!(result.url.is_none());
 
         let path = result.file_path.expect("file_path must be set");
-        let content = std::fs::read_to_string(&path).unwrap();
+        let content = std::fs::read_to_string(&path).expect("get should succeed");
         assert!(content.contains("name: text-summarizer"));
         assert!(content.contains("# Text Summarizer"));
         // 文件名应以 skill_id 开头并以 .md 结尾。
@@ -463,9 +463,9 @@ mod tests {
         assert_eq!(body["public"], serde_json::Value::Bool(true));
         assert!(body["description"]
             .as_str()
-            .unwrap()
+            .expect("test op should succeed")
             .contains("text-summarizer"));
-        assert!(body["description"].as_str().unwrap().contains("0.1.0"));
+        assert!(body["description"].as_str().expect("assertion value").contains("0.1.0"));
         assert_eq!(body["files"]["SKILL.md"]["content"], skill_md);
     }
 
@@ -473,11 +473,11 @@ mod tests {
     fn test_gist_publisher_request_body_includes_all_required_fields() {
         // 防止意外删除 public/files/description 字段。
         let body = GistPublisher::build_request_body("x", &sample_manifest());
-        let obj = body.as_object().unwrap();
+        let obj = body.as_object().expect("test op should succeed");
         assert!(obj.contains_key("description"));
         assert!(obj.contains_key("public"));
         assert!(obj.contains_key("files"));
-        assert!(obj["files"].as_object().unwrap().contains_key("SKILL.md"));
+        assert!(obj["files"].as_object().expect("assertion value").contains_key("SKILL.md"));
     }
 
     #[test]

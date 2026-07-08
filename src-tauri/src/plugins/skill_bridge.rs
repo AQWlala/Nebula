@@ -87,11 +87,11 @@ mod tests {
             "nebula_plugins_skill_bridge_test_{}.db",
             uuid::Uuid::new_v4()
         ));
-        let sqlite = Arc::new(SqliteStore::open(&p).unwrap());
+        let sqlite = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
         {
             let rc = sqlite.raw_connection();
             let g = rc.lock();
-            crate::memory::migration::run_bundled_migrations(&g).unwrap();
+            crate::memory::migration::run_bundled_migrations(&g).expect("test op should succeed");
         }
         (p, sqlite)
     }
@@ -128,10 +128,10 @@ mod tests {
         let engine = Arc::new(SkillEngine::new(sqlite, llm()));
         let bridge = SkillEngineBridge::new(engine);
 
-        let list = bridge.list_skills(None, None, 10).await.unwrap();
+        let list = bridge.list_skills(None, None, 10).await.expect("task should complete");
         assert!(list.is_empty(), "fresh engine should have no skills");
 
-        let found = bridge.search_skills("anything", 10).await.unwrap();
+        let found = bridge.search_skills("anything", 10).await.expect("query should succeed");
         assert!(found.is_empty());
 
         cleanup(&p);

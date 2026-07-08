@@ -488,7 +488,7 @@ mod tests {
     fn temp_db() -> (PathBuf, SkillStore) {
         let mut p = std::env::temp_dir();
         p.push(format!("nebula_skill_test_{}.db", uuid::Uuid::new_v4()));
-        let s = SkillStore::open_test(&p).unwrap();
+        let s = SkillStore::open_test(&p).expect("create should succeed");
         (p, s)
     }
 
@@ -525,8 +525,8 @@ mod tests {
     #[test]
     fn insert_and_get_round_trip() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
-        let got = s.get("sk-1").unwrap().unwrap();
+        s.insert(&sample()).expect("insert should succeed");
+        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
         assert_eq!(got.name, "palindrome");
         assert_eq!(got.tags, vec!["string".to_string(), "utility".to_string()]);
         assert!(got.created_at > 0);
@@ -536,21 +536,21 @@ mod tests {
     #[test]
     fn list_filters_by_language_and_tag() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
+        s.insert(&sample()).expect("insert should succeed");
         let mut b = sample();
         b.id = "sk-2".to_string();
         b.name = "math_utils".to_string();
         b.language = "python".to_string();
         b.tags = vec!["math".to_string()];
-        s.insert(&b).unwrap();
+        s.insert(&b).expect("insert should succeed");
 
         // T-E-S-37: list() 签名已扩展,旧调用方需传入 tags=[] + tag_match=Any。
-        let all = s.list(None, None, &[], TagMatch::Any, 10).unwrap();
+        let all = s.list(None, None, &[], TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(all.len(), 2);
-        let rust_only = s.list(Some("rust"), None, &[], TagMatch::Any, 10).unwrap();
+        let rust_only = s.list(Some("rust"), None, &[], TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(rust_only.len(), 1);
         assert_eq!(rust_only[0].id, "sk-1");
-        let math_only = s.list(None, Some("math"), &[], TagMatch::Any, 10).unwrap();
+        let math_only = s.list(None, Some("math"), &[], TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(math_only.len(), 1);
         assert_eq!(math_only[0].id, "sk-2");
         cleanup(&p);
@@ -561,34 +561,34 @@ mod tests {
     fn list_filters_by_multiple_tags_any() {
         let (p, s) = temp_db();
         // sk-1: tags = [string, utility]
-        s.insert(&sample()).unwrap();
+        s.insert(&sample()).expect("insert should succeed");
         // sk-2: tags = [math]
         let mut b = sample();
         b.id = "sk-2".to_string();
         b.name = "math_utils".to_string();
         b.language = "python".to_string();
         b.tags = vec!["math".to_string()];
-        s.insert(&b).unwrap();
+        s.insert(&b).expect("insert should succeed");
         // sk-3: tags = [string, math]
         let mut c = sample();
         c.id = "sk-3".to_string();
         c.name = "string_math".to_string();
         c.tags = vec!["string".to_string(), "math".to_string()];
-        s.insert(&c).unwrap();
+        s.insert(&c).expect("insert should succeed");
 
         // tags=[string, math] + Any:应返回 3 条(每条都至少命中一个)。
         let tags = vec!["string".to_string(), "math".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(hits.len(), 3, "Any match should return all 3");
 
         // tags=[string, utility] + Any:应返回 2 条(sk-1 命中两个,sk-3 命中 string)。
         let tags = vec!["string".to_string(), "utility".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(hits.len(), 2, "Any match should return sk-1 + sk-3");
 
         // tags=[nonexistent] + Any:应返回 0 条。
         let tags = vec!["nonexistent".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
         assert!(hits.is_empty(), "no skill should match nonexistent tag");
         cleanup(&p);
     }
@@ -597,34 +597,34 @@ mod tests {
     #[test]
     fn list_filters_by_multiple_tags_all() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap(); // tags = [string, utility]
+        s.insert(&sample()).expect("insert should succeed"); // tags = [string, utility]
         let mut b = sample();
         b.id = "sk-2".to_string();
         b.name = "math_utils".to_string();
         b.language = "python".to_string();
         b.tags = vec!["math".to_string()];
-        s.insert(&b).unwrap();
+        s.insert(&b).expect("insert should succeed");
         let mut c = sample();
         c.id = "sk-3".to_string();
         c.name = "string_math".to_string();
         c.tags = vec!["string".to_string(), "math".to_string()];
-        s.insert(&c).unwrap();
+        s.insert(&c).expect("insert should succeed");
 
         // tags=[string, math] + All:只有 sk-3 同时有两个 tag,应返回 1 条。
         let tags = vec!["string".to_string(), "math".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
         assert_eq!(hits.len(), 1, "All match should return only sk-3");
         assert_eq!(hits[0].id, "sk-3");
 
         // tags=[string, utility] + All:只有 sk-1 同时有两个 tag,应返回 1 条。
         let tags = vec!["string".to_string(), "utility".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "sk-1");
 
         // tags=[math, nonexistent] + All:应返回 0 条(无人同时有)。
         let tags = vec!["math".to_string(), "nonexistent".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).unwrap();
+        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
         assert!(
             hits.is_empty(),
             "All match with nonexistent tag should return 0"
@@ -636,19 +636,19 @@ mod tests {
     #[test]
     fn list_filters_by_language_and_multiple_tags() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap(); // rust, [string, utility]
+        s.insert(&sample()).expect("insert should succeed"); // rust, [string, utility]
         let mut c = sample();
         c.id = "sk-3".to_string();
         c.name = "string_math".to_string();
         c.language = "python".to_string();
         c.tags = vec!["string".to_string(), "math".to_string()];
-        s.insert(&c).unwrap();
+        s.insert(&c).expect("insert should succeed");
 
         // language=rust + tags=[string, math] + Any:只匹配 sk-1(string 命中)。
         let tags = vec!["string".to_string(), "math".to_string()];
         let hits = s
             .list(Some("rust"), None, &tags, TagMatch::Any, 10)
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "sk-1");
         cleanup(&p);
@@ -658,14 +658,14 @@ mod tests {
     #[test]
     fn list_multi_tags_takes_precedence_over_single_tag() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap(); // sk-1: [string, utility]
+        s.insert(&sample()).expect("insert should succeed"); // sk-1: [string, utility]
 
         // single_tag="nonexistent" + tags=["string"]:应返回 sk-1,
         // 因为 tags 非空时使用多 tag 路径,single_tag 被忽略。
         let tags = vec!["string".to_string()];
         let hits = s
             .list(None, Some("nonexistent"), &tags, TagMatch::Any, 10)
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "sk-1");
         cleanup(&p);
@@ -676,14 +676,14 @@ mod tests {
     #[test]
     fn list_tags_use_parameterized_binding_no_sql_injection() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
+        s.insert(&sample()).expect("insert should succeed");
         // tag 值含单引号 + 分号 + DROP TABLE:应被 `?` 绑定为字面量 LIKE 模式,
         // 不会执行注入的 SQL。预期 0 匹配(tag 不存在)。
         let evil_tag = "'; DROP TABLE skills; --".to_string();
-        let hits = s.list(None, None, &[evil_tag], TagMatch::Any, 10).unwrap();
+        let hits = s.list(None, None, &[evil_tag], TagMatch::Any, 10).expect("test op should succeed");
         assert!(hits.is_empty(), "evil tag should match nothing");
         // 验证 skills 表仍存在(未被 DROP)。
-        let after = s.list(None, None, &[], TagMatch::Any, 10).unwrap();
+        let after = s.list(None, None, &[], TagMatch::Any, 10).expect("test op should succeed");
         assert_eq!(after.len(), 1, "skills table must still exist");
         cleanup(&p);
     }
@@ -692,17 +692,17 @@ mod tests {
     #[test]
     fn all_tags_aggregates_correctly() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap(); // sk-1: [string, utility]
+        s.insert(&sample()).expect("insert should succeed"); // sk-1: [string, utility]
         let mut b = sample();
         b.id = "sk-2".to_string();
         b.name = "string_math".to_string();
         b.tags = vec!["string".to_string(), "math".to_string()];
-        s.insert(&b).unwrap();
+        s.insert(&b).expect("insert should succeed");
         let mut c = sample();
         c.id = "sk-3".to_string();
         c.name = "string_only".to_string();
         c.tags = vec!["string".to_string()];
-        s.insert(&c).unwrap();
+        s.insert(&c).expect("insert should succeed");
 
         let counts = s.all_tags();
         // string 出现 3 次,math 1 次,utility 1 次。
@@ -739,7 +739,7 @@ mod tests {
         let mut b = sample();
         b.id = "sk-empty-tags".to_string();
         b.tags = vec![];
-        s.insert(&b).unwrap();
+        s.insert(&b).expect("insert should succeed");
         let counts = s.all_tags();
         assert!(
             counts.is_empty(),
@@ -751,10 +751,10 @@ mod tests {
     #[test]
     fn rate_updates_avg_atomically() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
-        s.rate("sk-1", 5.0).unwrap();
-        s.rate("sk-1", 3.0).unwrap();
-        let got = s.get("sk-1").unwrap().unwrap();
+        s.insert(&sample()).expect("insert should succeed");
+        s.rate("sk-1", 5.0).expect("test op should succeed");
+        s.rate("sk-1", 3.0).expect("test op should succeed");
+        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
         assert_eq!(got.rating_count, 2);
         assert!((got.avg_rating - 4.0).abs() < 1e-6);
         cleanup(&p);
@@ -763,10 +763,10 @@ mod tests {
     #[test]
     fn text_search_matches_name_and_tags() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
-        let hits = s.text_search("palindrome", 10).unwrap();
+        s.insert(&sample()).expect("insert should succeed");
+        let hits = s.text_search("palindrome", 10).expect("query should succeed");
         assert_eq!(hits.len(), 1);
-        let hits = s.text_search("string", 10).unwrap();
+        let hits = s.text_search("string", 10).expect("query should succeed");
         assert_eq!(hits.len(), 1);
         cleanup(&p);
     }
@@ -774,10 +774,10 @@ mod tests {
     #[test]
     fn bump_usage_increments() {
         let (p, s) = temp_db();
-        s.insert(&sample()).unwrap();
-        s.bump_usage("sk-1").unwrap();
-        s.bump_usage("sk-1").unwrap();
-        let got = s.get("sk-1").unwrap().unwrap();
+        s.insert(&sample()).expect("insert should succeed");
+        s.bump_usage("sk-1").expect("test op should succeed");
+        s.bump_usage("sk-1").expect("test op should succeed");
+        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
         assert_eq!(got.usage_count, 2);
         cleanup(&p);
     }

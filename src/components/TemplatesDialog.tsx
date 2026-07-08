@@ -80,43 +80,45 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
 
   // 拉取全部场景模板(一次性)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const list = await nebulaAPI.scenarioList(null);
-        if (!cancelled) {
+        if (!ac.signal.aborted) {
           setTemplates(list);
         }
       } catch (e) {
         toast.error(t('templatesDialog.loadFailed'), String(e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
   // T-E-L-05: 拉取 Loop 模板(独立请求,master-orchestrator 未启用时降级为空)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const list = await nebulaAPI.loopTemplatesList();
-        if (!cancelled) {
+        if (!ac.signal.aborted) {
           setLoopTemplates(list);
         }
       } catch (e) {
         // master-orchestrator feature 未启用时后端返回 command not found,
         // 降级为空列表(automation 类别显示"暂无模板"),不弹 toast 避免噪音。
-        if (!cancelled) {
+        if (!ac.signal.aborted) {
           setLoopTemplates([]);
         }
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 

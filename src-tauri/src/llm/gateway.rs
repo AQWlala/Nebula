@@ -1984,7 +1984,7 @@ mod tests {
         // Build a small gateway-shaped cache directly.  We don't
         // call `LlmGateway::chat` because that would require a
         // running Ollama.
-        let cap = NonZeroUsize::new(4).unwrap();
+        let cap = NonZeroUsize::new(4).expect("create should succeed");
         let mut cache: LruCache<u64, CacheEntry> = LruCache::new(cap);
         for i in 0..4u64 {
             cache.put(
@@ -2028,7 +2028,7 @@ mod tests {
     /// only here to document the LRU invariant.
     #[test]
     fn store_cache_evicts_when_full() {
-        let cap = NonZeroUsize::new(2).unwrap();
+        let cap = NonZeroUsize::new(2).expect("create should succeed");
         let mut cache: LruCache<u64, CacheEntry> = LruCache::new(cap);
         cache.put(
             1,
@@ -2070,7 +2070,7 @@ mod tests {
     fn gateway_cache_evicts_lru_not_oldest() {
         // Mirror `LlmGateway::new`'s storage: a `LruCache` of
         // some capacity holding `CacheEntry` values.
-        let cap = NonZeroUsize::new(3).unwrap();
+        let cap = NonZeroUsize::new(3).expect("create should succeed");
         let mut cache: LruCache<u64, CacheEntry> = LruCache::new(cap);
         // Three insertions, none touched.
         for k in 0..3u64 {
@@ -2211,9 +2211,9 @@ mod tests {
                 }
             ]
         }"#;
-        let msg: RemoteRespMessage = serde_json::from_str(json).unwrap();
+        let msg: RemoteRespMessage = serde_json::from_str(json).expect("parse should succeed");
         assert!(msg.tool_calls.is_some());
-        let calls = msg.tool_calls.unwrap();
+        let calls = msg.tool_calls.expect("test op should succeed");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].id, "call_abc");
         assert_eq!(calls[0].ty, "function");
@@ -2225,7 +2225,7 @@ mod tests {
     #[test]
     fn remote_resp_message_parses_without_tool_calls() {
         let json = r#"{"role": "assistant", "content": "hello"}"#;
-        let msg: RemoteRespMessage = serde_json::from_str(json).unwrap();
+        let msg: RemoteRespMessage = serde_json::from_str(json).expect("parse should succeed");
         assert!(
             msg.tool_calls.is_none(),
             "tool_calls should default to None"
@@ -2272,8 +2272,8 @@ mod tests {
     impl MockSseServer {
         /// `sse_body` 是 mock server 对任意 POST 请求返回的固定响应体。
         fn start(sse_body: &'static str) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener.local_addr().expect("test op should succeed").port();
             let base_url = format!("http://127.0.0.1:{port}");
             std::thread::spawn(move || {
                 for _ in 0..4 {
@@ -2412,8 +2412,8 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
         use std::sync::Arc;
 
         // Mock Ollama server:收到 POST /api/chat 时返回固定响应。
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+        let port = listener.local_addr().expect("test op should succeed").port();
         let base_url = format!("http://127.0.0.1:{port}");
         // 记录收到的请求体,供主线程断言。
         let captured_request: Arc<std::sync::Mutex<String>> =
@@ -2432,7 +2432,7 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
                 let req_str = String::from_utf8_lossy(&buf).to_string();
                 if req_str.starts_with("POST /api/chat") {
                     counter_clone.fetch_add(1, Ordering::SeqCst);
-                    *captured_clone.lock().unwrap() = req_str.clone();
+                    *captured_clone.lock().expect("lock should succeed") = req_str.clone();
                     let body = r#"{"model":"qwen2.5-vl:3b","message":{"role":"assistant","content":"a screenshot showing code editor"},"done":true}"#;
                     let resp = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
@@ -2474,13 +2474,13 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
             result.is_ok(),
             "describe_image should succeed with mock server"
         );
-        let content = result.unwrap();
+        let content = result.expect("test op should succeed");
         assert_eq!(
             content, "a screenshot showing code editor",
             "describe_image should return ChatResponse.message.content"
         );
         // 验证请求体包含 images 字段(多模态 wire format)。
-        let captured = captured_request.lock().unwrap().clone();
+        let captured = captured_request.lock().expect("lock should succeed").clone();
         assert_eq!(
             counter.load(Ordering::SeqCst),
             1,

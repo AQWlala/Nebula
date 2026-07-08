@@ -313,14 +313,14 @@ mod tests {
 
     #[test]
     fn parse_empty_returns_empty_structure() {
-        let s = parse_soul_md("").unwrap();
+        let s = parse_soul_md("").expect("parse should succeed");
         assert!(s.sections.is_empty());
         assert!(s.preamble.is_empty());
     }
 
     #[test]
     fn parse_free_text_only_no_sections() {
-        let s = parse_soul_md("just some notes\nno sections here").unwrap();
+        let s = parse_soul_md("just some notes\nno sections here").expect("parse should succeed");
         assert!(s.sections.is_empty());
         assert_eq!(s.preamble, "just some notes\nno sections here");
     }
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn parse_single_immutable_section() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n用户核心理念\n<!-- END SECTION: immutable_from_ai -->";
-        let s = parse_soul_md(text).unwrap();
+        let s = parse_soul_md(text).expect("parse should succeed");
         assert_eq!(s.sections.len(), 1);
         assert_eq!(s.sections[0].name, "immutable_from_ai");
         assert_eq!(s.sections[0].content, "用户核心理念");
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn parse_both_sections() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->\n\n<!-- BEGIN SECTION: evolution-append -->\n经验\n<!-- END SECTION: evolution-append -->";
-        let s = parse_soul_md(text).unwrap();
+        let s = parse_soul_md(text).expect("parse should succeed");
         assert_eq!(s.sections.len(), 2);
         assert_eq!(s.immutable_content(), Some("核心"));
         assert_eq!(s.evolution_content(), Some("经验"));
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn parse_with_preamble() {
         let text = "# Soul\n\n前言\n\n<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->\n\n后记";
-        let s = parse_soul_md(text).unwrap();
+        let s = parse_soul_md(text).expect("parse should succeed");
         assert_eq!(s.sections.len(), 1);
         assert!(s.preamble.contains("# Soul"));
         assert!(s.preamble.contains("前言"));
@@ -406,9 +406,9 @@ mod tests {
     #[test]
     fn serialize_roundtrip() {
         let text = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->\n\n<!-- BEGIN SECTION: evolution-append -->\n经验\n<!-- END SECTION: evolution-append -->";
-        let s = parse_soul_md(text).unwrap();
+        let s = parse_soul_md(text).expect("parse should succeed");
         let out = serialize_soul_md(&s);
-        let s2 = parse_soul_md(&out).unwrap();
+        let s2 = parse_soul_md(&out).expect("parse should succeed");
         assert_eq!(s.sections.len(), s2.sections.len());
         assert_eq!(s2.immutable_content(), s.immutable_content());
         assert_eq!(s2.evolution_content(), s.evolution_content());

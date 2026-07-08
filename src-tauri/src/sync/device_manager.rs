@@ -1,4 +1,4 @@
-﻿use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -187,7 +187,7 @@ mod tests {
 
     fn test_mgr() -> DeviceManager {
         let conn = Arc::new(parking_lot::Mutex::new(
-            rusqlite::Connection::open_in_memory().unwrap(),
+            rusqlite::Connection::open_in_memory().expect("create should succeed"),
         ));
         DeviceManager::new(conn)
     }
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn persistence_across_reopen() {
         let conn = Arc::new(parking_lot::Mutex::new(
-            rusqlite::Connection::open_in_memory().unwrap(),
+            rusqlite::Connection::open_in_memory().expect("create should succeed"),
         ));
         {
             let mut mgr = DeviceManager::new(conn.clone());

@@ -718,11 +718,11 @@ mod tests {
             selector: Some("title".to_string()),
             interval_secs: 60,
         };
-        let s = serde_json::to_string(&src).unwrap();
+        let s = serde_json::to_string(&src).expect("serialize should succeed");
         assert!(s.contains("\"type\":\"web\""));
         assert!(s.contains("\"url\":\"https://example.com/feed\""));
         assert!(s.contains("\"interval_secs\":60"));
-        let back: WatchSource = serde_json::from_str(&s).unwrap();
+        let back: WatchSource = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(src, back);
     }
 
@@ -734,11 +734,11 @@ mod tests {
             op: CmpOp::Gt,
             interval_secs: 30,
         };
-        let s = serde_json::to_string(&src).unwrap();
+        let s = serde_json::to_string(&src).expect("serialize should succeed");
         assert!(s.contains("\"type\":\"system\""));
         assert!(s.contains("\"metric\":\"cpu_usage\""));
         assert!(s.contains("\"op\":\"gt\""));
-        let back: WatchSource = serde_json::from_str(&s).unwrap();
+        let back: WatchSource = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(src, back);
     }
 
@@ -748,10 +748,10 @@ mod tests {
             ics_path: "/tmp/cal.ics".to_string(),
             lead_minutes: 15,
         };
-        let s = serde_json::to_string(&src).unwrap();
+        let s = serde_json::to_string(&src).expect("serialize should succeed");
         assert!(s.contains("\"type\":\"calendar\""));
         assert!(s.contains("\"lead_minutes\":15"));
-        let back: WatchSource = serde_json::from_str(&s).unwrap();
+        let back: WatchSource = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(src, back);
     }
 
@@ -759,7 +759,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_web_fetcher_rejects_private_address() {
-        let fetcher = WebFetcher::new().unwrap();
+        let fetcher = WebFetcher::new().expect("get should succeed");
         // 127.0.0.1 — loopback
         let r = fetcher.fetch("http://127.0.0.1/secret").await;
         assert!(r.is_err());
@@ -783,7 +783,7 @@ mod tests {
     fn test_web_fetcher_rejects_non_http_scheme() {
         // file:// scheme should be rejected by WebFetcher::fetch (before HTTP).
         // We test the URL parsing logic directly.
-        let parsed = url::Url::parse("file:///etc/passwd").unwrap();
+        let parsed = url::Url::parse("file:///etc/passwd").expect("parse should succeed");
         assert_eq!(parsed.scheme(), "file");
         assert!(!matches!(parsed.scheme(), "http" | "https"));
     }
@@ -912,20 +912,20 @@ END:VEVENT";
             SystemMetric::MemoryUsage,
             SystemMetric::DiskFreePercent,
         ] {
-            let s = serde_json::to_string(&m).unwrap();
-            let back: SystemMetric = serde_json::from_str(&s).unwrap();
+            let s = serde_json::to_string(&m).expect("serialize should succeed");
+            let back: SystemMetric = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(m, back);
         }
         assert_eq!(
-            serde_json::to_string(&SystemMetric::CpuUsage).unwrap(),
+            serde_json::to_string(&SystemMetric::CpuUsage).expect("serialize should succeed"),
             "\"cpu_usage\""
         );
         assert_eq!(
-            serde_json::to_string(&SystemMetric::MemoryUsage).unwrap(),
+            serde_json::to_string(&SystemMetric::MemoryUsage).expect("serialize should succeed"),
             "\"memory_usage\""
         );
         assert_eq!(
-            serde_json::to_string(&SystemMetric::DiskFreePercent).unwrap(),
+            serde_json::to_string(&SystemMetric::DiskFreePercent).expect("serialize should succeed"),
             "\"disk_free_percent\""
         );
     }
@@ -933,13 +933,13 @@ END:VEVENT";
     #[test]
     fn test_cmp_op_serde() {
         for op in [CmpOp::Gt, CmpOp::Lt, CmpOp::Eq] {
-            let s = serde_json::to_string(&op).unwrap();
-            let back: CmpOp = serde_json::from_str(&s).unwrap();
+            let s = serde_json::to_string(&op).expect("serialize should succeed");
+            let back: CmpOp = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(op, back);
         }
-        assert_eq!(serde_json::to_string(&CmpOp::Gt).unwrap(), "\"gt\"");
-        assert_eq!(serde_json::to_string(&CmpOp::Lt).unwrap(), "\"lt\"");
-        assert_eq!(serde_json::to_string(&CmpOp::Eq).unwrap(), "\"eq\"");
+        assert_eq!(serde_json::to_string(&CmpOp::Gt).expect("serialize should succeed"), "\"gt\"");
+        assert_eq!(serde_json::to_string(&CmpOp::Lt).expect("serialize should succeed"), "\"lt\"");
+        assert_eq!(serde_json::to_string(&CmpOp::Eq).expect("serialize should succeed"), "\"eq\"");
     }
 
     // ---- SystemProbe compare(纯函数,mock 值)----

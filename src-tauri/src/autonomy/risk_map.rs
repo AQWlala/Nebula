@@ -348,8 +348,8 @@ mod tests {
     #[test]
     fn tier_serde_roundtrip() {
         for tier in [RiskTier::Low, RiskTier::Medium, RiskTier::High] {
-            let s = serde_json::to_string(&tier).unwrap();
-            let back: RiskTier = serde_json::from_str(&s).unwrap();
+            let s = serde_json::to_string(&tier).expect("serialize should succeed");
+            let back: RiskTier = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(back, tier);
         }
         // from_str 未知值回退 Low

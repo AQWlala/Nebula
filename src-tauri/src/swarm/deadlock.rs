@@ -300,7 +300,7 @@ mod tests {
 
         let cycle = g.find_cycle();
         assert!(cycle.is_some());
-        let cycle = cycle.unwrap();
+        let cycle = cycle.expect("test op should succeed");
         assert_eq!(cycle.len(), 2);
         assert!(cycle.contains(&"A".to_string()));
         assert!(cycle.contains(&"B".to_string()));
@@ -315,7 +315,7 @@ mod tests {
 
         let cycle = g.find_cycle();
         assert!(cycle.is_some());
-        let cycle = cycle.unwrap();
+        let cycle = cycle.expect("test op should succeed");
         assert_eq!(cycle.len(), 3);
         assert!(cycle.contains(&"A".to_string()));
         assert!(cycle.contains(&"B".to_string()));
@@ -329,7 +329,7 @@ mod tests {
 
         let cycle = g.find_cycle();
         assert!(cycle.is_some());
-        let cycle = cycle.unwrap();
+        let cycle = cycle.expect("test op should succeed");
         assert_eq!(cycle.len(), 1);
         assert_eq!(cycle[0], "A");
     }
@@ -411,7 +411,7 @@ mod tests {
         }
 
         for h in handles {
-            h.join().unwrap();
+            h.join().expect("task should complete");
         }
 
         assert_eq!(graph.read().total_edges(), 0);

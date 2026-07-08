@@ -420,7 +420,7 @@ mod tests {
             field_changes: vec![make_field_change("content", json!("remote-new"))],
         };
         assert!(sync.merge_remote(remote, "agent-1"));
-        let stored = sync.versions.read().get("shared-1").cloned().unwrap();
+        let stored = sync.versions.read().get("shared-1").cloned().expect("get should succeed");
         assert_eq!(stored.device_id, "dev-b");
         assert_eq!(stored.timestamp, 200);
     }
@@ -473,7 +473,7 @@ mod tests {
         let msg = BusMessage {
             from: "agent-1".to_string(),
             to: None,
-            content: serde_json::to_string(&version).unwrap(),
+            content: serde_json::to_string(&version).expect("serialize should succeed"),
             timestamp: chrono::Utc::now().timestamp_millis(),
             msg_type: BusMessageType::CrdtSync,
             correlation_id: None,
@@ -531,7 +531,7 @@ mod tests {
         bus.broadcast(BusMessage {
             from: "agent-1".to_string(),
             to: None,
-            content: serde_json::to_string(&version).unwrap(),
+            content: serde_json::to_string(&version).expect("serialize should succeed"),
             timestamp: chrono::Utc::now().timestamp_millis(),
             msg_type: BusMessageType::CrdtSync,
             correlation_id: None,

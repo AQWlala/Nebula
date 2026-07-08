@@ -1,4 +1,4 @@
-﻿//! v0.5: editor / file-ops backend.
+//! v0.5: editor / file-ops backend.
 //!
 //! The editor surface area is intentionally small — it is the
 //! lower-than-the-UI layer the Monaco/Tree/Terminal front-end talks
@@ -416,16 +416,16 @@ mod tests {
 
     #[test]
     fn resolve_rejects_path_outside_workspace() {
-        let dir = tempfile::tempdir().unwrap();
-        let state = EditorState::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let state = EditorState::new(dir.path()).expect("create should succeed");
         let res = state.resolve("../outside.txt");
         assert!(res.is_err());
     }
 
     #[test]
     fn read_and_write_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
-        let state = EditorState::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let state = EditorState::new(dir.path()).expect("create should succeed");
         let path = "hello.txt";
         let written = state.write_file(path, "hello world").expect("write");
         assert_eq!(written.content, "hello world");
@@ -435,27 +435,27 @@ mod tests {
 
     #[test]
     fn list_tree_skips_node_modules() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::create_dir(dir.path().join("src")).unwrap();
-        fs::write(dir.path().join("src").join("main.rs"), "fn main(){}").unwrap();
-        fs::create_dir(dir.path().join("node_modules")).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        fs::create_dir(dir.path().join("src")).expect("create should succeed");
+        fs::write(dir.path().join("src").join("main.rs"), "fn main(){}").expect("update should succeed");
+        fs::create_dir(dir.path().join("node_modules")).expect("create should succeed");
         fs::write(
             dir.path().join("node_modules").join("pkg.js"),
             "module.exports = 1;",
         )
-        .unwrap();
-        let state = EditorState::new(dir.path()).unwrap();
-        let tree = state.list_tree(Some(3)).unwrap();
+        .expect("test op should succeed");
+        let state = EditorState::new(dir.path()).expect("create should succeed");
+        let tree = state.list_tree(Some(3)).expect("test op should succeed");
         assert!(tree.iter().any(|e| e.path == "src/main.rs"));
         assert!(!tree.iter().any(|e| e.path.starts_with("node_modules")));
     }
 
     #[test]
     fn read_file_too_large_is_rejected() {
-        let dir = tempfile::tempdir().unwrap();
-        let state = EditorState::new(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
+        let state = EditorState::new(dir.path()).expect("create should succeed");
         // Write 16 bytes — well under the cap.
-        fs::write(dir.path().join("small.txt"), "x".repeat(16)).unwrap();
+        fs::write(dir.path().join("small.txt"), "x".repeat(16)).expect("update should succeed");
         assert!(state.read_file("small.txt").is_ok());
     }
 }

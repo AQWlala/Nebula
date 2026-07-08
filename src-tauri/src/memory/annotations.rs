@@ -309,11 +309,11 @@ mod tests {
                 "SELECT turn_id, annotation, comment, agent_role, model, conversation_id, created_at
                  FROM chat_annotations ORDER BY created_at DESC",
             )
-            .unwrap();
+            .expect("test op should succeed");
         stmt.query_map([], row_to_annotation)
-            .unwrap()
+            .expect("test op should succeed")
             .collect::<rusqlite::Result<Vec<_>>>()
-            .unwrap()
+            .expect("test op should succeed")
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
         // 聚合查询 1: good/bad 总数
         let mut stmt = conn
             .prepare("SELECT annotation, COUNT(*) FROM chat_annotations GROUP BY annotation")
-            .unwrap();
+            .expect("test op should succeed");
         let mut good = 0u32;
         let mut bad = 0u32;
         let rows = stmt
@@ -372,9 +372,9 @@ mod tests {
                 let n: i64 = r.get(1)?;
                 Ok((ann, n as u32))
             })
-            .unwrap();
+            .expect("test op should succeed");
         for row in rows {
-            let (ann, n) = row.unwrap();
+            let (ann, n) = row.expect("test op should succeed");
             match ann.as_str() {
                 "good" => good = n,
                 "bad" => bad = n,
@@ -403,7 +403,7 @@ mod tests {
                 "SELECT model, agent_role, annotation, COUNT(*)
                  FROM chat_annotations GROUP BY model, agent_role, annotation",
             )
-            .unwrap();
+            .expect("test op should succeed");
         let rows = stmt
             .query_map([], |r| {
                 Ok((
@@ -413,10 +413,10 @@ mod tests {
                     r.get::<_, i64>(3)? as u32,
                 ))
             })
-            .unwrap();
+            .expect("test op should succeed");
         let mut by_model: HashMap<String, (u32, u32)> = HashMap::new();
         for row in rows {
-            let (model, _agent, ann, n) = row.unwrap();
+            let (model, _agent, ann, n) = row.expect("test op should succeed");
             let key = model.unwrap_or_else(|| "(unknown)".to_string());
             let entry = by_model.entry(key).or_insert((0, 0));
             match ann.as_str() {
@@ -438,7 +438,7 @@ mod tests {
         let rows = list_via_conn(&conn);
         let mut out = String::new();
         for ann in &rows {
-            let line = serde_json::to_string(ann).unwrap();
+            let line = serde_json::to_string(ann).expect("serialize should succeed");
             out.push_str(&line);
             out.push('\n');
         }
@@ -489,7 +489,7 @@ mod tests {
             assert!(v["conversation"].is_string());
             assert!(v["message"].is_string());
             assert!(v["feedback"].is_string());
-            let score = v["score"].as_i64().unwrap();
+            let score = v["score"].as_i64().expect("test op should succeed");
             if score == 1 {
                 found_good = true;
                 assert_eq!(v["feedback"], "great answer");

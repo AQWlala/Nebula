@@ -544,7 +544,7 @@ mod tests {
             MemoryLayer::L6,
             MemoryLayer::L7,
         ] {
-            let parsed: MemoryLayer = l.as_str().parse().unwrap();
+            let parsed: MemoryLayer = l.as_str().parse().expect("parse should succeed");
             assert_eq!(parsed, l);
         }
     }
@@ -682,9 +682,9 @@ mod tests {
     #[test]
     fn test_provenance_serialize() {
         let p = Provenance::new("agent_output", Some("writer"), "payload");
-        let json = serde_json::to_value(&p).unwrap();
+        let json = serde_json::to_value(&p).expect("test op should succeed");
         // roundtrip
-        let back: Provenance = serde_json::from_value(json.clone()).unwrap();
+        let back: Provenance = serde_json::from_value(json.clone()).expect("test op should succeed");
         assert_eq!(back.source, p.source);
         assert_eq!(back.tool, p.tool);
         assert_eq!(back.content_hash, p.content_hash);
@@ -694,9 +694,9 @@ mod tests {
 
         // tool=None 时 JSON 中无 tool 键
         let p_none = Provenance::new("system", None, "x");
-        let json_none = serde_json::to_value(&p_none).unwrap();
+        let json_none = serde_json::to_value(&p_none).expect("test op should succeed");
         assert!(json_none.get("tool").is_none());
-        let back_none: Provenance = serde_json::from_value(json_none).unwrap();
+        let back_none: Provenance = serde_json::from_value(json_none).expect("test op should succeed");
         assert!(back_none.tool.is_none());
     }
 
@@ -725,13 +725,13 @@ mod tests {
             "x",
             SourceKind::UserInput,
         );
-        let json = serde_json::to_value(&m).unwrap();
+        let json = serde_json::to_value(&m).expect("test op should succeed");
         assert!(
             json.get("ingest_cost").is_none(),
             "ingest_cost key should be skipped when None, got: {json}"
         );
         // roundtrip:缺失键 → None(serde default)
-        let back: Memory = serde_json::from_value(json).unwrap();
+        let back: Memory = serde_json::from_value(json).expect("test op should succeed");
         assert!(back.ingest_cost.is_none());
     }
 
@@ -745,9 +745,9 @@ mod tests {
             SourceKind::UserInput,
         );
         m.ingest_cost = Some(0.001234);
-        let json = serde_json::to_value(&m).unwrap();
+        let json = serde_json::to_value(&m).expect("test op should succeed");
         assert!(json.get("ingest_cost").is_some());
-        let back: Memory = serde_json::from_value(json).unwrap();
+        let back: Memory = serde_json::from_value(json).expect("test op should succeed");
         assert_eq!(back.ingest_cost, Some(0.001234));
     }
 }

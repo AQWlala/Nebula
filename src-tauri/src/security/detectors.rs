@@ -52,11 +52,11 @@ impl SensitiveDetector {
 
 /// 预编译的中国身份证正则（18位，最后一位可能是X）
 #[allow(dead_code)]
-static CHINA_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d{17}[\dXx]\b").unwrap());
+static CHINA_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d{17}[\dXx]\b").expect("valid regex"));
 
 /// 预编译的中国手机号正则（11位，以1开头）
 #[allow(dead_code)]
-static CHINA_PHONE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b1[3-9]\d{9}\b").unwrap());
+static CHINA_PHONE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b1[3-9]\d{9}\b").expect("valid regex"));
 
 /// 检测器注册表 — 扫描内容对所有注册模式进行检测。
 #[derive(Debug, Clone)]

@@ -394,9 +394,9 @@ mod tests {
     fn test_parse_yaml_front_matter() {
         let _importer = SkillImporter {
             store: SkillStore::new(
-                crate::memory::sqlite_store::SqliteStore::open(":memory:").unwrap(),
+                crate::memory::sqlite_store::SqliteStore::open(":memory:").expect("create should succeed"),
             )
-            .unwrap(),
+            .expect("test op should succeed"),
             client: Client::new(),
         };
 
@@ -415,7 +415,7 @@ tags: [summarization, nlp, utility]
 3. Output a concise summary
 "#;
 
-        let result = SkillImporter::from_skill_md(md).unwrap();
+        let result = SkillImporter::from_skill_md(md).expect("test op should succeed");
         assert_eq!(result.name, "text-summarizer");
         assert_eq!(result.language, "text");
         assert_eq!(result.tags, vec!["summarization", "nlp", "utility"]);

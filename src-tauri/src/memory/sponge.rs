@@ -1170,7 +1170,7 @@ mod tests {
         let cost_after = tracker.total_cost_usd();
         let ingest_cost = Some(cost_after - cost_before);
         assert!(
-            ingest_cost.unwrap() > 0.0,
+            ingest_cost.expect("test op should succeed") > 0.0,
             "ingest_cost should be positive after LLM call"
         );
     }

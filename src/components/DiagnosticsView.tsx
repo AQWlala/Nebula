@@ -1,4 +1,4 @@
-﻿/**
+/**
  * T-E-S-27: 诊断面板 — 实时展示可信诊断事件流。
  *
  * 与 SwarmView 结构类似:面板头部 + 事件列表。
@@ -54,13 +54,14 @@ export function DiagnosticsView() {
 
   /** 挂载时:拉取快照 + 启动订阅。 */
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
 
     // 1) 拉取最近事件快照作为初始状态。
     nebulaAPI
       .diagnosticsSnapshot(50)
       .then((snap) => {
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setEvents(snap.events);
         setEnabled(snap.enabled);
         setCapacity(snap.capacity);
@@ -73,7 +74,7 @@ export function DiagnosticsView() {
     //    Tauri runtime 自动关闭 ipc::Channel,后端 recv 循环退出)。
     nebulaAPI
       .diagnosticsSubscribe((evt) => {
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setEvents((prev) => {
           // 限制本地缓存 200 条,防止内存膨胀。
           const next = [evt, ...prev];
@@ -81,15 +82,15 @@ export function DiagnosticsView() {
         });
       })
       .then(() => {
-        if (!cancelled) setSubscribed(false);
+        if (!ac.signal.aborted) setSubscribed(false);
       })
       .catch(() => {
-        if (!cancelled) setSubscribed(false);
+        if (!ac.signal.aborted) setSubscribed(false);
       });
     setSubscribed(true);
 
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 

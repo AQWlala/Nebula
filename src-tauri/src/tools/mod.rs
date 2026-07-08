@@ -163,7 +163,7 @@ mod tests {
                 tool_name: "dummy".to_string(),
                 arguments: serde_json::json!({}),
             })
-            .unwrap();
+            .expect("test op should succeed");
         assert!(out.success);
         assert_eq!(out.result, "ok");
     }

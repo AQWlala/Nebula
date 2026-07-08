@@ -119,8 +119,8 @@ mod tests {
             function_name: "read_file".to_string(),
             arguments: serde_json::json!({"path": "/tmp/test.txt"}),
         };
-        let json = serde_json::to_string(&tc).unwrap();
-        let back: ToolCall = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&tc).expect("serialize should succeed");
+        let back: ToolCall = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(back.id, "call_abc");
         assert_eq!(back.function_name, "read_file");
         assert_eq!(back.arguments["path"], "/tmp/test.txt");
@@ -130,8 +130,8 @@ mod tests {
             content: "file contents here".to_string(),
             is_error: false,
         };
-        let json = serde_json::to_string(&tr).unwrap();
-        let back: ToolResult = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&tr).expect("serialize should succeed");
+        let back: ToolResult = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(back.tool_call_id, "call_abc");
         assert_eq!(back.content, "file contents here");
         assert!(!back.is_error);

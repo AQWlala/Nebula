@@ -92,7 +92,7 @@ impl SemanticCache {
         similarity_threshold: f32,
         ttl: Duration,
     ) -> Self {
-        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY).unwrap_or(NonZeroUsize::new(1).unwrap());
+        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY).unwrap_or(NonZeroUsize::new(1).expect("1 is non-zero"));
         Self {
             lance,
             embedder,
@@ -435,8 +435,8 @@ mod tests {
         Arc<LanceStore>,
         Arc<Embedder>,
     ) {
-        let sqlite = Arc::new(SqliteStore::open(db_path).unwrap());
-        let lance = Arc::new(LanceStore::open(lance_path, dim).await.unwrap());
+        let sqlite = Arc::new(SqliteStore::open(db_path).expect("create should succeed"));
+        let lance = Arc::new(LanceStore::open(lance_path, dim).await.expect("create should succeed"));
         let embedder = Arc::new(Embedder::new(
             OllamaClient::new("http://127.0.0.1:1"),
             "test-model",
@@ -465,7 +465,7 @@ mod tests {
             sqlite
                 .insert_semantic_cache_entry(&format!("sem:hash-{i}"), &format!("response-{i}"))
                 .await
-                .unwrap();
+                .expect("test op should succeed");
         }
 
         // 2. 验证 cache 初始为空。
@@ -491,7 +491,7 @@ mod tests {
             sqlite
                 .insert_semantic_cache_entry(&format!("sem:limit-{i}"), &format!("resp-{i}"))
                 .await
-                .unwrap();
+                .expect("test op should succeed");
         }
 
         cache.prewarm_from_store(&sqlite, 2).await;
@@ -525,7 +525,7 @@ mod tests {
         let sqlite_resp = sqlite
             .query_semantic_cache_entry(&id)
             .await
-            .unwrap()
+            .expect("test op should succeed")
             .expect("sqlite must have entry after store");
         assert_eq!(sqlite_resp, "cached response");
 
@@ -557,7 +557,7 @@ mod tests {
             sqlite
                 .query_semantic_cache_entry(&id)
                 .await
-                .unwrap()
+                .expect("test op should succeed")
                 .is_some(),
             "sqlite must have entry after store"
         );
@@ -588,7 +588,7 @@ mod tests {
     async fn store_skips_sqlite_when_not_configured() {
         let db_path = temp_db_path();
         let lance_path = temp_lance_path();
-        let lance = Arc::new(LanceStore::open(&lance_path, 4).await.unwrap());
+        let lance = Arc::new(LanceStore::open(&lance_path, 4).await.expect("create should succeed"));
         let embedder = Arc::new(Embedder::new(
             OllamaClient::new("http://127.0.0.1:1"),
             "test-model",
@@ -596,7 +596,7 @@ mod tests {
         ));
         // 不调用 with_sqlite — sqlite 字段为 None。
         let cache = SemanticCache::default_config(lance, embedder.clone());
-        let sqlite = Arc::new(SqliteStore::open(&db_path).unwrap());
+        let sqlite = Arc::new(SqliteStore::open(&db_path).expect("create should succeed"));
 
         embedder.seed_cache_for_test("no sqlite", vec![0.5, 0.5, 0.5, 0.5]);
         cache.store("no sqlite", "resp").await;
@@ -604,7 +604,7 @@ mod tests {
 
         // sqlite 表中应无对应记录(因为未启用持久化)。
         let id = stable_id("no sqlite");
-        let got = sqlite.query_semantic_cache_entry(&id).await.unwrap();
+        let got = sqlite.query_semantic_cache_entry(&id).await.expect("query should succeed");
         assert!(
             got.is_none(),
             "sqlite must not have entry when not configured"

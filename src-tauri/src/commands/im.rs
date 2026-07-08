@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn broadcast_request_deserializes_minimal() {
         let json = r#"{"title":"t","body":"b"}"#;
-        let req: BroadcastRequest = serde_json::from_str(json).unwrap();
+        let req: BroadcastRequest = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(req.title, "t");
         assert_eq!(req.body, "b");
         assert_eq!(req.markdown, None);
@@ -175,15 +175,15 @@ mod tests {
     #[test]
     fn broadcast_request_deserializes_full() {
         let json = r##"{"title":"t","body":"b","markdown":"# md","level":"warning"}"##;
-        let req: BroadcastRequest = serde_json::from_str(json).unwrap();
+        let req: BroadcastRequest = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(req.markdown.as_deref(), Some("# md"));
-        assert_eq!(req.level.unwrap(), ImMessageLevel::Warning);
+        assert_eq!(req.level.expect("assertion value"), ImMessageLevel::Warning);
     }
 
     #[test]
     fn create_webhook_binding_request_deserializes() {
         let json = r#"{"platform":"feishu","url":"https://x.example.com","display_name":"g"}"#;
-        let req: CreateWebhookBindingRequest = serde_json::from_str(json).unwrap();
+        let req: CreateWebhookBindingRequest = serde_json::from_str(json).expect("create should succeed");
         assert_eq!(req.platform, "feishu");
         assert_eq!(req.url, "https://x.example.com");
         assert_eq!(req.display_name, "g");
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn create_webhook_binding_request_default_display_name() {
         let json = r#"{"platform":"wecom","url":"https://y.example.com"}"#;
-        let req: CreateWebhookBindingRequest = serde_json::from_str(json).unwrap();
+        let req: CreateWebhookBindingRequest = serde_json::from_str(json).expect("create should succeed");
         assert_eq!(req.display_name, "");
     }
 }

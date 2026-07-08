@@ -738,14 +738,14 @@ mod tests {
     #[test]
     fn agent_output_path_id_roundtrip_with_path_id() {
         let out = AgentOutput::new(AgentKind::Generic, "a", "body").with_path_id("path-0");
-        let json = serde_json::to_string(&out).unwrap();
+        let json = serde_json::to_string(&out).expect("serialize should succeed");
         assert!(json.contains("\"path_id\":\"path-0\""), "got: {json}");
         // skip_serializing_if = Option::is_none 保证 None 不出现在 JSON 中。
         let out_no_path = AgentOutput::new(AgentKind::Generic, "b", "body");
-        let json_no_path = serde_json::to_string(&out_no_path).unwrap();
+        let json_no_path = serde_json::to_string(&out_no_path).expect("serialize should succeed");
         assert!(!json_no_path.contains("path_id"), "got: {json_no_path}");
         // 往返。
-        let de: AgentOutput = serde_json::from_str(&json).unwrap();
+        let de: AgentOutput = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(de.path_id.as_deref(), Some("path-0"));
     }
 
@@ -890,18 +890,18 @@ mod tests {
         }];
         let mut out = AgentOutput::new(AgentKind::Generic, "agent-a", "I'll read the file");
         out.tool_calls = Some(tc.clone());
-        assert_eq!(out.tool_calls.as_ref().unwrap().len(), 1);
+        assert_eq!(out.tool_calls.as_ref().expect("assertion value").len(), 1);
         assert_eq!(
-            out.tool_calls.as_ref().unwrap()[0].function_name,
+            out.tool_calls.as_ref().expect("test op should succeed")[0].function_name,
             "read_file"
         );
 
         // 3. 序列化 round-trip
-        let json = serde_json::to_string(&out).unwrap();
+        let json = serde_json::to_string(&out).expect("serialize should succeed");
         assert!(json.contains("tool_calls"), "JSON must contain tool_calls");
         assert!(json.contains("call_001"), "JSON must contain tool call id");
-        let de: AgentOutput = serde_json::from_str(&json).unwrap();
-        assert_eq!(de.tool_calls.as_ref().unwrap().len(), 1);
+        let de: AgentOutput = serde_json::from_str(&json).expect("parse should succeed");
+        assert_eq!(de.tool_calls.as_ref().expect("assertion value").len(), 1);
 
         // 4. 旧 JSON(无 tool_calls 字段)反序列化时 tool_calls 应为 None
         let old_json = r#"{
@@ -921,7 +921,7 @@ mod tests {
 
         // 5. tool_calls = None 时不出现在 JSON 中(skip_serializing_if)
         let out_none = AgentOutput::new(AgentKind::Generic, "b", "body");
-        let json_none = serde_json::to_string(&out_none).unwrap();
+        let json_none = serde_json::to_string(&out_none).expect("serialize should succeed");
         assert!(
             !json_none.contains("tool_calls"),
             "None tool_calls must be omitted from JSON"

@@ -406,11 +406,11 @@ mod tests {
     #[test]
     fn test_floating_ball_state_serialization() {
         let idle = FloatingBallState::Idle;
-        let json = serde_json::to_string(&idle).unwrap();
+        let json = serde_json::to_string(&idle).expect("serialize should succeed");
         assert!(json.contains("\"state\":\"idle\""));
 
         let working = FloatingBallState::Working { task_count: 3 };
-        let json = serde_json::to_string(&working).unwrap();
+        let json = serde_json::to_string(&working).expect("serialize should succeed");
         assert!(json.contains("\"state\":\"working\""));
         assert!(json.contains("\"task_count\":3"));
     }

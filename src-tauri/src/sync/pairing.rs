@@ -298,13 +298,13 @@ mod tests {
         let mut bob_state = PairingState::new();
 
         // Alice 生成 Offer
-        let offer = alice_state.generate_offer().unwrap();
+        let offer = alice_state.generate_offer().expect("test op should succeed");
 
         // Bob 处理 Offer，生成 Answer
-        let answer = bob_state.process_offer(&offer).unwrap();
+        let answer = bob_state.process_offer(&offer).expect("test op should succeed");
 
         // Alice 处理 Answer
-        alice_state.process_answer(&answer).unwrap();
+        alice_state.process_answer(&answer).expect("test op should succeed");
 
         // Alice (initiator) reaches Paired after processing answer.
         // Bob (responder) stays at AnswerGenerated until initiator
@@ -320,10 +320,10 @@ mod tests {
     #[test]
     fn qr_serialization_round_trip() {
         let mut state = PairingState::new();
-        let offer = state.generate_offer().unwrap();
+        let offer = state.generate_offer().expect("test op should succeed");
 
-        let qr_string = offer_to_qr_string(&offer).unwrap();
-        let parsed_offer = offer_from_qr_string(&qr_string).unwrap();
+        let qr_string = offer_to_qr_string(&offer).expect("test op should succeed");
+        let parsed_offer = offer_from_qr_string(&qr_string).expect("parse should succeed");
 
         assert_eq!(offer.ephemeral_pubkey, parsed_offer.ephemeral_pubkey);
         assert_eq!(offer.version, parsed_offer.version);

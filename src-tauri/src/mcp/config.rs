@@ -199,8 +199,8 @@ mod tests {
             auto_restart: true,
             health_check_interval_secs: 30,
         };
-        let json = serde_json::to_string(&cfg).unwrap();
-        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&cfg).expect("serialize should succeed");
+        let parsed: McpServerConfig = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(parsed.name, "test-server");
         assert_eq!(parsed.transport_type, McpTransportType::Stdio);
     }
@@ -221,9 +221,9 @@ mod tests {
             auto_restart: true,
             health_check_interval_secs: 30,
         };
-        let json = serde_json::to_string(&cfg).unwrap();
+        let json = serde_json::to_string(&cfg).expect("serialize should succeed");
         assert!(json.contains("\"transport_type\":\"sse\""));
-        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        let parsed: McpServerConfig = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(parsed.transport_type, McpTransportType::Sse);
         assert_eq!(parsed.url.as_deref(), Some("https://example.com/sse"));
         assert_eq!(parsed.api_key.as_deref(), Some("secret"));
@@ -247,8 +247,8 @@ mod tests {
             auto_restart: false,
             health_check_interval_secs: 60,
         };
-        let json = serde_json::to_string(&cfg).unwrap();
-        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&cfg).expect("serialize should succeed");
+        let parsed: McpServerConfig = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(parsed.args, vec!["-y", "@mcp/server"]);
         assert_eq!(parsed.env.get("FOO").map(|s| s.as_str()), Some("bar"));
         assert!(!parsed.enabled);
@@ -267,7 +267,7 @@ mod tests {
             "enabled": true,
             "tool_filter": []
         }"#;
-        let parsed: McpServerConfig = serde_json::from_str(old_json).unwrap();
+        let parsed: McpServerConfig = serde_json::from_str(old_json).expect("parse should succeed");
         assert_eq!(parsed.name, "legacy");
         assert!(parsed.args.is_empty());
         assert!(parsed.env.is_empty());
@@ -279,7 +279,7 @@ mod tests {
     /// T-E-S-32: McpServersConfig load/save 往返(tempfile)。
     #[test]
     fn mcp_servers_config_load_save_roundtrip() {
-        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let tmp = tempfile::NamedTempFile::new().expect("create should succeed");
         let cfg = McpServersConfig {
             version: 1,
             servers: vec![McpServerConfig {
@@ -296,7 +296,7 @@ mod tests {
                 health_check_interval_secs: 30,
             }],
         };
-        cfg.save(tmp.path()).unwrap();
+        cfg.save(tmp.path()).expect("update should succeed");
         let loaded = McpServersConfig::load(tmp.path());
         assert_eq!(loaded.version, 1);
         assert_eq!(loaded.servers.len(), 1);
@@ -372,13 +372,13 @@ mod tests {
             auto_restart: true,
             health_check_interval_secs: 30,
         };
-        let json = serde_json::to_string(&cfg).unwrap();
+        let json = serde_json::to_string(&cfg).expect("serialize should succeed");
         assert!(
             json.contains("\"streamable_http\""),
             "should contain streamable_http tag: {}",
             json
         );
-        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        let parsed: McpServerConfig = serde_json::from_str(&json).expect("parse should succeed");
         match parsed.transport_type {
             McpTransportType::StreamableHttp {
                 url,
@@ -405,7 +405,7 @@ mod tests {
             "enabled": true,
             "tool_filter": []
         }"#;
-        let parsed: McpServerConfig = serde_json::from_str(json).unwrap();
+        let parsed: McpServerConfig = serde_json::from_str(json).expect("parse should succeed");
         match parsed.transport_type {
             McpTransportType::StreamableHttp {
                 url,

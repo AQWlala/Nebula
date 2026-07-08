@@ -136,13 +136,13 @@ mod tests {
                 paths: vec![format!("a/{i}")],
             })
             .await
-            .unwrap();
+            .expect("test op should succeed");
         }
         drop(tx);
 
         let first = tokio::time::timeout(Duration::from_secs(2), debounced.recv())
             .await
-            .unwrap()
+            .expect("test op should succeed")
             .expect("at least one event");
         assert!(!first.paths.is_empty());
         // The next call should hit `None` after the drain.  Wrap in a

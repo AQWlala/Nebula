@@ -86,7 +86,7 @@ impl ActiveTransport {
             ActiveTransport::StreamableHttp(t) => t.send_and_receive(req).await,
             #[cfg(test)]
             ActiveTransport::Mock(responses) => {
-                let mut guard = responses.lock().unwrap();
+                let mut guard = responses.lock().expect("lock should succeed");
                 if guard.is_empty() {
                     anyhow::bail!("mock transport: no more responses queued");
                 }
@@ -669,7 +669,7 @@ mod tests {
     fn invoke_tool_when_disconnected_errors() {
         let cfg = test_config_stdio();
         let mut client = McpClient::new(cfg);
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let r = rt.block_on(client.invoke_tool("foo", serde_json::json!({})));
         assert!(r.is_err());
         let msg = format!("{}", r.unwrap_err());
@@ -680,7 +680,7 @@ mod tests {
     fn disconnect_when_already_disconnected_is_noop() {
         let cfg = test_config_stdio();
         let mut client = McpClient::new(cfg);
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         rt.block_on(client.disconnect());
         assert!(!client.is_connected());
     }
@@ -710,8 +710,8 @@ mod tests {
         });
         let mock = vec![mock_response(1, tools_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let tools = rt.block_on(client.discover_tools()).unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
+        let tools = rt.block_on(client.discover_tools()).expect("lock should succeed");
         assert_eq!(tools.len(), 3);
         assert_eq!(tools[0].name, "fs_read");
         assert_eq!(tools[0].description, "Read a file");
@@ -747,8 +747,8 @@ mod tests {
         });
         let mock = vec![mock_response(1, tools_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let tools = rt.block_on(client.discover_tools()).unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
+        let tools = rt.block_on(client.discover_tools()).expect("lock should succeed");
         // 仅保留以 "fs_" 开头的工具
         assert_eq!(tools.len(), 2);
         assert_eq!(tools[0].name, "fs_read");
@@ -769,10 +769,10 @@ mod tests {
         });
         let mock = vec![mock_response(1, call_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt
             .block_on(client.invoke_tool("fs_read", serde_json::json!({"path": "/tmp/x"})))
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(result.tool_name, "fs_read");
         assert_eq!(result.server_name, "test-stdio");
         assert!(!result.is_error);
@@ -782,19 +782,19 @@ mod tests {
         assert!(result.content[0]
             .text
             .as_ref()
-            .unwrap()
+            .expect("test op should succeed")
             .contains("[REDACTED_API_KEY]"));
         assert!(!result.content[0]
             .text
             .as_ref()
-            .unwrap()
+            .expect("test op should succeed")
             .contains("sk-abc123"));
         // 第二项: image 类型,image_url 应为 data URL
         assert_eq!(result.content[1].content_type, "image");
         assert!(result.content[1]
             .image_url
             .as_ref()
-            .unwrap()
+            .expect("test op should succeed")
             .starts_with("data:image/png;base64,"));
     }
 
@@ -810,17 +810,17 @@ mod tests {
         });
         let mock = vec![mock_response(1, call_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let result = rt
             .block_on(client.invoke_tool("bad_tool", serde_json::json!({})))
-            .unwrap();
+            .expect("test op should succeed");
         assert!(result.is_error);
         assert_eq!(result.content.len(), 1);
         assert_eq!(result.content[0].content_type, "text");
         assert!(result.content[0]
             .text
             .as_ref()
-            .unwrap()
+            .expect("test op should succeed")
             .contains("invalid arguments"));
     }
 
@@ -898,7 +898,7 @@ mod tests {
                 Arc::new(tokio::sync::Mutex::new(client2)),
             );
         }
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let groups = rt.block_on(async { manager.as_tool_implementations().await });
         assert_eq!(groups.len(), 2);
         let total: usize = groups.iter().map(|(_, v)| v.len()).sum();
@@ -907,11 +907,11 @@ mod tests {
             .into_iter()
             .map(|(srv, tools)| (srv, tools.iter().map(|t| t.name().to_string()).collect()))
             .collect();
-        let s1 = names_by_server.get("test-stdio").unwrap();
+        let s1 = names_by_server.get("test-stdio").expect("get should succeed");
         assert!(s1.contains(&"t1".to_string()));
         assert!(s1.contains(&"t2".to_string()));
         assert!(s1.contains(&"t3".to_string()));
-        let s2 = names_by_server.get("second").unwrap();
+        let s2 = names_by_server.get("second").expect("get should succeed");
         assert!(s2.contains(&"t4".to_string()));
         assert!(s2.contains(&"t5".to_string()));
         assert!(s2.contains(&"t6".to_string()));
@@ -962,7 +962,7 @@ mod tests {
             health_check_interval_secs: 30,
         };
         let mut client = McpClient::new(cfg);
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("create should succeed");
         let start = std::time::Instant::now();
         let result = rt.block_on(client.connect());
         let elapsed = start.elapsed();

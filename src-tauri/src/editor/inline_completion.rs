@@ -231,10 +231,10 @@ mod tests {
         let engine = InlineCompletionEngine::new(ollama, "qwen2.5-coder:0.5b".to_string());
 
         // trim 后长度 < 3 的各种情况。
-        assert_eq!(engine.suggest_completion("").await.unwrap(), None);
-        assert_eq!(engine.suggest_completion("a").await.unwrap(), None);
-        assert_eq!(engine.suggest_completion("ab").await.unwrap(), None);
-        assert_eq!(engine.suggest_completion("   a  ").await.unwrap(), None);
+        assert_eq!(engine.suggest_completion("").await.expect("task should complete"), None);
+        assert_eq!(engine.suggest_completion("a").await.expect("task should complete"), None);
+        assert_eq!(engine.suggest_completion("ab").await.expect("task should complete"), None);
+        assert_eq!(engine.suggest_completion("   a  ").await.expect("task should complete"), None);
         // 长度 == 3 应该放行(不返回 None on length check),但会因
         // 连接失败而静默返回 None — 这里只测短 prefix 的 fast path。
     }
@@ -251,7 +251,7 @@ mod tests {
 
         // 第一次请求:prefix 足够长,通过长度检查;然后会尝试连 Ollama
         // (失败,返回 None)。但 last_call / last_prefix 已被记录。
-        let _ = engine.suggest_completion("hello world").await.unwrap();
+        let _ = engine.suggest_completion("hello world").await.expect("task should complete");
         // 立即再请求同一前缀 — 应被防抖挡掉(返回 None)。
         // 注意:即使第二次也会因连接失败返回 None,我们用
         // `last_call` 是否在 300ms 内来验证防抖命中。
@@ -302,7 +302,7 @@ mod tests {
             .await;
         // 失败静默:不返回 Err,而是 Ok(None)。
         assert!(result.is_ok(), "失败应静默,不返回 Err");
-        assert_eq!(result.unwrap(), None);
+        assert_eq!(result.expect("assertion value"), None);
     }
 
     // ---------- 辅助函数 ----------

@@ -625,9 +625,9 @@ mod tests {
     /// serde 序列化:CheckStatus 小写化,与前端 TS 类型对齐。
     #[test]
     fn test_check_status_serde_lowercase() {
-        let ok = serde_json::to_string(&CheckStatus::Ok).unwrap();
-        let warn = serde_json::to_string(&CheckStatus::Warn).unwrap();
-        let fail = serde_json::to_string(&CheckStatus::Fail).unwrap();
+        let ok = serde_json::to_string(&CheckStatus::Ok).expect("serialize should succeed");
+        let warn = serde_json::to_string(&CheckStatus::Warn).expect("serialize should succeed");
+        let fail = serde_json::to_string(&CheckStatus::Fail).expect("serialize should succeed");
         assert_eq!(ok, "\"ok\"");
         assert_eq!(warn, "\"warn\"");
         assert_eq!(fail, "\"fail\"");
@@ -642,7 +642,7 @@ mod tests {
             checks: vec![check("x", CheckStatus::Warn)],
             duration_ms: 42,
         };
-        let json = serde_json::to_string(&report).unwrap();
+        let json = serde_json::to_string(&report).expect("serialize should succeed");
         assert!(json.contains("\"overall\":\"warn\""));
         assert!(json.contains("\"timestamp\":1700000000"));
         assert!(json.contains("\"duration_ms\":42"));

@@ -1,4 +1,4 @@
-﻿//! v1.1: KeyVault — secure private key storage abstraction.
+//! v1.1: KeyVault — secure private key storage abstraction.
 //!
 //! Private keys (E2EE, API keys, etc.) must never be transmitted
 //! across the Tauri IPC boundary.  The `KeyVault` provides a
@@ -164,28 +164,28 @@ mod tests {
 
     #[tokio::test]
     async fn store_and_retrieve_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        vault.store("test-key", "secret-value").await.unwrap();
-        let retrieved = vault.retrieve("test-key").await.unwrap();
+        vault.store("test-key", "secret-value").await.expect("update should succeed");
+        let retrieved = vault.retrieve("test-key").await.expect("task should complete");
         assert_eq!(retrieved, Some("secret-value".to_string()));
     }
 
     #[tokio::test]
     async fn retrieve_missing_returns_none() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        let result = vault.retrieve("nonexistent").await.unwrap();
+        let result = vault.retrieve("nonexistent").await.expect("task should complete");
         assert_eq!(result, None);
     }
 
     #[tokio::test]
     async fn delete_removes_key() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        vault.store("to-delete", "value").await.unwrap();
-        vault.delete("to-delete").await.unwrap();
-        let result = vault.retrieve("to-delete").await.unwrap();
+        vault.store("to-delete", "value").await.expect("update should succeed");
+        vault.delete("to-delete").await.expect("delete should succeed");
+        let result = vault.retrieve("to-delete").await.expect("delete should succeed");
         assert_eq!(result, None);
     }
 }

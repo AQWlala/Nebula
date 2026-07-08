@@ -1,4 +1,4 @@
-﻿//! T-S6-A-01a: Sidecar OS-Controller 服务 — 单二进制多角色方案。
+//! T-S6-A-01a: Sidecar OS-Controller 服务 — 单二进制多角色方案。
 //!
 //! 延续 T-S4-B-01 / T-S4-B-02 的单二进制多角色方案
 //! (`nebula-sidecar --kind=os_controller`),为 Windows 窗口管理 /
@@ -102,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn health_check_returns_ok() {
         let h = make_handler();
-        assert!(h.health_check().await.unwrap());
+        assert!(h.health_check().await.expect("task should complete"));
     }
 
     #[test]

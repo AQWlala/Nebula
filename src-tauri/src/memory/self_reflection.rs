@@ -580,8 +580,8 @@ mod tests {
             std::process::id(),
             n
         ));
-        let store = Arc::new(SqliteStore::open(&p).unwrap());
-        crate::memory::migration::run_bundled_migrations(&store.raw_connection().lock()).unwrap();
+        let store = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
+        crate::memory::migration::run_bundled_migrations(&store.raw_connection().lock()).expect("update should succeed");
         (p, store)
     }
 
@@ -649,9 +649,9 @@ mod tests {
         let (p, store) = temp_db();
         let engine = make_engine(store);
         let r = dummy_reflection(ReflectionKind::ValueAlignment, "test title");
-        engine.persist_reflection(&r).unwrap();
+        engine.persist_reflection(&r).expect("engine op should succeed");
 
-        let rows = engine.list_recent_self_reflections(10).unwrap();
+        let rows = engine.list_recent_self_reflections(10).expect("engine op should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1, "value_alignment");
         assert_eq!(rows[0].2, "test title");
@@ -665,7 +665,7 @@ mod tests {
         let engine = make_engine(store);
         engine
             .persist_reflection(&dummy_reflection(ReflectionKind::ValueAlignment, "first"))
-            .unwrap();
+            .expect("test op should succeed");
         // M7b #90 分类 A: persist_reflection 用 chrono::Utc::now().timestamp()(秒级精度),
         // list_recent_self_reflections 用 ORDER BY created_at DESC。同秒插入会导致
         // 顺序不稳定。sleep(1100ms) 确保第二条时间戳严格大于第一条。
@@ -674,9 +674,9 @@ mod tests {
         // 由于两条插入时间接近，我们通过数量验证而非严格时间排序。
         engine
             .persist_reflection(&dummy_reflection(ReflectionKind::OutcomeReview, "second"))
-            .unwrap();
+            .expect("test op should succeed");
 
-        let rows = engine.list_recent_self_reflections(10).unwrap();
+        let rows = engine.list_recent_self_reflections(10).expect("engine op should succeed");
         assert_eq!(rows.len(), 2);
         // 最新插入的在最前面
         assert_eq!(rows[0].2, "second");
@@ -690,7 +690,7 @@ mod tests {
         let (p, store) = temp_db();
         let engine = make_engine(store);
         let r = dummy_reflection(ReflectionKind::SelfImprovement, "json test");
-        engine.persist_reflection(&r).unwrap();
+        engine.persist_reflection(&r).expect("engine op should succeed");
 
         let conn = engine.sqlite.raw_connection();
         let conn = conn.lock();
@@ -700,11 +700,11 @@ mod tests {
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
-            .unwrap();
+            .expect("test op should succeed");
 
-        let insights: Vec<String> = serde_json::from_str(&row.0).unwrap();
-        let action_items: Vec<String> = serde_json::from_str(&row.1).unwrap();
-        let related_ids: Vec<String> = serde_json::from_str(&row.2).unwrap();
+        let insights: Vec<String> = serde_json::from_str(&row.0).expect("parse should succeed");
+        let action_items: Vec<String> = serde_json::from_str(&row.1).expect("parse should succeed");
+        let related_ids: Vec<String> = serde_json::from_str(&row.2).expect("parse should succeed");
 
         assert_eq!(insights, vec!["insight a", "insight b"]);
         assert_eq!(action_items, vec!["action 1"]);
@@ -718,9 +718,9 @@ mod tests {
         let engine = make_engine(store);
         for i in 0..5 {
             let r = dummy_reflection(ReflectionKind::SelfImprovement, &format!("r{i}"));
-            engine.persist_reflection(&r).unwrap();
+            engine.persist_reflection(&r).expect("engine op should succeed");
         }
-        let rows = engine.list_recent_self_reflections(2).unwrap();
+        let rows = engine.list_recent_self_reflections(2).expect("engine op should succeed");
         assert_eq!(rows.len(), 2);
         cleanup(&p);
     }

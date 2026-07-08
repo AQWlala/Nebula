@@ -1190,7 +1190,7 @@ mod tests {
             .add_node(SubTask::new("b", "2"))
             .add_edge("a", "b")
             .build()
-            .unwrap();
+            .expect("test op should succeed");
         let evt = MasterEvent::decompose_completed("t1", &dag);
         match evt {
             MasterEvent::DecomposeCompleted {
@@ -1208,8 +1208,8 @@ mod tests {
     #[test]
     fn master_event_serde_roundtrip() {
         let evt = MasterEvent::synthesize_started("t1", 3);
-        let json = serde_json::to_string(&evt).unwrap();
-        let de: MasterEvent = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&evt).expect("serialize should succeed");
+        let de: MasterEvent = serde_json::from_str(&json).expect("parse should succeed");
         match de {
             MasterEvent::SynthesizeStarted { result_count, .. } => assert_eq!(result_count, 3),
             _ => panic!("wrong variant"),
@@ -1253,7 +1253,7 @@ mod tests {
                 &TaskDag::builder()
                     .add_node(SubTask::new("a", "1"))
                     .build()
-                    .unwrap(),
+                    .expect("test op should succeed"),
             ),
             MasterEvent::DecomposeFailed {
                 task_id: "t".into(),
@@ -1273,7 +1273,7 @@ mod tests {
         for evt in events {
             let envelope = MasterEventEnvelope::wrap_master_event(evt);
             assert!(!envelope.event_type.is_empty());
-            assert!(envelope.event_type.chars().next().unwrap().is_uppercase());
+            assert!(envelope.event_type.chars().next().expect("assertion value").is_uppercase());
         }
     }
 
@@ -1391,7 +1391,7 @@ mod tests {
             "L2 should not downgrade"
         );
         // 验证 LongTask 确实被创建
-        let task_id = report.task_id.as_ref().unwrap();
+        let task_id = report.task_id.as_ref().expect("test op should succeed");
         let task = engine.get_task(task_id).expect("get_task should succeed");
         assert!(task.is_some(), "task should exist in engine");
         // 等待后台 runner 结束（loop-action 非真实命令会快速失败）

@@ -502,12 +502,12 @@ mod tests {
     }
 
     fn write_file(path: &Path, content: &str) {
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, content).unwrap();
+        std::fs::create_dir_all(path.parent().expect("create should succeed")).expect("create should succeed");
+        std::fs::write(path, content).expect("update should succeed");
     }
 
     fn read_file(path: &Path) -> String {
-        std::fs::read_to_string(path).unwrap()
+        std::fs::read_to_string(path).expect("get should succeed")
     }
 
     /// 构造 LocalBackend + SnapshotEngine,返回 (storage, engine) 供测试使用。
@@ -722,7 +722,7 @@ mod tests {
     async fn test_copy_backend_create_rollback_discard() {
         let tmp = create_temp_dir();
         let working_dir = tmp.path().join("work");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
 
         let file1 = working_dir.join("a.txt");
         let file2 = working_dir.join("b.txt");
@@ -752,7 +752,7 @@ mod tests {
     async fn test_copy_backend_discard() {
         let tmp = create_temp_dir();
         let working_dir = tmp.path().join("work");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
 
         let file1 = working_dir.join("a.txt");
         write_file(&file1, "original");
@@ -777,20 +777,20 @@ mod tests {
     async fn test_copy_backend_preserves_file_content() {
         let tmp = create_temp_dir();
         let working_dir = tmp.path().join("work");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
 
         let file = working_dir.join("test.txt");
         let original = "hello world\nline2\nline3";
         write_file(&file, original);
 
         let (_storage, backend) = create_copy_backend(tmp.path());
-        let id = backend.create(&working_dir, &[file.clone()]).await.unwrap();
+        let id = backend.create(&working_dir, &[file.clone()]).await.expect("create should succeed");
 
         write_file(&file, "overwritten content");
         backend
             .rollback(&id, &working_dir, &[file.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         assert_eq!(read_file(&file), original);
     }
@@ -800,14 +800,14 @@ mod tests {
         let tmp = create_temp_dir();
         let working_dir = tmp.path().join("work");
         let sub_dir = working_dir.join("sub").join("nested");
-        std::fs::create_dir_all(&sub_dir).unwrap();
+        std::fs::create_dir_all(&sub_dir).expect("create should succeed");
 
         let file = sub_dir.join("deep.txt");
         let original = "deep content";
         write_file(&file, original);
 
         let (storage, backend) = create_copy_backend(tmp.path());
-        let id = backend.create(&working_dir, &[file.clone()]).await.unwrap();
+        let id = backend.create(&working_dir, &[file.clone()]).await.expect("create should succeed");
 
         // 验证 backend 中保存了相对路径结构
         let backend_path = format!("{}/sub/nested/deep.txt", id);
@@ -821,7 +821,7 @@ mod tests {
         backend
             .rollback(&id, &working_dir, &[file.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         assert_eq!(read_file(&file), original);
     }
@@ -834,7 +834,7 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         let file1 = working_dir.join("a.txt");
         write_file(&file1, "aaa");
 
@@ -843,16 +843,16 @@ mod tests {
         let id1 = engine
             .create_snapshot(&working_dir, &[file1.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(engine.list_snapshots().len(), 1);
 
         let id2 = engine
             .create_snapshot(&working_dir, &[file1.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(engine.list_snapshots().len(), 2);
 
-        engine.discard(&id1).await.unwrap();
+        engine.discard(&id1).await.expect("task should complete");
         assert_eq!(engine.list_snapshots().len(), 1);
         assert_eq!(engine.list_snapshots()[0].id, id2);
     }
@@ -863,21 +863,21 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work_not_git");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         let file1 = working_dir.join("a.txt");
         write_file(&file1, "test");
 
         let id = engine
             .create_snapshot(&working_dir, &[file1.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let list = engine.list_snapshots();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].backend, BackendKind::Copy);
         assert_eq!(list[0].id, id);
 
         write_file(&file1, "modified");
-        engine.rollback(&id).await.unwrap();
+        engine.rollback(&id).await.expect("task should complete");
         assert_eq!(read_file(&file1), "test");
     }
 
@@ -891,7 +891,7 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work_git");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         git_init(&working_dir);
 
         let file1 = working_dir.join("a.txt");
@@ -901,7 +901,7 @@ mod tests {
         let id = engine
             .create_snapshot(&working_dir, &[file1.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let list = engine.list_snapshots();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].backend, BackendKind::Git);
@@ -909,7 +909,7 @@ mod tests {
         assert!(id.starts_with("clean:"));
 
         write_file(&file1, "modified");
-        engine.rollback(&id).await.unwrap();
+        engine.rollback(&id).await.expect("task should complete");
         assert_eq!(read_file(&file1), "original");
     }
 
@@ -923,7 +923,7 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work_git_dirty");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         git_init(&working_dir);
 
         let file1 = working_dir.join("a.txt");
@@ -935,7 +935,7 @@ mod tests {
         let id = engine
             .create_snapshot(&working_dir, &[file1.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let list = engine.list_snapshots();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].backend, BackendKind::Git);
@@ -943,7 +943,7 @@ mod tests {
         assert!(id.starts_with("commit:"));
 
         write_file(&file1, "modified more");
-        engine.rollback(&id).await.unwrap();
+        engine.rollback(&id).await.expect("task should complete");
         assert_eq!(read_file(&file1), "staged");
     }
 
@@ -953,7 +953,7 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work_rb");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         let file = working_dir.join("important.txt");
         let content = "line1\nline2\nline3\n";
         write_file(&file, content);
@@ -961,12 +961,12 @@ mod tests {
         let id = engine
             .create_snapshot(&working_dir, &[file.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         write_file(&file, "completely different\ncontent here");
         assert_ne!(read_file(&file), content);
 
-        engine.rollback(&id).await.unwrap();
+        engine.rollback(&id).await.expect("task should complete");
         assert_eq!(read_file(&file), content);
     }
 
@@ -976,17 +976,17 @@ mod tests {
         let (_storage, engine) = create_engine_with_storage(tmp.path());
 
         let working_dir = tmp.path().join("work_dc");
-        std::fs::create_dir_all(&working_dir).unwrap();
+        std::fs::create_dir_all(&working_dir).expect("create should succeed");
         let file = working_dir.join("x.txt");
         write_file(&file, "x");
 
         let id = engine
             .create_snapshot(&working_dir, &[file.clone()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(engine.list_snapshots().len(), 1);
 
-        engine.discard(&id).await.unwrap();
+        engine.discard(&id).await.expect("task should complete");
         assert_eq!(engine.list_snapshots().len(), 0);
     }
 

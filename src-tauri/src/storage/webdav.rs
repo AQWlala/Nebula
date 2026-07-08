@@ -587,7 +587,7 @@ mod tests {
     /// 测试:URL 构造。
     #[test]
     fn url_construction() {
-        let backend = WebDavBackend::new("https://example.com/dav/", None, None).unwrap();
+        let backend = WebDavBackend::new("https://example.com/dav/", None, None).expect("create should succeed");
         assert_eq!(backend.url("foo.txt"), "https://example.com/dav/foo.txt");
         assert_eq!(backend.url("/bar/baz"), "https://example.com/dav/bar/baz");
     }

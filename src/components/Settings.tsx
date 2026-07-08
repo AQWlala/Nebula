@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0.1: Settings panel — signal-driven.
  *
  * P0#06: theme / accent / font-size now flow through
@@ -208,11 +208,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
   // knows the keychain already holds a key but doesn't need
   // to see it.
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const v = await invokeTauri<string | null>('get_api_key');
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         // We don't put the secret into local state — only the
         // "configured" flag.  A blank form value still means
         // "user has not entered one" in the form.
@@ -225,17 +226,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
   // T-E-S-40: 查询 openai-compat provider key 是否已配置(掩码查询)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const v = await nebulaAPI.getProviderApiKey('openai-compat');
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         if (v && v.length > 0) {
           setOpenaiCompatKeyConfigured(true);
         }
@@ -244,18 +246,19 @@ export function Settings({ onClose }: { onClose: () => void }) {
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
   // T-E-S-40: 从后端 settings.json 加载 llm_provider / openai_compat_url /
   // openai_compat_model(后端为权威源,localStorage 仅作离线回退)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const dto = await invokeTauri<Record<string, unknown>>('load_app_settings');
-        if (cancelled || !dto) return;
+        if (ac.signal.aborted || !dto) return;
         setS((prev) => ({
           ...prev,
           llmProvider: typeof dto.llm_provider === 'string' ? dto.llm_provider : prev.llmProvider,
@@ -279,24 +282,25 @@ export function Settings({ onClose }: { onClose: () => void }) {
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
   // v1.7: 查询当前开机自启动状态。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const enabled = await invokeTauri<boolean>('os_autostart_is_enabled');
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setAutostartEnabled(enabled === true);
       } catch {
         // Tauri runtime not available; keep default false.
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
@@ -313,22 +317,23 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   // T-S5-A-01: 加载已配对设备列表。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       setDeviceLoading(true);
       try {
         const list = await nebulaAPI.deviceList();
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setDevices(list);
       } catch {
         // Tauri runtime not available or device manager not ready;
         // keep empty list.
       } finally {
-        if (!cancelled) setDeviceLoading(false);
+        if (!ac.signal.aborted) setDeviceLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
@@ -357,18 +362,19 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   // T-E-B-09: 查询文件夹监控运行状态(挂载时 + watchPaths 变化后)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const status = await nebulaAPI.watchStatus();
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setWatchActive(status?.active === true);
       } catch {
         // Tauri runtime not available; keep default false.
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, [s.watchPaths]);
 
@@ -422,11 +428,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
   // T-E-S-41: 加载 models.json(provider 列表 + 默认值)。挂载时执行一次。
   // 同时为每个非内置 provider 查询 keychain 是否已有 key(掩码查询)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const cfg = await nebulaAPI.modelsConfigLoad();
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setModelsConfig(cfg);
         // 并行查询所有自定义 provider 的 keychain 状态。
         const entries = await Promise.all(
@@ -441,14 +448,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
               }
             })
         );
-        if (cancelled) return;
+        if (ac.signal.aborted) return;
         setProviderKeyConfigured(Object.fromEntries(entries));
       } catch {
         // Tauri runtime not available; keep null.
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 
@@ -471,17 +478,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   // T-E-S-39: 加载 persona 快照(SOUL.md/AGENTS.md/TOOLS.md 状态)。
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
     (async () => {
       try {
         const pc = await nebulaAPI.personaGet();
-        if (!cancelled) setPersona(pc);
+        if (!ac.signal.aborted) setPersona(pc);
       } catch {
         // Tauri runtime not available; keep null.
       }
     })();
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, []);
 

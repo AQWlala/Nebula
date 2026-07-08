@@ -365,7 +365,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test op should succeed")
                 .as_nanos()
         ));
         let _ = std::fs::remove_file(&tmp);
@@ -442,7 +442,7 @@ mod tests {
     async fn test_elo_update_winner_a() {
         let lb = Arc::new(ArenaLeaderboard::new());
         // 双方初始 1200(未注册时 fallback 到 ELO_INIT)。
-        lb.update_elo("model_a", "model_b", "a").await.unwrap();
+        lb.update_elo("model_a", "model_b", "a").await.expect("update should succeed");
         let board = lb.leaderboard().await;
         let elo_a = board.iter().find(|(m, _)| m == "model_a").map(|(_, e)| *e);
         let elo_b = board.iter().find(|(m, _)| m == "model_b").map(|(_, e)| *e);
@@ -477,7 +477,7 @@ mod tests {
     async fn test_elo_update_tie() {
         let lb = Arc::new(ArenaLeaderboard::new());
         // 双方初始 1200,expected_a=0.5,sa=0.5 → delta=0(平局对等分选手无变化)。
-        lb.update_elo("model_x", "model_y", "tie").await.unwrap();
+        lb.update_elo("model_x", "model_y", "tie").await.expect("update should succeed");
         let board = lb.leaderboard().await;
         let elo_x = board
             .iter()
@@ -506,7 +506,7 @@ mod tests {
         // 先让 model_high 赢 model_low 一次,拉开差距。
         lb2.update_elo("model_high", "model_low", "a")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let board_mid = lb2.leaderboard().await;
         let elo_high_before = board_mid
             .iter()
@@ -521,7 +521,7 @@ mod tests {
         // 然后让两人平局:high 应降,low 应升(双方趋近中间)。
         lb2.update_elo("model_high", "model_low", "tie")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let board_after = lb2.leaderboard().await;
         let elo_high_after = board_after
             .iter()
@@ -552,7 +552,7 @@ mod tests {
     async fn test_create_match_persists() {
         let (store, _tmp) = make_temp_store();
         let lb = Arc::new(ArenaLeaderboard::new().with_store(store.clone()));
-        lb.load_from_store().await.unwrap();
+        lb.load_from_store().await.expect("get should succeed");
         let before = arena_matches_count(&store);
         assert_eq!(before, 0, "fresh store should have 0 arena_matches");
 
@@ -599,7 +599,7 @@ mod tests {
     async fn test_vote_overrides_winner() {
         let (store, _tmp) = make_temp_store();
         let lb = Arc::new(ArenaLeaderboard::new().with_store(store.clone()));
-        lb.load_from_store().await.unwrap();
+        lb.load_from_store().await.expect("get should succeed");
 
         // 创建对战(stub 路径 winner=None)。
         let match_id = lb
@@ -609,7 +609,7 @@ mod tests {
                 "model_q".to_string(),
             )
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 验证初始 winner 为 None(stub 路径未自动评分)。
         assert!(
             winner_of(&store, &match_id).is_none(),
@@ -617,7 +617,7 @@ mod tests {
         );
 
         // 人工投票 winner=a。
-        lb.vote(&match_id, "a".to_string()).await.unwrap();
+        lb.vote(&match_id, "a".to_string()).await.expect("serialize should succeed");
         assert_eq!(
             winner_of(&store, &match_id).as_deref(),
             Some("a"),
@@ -646,11 +646,11 @@ mod tests {
         // 第一场:model_alpha 胜 model_beta(alpha↑ beta↓)。
         lb.update_elo("model_alpha", "model_beta", "a")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 第二场:再让 model_alpha 胜 model_gamma(alpha↑↑ gamma↓)。
         lb.update_elo("model_alpha", "model_gamma", "a")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // 此时:model_alpha(2 胜) > model_beta(0 胜 1 负) > model_gamma(0 胜 1 负,首战对 model_alpha)
         // 实际数值:alpha 赢两次,model_beta 输一次,model_gamma 输一次但对手是已升级的 alpha。
         let board = lb.leaderboard().await;

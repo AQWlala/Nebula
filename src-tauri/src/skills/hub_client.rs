@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 
 use anyhow::Result;
 use reqwest::Client;
@@ -327,8 +327,8 @@ mod tests {
 
     #[test]
     fn importer_constructs_with_store() {
-        let sqlite = crate::memory::sqlite_store::SqliteStore::open(":memory:").unwrap();
-        let store = SkillStore::new(sqlite).unwrap();
+        let sqlite = crate::memory::sqlite_store::SqliteStore::open(":memory:").expect("create should succeed");
+        let store = SkillStore::new(sqlite).expect("create should succeed");
         let _importer = TeamSkillsHubImporter::new("https://203.0.113.1", store);
     }
 
@@ -352,7 +352,7 @@ capabilities: ["file:read", "llm:call"]
 2. Identify issues
 3. Suggest improvements
 "#;
-        let result = SkillImporter::from_skill_md(md).unwrap();
+        let result = SkillImporter::from_skill_md(md).expect("test op should succeed");
         assert_eq!(result.name, "code-reviewer");
         assert_eq!(result.language, "code");
         assert_eq!(result.trust_level, 1);

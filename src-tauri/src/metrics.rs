@@ -607,7 +607,7 @@ mod tests {
             memory_stores_total: 5,
             ..Default::default()
         };
-        let j = serde_json::to_string(&s).unwrap();
+        let j = serde_json::to_string(&s).expect("serialize should succeed");
         assert!(j.contains("\"memory_stores_total\":5"));
     }
 

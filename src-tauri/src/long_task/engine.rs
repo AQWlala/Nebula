@@ -1124,7 +1124,7 @@ mod tests {
         assert_eq!(steps[1].seq, 2);
 
         // get_task 也能取回
-        let fetched = engine.get_task(&task.id).expect("get_task").unwrap();
+        let fetched = engine.get_task(&task.id).expect("get_task").expect("get should succeed");
         assert_eq!(fetched.goal, "test goal");
 
         cleanup(tmp);
@@ -1169,11 +1169,11 @@ mod tests {
         };
         let _ = engine
             .create_task("a".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         std::thread::sleep(std::time::Duration::from_millis(10));
         let _ = engine
             .create_task("b".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
 
         let list = engine.list_tasks(None).expect("list");
         assert_eq!(list.len(), 2);
@@ -1193,10 +1193,10 @@ mod tests {
         };
         let _ = engine
             .create_task("a".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let _ = engine
             .create_task("b".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
 
         let pending = engine
             .list_tasks(Some(LongTaskStatus::Pending))
@@ -1219,7 +1219,7 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], Some("ws".into()), None)
-            .unwrap();
+            .expect("test op should succeed");
         let started = engine.start(&task.id).expect("start");
         assert_eq!(started.status, LongTaskStatus::Running);
         assert!(started.started_at.is_some());
@@ -1227,7 +1227,7 @@ mod tests {
         // 等待一下让 runner 执行
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         // 应该已经失败(workspace 不存在)
-        let after = engine.get_task(&task.id).unwrap().unwrap();
+        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
         assert!(
             after.status == LongTaskStatus::Failed || after.status == LongTaskStatus::Running,
             "expected failed or running, got {}",
@@ -1246,8 +1246,8 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], Some("ws".into()), None)
-            .unwrap();
-        engine.start(&task.id).unwrap();
+            .expect("test op should succeed");
+        engine.start(&task.id).expect("engine op should succeed");
         let err = engine.start(&task.id).unwrap_err();
         assert!(err.to_string().contains("already running"));
         cleanup(tmp);
@@ -1263,7 +1263,7 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], Some("ws".into()), None)
-            .unwrap();
+            .expect("test op should succeed");
         // 手动标记为 completed
         {
             let conn = engine.sqlite.raw_connection();
@@ -1272,7 +1272,7 @@ mod tests {
                 "UPDATE long_tasks SET status = 'completed' WHERE id = ?1",
                 params![task.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
         let err = engine.start(&task.id).unwrap_err();
         assert!(err.to_string().contains("already completed"));
@@ -1289,12 +1289,12 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let cancelled = engine.cancel(&task.id).expect("cancel");
         assert_eq!(cancelled.status, LongTaskStatus::Cancelled);
         assert!(cancelled.finished_at.is_some());
         // 步骤应被标记为 skipped
-        let steps = engine.get_steps(&task.id).unwrap();
+        let steps = engine.get_steps(&task.id).expect("get should succeed");
         assert_eq!(steps[0].status, StepStatus::Skipped);
         cleanup(tmp);
     }
@@ -1309,8 +1309,8 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
-        engine.cancel(&task.id).unwrap();
+            .expect("test op should succeed");
+        engine.cancel(&task.id).expect("engine op should succeed");
         let err = engine.cancel(&task.id).unwrap_err();
         assert!(err.to_string().contains("already terminal"));
         cleanup(tmp);
@@ -1326,7 +1326,7 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let err = engine.pause(&task.id).unwrap_err();
         assert!(err.to_string().contains("not running"));
         cleanup(tmp);
@@ -1342,7 +1342,7 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let err = engine.resume(&task.id).unwrap_err();
         assert!(err.to_string().contains("not paused"));
         cleanup(tmp);
@@ -1358,10 +1358,10 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         assert!(engine.delete_task(&task.id).expect("delete"));
-        assert!(engine.get_task(&task.id).unwrap().is_none());
-        assert!(engine.get_steps(&task.id).unwrap().is_empty());
+        assert!(engine.get_task(&task.id).expect("get should succeed").is_none());
+        assert!(engine.get_steps(&task.id).expect("get should succeed").is_empty());
         cleanup(tmp);
     }
 
@@ -1375,7 +1375,7 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         // 手动标记为 running(模拟进程崩溃前的状态)
         {
             let conn = engine.sqlite.raw_connection();
@@ -1384,11 +1384,11 @@ mod tests {
                 "UPDATE long_tasks SET status = 'running' WHERE id = ?1",
                 params![task.id],
             )
-            .unwrap();
+            .expect("test op should succeed");
         }
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 1, "should reset 1 running task");
-        let after = engine.get_task(&task.id).unwrap().unwrap();
+        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after.status, LongTaskStatus::Paused);
         cleanup(tmp);
     }
@@ -1403,11 +1403,11 @@ mod tests {
         };
         let task = engine
             .create_task("g".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         // pending → 应保持不变
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 0);
-        let after = engine.get_task(&task.id).unwrap().unwrap();
+        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after.status, LongTaskStatus::Pending);
         cleanup(tmp);
     }
@@ -1576,7 +1576,7 @@ mod tests {
         assert!(nested.exists(), "nested STATE.md should be created");
 
         // 清理整个嵌套目录
-        let parent = nested.ancestors().nth(3).unwrap().to_path_buf();
+        let parent = nested.ancestors().nth(3).expect("test op should succeed").to_path_buf();
         let _ = fs::remove_dir_all(&parent);
         cleanup(tmp);
     }
@@ -1640,13 +1640,13 @@ mod tests {
         // 创建 3 个任务:2 个 Running,1 个 Completed
         let t1 = engine
             .create_task("running-1".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t2 = engine
             .create_task("running-2".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t3 = engine
             .create_task("completed-1".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         set_task_status(&engine, &t1.id, "running");
         set_task_status(&engine, &t2.id, "running");
         set_task_status(&engine, &t3.id, "completed");
@@ -1660,11 +1660,11 @@ mod tests {
         assert!(!paused.contains(&t3.id), "t3 should not be paused");
 
         // 验证状态:t1, t2 → Paused,t3 仍为 Completed
-        let after1 = engine.get_task(&t1.id).unwrap().unwrap();
+        let after1 = engine.get_task(&t1.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after1.status, LongTaskStatus::Paused);
-        let after2 = engine.get_task(&t2.id).unwrap().unwrap();
+        let after2 = engine.get_task(&t2.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after2.status, LongTaskStatus::Paused);
-        let after3 = engine.get_task(&t3.id).unwrap().unwrap();
+        let after3 = engine.get_task(&t3.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after3.status, LongTaskStatus::Completed);
 
         cleanup(tmp);
@@ -1680,10 +1680,10 @@ mod tests {
         };
         let t1 = engine
             .create_task("running".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t2 = engine
             .create_task("paused".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         // t1 Running,t2 已 Paused
         set_task_status(&engine, &t1.id, "running");
         set_task_status(&engine, &t2.id, "paused");
@@ -1694,7 +1694,7 @@ mod tests {
         assert_eq!(paused[0], t1.id, "only t1 should be in paused list");
 
         // t2 状态应保持 Paused(不变)
-        let after2 = engine.get_task(&t2.id).unwrap().unwrap();
+        let after2 = engine.get_task(&t2.id).expect("get should succeed").expect("get should succeed");
         assert_eq!(after2.status, LongTaskStatus::Paused);
 
         cleanup(tmp);
@@ -1711,13 +1711,13 @@ mod tests {
         // 创建 3 个 Running 任务(按 created_at 升序)
         let t1 = engine
             .create_task("r1".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t2 = engine
             .create_task("r2".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t3 = engine
             .create_task("r3".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         set_task_status(&engine, &t1.id, "running");
         set_task_status(&engine, &t2.id, "running");
         set_task_status(&engine, &t3.id, "running");
@@ -1742,13 +1742,13 @@ mod tests {
         };
         let t_pending = engine
             .create_task("pending".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t_running = engine
             .create_task("running".into(), vec![step.clone()], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         let t_completed = engine
             .create_task("completed".into(), vec![step], None, None)
-            .unwrap();
+            .expect("test op should succeed");
         // t_pending 保持 Pending
         set_task_status(&engine, &t_running.id, "running");
         set_task_status(&engine, &t_completed.id, "completed");

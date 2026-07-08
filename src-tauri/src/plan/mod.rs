@@ -159,7 +159,7 @@ mod tests {
             "t",
             ActionKind::Delete,
         );
-        let req_id = match gate.unwrap() {
+        let req_id = match gate.expect("test op should succeed") {
             PendingGate::Confirm(c) => c.id,
             _ => unreachable!(),
         };

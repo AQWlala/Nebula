@@ -676,13 +676,13 @@ mod tests {
     #[test]
     fn provider_kind_serde_kebab_case() {
         let json = r#""openai-compat""#;
-        let k: ProviderKind = serde_json::from_str(json).unwrap();
+        let k: ProviderKind = serde_json::from_str(json).expect("parse should succeed");
         assert_eq!(k, ProviderKind::OpenAiCompat);
-        let s = serde_json::to_string(&ProviderKind::Anthropic).unwrap();
+        let s = serde_json::to_string(&ProviderKind::Anthropic).expect("serialize should succeed");
         assert_eq!(s, r#""anthropic""#);
-        let s = serde_json::to_string(&ProviderKind::Ollama).unwrap();
+        let s = serde_json::to_string(&ProviderKind::Ollama).expect("serialize should succeed");
         assert_eq!(s, r#""ollama""#);
-        let s = serde_json::to_string(&ProviderKind::Custom).unwrap();
+        let s = serde_json::to_string(&ProviderKind::Custom).expect("serialize should succeed");
         assert_eq!(s, r#""custom""#);
     }
 
@@ -820,7 +820,7 @@ mod tests {
     fn ssrf_allows_loopback_for_ollama() {
         let mut cfg = ModelsConfig::default_builtin();
         // ollama 的 base_url 改为 loopback（应该允许）
-        let ollama = cfg.providers.iter_mut().find(|p| p.id == "ollama").unwrap();
+        let ollama = cfg.providers.iter_mut().find(|p| p.id == "ollama").expect("query should succeed");
         ollama.base_url = Some("http://127.0.0.1:11434".to_string());
         // 不应因 SSRF 报错（可能因其他原因报错，但不应是 SSRF）
         match cfg.validate() {
@@ -850,7 +850,7 @@ mod tests {
         let json = serde_json::to_string(&cfg).expect("serialize");
         let loaded: ModelsConfig = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(loaded.work_type_overrides.len(), 1);
-        let entry = loaded.work_type_overrides.get("evolution_extract").unwrap();
+        let entry = loaded.work_type_overrides.get("evolution_extract").expect("get should succeed");
         assert_eq!(entry.provider, "ollama");
         assert_eq!(entry.model, "qwen2.5:14b");
         assert_eq!(entry.temperature, Some(0.5));

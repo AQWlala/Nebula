@@ -60,9 +60,9 @@ fn phase_display_matches_as_str() {
 #[test]
 fn phase_serialize_deserialize_roundtrip() {
     let phase = EvolutionPhase::Reflect;
-    let json = serde_json::to_string(&phase).unwrap();
+    let json = serde_json::to_string(&phase).expect("serialize should succeed");
     assert_eq!(json, "\"reflect\"");
-    let back: EvolutionPhase = serde_json::from_str(&json).unwrap();
+    let back: EvolutionPhase = serde_json::from_str(&json).expect("parse should succeed");
     assert_eq!(back, phase);
 }
 
@@ -106,22 +106,22 @@ fn evolution_log_entry_id_is_unique_per_phase() {
 
 #[tokio::test]
 async fn evolution_log_append_creates_file_with_header() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log_path = dir.path().join("evolution_log.md");
     let log = EvolutionLog::new(log_path.clone());
 
     let entry = EvolutionLogEntry::new(EvolutionPhase::Extract, "agent_a", "mem-1", 100);
-    let id = log.append(&entry).await.unwrap();
+    let id = log.append(&entry).await.expect("task should complete");
     assert_eq!(id, entry.entry_id);
 
-    let content = std::fs::read_to_string(&log_path).unwrap();
+    let content = std::fs::read_to_string(&log_path).expect("get should succeed");
     assert!(content.starts_with("# Evolution Log"));
     assert!(content.contains(&entry.entry_id));
 }
 
 #[tokio::test]
 async fn evolution_log_append_multiple_entries() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
 
     // 用不同的 master_id 区分条目（避免秒级时间戳相同导致 entry_id 重复）
@@ -132,12 +132,12 @@ async fn evolution_log_append_multiple_entries() {
             &format!("mem-{i}"),
             100 * (i as u64 + 1),
         );
-        log.append(&entry).await.unwrap();
+        log.append(&entry).await.expect("task should complete");
         // 确保时间戳不同（entry_id 含秒级时间戳）
         tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     }
 
-    let entries = log.list_all().unwrap();
+    let entries = log.list_all().expect("test op should succeed");
     assert_eq!(entries.len(), 3);
     // 按写入顺序
     assert_eq!(entries[0].memory_id, "mem-0");
@@ -147,13 +147,13 @@ async fn evolution_log_append_multiple_entries() {
 
 #[tokio::test]
 async fn evolution_log_find_entry_by_id() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
 
     let entry = EvolutionLogEntry::new(EvolutionPhase::Soul, "agent_a", "", 512);
-    log.append(&entry).await.unwrap();
+    log.append(&entry).await.expect("task should complete");
 
-    let found = log.find_entry(&entry.entry_id).unwrap().unwrap();
+    let found = log.find_entry(&entry.entry_id).expect("query should succeed").expect("query should succeed");
     assert_eq!(found.entry_id, entry.entry_id);
     assert_eq!(found.phase, EvolutionPhase::Soul);
     assert_eq!(found.master_id, "agent_a");
@@ -161,60 +161,60 @@ async fn evolution_log_find_entry_by_id() {
 
 #[tokio::test]
 async fn evolution_log_find_entry_returns_none_for_unknown() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
 
     // 空文件
-    assert!(log.find_entry("nonexistent").unwrap().is_none());
+    assert!(log.find_entry("nonexistent").expect("query should succeed").is_none());
 
     // 写入一条后再查找不存在的
     let entry = EvolutionLogEntry::new(EvolutionPhase::Extract, "a", "m", 100);
-    log.append(&entry).await.unwrap();
-    assert!(log.find_entry("nonexistent").unwrap().is_none());
+    log.append(&entry).await.expect("task should complete");
+    assert!(log.find_entry("nonexistent").expect("query should succeed").is_none());
 }
 
 #[tokio::test]
 async fn evolution_log_remove_entry_deletes_paragraph() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log_path = dir.path().join("evolution_log.md");
     let log = EvolutionLog::new(log_path.clone());
 
     let e1 = EvolutionLogEntry::new(EvolutionPhase::Extract, "agent_a", "m1", 100);
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     let e2 = EvolutionLogEntry::new(EvolutionPhase::Soul, "agent_b", "", 200);
-    log.append(&e1).await.unwrap();
-    log.append(&e2).await.unwrap();
+    log.append(&e1).await.expect("task should complete");
+    log.append(&e2).await.expect("task should complete");
 
     // 删除 e1
-    let removed = log.remove_entry(&e1.entry_id).await.unwrap();
+    let removed = log.remove_entry(&e1.entry_id).await.expect("delete should succeed");
     assert!(removed);
 
-    let content = std::fs::read_to_string(&log_path).unwrap();
+    let content = std::fs::read_to_string(&log_path).expect("get should succeed");
     assert!(!content.contains(&e1.entry_id));
     assert!(content.contains(&e2.entry_id));
 }
 
 #[tokio::test]
 async fn evolution_log_remove_entry_returns_false_for_unknown() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
-    let removed = log.remove_entry("nonexistent").await.unwrap();
+    let removed = log.remove_entry("nonexistent").await.expect("delete should succeed");
     assert!(!removed);
 }
 
 #[tokio::test]
 async fn evolution_log_read_all_returns_empty_when_missing() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("nonexistent.md"));
-    let content = log.read_all().unwrap();
+    let content = log.read_all().expect("get should succeed");
     assert!(content.is_empty());
 }
 
 #[tokio::test]
 async fn evolution_log_list_all_returns_empty_when_no_file() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("nonexistent.md"));
-    let entries = log.list_all().unwrap();
+    let entries = log.list_all().expect("test op should succeed");
     assert!(entries.is_empty());
 }
 
@@ -224,21 +224,21 @@ async fn evolution_log_list_all_returns_empty_when_no_file() {
 
 #[test]
 fn roller_remove_entry_returns_false_when_not_found() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
     let roller = Roller::new(Arc::new(log), dir.path().join("SOUL.md").into());
 
     let mut soul = String::from("some content\n");
     let result = roller
         .remove_entry_from_soul_md(&mut soul, "nonexistent")
-        .unwrap();
+        .expect("test op should succeed");
     assert!(!result);
     assert_eq!(soul, "some content\n");
 }
 
 #[test]
 fn roller_remove_entry_deletes_paragraph() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
     let roller = Roller::new(Arc::new(log), dir.path().join("SOUL.md").into());
 
@@ -252,7 +252,7 @@ fn roller_remove_entry_deletes_paragraph() {
     );
     let result = roller
         .remove_entry_from_soul_md(&mut soul, "evolve_test_soul")
-        .unwrap();
+        .expect("test op should succeed");
     assert!(result);
     assert!(!soul.contains("evolve_test_soul"));
     assert!(soul.contains("evolve_test_extract"));
@@ -260,7 +260,7 @@ fn roller_remove_entry_deletes_paragraph() {
 
 #[test]
 fn roller_remove_entry_deletes_first_paragraph() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
     let roller = Roller::new(Arc::new(log), dir.path().join("SOUL.md").into());
 
@@ -274,7 +274,7 @@ fn roller_remove_entry_deletes_first_paragraph() {
     );
     let result = roller
         .remove_entry_from_soul_md(&mut soul, "evolve_first")
-        .unwrap();
+        .expect("test op should succeed");
     assert!(result);
     assert!(!soul.contains("evolve_first"));
     assert!(soul.contains("evolve_second"));
@@ -282,7 +282,7 @@ fn roller_remove_entry_deletes_first_paragraph() {
 
 #[test]
 fn roller_remove_entry_deletes_last_paragraph_before_end_tag() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("test op should succeed");
     let log = EvolutionLog::new(dir.path().join("evolution_log.md"));
     let roller = Roller::new(Arc::new(log), dir.path().join("SOUL.md").into());
 
@@ -294,7 +294,7 @@ fn roller_remove_entry_deletes_last_paragraph_before_end_tag() {
     );
     let result = roller
         .remove_entry_from_soul_md(&mut soul, "evolve_only")
-        .unwrap();
+        .expect("test op should succeed");
     assert!(result);
     assert!(!soul.contains("evolve_only"));
     // END SECTION 标签应保留
@@ -354,11 +354,11 @@ fn evolution_engine_config_default_values() {
 #[test]
 fn evolution_engine_config_serializes_to_json() {
     let cfg = super::EvolutionEngineConfig::default();
-    let json = serde_json::to_string(&cfg).unwrap();
+    let json = serde_json::to_string(&cfg).expect("serialize should succeed");
     assert!(json.contains("\"enabled\":false"));
     assert!(json.contains("\"phase_timeout_secs\":30"));
 
-    let back: super::EvolutionEngineConfig = serde_json::from_str(&json).unwrap();
+    let back: super::EvolutionEngineConfig = serde_json::from_str(&json).expect("parse should succeed");
     assert_eq!(back.phase_timeout_secs, cfg.phase_timeout_secs);
     assert_eq!(back.phase4_max_lines, cfg.phase4_max_lines);
 }
@@ -376,8 +376,8 @@ fn evolution_engine_config_supports_custom_values() {
         log_path: "/custom/path/log.md".to_string(),
         soul_md_path: "/custom/SOUL.md".to_string(),
     };
-    let json = serde_json::to_string(&cfg).unwrap();
-    let back: super::EvolutionEngineConfig = serde_json::from_str(&json).unwrap();
+    let json = serde_json::to_string(&cfg).expect("serialize should succeed");
+    let back: super::EvolutionEngineConfig = serde_json::from_str(&json).expect("parse should succeed");
     assert!(back.enabled);
     assert_eq!(back.phase_timeout_secs, 60);
     assert_eq!(back.phase1_l1_window, 100);

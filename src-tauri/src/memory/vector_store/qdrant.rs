@@ -184,7 +184,7 @@ mod tests {
     async fn qdrant_upsert_returns_err_stub() {
         #[cfg(feature = "qdrant")]
         {
-            let store = QdrantStore::new("http://127.0.0.1:6333", 4).unwrap();
+            let store = QdrantStore::new("http://127.0.0.1:6333", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await;
             assert!(err.is_err(), "P2 MVP stub upsert must Err");
@@ -197,7 +197,7 @@ mod tests {
     async fn qdrant_search_returns_err_stub() {
         #[cfg(feature = "qdrant")]
         {
-            let store = QdrantStore::new("http://127.0.0.1:6333", 4).unwrap();
+            let store = QdrantStore::new("http://127.0.0.1:6333", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.search(&[1.0, 0.0, 0.0, 0.0], 1).await;
             assert!(err.is_err(), "P2 MVP stub search must Err");
@@ -209,7 +209,7 @@ mod tests {
     async fn qdrant_delete_returns_err_stub() {
         #[cfg(feature = "qdrant")]
         {
-            let store = QdrantStore::new("http://127.0.0.1:6333", 4).unwrap();
+            let store = QdrantStore::new("http://127.0.0.1:6333", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.delete("a").await;
             assert!(err.is_err(), "P2 MVP stub delete must Err");
@@ -221,7 +221,7 @@ mod tests {
     fn qdrant_dim_and_path_static() {
         #[cfg(feature = "qdrant")]
         {
-            let store = QdrantStore::new("http://127.0.0.1:6333/", 8).unwrap();
+            let store = QdrantStore::new("http://127.0.0.1:6333/", 8).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             assert_eq!(vs.dim(), 8);
             assert_eq!(vs.path(), "http://127.0.0.1:6333");

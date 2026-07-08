@@ -367,7 +367,7 @@ mod tests {
         // 1. 准备临时 SQLite store,插入 3 条记忆。
         let mut db_path = env::temp_dir();
         db_path.push(format!("nebula_l0_prewarm_{}.db", uuid::Uuid::new_v4()));
-        let store = SqliteStore::open(&db_path).unwrap();
+        let store = SqliteStore::open(&db_path).expect("create should succeed");
         for i in 0..3 {
             let mut m = Memory::new(
                 MemoryType::Semantic,
@@ -376,7 +376,7 @@ mod tests {
                 SourceKind::UserInput,
             );
             m.id = format!("prewarm-{i}");
-            store.insert(&m).await.unwrap();
+            store.insert(&m).await.expect("insert should succeed");
         }
 
         // 2. 新建空 L0Cache,验证初始 stats 全零。
@@ -419,7 +419,7 @@ mod tests {
             "nebula_l0_prewarm_limit_{}.db",
             uuid::Uuid::new_v4()
         ));
-        let store = SqliteStore::open(&db_path).unwrap();
+        let store = SqliteStore::open(&db_path).expect("create should succeed");
         for i in 0..5 {
             let mut m = Memory::new(
                 MemoryType::Semantic,
@@ -428,7 +428,7 @@ mod tests {
                 SourceKind::UserInput,
             );
             m.id = format!("limit-{i}");
-            store.insert(&m).await.unwrap();
+            store.insert(&m).await.expect("insert should succeed");
         }
 
         let cache = L0Cache::new();

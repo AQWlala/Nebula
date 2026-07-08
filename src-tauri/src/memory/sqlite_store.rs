@@ -1488,10 +1488,10 @@ mod tests {
     #[tokio::test]
     async fn insert_and_get_round_trip() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let m = sample();
-        store.insert(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert_eq!(got.id, m.id);
         assert_eq!(got.layer, MemoryLayer::L3);
         assert!((got.importance - 0.42).abs() < 1e-6);
@@ -1501,11 +1501,11 @@ mod tests {
     #[tokio::test]
     async fn candidates_for_compression_skips_pinned() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut m = sample();
         m.pinned = true;
-        store.insert(&m).await.unwrap();
-        let cands = store.candidates_for_compression(0, 1.0, 100).await.unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let cands = store.candidates_for_compression(0, 1.0, 100).await.expect("update should succeed");
         assert!(
             cands.is_empty(),
             "pinned memories must never be compression candidates"
@@ -1518,7 +1518,7 @@ mod tests {
     #[tokio::test]
     async fn list_recent_in_domain_filters_correctly() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // shared 域(默认)
         let mut a = sample();
@@ -1533,12 +1533,12 @@ mod tests {
         c.id = "agent_b-1".to_string();
         c.domain = "agent_b".to_string();
 
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
-        store.insert(&c).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
+        store.insert(&c).await.expect("insert should succeed");
 
         // 跨域查询(旧方法,向后兼容):返回全部 3 条
-        let all = store.list_recent(100).await.unwrap();
+        let all = store.list_recent(100).await.expect("update should succeed");
         assert_eq!(
             all.len(),
             3,
@@ -1546,12 +1546,12 @@ mod tests {
         );
 
         // agent_a 域查询:仅返回 1 条
-        let agent_a_only = store.list_recent_in_domain("agent_a", 100).await.unwrap();
+        let agent_a_only = store.list_recent_in_domain("agent_a", 100).await.expect("update should succeed");
         assert_eq!(agent_a_only.len(), 1);
         assert_eq!(agent_a_only[0].id, "agent_a-1");
 
         // shared 域查询:仅返回 1 条
-        let shared_only = store.list_recent_in_domain("shared", 100).await.unwrap();
+        let shared_only = store.list_recent_in_domain("shared", 100).await.expect("update should succeed");
         assert_eq!(shared_only.len(), 1);
         assert_eq!(shared_only[0].id, "shared-1");
 
@@ -1559,7 +1559,7 @@ mod tests {
         let empty = store
             .list_recent_in_domain("nonexistent", 100)
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(empty.is_empty());
 
         let _ = std::fs::remove_file(path);
@@ -1584,7 +1584,7 @@ mod tests {
     #[tokio::test]
     async fn candidates_for_compression_skips_already_compressed() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut a = sample();
         a.id = "absorbed".to_string();
         a.importance = 0.1;
@@ -1593,13 +1593,13 @@ mod tests {
         b.id = "fresh".to_string();
         b.importance = 0.1;
         b.last_access = 0;
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
         store
             .update_compressed_from("absorbed", "summary-a")
             .await
-            .unwrap();
-        let cands = store.candidates_for_compression(0, 1.0, 100).await.unwrap();
+            .expect("test op should succeed");
+        let cands = store.candidates_for_compression(0, 1.0, 100).await.expect("update should succeed");
         assert_eq!(cands.len(), 1);
         assert_eq!(cands[0].id, "fresh");
         let _ = std::fs::remove_file(path);
@@ -1608,14 +1608,14 @@ mod tests {
     #[tokio::test]
     async fn list_by_layer_returns_matching_rows() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut a = sample();
         a.layer = MemoryLayer::L2;
         let mut b = sample();
         b.layer = MemoryLayer::L3;
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
-        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
+        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.expect("update should succeed");
         assert_eq!(l2.len(), 1);
         assert_eq!(l2[0].id, a.id);
         let _ = std::fs::remove_file(path);
@@ -1624,22 +1624,22 @@ mod tests {
     #[tokio::test]
     async fn get_many_returns_only_uncompressed() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut a = sample();
         a.id = "id-a".to_string();
         let mut b = sample();
         b.id = "id-b".to_string();
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
         store
             .update_compressed_from("id-a", "summary-x")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let hits = store
             .get_many(&["id-a".to_string(), "id-b".to_string()])
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 1, "compressed source must be excluded");
         assert_eq!(hits[0].id, "id-b");
         let _ = std::fs::remove_file(path);
@@ -1648,18 +1648,18 @@ mod tests {
     #[tokio::test]
     async fn list_recent_excludes_compressed_rows() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut a = sample();
         a.id = "kept".to_string();
         let mut b = sample();
         b.id = "gone".to_string();
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
         store
             .update_compressed_from("gone", "summary-z")
             .await
-            .unwrap();
-        let recent = store.list_recent(10).await.unwrap();
+            .expect("test op should succeed");
+        let recent = store.list_recent(10).await.expect("update should succeed");
         assert!(recent.iter().all(|m| m.id != "gone"));
         assert!(recent.iter().any(|m| m.id == "kept"));
         let _ = std::fs::remove_file(path);
@@ -1668,20 +1668,20 @@ mod tests {
     #[tokio::test]
     async fn list_by_layer_excludes_compressed_rows() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut a = sample();
         a.id = "alive-l2".to_string();
         a.layer = MemoryLayer::L2;
         let mut b = sample();
         b.id = "dead-l2".to_string();
         b.layer = MemoryLayer::L2;
-        store.insert(&a).await.unwrap();
-        store.insert(&b).await.unwrap();
+        store.insert(&a).await.expect("insert should succeed");
+        store.insert(&b).await.expect("insert should succeed");
         store
             .update_compressed_from("dead-l2", "summary-l2")
             .await
-            .unwrap();
-        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.unwrap();
+            .expect("test op should succeed");
+        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.expect("update should succeed");
         assert_eq!(l2.len(), 1);
         assert_eq!(l2[0].id, "alive-l2");
         let _ = std::fs::remove_file(path);
@@ -1690,7 +1690,7 @@ mod tests {
     #[tokio::test]
     async fn update_compressed_from_unknown_errors() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let res = store.update_compressed_from("nope", "sum").await;
         assert!(res.is_err());
         let _ = std::fs::remove_file(path);
@@ -1747,8 +1747,8 @@ mod tests {
 
         // 插入 + 读取往返。
         let m = sample();
-        store.insert(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert_eq!(got.id, m.id);
         assert_eq!(got.layer, MemoryLayer::L3);
         assert!((got.importance - 0.42).abs() < 1e-6);
@@ -1757,7 +1757,7 @@ mod tests {
         drop(store);
         // 重新打开(用正确 key)验证持久化。
         let store2 = SqliteStore::open_encrypted(&path, &key).expect("reopen encrypted");
-        let got2 = store2.get(&m.id).await.unwrap().unwrap();
+        let got2 = store2.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert_eq!(got2.id, m.id, "data must persist across reopens");
         drop(store2);
         let _ = std::fs::remove_file(path);
@@ -1770,21 +1770,21 @@ mod tests {
     #[tokio::test]
     async fn insert_and_query_semantic_cache_entry_round_trip() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // 初始查询返回 None。
-        let got = store.query_semantic_cache_entry("sem:abc").await.unwrap();
+        let got = store.query_semantic_cache_entry("sem:abc").await.expect("query should succeed");
         assert!(got.is_none(), "expected None for missing entry");
 
         // 插入后再查,返回 Some(response)。
         store
             .insert_semantic_cache_entry("sem:abc", "hello world")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let got = store
             .query_semantic_cache_entry("sem:abc")
             .await
-            .unwrap()
+            .expect("test op should succeed")
             .expect("entry must exist after insert");
         assert_eq!(got, "hello world");
         let _ = std::fs::remove_file(path);
@@ -1793,21 +1793,21 @@ mod tests {
     #[tokio::test]
     async fn insert_semantic_cache_entry_is_idempotent() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // 同 query_hash 重复写入,后写覆盖前写(INSERT OR REPLACE)。
         store
             .insert_semantic_cache_entry("sem:dup", "first")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         store
             .insert_semantic_cache_entry("sem:dup", "second")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let got = store
             .query_semantic_cache_entry("sem:dup")
             .await
-            .unwrap()
+            .expect("test op should succeed")
             .expect("entry must exist");
         assert_eq!(got, "second", "second write must overwrite first");
         let _ = std::fs::remove_file(path);
@@ -1816,25 +1816,25 @@ mod tests {
     #[tokio::test]
     async fn list_recent_semantic_cache_entries_orders_by_inserted_at_desc() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // 插入三条,中间隔 1 秒保证 inserted_at 不同。
         store
             .insert_semantic_cache_entry("sem:old", "old")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         store
             .insert_semantic_cache_entry("sem:mid", "mid")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         store
             .insert_semantic_cache_entry("sem:new", "new")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
-        let rows = store.list_recent_semantic_cache_entries(10).await.unwrap();
+        let rows = store.list_recent_semantic_cache_entries(10).await.expect("update should succeed");
         assert_eq!(rows.len(), 3, "should have 3 entries");
         // 最新插入的应排第一。
         assert_eq!(rows[0].0, "sem:new", "newest must come first");
@@ -1846,15 +1846,15 @@ mod tests {
     #[tokio::test]
     async fn list_recent_semantic_cache_entries_respects_limit() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         for i in 0..5 {
             store
                 .insert_semantic_cache_entry(&format!("sem:{i}"), &format!("resp-{i}"))
                 .await
-                .unwrap();
+                .expect("test op should succeed");
         }
-        let rows = store.list_recent_semantic_cache_entries(3).await.unwrap();
+        let rows = store.list_recent_semantic_cache_entries(3).await.expect("update should succeed");
         assert_eq!(rows.len(), 3, "limit=3 must clamp to 3 rows");
         let _ = std::fs::remove_file(path);
     }
@@ -1865,13 +1865,13 @@ mod tests {
     #[tokio::test]
     async fn insert_and_get_preserves_ingest_cost() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut m = sample();
         m.ingest_cost = Some(0.0072);
-        store.insert(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert!(
-            (got.ingest_cost.unwrap() - 0.0072).abs() < 1e-9,
+            (got.ingest_cost.expect("test op should succeed") - 0.0072).abs() < 1e-9,
             "ingest_cost round-trip failed"
         );
         let _ = std::fs::remove_file(path);
@@ -1881,11 +1881,11 @@ mod tests {
     #[tokio::test]
     async fn insert_and_get_preserves_ingest_cost_none() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let m = sample();
         // sample() 默认 ingest_cost = None
-        store.insert(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert!(got.ingest_cost.is_none(), "ingest_cost should remain None");
         let _ = std::fs::remove_file(path);
     }
@@ -1895,11 +1895,11 @@ mod tests {
     #[tokio::test]
     async fn insert_and_get_preserves_ingest_cost_zero() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut m = sample();
         m.ingest_cost = Some(0.0);
-        store.insert(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.insert(&m).await.expect("insert should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert_eq!(got.ingest_cost, Some(0.0));
         let _ = std::fs::remove_file(path);
     }
@@ -1908,16 +1908,16 @@ mod tests {
     #[tokio::test]
     async fn update_guarded_updates_ingest_cost() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let mut m = sample();
         m.ingest_cost = Some(0.001);
-        store.insert(&m).await.unwrap();
+        store.insert(&m).await.expect("insert should succeed");
         // 更新为新的成本值
         m.ingest_cost = Some(0.005);
-        store.update(&m).await.unwrap();
-        let got = store.get(&m.id).await.unwrap().unwrap();
+        store.update(&m).await.expect("update should succeed");
+        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
         assert!(
-            (got.ingest_cost.unwrap() - 0.005).abs() < 1e-9,
+            (got.ingest_cost.expect("test op should succeed") - 0.005).abs() < 1e-9,
             "update_guarded should update ingest_cost"
         );
         let _ = std::fs::remove_file(path);

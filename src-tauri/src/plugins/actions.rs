@@ -81,7 +81,7 @@ mod tests {
         let out = action
             .invoke(serde_json::json!({"title": "hi", "body": "world", "level": "info"}))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(out.success, "message: {}", out.message);
         assert!(out.message.contains("sent"));
     }
@@ -89,7 +89,7 @@ mod tests {
     #[tokio::test]
     async fn notify_uses_defaults_when_params_missing() {
         let action = NotifyAction::new();
-        let out = action.invoke(serde_json::json!({})).await.unwrap();
+        let out = action.invoke(serde_json::json!({})).await.expect("task should complete");
         assert!(out.success);
     }
 

@@ -417,24 +417,24 @@ mod tests {
     #[test]
     fn inbox_store_insert_and_list() {
         let store = mem_store();
-        store.insert(&sample_msg("m1", "telegram", 1000)).unwrap();
-        store.insert(&sample_msg("m2", "discord", 2000)).unwrap();
-        store.insert(&sample_msg("m3", "webchat", 1500)).unwrap();
+        store.insert(&sample_msg("m1", "telegram", 1000)).expect("insert should succeed");
+        store.insert(&sample_msg("m2", "discord", 2000)).expect("insert should succeed");
+        store.insert(&sample_msg("m3", "webchat", 1500)).expect("insert should succeed");
 
         // 全量列表(按 ts 降序):m2(2000) > m3(1500) > m1(1000)
-        let all = store.list(100, 0, None).unwrap();
+        let all = store.list(100, 0, None).expect("update should succeed");
         assert_eq!(all.len(), 3, "expected 3 messages, got {}", all.len());
         assert_eq!(all[0].id, "m2");
         assert_eq!(all[1].id, "m3");
         assert_eq!(all[2].id, "m1");
 
         // 渠道过滤:只取 telegram
-        let tg = store.list(100, 0, Some("telegram")).unwrap();
+        let tg = store.list(100, 0, Some("telegram")).expect("update should succeed");
         assert_eq!(tg.len(), 1);
         assert_eq!(tg[0].id, "m1");
 
         // limit + offset
-        let paged = store.list(1, 1, None).unwrap();
+        let paged = store.list(1, 1, None).expect("update should succeed");
         assert_eq!(paged.len(), 1);
         assert_eq!(paged[0].id, "m3");
     }
@@ -442,37 +442,37 @@ mod tests {
     #[test]
     fn inbox_store_mark_read() {
         let store = mem_store();
-        store.insert(&sample_msg("r1", "telegram", 1000)).unwrap();
-        store.insert(&sample_msg("r2", "telegram", 2000)).unwrap();
-        store.insert(&sample_msg("r3", "telegram", 3000)).unwrap();
+        store.insert(&sample_msg("r1", "telegram", 1000)).expect("insert should succeed");
+        store.insert(&sample_msg("r2", "telegram", 2000)).expect("insert should succeed");
+        store.insert(&sample_msg("r3", "telegram", 3000)).expect("insert should succeed");
 
-        assert_eq!(store.unread_count().unwrap(), 3);
+        assert_eq!(store.unread_count().expect("get should succeed"), 3);
         store
             .mark_read(&["r1".to_string(), "r2".to_string()])
-            .unwrap();
-        assert_eq!(store.unread_count().unwrap(), 1);
+            .expect("test op should succeed");
+        assert_eq!(store.unread_count().expect("get should succeed"), 1);
 
         // 已读消息的 read 字段应为 true
-        let r1 = store.get_by_id("r1").unwrap().unwrap();
+        let r1 = store.get_by_id("r1").expect("get should succeed").expect("get should succeed");
         assert!(r1.read);
-        let r3 = store.get_by_id("r3").unwrap().unwrap();
+        let r3 = store.get_by_id("r3").expect("get should succeed").expect("get should succeed");
         assert!(!r3.read);
 
         // mark_read 不存在的 id 不报错
-        store.mark_read(&["nonexistent".to_string()]).unwrap();
+        store.mark_read(&["nonexistent".to_string()]).expect("get should succeed");
     }
 
     #[test]
     fn inbox_store_unread_count() {
         let store = mem_store();
-        assert_eq!(store.unread_count().unwrap(), 0);
+        assert_eq!(store.unread_count().expect("get should succeed"), 0);
 
-        store.insert(&sample_msg("u1", "telegram", 1000)).unwrap();
-        store.insert(&sample_msg("u2", "discord", 2000)).unwrap();
-        assert_eq!(store.unread_count().unwrap(), 2);
+        store.insert(&sample_msg("u1", "telegram", 1000)).expect("insert should succeed");
+        store.insert(&sample_msg("u2", "discord", 2000)).expect("insert should succeed");
+        assert_eq!(store.unread_count().expect("get should succeed"), 2);
 
-        store.mark_read(&["u1".to_string()]).unwrap();
-        assert_eq!(store.unread_count().unwrap(), 1);
+        store.mark_read(&["u1".to_string()]).expect("get should succeed");
+        assert_eq!(store.unread_count().expect("get should succeed"), 1);
     }
 
     #[test]
@@ -483,11 +483,11 @@ mod tests {
         let mgr = InboxManager::new(store.clone(), router);
 
         let msg = sample_msg("mgr-1", "telegram", 12345);
-        let id = mgr.ingest(msg).unwrap();
+        let id = mgr.ingest(msg).expect("test op should succeed");
         assert_eq!(id, "mgr-1");
 
         // ingest 后立即可 list
-        let list = store.list(100, 0, None).unwrap();
+        let list = store.list(100, 0, None).expect("update should succeed");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "mgr-1");
         assert!(
@@ -507,14 +507,14 @@ mod tests {
             read: false, // 故意设为 false,InboxManager 应纠正
             original_message_id: None,
         };
-        mgr.ingest(out_msg).unwrap();
-        let out = store.get_by_id("mgr-out").unwrap().unwrap();
+        mgr.ingest(out_msg).expect("test op should succeed");
+        let out = store.get_by_id("mgr-out").expect("get should succeed").expect("get should succeed");
         assert!(
             out.read,
             "outbound message should be marked read after ingest"
         );
         assert_eq!(
-            store.unread_count().unwrap(),
+            store.unread_count().expect("get should succeed"),
             1,
             "only the inbound one is unread"
         );
@@ -542,19 +542,19 @@ mod tests {
     #[test]
     fn parse_channel_kind_handles_known_and_unknown() {
         assert_eq!(
-            parse_channel_kind("telegram").unwrap(),
+            parse_channel_kind("telegram").expect("parse should succeed"),
             ChannelKind::Telegram
         );
-        assert_eq!(parse_channel_kind("discord").unwrap(), ChannelKind::Discord);
-        assert_eq!(parse_channel_kind("webchat").unwrap(), ChannelKind::WebChat);
-        assert_eq!(parse_channel_kind("web").unwrap(), ChannelKind::WebChat);
+        assert_eq!(parse_channel_kind("discord").expect("parse should succeed"), ChannelKind::Discord);
+        assert_eq!(parse_channel_kind("webchat").expect("parse should succeed"), ChannelKind::WebChat);
+        assert_eq!(parse_channel_kind("web").expect("parse should succeed"), ChannelKind::WebChat);
         assert_eq!(
-            parse_channel_kind("jiuwenswarm").unwrap(),
+            parse_channel_kind("jiuwenswarm").expect("parse should succeed"),
             ChannelKind::JiuwenSwarm
         );
         // 大小写不敏感
         assert_eq!(
-            parse_channel_kind("Telegram").unwrap(),
+            parse_channel_kind("Telegram").expect("parse should succeed"),
             ChannelKind::Telegram
         );
         // 未知渠道

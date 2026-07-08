@@ -479,7 +479,7 @@ mod tests {
             active: true,
             paths: vec!["/tmp".to_string()],
         };
-        let json = serde_json::to_string(&s).unwrap();
+        let json = serde_json::to_string(&s).expect("serialize should succeed");
         assert!(json.contains("\"active\":true"));
         assert!(json.contains("/tmp"));
     }

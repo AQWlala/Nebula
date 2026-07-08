@@ -107,8 +107,8 @@ mod tests {
                 duration_ms: 1,
             },
         )
-        .unwrap();
-        let rows = ledger.recent(10).unwrap();
+        .expect("test op should succeed");
+        let rows = ledger.recent(10).expect("test op should succeed");
         assert_eq!(rows[0].confidence, 1.0);
     }
 
@@ -126,8 +126,8 @@ mod tests {
                 duration_ms: 10,
             },
         )
-        .unwrap();
-        let rows = ledger.recent(10).unwrap();
+        .expect("test op should succeed");
+        let rows = ledger.recent(10).expect("test op should succeed");
         assert_eq!(rows.len(), 2);
         assert!(rows.iter().any(|r| r.source_id.ends_with("::coder")));
         assert!(rows.iter().any(|r| r.source_id.ends_with("::writer")));
@@ -146,8 +146,8 @@ mod tests {
                 duration_ms: 8_000,
             },
         )
-        .unwrap();
-        let rows = ledger.recent(10).unwrap();
+        .expect("test op should succeed");
+        let rows = ledger.recent(10).expect("test op should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].status, OutcomeStatus::Timeout);
     }

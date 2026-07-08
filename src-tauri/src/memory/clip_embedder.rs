@@ -74,7 +74,7 @@ impl ClipEmbedder {
     /// 创建一个新的 CLIP 嵌入器。`dim` 为期望的向量维度
     /// (CLIP ViT-B/32 通常为 512)。
     pub fn new(client: OllamaClient, model: impl Into<String>, dim: usize) -> Self {
-        let cap = NonZeroUsize::new(CACHE_CAPACITY).unwrap_or(NonZeroUsize::new(1).unwrap());
+        let cap = NonZeroUsize::new(CACHE_CAPACITY).unwrap_or(NonZeroUsize::new(1).expect("1 is non-zero"));
         Self {
             client,
             model: model.into(),

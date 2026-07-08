@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn stdio_transport_from_config() {
         let t =
-            McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None).unwrap();
+            McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None).expect("test op should succeed");
         match t {
             McpTransport::Stdio { command } => assert_eq!(command, "npx"),
             _ => panic!("expected Stdio"),
@@ -303,7 +303,7 @@ mod tests {
             Some("https://example.com/mcp"),
             None,
         )
-        .unwrap();
+        .expect("test op should succeed");
         match t {
             McpTransport::Http { url } => assert_eq!(url, "https://example.com/mcp"),
             _ => panic!("expected Http"),
@@ -319,7 +319,7 @@ mod tests {
             Some("https://example.com/sse"),
             Some("secret-key"),
         )
-        .unwrap();
+        .expect("test op should succeed");
         match t {
             McpTransport::Sse { url, api_key } => {
                 assert_eq!(url, "https://example.com/sse");
@@ -358,7 +358,7 @@ mod tests {
             headers,
             session_id: Some("sid".to_string()),
         };
-        let t = McpTransport::from_config(&tt, None, None, None).unwrap();
+        let t = McpTransport::from_config(&tt, None, None, None).expect("test op should succeed");
         match t {
             McpTransport::StreamableHttp {
                 url,

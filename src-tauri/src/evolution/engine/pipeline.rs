@@ -997,9 +997,9 @@ mod master_id_verification_tests {
         // 重新解析 master_id
         const SECTION_BEGIN: &str = "<!-- BEGIN SECTION: immutable_from_ai -->";
         const SECTION_END: &str = "<!-- END SECTION: immutable_from_ai -->";
-        let begin_idx = with_metadata.find(SECTION_BEGIN).unwrap();
+        let begin_idx = with_metadata.find(SECTION_BEGIN).expect("query should succeed");
         let section_start = begin_idx + SECTION_BEGIN.len();
-        let end_rel = with_metadata[section_start..].find(SECTION_END).unwrap();
+        let end_rel = with_metadata[section_start..].find(SECTION_END).expect("query should succeed");
         let section_content = &with_metadata[section_start..section_start + end_rel];
         let parsed = section_content
             .lines()

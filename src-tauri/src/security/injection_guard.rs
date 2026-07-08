@@ -124,55 +124,55 @@ static PROMPT_INJECTION_PATTERNS: Lazy<Vec<(&str, Regex, InjectionSeverity)>> = 
         (
             "system_prompt_override",
             Regex::new(r"(?i)(ignore|forget|disregard|override)\s+(all\s+)?(previous|above|prior|earlier|system)?\s*(instructions?|prompts?|messages?|context)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::Critical,
         ),
         // "你现在是 DAN" 类越狱
         (
             "jailbreak_dan",
             Regex::new(r"(?i)(you\s+are\s+now\s+(DAN|a\s+different|no\s+longer)|DAN\s+mode|developer\s+mode\s+enabled|jailbreak)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::Critical,
         ),
         // 角色扮演越狱
         (
             "roleplay_jailbreak",
             Regex::new(r"(?i)(pretend|act\s+as|roleplay|you\s+are)\s+(a\s+)?(different|new|evil|unethical|unrestricted|malicious)\s+(AI|assistant|chatbot|agent|character)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::High,
         ),
         // 输出格式操控
         (
             "output_format_hijack",
             Regex::new(r"(?i)(from\s+now\s+on\s+you\s+must|always\s+respond\s+with|every\s+response\s+must|your\s+output\s+should\s+always)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::Medium,
         ),
         // 隐藏指令分隔符
         (
             "hidden_delimiter",
             Regex::new(r"(?i)(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|<\|system\|>|<\|user\|>|<\|assistant\|>|<\|endoftext\|>)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::High,
         ),
         // 中文 Prompt 注入模式
         (
             "cn_ignore_previous",
             Regex::new(r"(忽略|忘记|无视|覆盖)\s*(所有\s*)?(之前|上面|一切|所有)\s*(的\s*)?(指令|提示|规则|要求|对话|内容)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::Critical,
         ),
         (
             "cn_role_switch",
             Regex::new(r"(从现在开始|接下来|以后)\s*你\s*(是|就是|必须是|变成)\s*(一个)?\s*(新的|不同的|另一个)?\s*(角色|AI|助手|身份)")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::High,
         ),
         // 注入关键词
         (
             "injection_keywords",
             Regex::new(r"(?i)(prompt\s*(injection|leak|hack|steal)|reveal\s*your\s*(prompt|instructions|system)|what\s*is\s*your\s*(prompt|system\s*prompt))")
-                .unwrap(),
+                .expect("must succeed"),
             InjectionSeverity::Medium,
         ),
     ]
@@ -271,49 +271,49 @@ static DANGEROUS_COMMAND_PATTERNS: Lazy<Vec<(&str, Regex)>> = Lazy::new(|| {
         (
             "ssh_backdoor",
             Regex::new(r"(?i)(echo|cat|tee).*(>>|>)\s*(~?/\.ssh/authorized_keys|/root/\.ssh/authorized_keys)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 反弹 Shell
         (
             "reverse_shell",
             Regex::new(r"(?i)(bash|sh|nc|ncat|netcat|python|perl|ruby|php)\s+.*(>&|/dev/tcp/|/dev/udp/|connect\s*\(|Socket\.new)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 权限提升
         (
             "privilege_escalation",
             Regex::new(r"(?i)(sudo\s+-i|su\s+-|chmod\s+[0-7]*7[0-7]*[0-7]*\s+/|chown\s+root)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 凭证窃取
         (
             "credential_theft",
             Regex::new(r"(?i)(cat|curl|wget).*(/etc/(shadow|passwd|sudoers)|\.aws/credentials|\.env|\.gitconfig|id_rsa)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 文件擦除
         (
             "mass_destruction",
             Regex::new(r"(?i)(rm\s+-rf\s+/(\*|bin|etc|home|lib|opt|root|sbin|tmp|usr|var)|dd\s+if=/dev/(zero|random|urandom)\s+of=/dev/)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 下载并执行
         (
             "download_execute",
             Regex::new(r"(?i)(curl|wget)\s+.*\s*(&&|\|)\s*(bash|sh|python|\./)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // 隐藏进程
         (
             "hide_process",
             Regex::new(r"(?i)(nohup|disown|setsid|screen\s+-dmS|tmux\s+new-session\s+-d)")
-                .unwrap(),
+                .expect("must succeed"),
         ),
         // Base64 编码的命令执行
         (
             "base64_exec",
             Regex::new(r"(?i)(echo\s+.*\|\s*base64\s+(-d|--decode)\s*\|\s*(bash|sh|python))")
-                .unwrap(),
+                .expect("must succeed"),
         ),
     ]
 });
@@ -328,43 +328,43 @@ static CREDENTIAL_LEAK_PATTERNS: Lazy<Vec<(&str, Regex, InjectionSeverity)>> = L
         // OpenAI API key
         (
             "openai_api_key",
-            Regex::new(r"sk-[a-zA-Z0-9]{20,}").unwrap(),
+            Regex::new(r"sk-[a-zA-Z0-9]{20,}").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
         // AWS Access Key ID
         (
             "aws_access_key",
-            Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
+            Regex::new(r"AKIA[0-9A-Z]{16}").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
         // AWS Secret Access Key
         (
             "aws_secret_key",
-            Regex::new(r"(?i)aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{40}").unwrap(),
+            Regex::new(r"(?i)aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{40}").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
         // SSH private key
         (
             "ssh_private_key",
-            Regex::new(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----").unwrap(),
+            Regex::new(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
         // Generic API key patterns
         (
             "generic_api_key",
-            Regex::new(r#"(?i)(api[_-]?key|apikey|access[_-]?token|secret[_-]?key)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{20,}['"]?"#).unwrap(),
+            Regex::new(r#"(?i)(api[_-]?key|apikey|access[_-]?token|secret[_-]?key)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{20,}['"]?"#).expect("valid regex"),
             InjectionSeverity::High,
         ),
         // GitHub token
         (
             "github_token",
-            Regex::new(r"gh[ps]_[a-zA-Z0-9]{36}").unwrap(),
+            Regex::new(r"gh[ps]_[a-zA-Z0-9]{36}").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
         // Anthropic API key
         (
             "anthropic_api_key",
-            Regex::new(r"sk-ant-[a-zA-Z0-9\-]{20,}").unwrap(),
+            Regex::new(r"sk-ant-[a-zA-Z0-9\-]{20,}").expect("valid regex"),
             InjectionSeverity::Critical,
         ),
     ]

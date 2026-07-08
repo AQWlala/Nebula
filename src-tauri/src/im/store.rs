@@ -204,7 +204,7 @@ mod tests {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir();
         let path = dir.join(format!("nebula_im_test_{}_{}.db", std::process::id(), n));
-        let conn = Connection::open(&path).unwrap();
+        let conn = Connection::open(&path).expect("create should succeed");
         conn.execute_batch(
             "CREATE TABLE im_bindings (
                 id TEXT PRIMARY KEY, platform TEXT NOT NULL, kind TEXT NOT NULL,
@@ -214,7 +214,7 @@ mod tests {
             ); CREATE INDEX idx_im_bindings_platform_enabled ON im_bindings(platform, enabled);
             CREATE INDEX idx_im_bindings_target ON im_bindings(target);",
         )
-        .unwrap();
+        .expect("test op should succeed");
         let shared: Arc<Mutex<Connection>> = Arc::new(Mutex::new(conn));
         let store = ImBindingTestHarness {
             store: ImBindingStoreFromConn::from_conn(shared),
@@ -404,12 +404,12 @@ mod tests {
         let b2 = sample_binding("id-2", ImPlatform::Wecom, "https://b.example.com/h2", true);
 
         // 初始为空。
-        assert_eq!(harness.list().unwrap().len(), 0);
+        assert_eq!(harness.list().expect("assertion value").len(), 0);
 
         // 插入两条。
-        harness.insert(&b1).unwrap();
-        harness.insert(&b2).unwrap();
-        let all = harness.list().unwrap();
+        harness.insert(&b1).expect("insert should succeed");
+        harness.insert(&b2).expect("insert should succeed");
+        let all = harness.list().expect("test op should succeed");
         assert_eq!(all.len(), 2);
         // 按 created_at ASC,两条 created_at 相同,顺序由插入顺序保证(SQLite 默认)。
         let ids: Vec<_> = all.iter().map(|b| b.id.as_str()).collect();
@@ -417,7 +417,7 @@ mod tests {
         assert!(ids.contains(&"id-2"));
 
         // 验证反序列化字段正确。
-        let got1 = harness.get("id-1").unwrap().unwrap();
+        let got1 = harness.get("id-1").expect("get should succeed").expect("get should succeed");
         assert_eq!(got1.platform, ImPlatform::Feishu);
         assert_eq!(
             got1.kind,
@@ -430,13 +430,13 @@ mod tests {
         assert_eq!(got1.last_used_at, None);
 
         // 删除 id-1 后只剩 id-2。
-        harness.delete("id-1").unwrap();
-        let after = harness.list().unwrap();
+        harness.delete("id-1").expect("delete should succeed");
+        let after = harness.list().expect("test op should succeed");
         assert_eq!(after.len(), 1);
         assert_eq!(after[0].id, "id-2");
 
         // 幂等:再次删除不存在的 id 不报错。
-        harness.delete("id-1").unwrap();
+        harness.delete("id-1").expect("delete should succeed");
 
         cleanup(paths);
     }
@@ -452,16 +452,16 @@ mod tests {
             "https://c.example.com/h3",
             true,
         );
-        harness.insert(&b).unwrap();
-        assert!(harness.get("id-x").unwrap().unwrap().enabled);
+        harness.insert(&b).expect("insert should succeed");
+        assert!(harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
 
         // 禁用。
-        harness.set_enabled("id-x", false).unwrap();
-        assert!(!harness.get("id-x").unwrap().unwrap().enabled);
+        harness.set_enabled("id-x", false).expect("update should succeed");
+        assert!(!harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
 
         // 重新启用。
-        harness.set_enabled("id-x", true).unwrap();
-        assert!(harness.get("id-x").unwrap().unwrap().enabled);
+        harness.set_enabled("id-x", true).expect("update should succeed");
+        assert!(harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
 
         // 不存在的 id 返回 Err。
         assert!(harness.set_enabled("nope", true).is_err());
@@ -477,11 +477,11 @@ mod tests {
         let b1 = sample_binding("e1", ImPlatform::Feishu, "https://x1.example.com", true);
         let b2 = sample_binding("d1", ImPlatform::Wecom, "https://x2.example.com", false);
         let b3 = sample_binding("e2", ImPlatform::Dingtalk, "https://x3.example.com", true);
-        harness.insert(&b1).unwrap();
-        harness.insert(&b2).unwrap();
-        harness.insert(&b3).unwrap();
+        harness.insert(&b1).expect("insert should succeed");
+        harness.insert(&b2).expect("insert should succeed");
+        harness.insert(&b3).expect("insert should succeed");
 
-        let enabled = harness.list_enabled().unwrap();
+        let enabled = harness.list_enabled().expect("test op should succeed");
         assert_eq!(
             enabled.len(),
             2,
@@ -501,12 +501,12 @@ mod tests {
     fn store_touch_last_used_updates_timestamp() {
         let (harness, paths) = temp_store();
         let b = sample_binding("t1", ImPlatform::Feishu, "https://y.example.com", true);
-        harness.insert(&b).unwrap();
-        assert_eq!(harness.get("t1").unwrap().unwrap().last_used_at, None);
+        harness.insert(&b).expect("insert should succeed");
+        assert_eq!(harness.get("t1").expect("get should succeed").expect("get should succeed").last_used_at, None);
 
         let ts = 1710000000000i64;
-        harness.touch_last_used("t1", ts).unwrap();
-        assert_eq!(harness.get("t1").unwrap().unwrap().last_used_at, Some(ts));
+        harness.touch_last_used("t1", ts).expect("test op should succeed");
+        assert_eq!(harness.get("t1").expect("get should succeed").expect("get should succeed").last_used_at, Some(ts));
 
         cleanup(paths);
     }
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn store_get_missing_returns_none() {
         let (harness, paths) = temp_store();
-        assert_eq!(harness.get("missing").unwrap(), None);
+        assert_eq!(harness.get("missing").expect("get should succeed"), None);
         cleanup(paths);
     }
 }

@@ -344,9 +344,9 @@ mod tests {
 
     #[test]
     fn kind_serializes_to_snake_case() {
-        let json = serde_json::to_string(&OperationKind::FileCreate).unwrap();
+        let json = serde_json::to_string(&OperationKind::FileCreate).expect("create should succeed");
         assert_eq!(json, "\"file_create\"");
-        let json = serde_json::to_string(&OperationKind::Command).unwrap();
+        let json = serde_json::to_string(&OperationKind::Command).expect("serialize should succeed");
         assert_eq!(json, "\"command\"");
     }
 }

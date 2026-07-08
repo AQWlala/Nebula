@@ -320,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn health_check_returns_ok() {
         let svc = OsControllerService::new();
-        assert!(svc.health_check().await.unwrap());
+        assert!(svc.health_check().await.expect("task should complete"));
     }
 
     #[test]

@@ -377,7 +377,7 @@ mod tests {
     #[tokio::test]
     async fn webchat_send_succeeds() {
         let adapter = WebChatAdapter::new();
-        adapter.start().await.unwrap();
+        adapter.start().await.expect("task should complete");
         let result = adapter.send("test message", None).await;
         assert!(result.is_ok());
     }

@@ -1,4 +1,4 @@
-﻿//! v0.5: shell command execution with a whitelist + audit log.
+//! v0.5: shell command execution with a whitelist + audit log.
 //!
 //! Safety model (v0.5):
 //!
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn parse_argv_handles_quotes() {
-        let argv = parse_argv(r#"echo "hello world" 'foo bar'"#).unwrap();
+        let argv = parse_argv(r#"echo "hello world" 'foo bar'"#).expect("parse should succeed");
         assert_eq!(argv, vec!["echo", "hello world", "foo bar"]);
     }
 

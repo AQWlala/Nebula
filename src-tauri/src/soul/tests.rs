@@ -17,7 +17,7 @@ fn end_to_end_structure_parse_and_serialize_roundtrip() {
     let original = "<!-- BEGIN SECTION: immutable_from_ai -->\n核心理念：诚实、勤奋、创新\n<!-- END SECTION: immutable_from_ai -->\n\n<!-- BEGIN SECTION: evolution-append -->\n经验1：避免过度设计\n经验2：测试先行\n<!-- END SECTION: evolution-append -->";
 
     // 解析
-    let structure = parse_soul_md(original).unwrap();
+    let structure = parse_soul_md(original).expect("parse should succeed");
     assert_eq!(structure.sections.len(), 2);
     assert_eq!(
         structure.immutable_content(),
@@ -32,7 +32,7 @@ fn end_to_end_structure_parse_and_serialize_roundtrip() {
     let serialized = serialize_soul_md(&structure);
 
     // 再次解析，验证 roundtrip
-    let structure2 = parse_soul_md(&serialized).unwrap();
+    let structure2 = parse_soul_md(&serialized).expect("parse should succeed");
     assert_eq!(structure2.sections.len(), 2);
     assert_eq!(
         structure2.immutable_content(),
@@ -54,11 +54,11 @@ fn atomic_write_then_read_back() {
         "<!-- BEGIN SECTION: immutable_from_ai -->\n核心\n<!-- END SECTION: immutable_from_ai -->";
 
     // 原子写入
-    atomic_write::atomic_write(&path, content).unwrap();
+    atomic_write::atomic_write(&path, content).expect("update should succeed");
 
     // 读回并解析
-    let read = std::fs::read_to_string(&path).unwrap();
-    let structure = parse_soul_md(&read).unwrap();
+    let read = std::fs::read_to_string(&path).expect("get should succeed");
+    let structure = parse_soul_md(&read).expect("get should succeed");
     assert_eq!(structure.immutable_content(), Some("核心"));
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -81,8 +81,8 @@ fn injection_scan_blocks_critical_in_soul_content() {
                     <!-- END SECTION: immutable_from_ai -->";
 
     // structure 能解析
-    let structure = parse_soul_md(injected).unwrap();
-    let content = structure.immutable_content().unwrap();
+    let structure = parse_soul_md(injected).expect("parse should succeed");
+    let content = structure.immutable_content().expect("test op should succeed");
 
     // 注入扫描应命中 Critical
     let scan = full_injection_scan(content);
@@ -94,7 +94,7 @@ fn injection_scan_blocks_critical_in_soul_content() {
 fn both_sections_empty_degrades_gracefully() {
     let empty_sections = "<!-- BEGIN SECTION: immutable_from_ai -->\n\n<!-- END SECTION: immutable_from_ai -->\n\n<!-- BEGIN SECTION: evolution-append -->\n\n<!-- END SECTION: evolution-append -->";
 
-    let structure = parse_soul_md(empty_sections).unwrap();
+    let structure = parse_soul_md(empty_sections).expect("parse should succeed");
     // 空内容允许解析通过（SoulCompiler 决定是否降级）
     assert_eq!(structure.immutable_content(), Some(""));
     assert_eq!(structure.evolution_content(), Some(""));

@@ -404,9 +404,9 @@ budget_minutes: 10
 
     #[test]
     fn autonomy_case_insensitive() {
-        assert_eq!(AutonomyLevel::from_str("l1").unwrap(), AutonomyLevel::L1);
-        assert_eq!(AutonomyLevel::from_str("L4").unwrap(), AutonomyLevel::L4);
-        assert_eq!(AutonomyLevel::from_str(" l5 ").unwrap(), AutonomyLevel::L5);
+        assert_eq!(AutonomyLevel::from_str("l1").expect("parse should succeed"), AutonomyLevel::L1);
+        assert_eq!(AutonomyLevel::from_str("L4").expect("parse should succeed"), AutonomyLevel::L4);
+        assert_eq!(AutonomyLevel::from_str(" l5 ").expect("parse should succeed"), AutonomyLevel::L5);
     }
 
     #[test]
@@ -419,9 +419,9 @@ budget_minutes: 10
 
     #[test]
     fn autonomy_serde_uppercase() {
-        let json = serde_json::to_string(&AutonomyLevel::L3).unwrap();
+        let json = serde_json::to_string(&AutonomyLevel::L3).expect("serialize should succeed");
         assert_eq!(json, "\"L3\"");
-        let back: AutonomyLevel = serde_json::from_str(&json).unwrap();
+        let back: AutonomyLevel = serde_json::from_str(&json).expect("parse should succeed");
         assert_eq!(back, AutonomyLevel::L3);
     }
 
@@ -465,7 +465,7 @@ budget_minutes: 10
         assert_eq!(def.adjustment.len(), 2);
 
         assert!(def.stop_condition.is_some());
-        let sc = def.stop_condition.as_ref().unwrap();
+        let sc = def.stop_condition.as_ref().expect("test op should succeed");
         assert!(sc.contains("STATE.md 已更新"));
         assert!(sc.contains("预算耗尽"));
 
@@ -508,7 +508,7 @@ budget_minutes: 10
     fn parse_section_order_independent() {
         // 5 阶段顺序无关
         let md = "---\nname: foo\nautonomy: L2\ncadence: \"0 9 * * 1-5\"\nbudget_tokens: 100\n---\n## Action\n- act1\n## Intent\nmy intent\n## Stop Condition\ncond\n";
-        let def = LoopDef::from_markdown(md).unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
         assert_eq!(def.intent, "my intent");
         assert_eq!(def.action, vec!["act1".to_string()]);
         assert_eq!(def.stop_condition.as_deref(), Some("cond"));
@@ -518,7 +518,7 @@ budget_minutes: 10
     fn parse_missing_optional_sections() {
         // Stop Condition / Connectors / Safety 可选
         let md = "---\nname: foo\nautonomy: L2\ncadence: \"0 9 * * 1-5\"\nbudget_tokens: 100\n---\n## Intent\nmy intent\n## Action\n- act1\n";
-        let def = LoopDef::from_markdown(md).unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
         assert!(def.stop_condition.is_none());
         assert!(def.connectors.is_empty());
         assert!(def.safety.is_empty());
@@ -530,7 +530,7 @@ budget_minutes: 10
     #[test]
     fn parse_filters_comments_and_blanks() {
         let md = "---\nname: foo\nautonomy: L2\ncadence: \"0 9 * * 1-5\"\nbudget_tokens: 100\n---\n## Action\n\n// 这是注释\n- real action\n\n## Intent\n\nreal intent\n";
-        let def = LoopDef::from_markdown(md).unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
         assert_eq!(def.action, vec!["real action".to_string()]);
         assert_eq!(def.intent, "real intent");
     }
@@ -538,7 +538,7 @@ budget_minutes: 10
     #[test]
     fn parse_supports_star_and_numbered_lists() {
         let md = "---\nname: foo\nautonomy: L2\ncadence: \"0 9 * * 1-5\"\nbudget_tokens: 100\n---\n## Action\n* star item\n1. numbered item\n2) paren item\nplain item\n";
-        let def = LoopDef::from_markdown(md).unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
         assert_eq!(def.action.len(), 4);
         assert_eq!(def.action[0], "star item");
         assert_eq!(def.action[1], "numbered item");
@@ -549,7 +549,7 @@ budget_minutes: 10
     #[test]
     fn parse_handles_crlf_line_endings() {
         let md = "---\r\nname: foo\r\nautonomy: L2\r\ncadence: \"0 9 * * 1-5\"\r\nbudget_tokens: 100\r\n---\r\n## Intent\r\nintent\r\n## Action\r\n- act\r\n";
-        let def = LoopDef::from_markdown(md).unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
         assert_eq!(def.name, "foo");
         assert_eq!(def.intent, "intent");
         assert_eq!(def.action, vec!["act".to_string()]);
@@ -559,13 +559,13 @@ budget_minutes: 10
 
     #[test]
     fn validate_accepts_full_def() {
-        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.validate().expect("should pass");
     }
 
     #[test]
     fn validate_rejects_empty_name() {
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.name = "  ".to_string();
         let err = def.validate().unwrap_err();
         assert!(err.to_string().contains("name"));
@@ -573,7 +573,7 @@ budget_minutes: 10
 
     #[test]
     fn validate_rejects_empty_intent() {
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.intent = "".to_string();
         let err = def.validate().unwrap_err();
         assert!(err.to_string().contains("Intent"));
@@ -581,7 +581,7 @@ budget_minutes: 10
 
     #[test]
     fn validate_rejects_empty_action() {
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.action.clear();
         let err = def.validate().unwrap_err();
         assert!(err.to_string().contains("Action"));
@@ -589,7 +589,7 @@ budget_minutes: 10
 
     #[test]
     fn validate_rejects_zero_budget() {
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.budget_tokens = 0;
         def.budget_minutes = 0;
         let err = def.validate().unwrap_err();
@@ -598,12 +598,12 @@ budget_minutes: 10
 
     #[test]
     fn validate_accepts_one_zero_budget() {
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.budget_tokens = 0;
         def.budget_minutes = 5;
         def.validate().expect("one > 0 is enough");
 
-        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let mut def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         def.budget_tokens = 100;
         def.budget_minutes = 0;
         def.validate().expect("one > 0 is enough");
@@ -613,7 +613,7 @@ budget_minutes: 10
 
     #[test]
     fn provenance_format() {
-        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         let p = def.provenance();
         assert!(p.contains("loop:daily-triage"));
         assert!(p.contains("autonomy:L1"));
@@ -623,7 +623,7 @@ budget_minutes: 10
 
     #[test]
     fn loop_def_serde_round_trip() {
-        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).unwrap();
+        let def = LoopDef::from_markdown(SAMPLE_LOOP_MD).expect("test op should succeed");
         let json = serde_json::to_string(&def).expect("serialize");
         let back: LoopDef = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back.name, def.name);
@@ -638,7 +638,7 @@ budget_minutes: 10
     #[test]
     fn split_frontmatter_basic() {
         let md = "---\nfoo: bar\n---\nbody text";
-        let (fm, body) = split_frontmatter(md).unwrap();
+        let (fm, body) = split_frontmatter(md).expect("test op should succeed");
         assert_eq!(fm, "foo: bar");
         assert_eq!(body, "body text");
     }
@@ -658,8 +658,8 @@ budget_minutes: 10
     #[test]
     fn parse_minimal_loop_md() {
         let md = "---\nname: minimal\nautonomy: L1\ncadence: \"0 0 * * *\"\nbudget_tokens: 100\n---\n## Intent\ngoal\n## Action\n- step1\n";
-        let def = LoopDef::from_markdown(md).unwrap();
-        def.validate().unwrap();
+        let def = LoopDef::from_markdown(md).expect("test op should succeed");
+        def.validate().expect("test op should succeed");
         assert_eq!(def.name, "minimal");
         assert_eq!(def.intent, "goal");
         assert_eq!(def.action, vec!["step1".to_string()]);

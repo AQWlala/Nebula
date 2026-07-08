@@ -226,14 +226,14 @@ mod tests {
     /// 构造一个 UTC DateTime（方便测试）。
     fn dt(year: i32, month: u32, day: u32, hour: u32, min: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(year, month, day, hour, min, 0)
-            .unwrap()
+            .expect("test op should succeed")
     }
 
     // ---- parse() 基础测试 ----
 
     #[test]
     fn parse_every_minute() {
-        let expr = CronExpr::parse("* * * * *").unwrap();
+        let expr = CronExpr::parse("* * * * *").expect("parse should succeed");
         assert_eq!(expr.minutes.len(), 60);
         assert_eq!(expr.hours.len(), 24);
         assert_eq!(expr.days_of_month.len(), 31);
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn parse_weekday_morning() {
-        let expr = CronExpr::parse("0 9 * * 1-5").unwrap();
+        let expr = CronExpr::parse("0 9 * * 1-5").expect("parse should succeed");
         assert_eq!(expr.minutes, HashSet::from([0u32]));
         assert_eq!(expr.hours, HashSet::from([9u32]));
         assert_eq!(expr.days_of_week, HashSet::from([1u32, 2, 3, 4, 5]));
@@ -251,19 +251,19 @@ mod tests {
 
     #[test]
     fn parse_every_15_minutes() {
-        let expr = CronExpr::parse("*/15 * * * *").unwrap();
+        let expr = CronExpr::parse("*/15 * * * *").expect("parse should succeed");
         assert_eq!(expr.minutes, HashSet::from([0u32, 15, 30, 45]));
     }
 
     #[test]
     fn parse_range_with_step() {
-        let expr = CronExpr::parse("1-10/2 * * * *").unwrap();
+        let expr = CronExpr::parse("1-10/2 * * * *").expect("parse should succeed");
         assert_eq!(expr.minutes, HashSet::from([1u32, 3, 5, 7, 9]));
     }
 
     #[test]
     fn parse_list() {
-        let expr = CronExpr::parse("0,15,30,45 * * * *").unwrap();
+        let expr = CronExpr::parse("0,15,30,45 * * * *").expect("parse should succeed");
         assert_eq!(expr.minutes.len(), 4);
         assert!(expr.minutes.contains(&0));
         assert!(expr.minutes.contains(&45));
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn parse_monthly_first() {
-        let expr = CronExpr::parse("0 0 1 * *").unwrap();
+        let expr = CronExpr::parse("0 0 1 * *").expect("parse should succeed");
         assert_eq!(expr.days_of_month, HashSet::from([1u32]));
     }
 
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn matches_every_minute() {
-        let expr = CronExpr::parse("* * * * *").unwrap();
+        let expr = CronExpr::parse("* * * * *").expect("parse should succeed");
         assert!(expr.matches(dt(2026, 7, 8, 12, 0)));
         assert!(expr.matches(dt(2026, 7, 8, 23, 59)));
         assert!(expr.matches(dt(2026, 1, 1, 0, 0)));
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn matches_weekday_morning() {
         // "0 9 * * 1-5" — 工作日 09:00
-        let expr = CronExpr::parse("0 9 * * 1-5").unwrap();
+        let expr = CronExpr::parse("0 9 * * 1-5").expect("parse should succeed");
         // 2026-07-08 是周三
         assert!(expr.matches(dt(2026, 7, 8, 9, 0)));
         // 周六不匹配
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn matches_every_15_minutes() {
-        let expr = CronExpr::parse("*/15 * * * *").unwrap();
+        let expr = CronExpr::parse("*/15 * * * *").expect("parse should succeed");
         assert!(expr.matches(dt(2026, 7, 8, 12, 0)));
         assert!(expr.matches(dt(2026, 7, 8, 12, 15)));
         assert!(expr.matches(dt(2026, 7, 8, 12, 30)));
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn matches_monthly_first() {
-        let expr = CronExpr::parse("0 0 1 * *").unwrap();
+        let expr = CronExpr::parse("0 0 1 * *").expect("parse should succeed");
         assert!(expr.matches(dt(2026, 7, 1, 0, 0)));
         assert!(expr.matches(dt(2026, 2, 1, 0, 0)));
         assert!(!expr.matches(dt(2026, 7, 2, 0, 0)));
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn matches_dom_and_dow_or_logic() {
         // "0 0 1 * 0" — 每月 1 号 OR 每周日
-        let expr = CronExpr::parse("0 0 1 * 0").unwrap();
+        let expr = CronExpr::parse("0 0 1 * 0").expect("parse should succeed");
         // 2026-07-01 是周三，但 是 1 号 → 匹配（DOM 匹配）
         assert!(expr.matches(dt(2026, 7, 1, 0, 0)));
         // 2026-07-05 是周日，不是 1 号 → 匹配（DOW 匹配）
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn matches_dom_and_dow_and_when_one_is_star() {
         // "0 0 15 * *" — 每月 15 号（DOW 是 *，用 AND）
-        let expr = CronExpr::parse("0 0 15 * *").unwrap();
+        let expr = CronExpr::parse("0 0 15 * *").expect("parse should succeed");
         assert!(expr.matches(dt(2026, 7, 15, 0, 0)));
         assert!(!expr.matches(dt(2026, 7, 14, 0, 0)));
     }
@@ -369,14 +369,14 @@ mod tests {
     #[test]
     fn matches_specific_month() {
         // "0 0 1 6 *" — 6 月 1 号
-        let expr = CronExpr::parse("0 0 1 6 *").unwrap();
+        let expr = CronExpr::parse("0 0 1 6 *").expect("parse should succeed");
         assert!(expr.matches(dt(2026, 6, 1, 0, 0)));
         assert!(!expr.matches(dt(2026, 7, 1, 0, 0)));
     }
 
     #[test]
     fn display_shows_raw() {
-        let expr = CronExpr::parse("0 9 * * 1-5").unwrap();
+        let expr = CronExpr::parse("0 9 * * 1-5").expect("parse should succeed");
         assert_eq!(format!("{expr}"), "0 9 * * 1-5");
     }
 

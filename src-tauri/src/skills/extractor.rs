@@ -1,4 +1,4 @@
-﻿//! Skill auto-extraction engine — v1.2 skill closed-loop learning.
+//! Skill auto-extraction engine — v1.2 skill closed-loop learning.
 //!
 //! ## What this does
 //!
@@ -418,7 +418,7 @@ mod tests {
             "tags": ["react", "typescript", "frontend"],
             "template": "Create a React component named {{component_name}} with {{props}}"
         }"#;
-        let result: ExtractionResult = serde_json::from_str(json).unwrap();
+        let result: ExtractionResult = serde_json::from_str(json).expect("parse should succeed");
         assert!(result.extractable);
         assert_eq!(result.name, "generate-react-component");
         assert_eq!(result.tags.len(), 3);
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn parse_extraction_result_negative() {
         let json = r#"{"extractable": false}"#;
-        let result: ExtractionResult = serde_json::from_str(json).unwrap();
+        let result: ExtractionResult = serde_json::from_str(json).expect("parse should succeed");
         assert!(!result.extractable);
         assert!(result.name.is_empty());
     }
@@ -447,16 +447,16 @@ mod tests {
         let dir = std::env::temp_dir().join("nebula-test-extractor");
         let extractor = SkillExtractor {
             llm: Arc::new(crate::llm::LlmGateway::new_test()),
-            store: Arc::new(SkillStore::open_test(":memory:").unwrap()),
+            store: Arc::new(SkillStore::open_test(":memory:").expect("create should succeed")),
             archive_dir: dir.to_string_lossy().to_string(),
         };
 
         extractor
             .write_skill_md("test-id", &extracted, 1000)
-            .unwrap();
+            .expect("test op should succeed");
 
         let md_path = dir.join("test-skill").join("SKILL.md");
-        let content = std::fs::read_to_string(&md_path).unwrap();
+        let content = std::fs::read_to_string(&md_path).expect("get should succeed");
 
         assert!(content.contains("# Skill: test-skill"));
         assert!(content.contains("## Description"));

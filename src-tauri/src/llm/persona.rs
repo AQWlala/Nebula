@@ -227,7 +227,7 @@ mod tests {
         // A temp directory is guaranteed to exist but unlikely to
         // contain SOUL.md / AGENTS.md / TOOLS.md.
         let tmp = std::env::temp_dir();
-        let p = PersonaConfig::load(&tmp).await.unwrap();
+        let p = PersonaConfig::load(&tmp).await.expect("get should succeed");
         assert!(p.is_empty());
         assert!(p.soul_md.is_none());
         assert!(p.agents_md.is_none());
@@ -237,10 +237,10 @@ mod tests {
     #[tokio::test]
     async fn load_reads_existing_files() {
         let dir = std::env::temp_dir().join(format!("nebula-persona-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("SOUL.md"), "soul-content").unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
+        std::fs::write(dir.join("SOUL.md"), "soul-content").expect("update should succeed");
 
-        let p = PersonaConfig::load(&dir).await.unwrap();
+        let p = PersonaConfig::load(&dir).await.expect("get should succeed");
         assert_eq!(p.soul_md.as_deref(), Some("soul-content"));
         assert!(p.agents_md.is_none());
         assert!(p.tools_md.is_none());

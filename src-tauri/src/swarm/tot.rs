@@ -187,17 +187,17 @@ mod tests {
     fn reasoning_strategy_linear_default() {
         // ReasoningStrategy 使用 #[serde(tag = "kind")] 内部标签,
         // Linear 序列化为 {"kind":"linear"}(而非裸字符串 "linear")。
-        let s: ReasoningStrategy = serde_json::from_str(r#"{"kind":"linear"}"#).unwrap();
+        let s: ReasoningStrategy = serde_json::from_str(r#"{"kind":"linear"}"#).expect("parse should succeed");
         assert!(matches!(s, ReasoningStrategy::Linear));
     }
 
     #[test]
     fn reasoning_strategy_linear_serde_roundtrip() {
         let s = ReasoningStrategy::Linear;
-        let json = serde_json::to_string(&s).unwrap();
+        let json = serde_json::to_string(&s).expect("serialize should succeed");
         // 默认变体序列化为 {"kind":"linear"}(内部标签)。
         assert!(json.contains("\"kind\":\"linear\""), "got: {json}");
-        let de: ReasoningStrategy = serde_json::from_str(&json).unwrap();
+        let de: ReasoningStrategy = serde_json::from_str(&json).expect("parse should succeed");
         assert!(matches!(de, ReasoningStrategy::Linear));
     }
 
@@ -207,14 +207,14 @@ mod tests {
             branches: 4,
             depth: 1,
         };
-        let json = serde_json::to_string(&s).unwrap();
+        let json = serde_json::to_string(&s).expect("serialize should succeed");
         assert!(
             json.contains("\"kind\":\"tree_of_thoughts\""),
             "got: {json}"
         );
         assert!(json.contains("\"branches\":4"));
         assert!(json.contains("\"depth\":1"));
-        let de: ReasoningStrategy = serde_json::from_str(&json).unwrap();
+        let de: ReasoningStrategy = serde_json::from_str(&json).expect("parse should succeed");
         match de {
             ReasoningStrategy::TreeOfThoughts { branches, depth } => {
                 assert_eq!(branches, 4);
@@ -295,9 +295,9 @@ mod tests {
             (ThoughtStrategy::Synthesis, "synthesis"),
         ];
         for (strategy, expected) in cases {
-            let json = serde_json::to_string(&strategy).unwrap();
+            let json = serde_json::to_string(&strategy).expect("serialize should succeed");
             assert_eq!(json, format!("\"{expected}\""), "got: {json}");
-            let de: ThoughtStrategy = serde_json::from_str(&json).unwrap();
+            let de: ThoughtStrategy = serde_json::from_str(&json).expect("parse should succeed");
             assert_eq!(de, strategy);
         }
     }

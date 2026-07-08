@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v2.0: 可观测性仪表盘 + sidecar 状态 + 自我反思。
  *
  * 展示 6 项核心指标（设计文档 §7）：
@@ -107,7 +107,8 @@ export function Dashboard() {
   const [reflecting, setReflecting] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
+    const ac = new AbortController();
 
     async function tick() {
       try {
@@ -116,7 +117,7 @@ export function Dashboard() {
           invokeTauri<MetricsSnapshot>('metrics'),
           invokeTauri<SidecarStatusInfo[]>('sidecar_list_status'),
         ]);
-        if (!cancelled) {
+        if (!ac.signal.aborted) {
           setData({
             perf: perf ?? null,
             metrics: metrics ?? null,
@@ -132,7 +133,7 @@ export function Dashboard() {
     tick();
     const id = setInterval(tick, 2000);
     return () => {
-      cancelled = true;
+      ac.abort();
       clearInterval(id);
     };
   }, []);

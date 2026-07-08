@@ -898,8 +898,8 @@ mod tests {
             debounce_ms: 500,
             max_fires: Some(3),
         };
-        let s = serde_json::to_string(&cfg).unwrap();
-        let back: TriggerConfig = serde_json::from_str(&s).unwrap();
+        let s = serde_json::to_string(&cfg).expect("serialize should succeed");
+        let back: TriggerConfig = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(cfg, back);
         // condition 序列化带 kind tag。
         assert!(s.contains("\"kind\":\"message\""));
@@ -915,9 +915,9 @@ mod tests {
             patterns: vec!["*.md".to_string()],
             events: vec!["create".to_string()],
         };
-        let s = serde_json::to_string(&c).unwrap();
+        let s = serde_json::to_string(&c).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"file\""));
-        let back: TriggerCondition = serde_json::from_str(&s).unwrap();
+        let back: TriggerCondition = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(c, back);
     }
 
@@ -929,9 +929,9 @@ mod tests {
             skill_id: "s1".to_string(),
             params,
         };
-        let s = serde_json::to_string(&a).unwrap();
+        let s = serde_json::to_string(&a).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"skill\""));
-        let back: TriggerAction = serde_json::from_str(&s).unwrap();
+        let back: TriggerAction = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(a, back);
     }
 
@@ -942,9 +942,9 @@ mod tests {
             agent_count: Some(3),
             agents: vec!["coder".to_string()],
         };
-        let s = serde_json::to_string(&a).unwrap();
+        let s = serde_json::to_string(&a).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"swarm\""));
-        let back: TriggerAction = serde_json::from_str(&s).unwrap();
+        let back: TriggerAction = serde_json::from_str(&s).expect("parse should succeed");
         assert_eq!(a, back);
     }
 
@@ -1047,7 +1047,7 @@ mod tests {
             TriggerKind::Watch,
         ] {
             let s = k.as_str();
-            let back = TriggerKind::from_str(s).unwrap();
+            let back = TriggerKind::from_str(s).expect("parse should succeed");
             assert_eq!(k, back);
         }
         assert!(TriggerKind::from_str("unknown").is_none());

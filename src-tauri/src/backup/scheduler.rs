@@ -466,7 +466,7 @@ mod tests {
             size_bytes: 1024,
             created_at: 1_700_000_000,
         };
-        let json = serde_json::to_string(&info).unwrap();
+        let json = serde_json::to_string(&info).expect("serialize should succeed");
         assert!(json.contains("20260703"));
     }
 }

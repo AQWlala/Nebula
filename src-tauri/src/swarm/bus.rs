@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -215,7 +215,7 @@ mod tests {
             msg_type: BusMessageType::Request,
             correlation_id: None,
         };
-        bus.send(msg).await.unwrap();
+        bus.send(msg).await.expect("send should succeed");
         let received = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
             .await
             .expect("recv timed out — message never arrived")
@@ -276,7 +276,7 @@ mod tests {
                 .expect("responder recv timed out — request never arrived")
                 .expect("responder channel closed");
             assert_eq!(msg.msg_type, BusMessageType::Request);
-            bus_for_task.reply(&msg, "pong".to_string()).await.unwrap();
+            bus_for_task.reply(&msg, "pong".to_string()).await.expect("serialize should succeed");
         });
 
         let response = bus_clone
@@ -287,7 +287,7 @@ mod tests {
                 std::time::Duration::from_secs(5),
             )
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(response.content, "pong");
         tokio::time::timeout(std::time::Duration::from_secs(5), handle)
             .await

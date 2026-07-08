@@ -775,16 +775,16 @@ mod tests {
     fn temp_db() -> (std::path::PathBuf, Connection) {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir();
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
         let path = dir.join(format!("nebula_mig_test_{}_{}.db", std::process::id(), n));
-        let conn = Connection::open(&path).unwrap();
+        let conn = Connection::open(&path).expect("create should succeed");
         (path, conn)
     }
 
     fn temp_dir() -> std::path::PathBuf {
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("nebula_mig_dir_{}_{}", std::process::id(), n));
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).expect("create should succeed");
         dir
     }
 
@@ -801,7 +801,7 @@ mod tests {
     #[test]
     fn current_version_defaults_to_zero() {
         let (path, conn) = temp_db();
-        assert_eq!(current_version(&conn).unwrap(), 0);
+        assert_eq!(current_version(&conn).expect("assertion value"), 0);
         cleanup_file(&path);
     }
 
@@ -814,28 +814,28 @@ mod tests {
             "CREATE TABLE schema_version(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL, description TEXT NOT NULL DEFAULT '');\
              INSERT INTO schema_version(version, applied_at) VALUES (1, 0);",
         )
-        .unwrap();
-        bootstrap_v0_1_baseline(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 1);
+        .expect("test op should succeed");
+        bootstrap_v0_1_baseline(&conn).expect("test op should succeed");
+        assert_eq!(current_version(&conn).expect("assertion value"), 1);
         cleanup_file(&path);
     }
 
     #[test]
     fn bootstrap_v0_1_noop_when_already_set() {
         let (path, conn) = temp_db();
-        conn.pragma_update(None, "user_version", 5i64).unwrap();
-        bootstrap_v0_1_baseline(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 5);
+        conn.pragma_update(None, "user_version", 5i64).expect("update should succeed");
+        bootstrap_v0_1_baseline(&conn).expect("test op should succeed");
+        assert_eq!(current_version(&conn).expect("assertion value"), 5);
         cleanup_file(&path);
     }
 
     #[test]
     fn discover_migrations_reads_files() {
         let dir = temp_dir();
-        std::fs::write(dir.join("001_first.sql"), "SELECT 1;").unwrap();
-        std::fs::write(dir.join("002_second.sql"), "SELECT 2;").unwrap();
-        std::fs::write(dir.join("README"), "ignore me").unwrap();
-        let all = discover_migrations(&dir).unwrap();
+        std::fs::write(dir.join("001_first.sql"), "SELECT 1;").expect("update should succeed");
+        std::fs::write(dir.join("002_second.sql"), "SELECT 2;").expect("update should succeed");
+        std::fs::write(dir.join("README"), "ignore me").expect("get should succeed");
+        let all = discover_migrations(&dir).expect("test op should succeed");
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].version, 1);
         assert_eq!(all[0].name, "first");
@@ -929,17 +929,17 @@ mod tests {
             dir.join("001_first.sql"),
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
-        .unwrap();
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").unwrap();
+        .expect("test op should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
 
-        let applied = run_migrations(&conn, &dir).unwrap();
+        let applied = run_migrations(&conn, &dir).expect("test op should succeed");
         assert_eq!(applied.len(), 2);
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).expect("assertion value"), 2);
 
         // Re-running applies nothing.
-        let applied2 = run_migrations(&conn, &dir).unwrap();
+        let applied2 = run_migrations(&conn, &dir).expect("test op should succeed");
         assert!(applied2.is_empty());
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).expect("assertion value"), 2);
         cleanup_dir(&dir);
         cleanup_file(&db_path);
     }
@@ -952,18 +952,18 @@ mod tests {
             dir.join("001_first.sql"),
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
-        .unwrap();
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").unwrap();
+        .expect("test op should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
 
         // Simulate 001 already having been applied: create the table
         // manually and stamp user_version = 1.
         conn.execute_batch("CREATE TABLE t1 (id INTEGER PRIMARY KEY);")
-            .unwrap();
-        conn.pragma_update(None, "user_version", 1i64).unwrap();
-        let applied = run_migrations(&conn, &dir).unwrap();
+            .expect("test op should succeed");
+        conn.pragma_update(None, "user_version", 1i64).expect("update should succeed");
+        let applied = run_migrations(&conn, &dir).expect("test op should succeed");
         assert_eq!(applied.len(), 1);
         assert_eq!(applied[0].version, 2);
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).expect("assertion value"), 2);
         cleanup_dir(&dir);
         cleanup_file(&db_path);
     }
@@ -976,16 +976,16 @@ mod tests {
             dir.join("001_first.sql"),
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
-        .unwrap();
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").unwrap();
+        .expect("test op should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
 
-        let status = migration_status(&conn, &dir).unwrap();
+        let status = migration_status(&conn, &dir).expect("test op should succeed");
         assert_eq!(status.applied.len(), 2);
         assert!(!status.applied[0].applied);
         assert!(!status.applied[1].applied);
 
-        run_migrations(&conn, &dir).unwrap();
-        let status = migration_status(&conn, &dir).unwrap();
+        run_migrations(&conn, &dir).expect("test op should succeed");
+        let status = migration_status(&conn, &dir).expect("test op should succeed");
         assert!(status.applied[0].applied);
         assert!(status.applied[1].applied);
         cleanup_dir(&dir);
@@ -1042,16 +1042,16 @@ mod tests {
             dir.join("004_v05.sql"),
             "CREATE TABLE e2ee_keys (id INTEGER PRIMARY KEY);",
         )
-        .unwrap();
-        std::fs::write(dir.join("005_v10.sql"), "DROP TABLE IF EXISTS e2ee_keys;").unwrap();
-        run_migrations(&conn, &dir).unwrap();
+        .expect("test op should succeed");
+        std::fs::write(dir.join("005_v10.sql"), "DROP TABLE IF EXISTS e2ee_keys;").expect("update should succeed");
+        run_migrations(&conn, &dir).expect("test op should succeed");
         let after: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='e2ee_keys'",
                 [],
                 |r| r.get(0),
             )
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(after, 0, "e2ee_keys must be dropped by 005_v10");
         cleanup_dir(&dir);
         cleanup_file(&db_path);
@@ -1101,37 +1101,37 @@ mod tests {
             dir.join("001_create_t1.sql"),
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
-        .unwrap();
+        .expect("test op should succeed");
         // 002: 加列 x(TEXT) — 这是会被脏状态触发 "duplicate column name" 的迁移
         std::fs::write(
             dir.join("002_add_x.sql"),
             "ALTER TABLE t1 ADD COLUMN x TEXT;",
         )
-        .unwrap();
+        .expect("test op should succeed");
 
         // 模拟脏状态:先应用 001 建表,然后手动 ALTER 添加 x 列(模拟 002 部分应用)
-        run_migrations(&conn, &dir).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        run_migrations(&conn, &dir).expect("test op should succeed");
+        assert_eq!(current_version(&conn).expect("assertion value"), 2);
 
         // 重置 user_version 到 1(模拟 002 未完成 user_version bump)
-        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.pragma_update(None, "user_version", 1).expect("update should succeed");
 
         // 重新运行迁移:002 会尝试 ALTER TABLE ADD COLUMN x,但列已存在,
         // 应报 "duplicate column name",is_idempotent_error 兜底静默忽略。
-        let applied = run_migrations(&conn, &dir).unwrap();
+        let applied = run_migrations(&conn, &dir).expect("test op should succeed");
         assert_eq!(
             applied.len(),
             1,
             "migration 002 should be re-applied (idempotent)"
         );
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).expect("assertion value"), 2);
 
         // 验证列确实存在且可写入
         conn.execute("INSERT INTO t1 (id, x) VALUES (1, 'hello')", [])
-            .unwrap();
+            .expect("test op should succeed");
         let x: String = conn
             .query_row("SELECT x FROM t1 WHERE id = 1", [], |r| r.get(0))
-            .unwrap();
+            .expect("test op should succeed");
         assert_eq!(x, "hello");
 
         cleanup_dir(&dir);
@@ -1142,7 +1142,7 @@ mod tests {
     fn run_bundled_migrations_skips_backup_for_in_memory_db() {
         // M7b #96: 验证 :memory: 数据库跳过备份。
         // Connection::open_in_memory 创建纯内存数据库,无文件路径。
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory().expect("create should succeed");
         // 手动 stamp user_version 到一个较低值,触发 pending migrations
         // (但不实际应用迁移,因为 001_initial.sql 需要文件系统)
         // 这里仅测试 backup_before_migrate 对 :memory: 的处理。
@@ -1159,7 +1159,7 @@ mod tests {
         let (_db_path, conn) = temp_db();
         let path = get_main_db_path(&conn);
         assert!(path.is_some(), "file db should return Some(path)");
-        let p = path.unwrap();
+        let p = path.expect("test op should succeed");
         assert!(
             !p.as_os_str().is_empty(),
             "path should not be empty for file db"

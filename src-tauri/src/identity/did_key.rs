@@ -72,7 +72,7 @@ mod tests {
         let did_key = DidKey::from_public_key(&pk);
         assert!(did_key.did.starts_with("did:key:z"));
 
-        let parsed = DidKey::parse(&did_key.did).unwrap();
+        let parsed = DidKey::parse(&did_key.did).expect("parse should succeed");
         assert_eq!(parsed.public_key_bytes, pk);
         assert_eq!(parsed.did, did_key.did);
     }

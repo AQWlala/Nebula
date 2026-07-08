@@ -509,7 +509,7 @@ mod tests {
             .collect();
 
         for m in &memories {
-            store.insert_guarded_spawn(m).await.unwrap();
+            store.insert_guarded_spawn(m).await.expect("insert should succeed");
         }
         // A --causes--> B
         store
@@ -519,7 +519,7 @@ mod tests {
                 RelationKind::Causes,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // B --causes--> C
         store
             .add_relation(&MemoryRelation::new(
@@ -528,7 +528,7 @@ mod tests {
                 RelationKind::Causes,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // A --before--> D
         store
             .add_relation(&MemoryRelation::new(
@@ -537,7 +537,7 @@ mod tests {
                 RelationKind::Before,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // B --same_entity--> E
         store
             .add_relation(&MemoryRelation::new(
@@ -546,7 +546,7 @@ mod tests {
                 RelationKind::SameEntity,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // D --contains--> E
         store
             .add_relation(&MemoryRelation::new(
@@ -555,7 +555,7 @@ mod tests {
                 RelationKind::Contains,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // E --derived_from--> F
         store
             .add_relation(&MemoryRelation::new(
@@ -564,7 +564,7 @@ mod tests {
                 RelationKind::DerivedFrom,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         // C --similar--> F
         store
             .add_relation(&MemoryRelation::new(
@@ -573,7 +573,7 @@ mod tests {
                 RelationKind::Similar,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let mut ids: Vec<String> = memories.into_iter().map(|m| m.id).collect();
         let ids_arr: [String; 6] = [
@@ -667,7 +667,7 @@ mod tests {
     #[tokio::test]
     async fn trace_temporal_finds_before_chain() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -692,7 +692,7 @@ mod tests {
     #[tokio::test]
     async fn find_similar_finds_symmetric_edge() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -710,7 +710,7 @@ mod tests {
     #[tokio::test]
     async fn trace_hierarchy_walks_contains_and_derived_from() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -732,7 +732,7 @@ mod tests {
     #[tokio::test]
     async fn find_entities_walks_same_entity_and_references() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -748,7 +748,7 @@ mod tests {
     #[tokio::test]
     async fn trace_causal_walks_causes_chain() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -764,7 +764,7 @@ mod tests {
     #[tokio::test]
     async fn query_multi_dim_causal_temporal() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -789,7 +789,7 @@ mod tests {
     #[tokio::test]
     async fn get_full_graph_includes_all_dims() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -814,7 +814,7 @@ mod tests {
     #[tokio::test]
     async fn empty_graph_returns_single_root_node() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         // 插入一个孤立记忆(无任何关系)
         let m = Memory::new(
             MemoryType::Episodic,
@@ -822,7 +822,7 @@ mod tests {
             "isolated",
             SourceKind::UserInput,
         );
-        store.insert_guarded_spawn(&m).await.unwrap();
+        store.insert_guarded_spawn(&m).await.expect("insert should succeed");
 
         let engine = MdrmEngine::new(store);
         let snap = engine.get_full_graph(&m.id, &MdrmConfig::default()).await;
@@ -835,7 +835,7 @@ mod tests {
     #[tokio::test]
     async fn non_existent_memory_returns_single_default_node() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let engine = MdrmEngine::new(store);
 
         // 查询不存在的 ID:fetch_node_meta 退化为默认值,仍返回单节点图
@@ -850,7 +850,7 @@ mod tests {
     #[tokio::test]
     async fn max_nodes_truncation_flag() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -872,7 +872,7 @@ mod tests {
     #[tokio::test]
     async fn max_edges_truncation_flag() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -892,7 +892,7 @@ mod tests {
     #[tokio::test]
     async fn min_weight_filters_low_weight_edges() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
@@ -912,7 +912,7 @@ mod tests {
     #[tokio::test]
     async fn cycle_detection_visited_set_prevents_infinite_loop() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
 
         // 构造环:A -> B -> A
         let a = Memory::new(
@@ -927,8 +927,8 @@ mod tests {
             "cycle-b",
             SourceKind::UserInput,
         );
-        store.insert_guarded_spawn(&a).await.unwrap();
-        store.insert_guarded_spawn(&b).await.unwrap();
+        store.insert_guarded_spawn(&a).await.expect("insert should succeed");
+        store.insert_guarded_spawn(&b).await.expect("insert should succeed");
         store
             .add_relation(&MemoryRelation::new(
                 a.id.clone(),
@@ -936,7 +936,7 @@ mod tests {
                 RelationKind::Similar,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         store
             .add_relation(&MemoryRelation::new(
                 b.id.clone(),
@@ -944,7 +944,7 @@ mod tests {
                 RelationKind::Similar,
             ))
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let engine = MdrmEngine::new(store);
         // 环图应正常返回,不死循环
@@ -959,12 +959,12 @@ mod tests {
     #[tokio::test]
     async fn root_node_depth_zero_and_meta_populated() {
         let path = temp_db_path();
-        let store = SqliteStore::open(&path).unwrap();
+        let store = SqliteStore::open(&path).expect("create should succeed");
         let ids = seed_5d_graph(&store).await;
         let engine = MdrmEngine::new(store);
 
         let snap = engine.trace_causal(&ids[0], &MdrmConfig::default()).await;
-        let root = snap.nodes.iter().find(|n| n.id == ids[0]).unwrap();
+        let root = snap.nodes.iter().find(|n| n.id == ids[0]).expect("query should succeed");
         assert_eq!(root.depth, 0);
         assert_eq!(root.role, GraphNodeRole::Root);
         // 元数据应已填充

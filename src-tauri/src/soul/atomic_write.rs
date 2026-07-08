@@ -167,9 +167,9 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("SOUL.md");
 
-        atomic_write(&path, "test content").unwrap();
+        atomic_write(&path, "test content").expect("update should succeed");
         assert!(path.exists());
-        let read = fs::read_to_string(&path).unwrap();
+        let read = fs::read_to_string(&path).expect("get should succeed");
         assert_eq!(read, "test content");
 
         // 无备份（首次创建）
@@ -186,12 +186,12 @@ mod tests {
         let path = dir.join("SOUL.md");
 
         // 第一次写入
-        atomic_write(&path, "original").unwrap();
+        atomic_write(&path, "original").expect("update should succeed");
         // 第二次写入
-        atomic_write(&path, "updated").unwrap();
+        atomic_write(&path, "updated").expect("update should succeed");
 
-        assert_eq!(fs::read_to_string(&path).unwrap(), "updated");
-        assert_eq!(fs::read_to_string(&backup_path(&path)).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "updated");
+        assert_eq!(fs::read_to_string(&backup_path(&path)).expect("get should succeed"), "original");
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -203,9 +203,9 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("nested/sub/SOUL.md");
 
-        atomic_write(&path, "nested content").unwrap();
+        atomic_write(&path, "nested content").expect("update should succeed");
         assert!(path.exists());
-        assert_eq!(fs::read_to_string(&path).unwrap(), "nested content");
+        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "nested content");
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -217,12 +217,12 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("SOUL.md");
 
-        atomic_write(&path, "original").unwrap();
-        atomic_write(&path, "updated").unwrap();
-        assert_eq!(fs::read_to_string(&path).unwrap(), "updated");
+        atomic_write(&path, "original").expect("update should succeed");
+        atomic_write(&path, "updated").expect("update should succeed");
+        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "updated");
 
-        restore_from_backup(&path).unwrap();
-        assert_eq!(fs::read_to_string(&path).unwrap(), "original");
+        restore_from_backup(&path).expect("update should succeed");
+        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "original");
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -247,10 +247,10 @@ mod tests {
         let dir =
             std::env::temp_dir().join(format!("nebula_soul_atomic_cleanup_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&dir).expect("create should succeed");
         let path = dir.join("SOUL.md");
         let tmp = temp_path(&path);
-        fs::write(&tmp, "residue").unwrap();
+        fs::write(&tmp, "residue").expect("update should succeed");
 
         cleanup_temp_files(&path);
 

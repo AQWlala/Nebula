@@ -469,34 +469,34 @@ mod tests {
     #[test]
     fn test_sync_direction_serialization() {
         assert_eq!(
-            serde_json::to_string(&SyncDirection::Bidirectional).unwrap(),
+            serde_json::to_string(&SyncDirection::Bidirectional).expect("serialize should succeed"),
             "\"bidirectional\""
         );
         assert_eq!(
-            serde_json::to_string(&SyncDirection::NebulaToObsidian).unwrap(),
+            serde_json::to_string(&SyncDirection::NebulaToObsidian).expect("serialize should succeed"),
             "\"nebula_to_obsidian\""
         );
         assert_eq!(
-            serde_json::to_string(&SyncDirection::ObsidianToNebula).unwrap(),
+            serde_json::to_string(&SyncDirection::ObsidianToNebula).expect("serialize should succeed"),
             "\"obsidian_to_nebula\""
         );
     }
 
     #[tokio::test]
     async fn test_is_obsidian_vault_detects_config_dir() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("test op should succeed");
         let vault = tmp.path();
         assert!(!ObsidianVaultSync::is_obsidian_vault(vault).await);
 
         tokio::fs::create_dir_all(vault.join(".obsidian"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         assert!(ObsidianVaultSync::is_obsidian_vault(vault).await);
     }
 
     #[tokio::test]
     async fn test_export_to_obsidian_writes_file() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("test op should succeed");
         let config = ObsidianSyncConfig::new(tmp.path().to_path_buf());
 
         let note = WikiNote {
@@ -514,10 +514,10 @@ mod tests {
         let body = "# Test\n\nHello world.";
         let path = ObsidianVaultSync::export_to_obsidian(&config, &note, body)
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         assert!(path.exists());
-        let content = tokio::fs::read_to_string(&path).await.unwrap();
+        let content = tokio::fs::read_to_string(&path).await.expect("get should succeed");
         assert!(content.starts_with("---\n"));
         assert!(content.contains("title: \"Test\""));
         assert!(content.contains("# Test"));
@@ -526,33 +526,33 @@ mod tests {
 
     #[tokio::test]
     async fn test_scan_vault_finds_markdown_files() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("test op should succeed");
         let vault = tmp.path();
 
         // 创建 vault 结构
         tokio::fs::create_dir_all(vault.join(".obsidian"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::fs::create_dir_all(vault.join("Nebula"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::fs::create_dir_all(vault.join("notes"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::fs::write(vault.join("notes/a.md"), "# A")
             .await
-            .unwrap();
-        tokio::fs::write(vault.join("b.md"), "# B").await.unwrap();
+            .expect("test op should succeed");
+        tokio::fs::write(vault.join("b.md"), "# B").await.expect("update should succeed");
         // 应被跳过
         tokio::fs::write(vault.join("Nebula/c.md"), "# C")
             .await
-            .unwrap();
+            .expect("test op should succeed");
         tokio::fs::write(vault.join(".hidden.md"), "# Hidden")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let config = ObsidianSyncConfig::new(vault.to_path_buf());
-        let files = ObsidianVaultSync::scan_vault(&config).await.unwrap();
+        let files = ObsidianVaultSync::scan_vault(&config).await.expect("task should complete");
 
         assert!(files.contains(&"b.md".to_string()));
         assert!(files.contains(&"notes/a.md".to_string()));
@@ -562,22 +562,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_import_from_obsidian_parses_frontmatter() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("test op should succeed");
         let vault = tmp.path();
 
         tokio::fs::create_dir_all(vault.join("notes"))
             .await
-            .unwrap();
+            .expect("test op should succeed");
         let content =
             "---\ntitle: \"Imported\"\ntags: [\"test\"]\nimportance: 0.9\n---\n\n# Body\n";
         tokio::fs::write(vault.join("notes/imported.md"), content)
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         let config = ObsidianSyncConfig::new(vault.to_path_buf());
         let imported = ObsidianVaultSync::import_from_obsidian(&config, "notes/imported.md")
             .await
-            .unwrap();
+            .expect("test op should succeed");
 
         assert_eq!(imported.note.title, "Imported");
         assert_eq!(imported.note.tags, vec!["test"]);

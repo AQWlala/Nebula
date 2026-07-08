@@ -75,127 +75,127 @@ impl MetricsRegistry {
             "nebula_embedding_cache_hits_total",
             "Embedder cache hits since process start",
         )
-        .unwrap();
+        .expect("must succeed");
         let embedding_cache_misses = IntCounter::new(
             "nebula_embedding_cache_misses_total",
             "Embedder cache misses since process start",
         )
-        .unwrap();
+        .expect("must succeed");
         let memory_stores_total =
-            IntCounter::new("nebula_memory_stores_total", "Total memory_store calls").unwrap();
+            IntCounter::new("nebula_memory_stores_total", "Total memory_store calls").expect("metric 'nebula_memory_stores_total' must be valid");
         let memory_searches_total =
-            IntCounter::new("nebula_memory_searches_total", "Total memory_search calls").unwrap();
+            IntCounter::new("nebula_memory_searches_total", "Total memory_search calls").expect("metric 'nebula_memory_searches_total' must be valid");
         let blackhole_compressions_total = IntCounter::new(
             "nebula_blackhole_compressions_total",
             "Rows compressed by the black-hole engine",
         )
-        .unwrap();
+        .expect("must succeed");
         let reflections_generated_total = IntCounter::new(
             "nebula_reflections_generated_total",
             "L5 reflections produced",
         )
-        .unwrap();
+        .expect("must succeed");
         let swarm_executions_total =
-            IntCounter::new("nebula_swarm_executions_total", "swarm_execute invocations").unwrap();
-        let chat_total = IntCounter::new("nebula_chat_total", "chat invocations").unwrap();
+            IntCounter::new("nebula_swarm_executions_total", "swarm_execute invocations").expect("metric 'nebula_swarm_executions_total' must be valid");
+        let chat_total = IntCounter::new("nebula_chat_total", "chat invocations").expect("metric 'nebula_chat_total' must be valid");
         let memory_search_latency_us = IntCounter::new(
             "nebula_memory_search_latency_us_total",
             "Cumulative memory_search latency in microseconds",
         )
-        .unwrap();
+        .expect("must succeed");
         let memory_search_latency_count = IntCounter::new(
             "nebula_memory_search_latency_count",
             "Number of memory_search latency samples",
         )
-        .unwrap();
+        .expect("must succeed");
         let llm_chat_latency_us = IntCounter::new(
             "nebula_llm_chat_latency_us_total",
             "Cumulative chat latency in microseconds",
         )
-        .unwrap();
+        .expect("must succeed");
         let llm_chat_latency_count = IntCounter::new(
             "nebula_llm_chat_latency_count",
             "Number of chat latency samples",
         )
-        .unwrap();
+        .expect("must succeed");
         let embedding_cache_hit_ratio = IntGauge::new(
             "nebula_embedding_cache_hit_ratio",
             "Embedder cache hit ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .unwrap();
+        .expect("must succeed");
         // T-S1-B-03: 11 个新 IntCounter + 3 个新 IntGauge。
         let token_prompt_total = IntCounter::new(
             "nebula_token_prompt_total",
             "Cumulative LLM prompt tokens (from provider usage field)",
         )
-        .unwrap();
+        .expect("must succeed");
         let token_completion_total = IntCounter::new(
             "nebula_token_completion_total",
             "Cumulative LLM completion tokens (from provider usage field)",
         )
-        .unwrap();
-        let l0_hits = IntCounter::new("nebula_l0_hits_total", "L0 hot cache hits").unwrap();
-        let l0_misses = IntCounter::new("nebula_l0_misses_total", "L0 hot cache misses").unwrap();
+        .expect("must succeed");
+        let l0_hits = IntCounter::new("nebula_l0_hits_total", "L0 hot cache hits").expect("metric 'nebula_l0_hits_total' must be valid");
+        let l0_misses = IntCounter::new("nebula_l0_misses_total", "L0 hot cache misses").expect("metric 'nebula_l0_misses_total' must be valid");
         let l4_allow_total =
-            IntCounter::new("nebula_l4_allow_total", "L4 values layer Allow verdicts").unwrap();
+            IntCounter::new("nebula_l4_allow_total", "L4 values layer Allow verdicts").expect("metric 'nebula_l4_allow_total' must be valid");
         let l4_confirm_total = IntCounter::new(
             "nebula_l4_confirm_total",
             "L4 values layer Confirm verdicts (needs user approval)",
         )
-        .unwrap();
+        .expect("must succeed");
         let l4_plan_total = IntCounter::new(
             "nebula_l4_plan_total",
             "L4 values layer Plan verdicts (needs Plan mode)",
         )
-        .unwrap();
+        .expect("must succeed");
         let l4_deny_total = IntCounter::new(
             "nebula_l4_deny_total",
             "L4 values layer Deny verdicts (blocked)",
         )
-        .unwrap();
+        .expect("must succeed");
         let acl_allow_total =
-            IntCounter::new("nebula_acl_allow_total", "ACL allow verdicts").unwrap();
-        let acl_deny_total = IntCounter::new("nebula_acl_deny_total", "ACL deny verdicts").unwrap();
+            IntCounter::new("nebula_acl_allow_total", "ACL allow verdicts").expect("metric 'nebula_acl_allow_total' must be valid");
+        let acl_deny_total = IntCounter::new("nebula_acl_deny_total", "ACL deny verdicts").expect("metric 'nebula_acl_deny_total' must be valid");
         let reflections_skipped_total = IntCounter::new(
             "nebula_reflections_skipped_total",
             "Reflection passes skipped by RoundGuard (cooldown window saturated)",
         )
-        .unwrap();
+        .expect("must succeed");
         let l0_hit_ratio = IntGauge::new(
             "nebula_l0_hit_ratio",
             "L0 hot cache hit ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .unwrap();
+        .expect("must succeed");
         let l4_block_ratio = IntGauge::new(
             "nebula_l4_block_ratio",
             "L4 block ratio = (Confirm+Plan+Deny)/total, scaled by 10000",
         )
-        .unwrap();
+        .expect("must succeed");
         let acl_deny_ratio = IntGauge::new(
             "nebula_acl_deny_ratio",
             "ACL deny ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .unwrap();
+        .expect("must succeed");
         let process_rss_bytes = IntGauge::new(
             "nebula_process_rss_bytes",
             "Process resident set size in bytes",
         )
-        .unwrap();
+        .expect("must succeed");
         let process_virtual_bytes = IntGauge::new(
             "nebula_process_virtual_bytes",
             "Process virtual memory size in bytes",
         )
-        .unwrap();
+        .expect("must succeed");
         let process_cpu_pct = IntGauge::new(
             "nebula_process_cpu_pct",
             "Process CPU usage percent (scaled by 100 for integer storage)",
         )
-        .unwrap();
+        .expect("must succeed");
         let over_rss_budget = IntGauge::new(
             "nebula_over_rss_budget",
             "1 when RSS is over the 500MB budget, 0 otherwise",
         )
-        .unwrap();
+        .expect("must succeed");
 
         let mf = &registry;
         let _ = mf.register(Box::new(embedding_cache_hits.clone()));
@@ -488,7 +488,7 @@ mod tests {
         let mem_stores = families
             .iter()
             .find(|f| f.get_name() == "nebula_memory_stores_total")
-            .unwrap();
+            .expect("test op should succeed");
         assert!(mem_stores.get_metric().len() >= 1);
     }
 

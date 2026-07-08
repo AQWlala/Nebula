@@ -194,7 +194,7 @@ mod tests {
             input: serde_json::json!({"text": "hello", "n": 42}),
             timeout_ms: 1000,
         };
-        let resp = executor.execute(req).await.unwrap();
+        let resp = executor.execute(req).await.expect("task should complete");
         assert!(resp.error.is_none(), "echo should succeed");
         assert_eq!(resp.output, serde_json::json!({"text": "hello", "n": 42}));
         assert!(resp.latency_ms < 1000, "echo should be fast");
@@ -209,15 +209,15 @@ mod tests {
             input: serde_json::Value::Null,
             timeout_ms: 1000,
         };
-        let resp = executor.execute(req).await.unwrap();
+        let resp = executor.execute(req).await.expect("task should complete");
         assert!(resp.error.is_some(), "unknown skill should set error");
-        assert!(resp.error.unwrap().contains("unknown local skill"));
+        assert!(resp.error.expect("assertion value").contains("unknown local skill"));
     }
 
     #[tokio::test]
     async fn test_remote_executor_rejects_private_address() {
         // SSRF 校验:拒绝 127.0.0.1 / 192.168 / 10 / 169.254 / 172.16-31。
-        let executor = RemoteExecutor::new().unwrap();
+        let executor = RemoteExecutor::new().expect("create should succeed");
 
         let private_addrs = [
             "http://127.0.0.1/api",
@@ -249,7 +249,7 @@ mod tests {
     #[tokio::test]
     async fn test_remote_executor_requires_url_field() {
         // input 缺少 url 字段:返回 Err。
-        let executor = RemoteExecutor::new().unwrap();
+        let executor = RemoteExecutor::new().expect("create should succeed");
         let req = SkillRequest {
             skill: "fetch".to_string(),
             input: serde_json::json!({"text": "no url"}),
@@ -268,9 +268,9 @@ mod tests {
             input: serde_json::Value::Null,
             timeout_ms: 1000,
         };
-        let resp = executor.execute(req).await.unwrap();
+        let resp = executor.execute(req).await.expect("task should complete");
         assert!(resp.error.is_some(), "McpExecutor should set error");
-        let err = resp.error.unwrap();
+        let err = resp.error.expect("test op should succeed");
         assert!(
             err.contains("not implemented"),
             "expected NotImplemented: {err}"

@@ -90,13 +90,13 @@ mod tests {
             capabilities: vec!["io".to_string()],
             transport: SkillTransport::Local,
         };
-        let j = serde_json::to_string(&m).unwrap();
+        let j = serde_json::to_string(&m).expect("serialize should succeed");
         // transport 应序列化为 "local"(snake_case)。
         assert!(
             j.contains("\"transport\":\"local\""),
             "expected snake_case 'local', got: {j}"
         );
-        let m2: SkillManifest = serde_json::from_str(&j).unwrap();
+        let m2: SkillManifest = serde_json::from_str(&j).expect("parse should succeed");
         assert_eq!(m, m2);
     }
 
@@ -112,10 +112,10 @@ mod tests {
                 url: "https://api.example.com/skill".to_string(),
             },
         };
-        let j = serde_json::to_string(&m).unwrap();
+        let j = serde_json::to_string(&m).expect("serialize should succeed");
         assert!(j.contains("\"remote\""), "expected 'remote' tag, got: {j}");
         assert!(j.contains("https://api.example.com/skill"));
-        let m2: SkillManifest = serde_json::from_str(&j).unwrap();
+        let m2: SkillManifest = serde_json::from_str(&j).expect("parse should succeed");
         assert_eq!(m, m2);
     }
 
@@ -131,10 +131,10 @@ mod tests {
                 server: "mcp-server-1".to_string(),
             },
         };
-        let j = serde_json::to_string(&m).unwrap();
+        let j = serde_json::to_string(&m).expect("serialize should succeed");
         assert!(j.contains("\"mcp\""), "expected 'mcp' tag, got: {j}");
         assert!(j.contains("mcp-server-1"));
-        let m2: SkillManifest = serde_json::from_str(&j).unwrap();
+        let m2: SkillManifest = serde_json::from_str(&j).expect("parse should succeed");
         assert_eq!(m, m2);
     }
 
@@ -146,8 +146,8 @@ mod tests {
             input: serde_json::json!({"text": "hello"}),
             timeout_ms: 5000,
         };
-        let req_j = serde_json::to_string(&req).unwrap();
-        let req2: SkillRequest = serde_json::from_str(&req_j).unwrap();
+        let req_j = serde_json::to_string(&req).expect("serialize should succeed");
+        let req2: SkillRequest = serde_json::from_str(&req_j).expect("parse should succeed");
         assert_eq!(req.skill, req2.skill);
         assert_eq!(req.input, req2.input);
         assert_eq!(req.timeout_ms, req2.timeout_ms);
@@ -157,8 +157,8 @@ mod tests {
             error: None,
             latency_ms: 42,
         };
-        let resp_j = serde_json::to_string(&resp).unwrap();
-        let resp2: SkillResponse = serde_json::from_str(&resp_j).unwrap();
+        let resp_j = serde_json::to_string(&resp).expect("serialize should succeed");
+        let resp2: SkillResponse = serde_json::from_str(&resp_j).expect("parse should succeed");
         assert_eq!(resp.output, resp2.output);
         assert_eq!(resp.error, resp2.error);
         assert_eq!(resp.latency_ms, resp2.latency_ms);

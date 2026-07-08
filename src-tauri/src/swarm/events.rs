@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn agent_started_serializes_with_kind_tag() {
         let evt = SwarmEvent::agent_started(AgentKind::Generic, "task-1");
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"agent_started\""), "got: {s}");
         assert!(s.contains("\"agent_kind\":\"generic\""));
         assert!(s.contains("\"task_id\":\"task-1\""));
@@ -355,7 +355,7 @@ mod tests {
             false,
             Some("timeout".to_string()),
         );
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"agent_completed\""));
         assert!(s.contains("\"success\":false"));
         assert!(s.contains("\"error\":\"timeout\""));
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn agent_completed_success_omits_error_via_none() {
         let evt = SwarmEvent::agent_completed(AgentKind::Reviewer, "t", true, None);
-        let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
         assert_eq!(v["kind"], "agent_completed");
         assert_eq!(v["success"], true);
         assert!(v["error"].is_null());
@@ -378,7 +378,7 @@ mod tests {
             NegotiationMethod::LlmArbitration,
             true,
         );
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"arbitration_resolved\""));
         assert!(s.contains("\"method\":\"llm_arbitration\""));
         assert!(s.contains("\"conflict_detected\":true"));
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn swarm_completed_carries_counts() {
         let evt = SwarmEvent::swarm_completed("t-4", 3, 1, true);
-        let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
         assert_eq!(v["kind"], "swarm_completed");
         assert_eq!(v["success_count"], 3);
         assert_eq!(v["failure_count"], 1);
@@ -410,7 +410,7 @@ mod tests {
             None,
             "task-123",
         );
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(s.contains("\"kind\":\"agent_tool_call\""));
         assert!(s.contains("\"agent_id\":\"agent-1\""));
         assert!(s.contains("\"agent_role\":\"coder\""));
@@ -436,7 +436,7 @@ mod tests {
             Some("permission denied".to_string()),
             "task-456",
         );
-        let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
         assert_eq!(v["kind"], "agent_tool_call");
         assert_eq!(v["success"], false);
         assert_eq!(v["error"], "permission denied");
@@ -446,7 +446,7 @@ mod tests {
     #[test]
     fn agent_output_chunk_serializes() {
         let evt = SwarmEvent::agent_output_chunk("agent-1", "hello", "task-789");
-        let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
         assert_eq!(v["kind"], "agent_output_chunk");
         assert_eq!(v["agent_id"], "agent-1");
         assert_eq!(v["delta"], "hello");
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn tree_of_thoughts_started_serializes() {
         let evt = SwarmEvent::tree_of_thoughts_started("task-tot-1", 4);
-        let s = serde_json::to_string(&evt).unwrap();
+        let s = serde_json::to_string(&evt).expect("serialize should succeed");
         assert!(
             s.contains("\"kind\":\"tree_of_thoughts_started\""),
             "got: {s}"
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn path_completed_serializes_with_strategy() {
         let evt = SwarmEvent::path_completed("task-tot-1", "path-0", ThoughtStrategy::Analytical);
-        let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
         assert_eq!(v["kind"], "path_completed");
         assert_eq!(v["task_id"], "task-tot-1");
         assert_eq!(v["path_id"], "path-0");
@@ -489,7 +489,7 @@ mod tests {
             (ThoughtStrategy::Synthesis, "synthesis"),
         ] {
             let evt = SwarmEvent::path_completed("task-tot-1", "path-0", strategy);
-            let v: serde_json::Value = serde_json::to_value(&evt).unwrap();
+            let v: serde_json::Value = serde_json::to_value(&evt).expect("test op should succeed");
             assert_eq!(v["kind"], "path_completed");
             assert_eq!(v["strategy"], expected, "strategy {expected} mismatch");
         }
