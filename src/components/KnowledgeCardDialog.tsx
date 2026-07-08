@@ -1,4 +1,4 @@
-﻿/**
+/**
  * T-E-B-13: 知识卡片弹窗。
  *
  * 点击 ChatPanel 中 `[[xxx]]` wiki-link 后弹出,聚合展示:
@@ -14,8 +14,7 @@
  * 复用 global.css modal 类(modal-backdrop / modal / modal__header / modal__body)。
  */
 import { useState, useEffect } from 'preact/hooks';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from '../utils/markdown';
 import { nebulaAPI, type KnowledgeCard } from '../lib/tauri';
 import { toast } from './Toast';
 import { Modal } from './Modal';
@@ -28,25 +27,6 @@ interface KnowledgeCardDialogProps {
 
 /** R3: 最大嵌套深度(点击 related_entities 加载新卡片的次数)。 */
 const MAX_NESTING_DEPTH = 3;
-
-/**
- * 把 markdown 正文渲染为经 DOMPurify 清理的安全 HTML。
- *
- * 1. 预处理 `[[xxx]]` → `<a class="wiki-link" data-slug="xxx">xxx</a>`(可点击)。
- * 2. `marked.parse` 转 HTML。
- * 3. `DOMPurify.sanitize` 清理 XSS(移除 `<script>` / 内联事件处理器等)。
- */
-function renderMarkdown(md: string): string {
-  const withWikiLinks = md.replace(
-    /\[\[([^\]]+)\]\]/g,
-    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`
-  );
-  const html = marked.parse(withWikiLinks) as string;
-  return DOMPurify.sanitize(html, {
-    // 允许 <a> 的 data-slug 属性(用于 wiki-link 点击检测)。
-    ADD_ATTR: ['data-slug', 'target'],
-  });
-}
 
 export function KnowledgeCardDialog({ slug, onClose }: KnowledgeCardDialogProps) {
   const [card, setCard] = useState<KnowledgeCard | null>(null);

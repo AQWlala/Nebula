@@ -10,8 +10,7 @@
  */
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from '../utils/markdown';
 import {
   nebulaAPI,
   type ChatResponse,
@@ -60,26 +59,6 @@ function warningLabel(w: ConsistencyWarning): string {
     default:
       return '未知风险';
   }
-}
-
-/**
- * T-E-B-13: 把消息正文渲染为经 DOMPurify 清理的安全 HTML。
- *
- * 1. 预处理 `[[xxx]]` → `<a class="wiki-link" data-slug="xxx">xxx</a>`(可点击)。
- * 2. `marked.parse` 转 HTML。
- * 3. `DOMPurify.sanitize` 清理 XSS(移除 `<script>` / 内联事件处理器等)。
- *
- * 与 KnowledgeCardDialog 中的 renderMarkdown 一致;此处为 ChatPanel 复用。
- */
-function renderMarkdown(content: string): string {
-  const withWikiLinks = content.replace(
-    /\[\[([^\]]+)\]\]/g,
-    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`
-  );
-  const html = marked.parse(withWikiLinks) as string;
-  return DOMPurify.sanitize(html, {
-    ADD_ATTR: ['data-slug', 'target'],
-  });
 }
 
 /**
