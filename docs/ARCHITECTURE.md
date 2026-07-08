@@ -1,6 +1,6 @@
 # Nebula · 架构 (Architecture)
 
-> v1.0 的分层、数据流与子系统契约。
+> v2.0 的分层、数据流与子系统契约（基于 v3.1 实施完成总结更新）。
 
 ---
 
@@ -12,7 +12,8 @@
 │                                                             │
   │  ┌──────────────────┐    ┌──────────────────────────────┐ │
   │  │  Tauri commands  │    │  gRPC server (127.0.0.1)     │ │
-  │  │  (106 个)        │    │  (22 RPC · JSON framing shim) │ │
+  │  │  (270 个)        │    │  (23 RPC · tonic + JSON      │ │
+  │  │                  │    │   framing fallback)           │ │
 │  └────────┬─────────┘    └──────────────┬───────────────┘ │
 │           │                              │                  │
 │           └──────────────┬───────────────┘                  │
@@ -52,14 +53,21 @@
 │  WebView (system WebView2 / WKWebView / WebKitGTK)         │
 │                                                             │
 │  Preact 10 + @preact/signals                               │
-│  ├─ Sidebar                                                 │
-│  ├─ Onboarding (v1.0)                                       │
-│  ├─ Settings (v1.0)                                         │
-│  ├─ StatusBar (v1.0)                                        │
-│  ├─ ErrorBoundary (v1.0)                                    │
-│  ├─ CommandPalette (v1.0, ⌘K)                              │
-│  ├─ Toasts (v1.0)                                           │
-│  └─ 主视图: Chat / Swarm / Memory / Code / Skills / ...   │
+  │  ├─ Sidebar / Navigator                                      │
+  │  ├─ Onboarding                                               │
+  │  ├─ Settings (LLM / Skills / Sync / Credits / 人格)        │
+  │  ├─ StatusBar                                                │
+  │  ├─ ErrorBoundary + DiagnosticsBus                           │
+  │  ├─ CommandPalette (⌘K, Fuse.js 搜索)                       │
+  │  ├─ Toasts                                                    │
+  │  ├─ FloatingBall (悬浮球)                                    │
+  │  ├─ CreditsDashboard                                         │
+  │  ├─ ArenaPanel (A/B 测试)                                    │
+  │  ├─ LongTaskPanel (Shadow Workspace 进度)                   │
+  │  ├─ MemoryMap (知识图谱三视图: Markdown/图谱/时间轴)        │
+  │  ├─ DagCanvas (运行时 DAG 可视化)                           │
+  │  ├─ SoulEditor (SOUL.md 编辑器 + 进化日志回滚)             │
+  │  └─ 主视图: Chat / Swarm / Memory / Skills / Work / Wiki   │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -103,7 +111,7 @@ ChatPanel 渲染 + 写入 nebulaStore
 
 ---
 
-## 3. 5 层记忆子系统 (L0-L5, v7.0 设计)
+## 3. 8 层记忆子系统 (L0-L7, v7.0 设计)
 
 ```
                   ┌─────────────┐
@@ -111,31 +119,31 @@ ChatPanel 渲染 + 写入 nebulaStore
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L1 messages  │  (对话/操作, 7天保留)
+                  │ L1 messages  │  (对话/操作, 原始流水)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L2 experience│  (命名实体+概念, 30天)
+                  │ L2 experience│  (实体关联/概念网络, v0.5)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L3 facts     │  (结构化知识+技能, 90天)
+                  │ L3 facts     │  (结构化知识/技能库, v0.5)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L4 knowledge │  (跨任务抽象+偏好, 1年)
+                  │ L4 knowledge │  (跨任务抽象/用户偏好/价值对齐, v0.5)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L5 lessons   │  (元认知反思, v0假意识)
+                  │ L5 lessons   │  (元认知反思/自我改进, v1.0)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L6 principles│  (深层模式)  →  📋 v1.5
+                  │ L6 principles│  (深层模式/知识蒸馏, 预留)
                   └──────┬──────┘
                          ▼
                   ┌─────────────┐
-                  │ L7 singularity│ (核心身份) →  📋 v1.5
+                  │ L7 immutable │ (不变核心身份, 预留)
                   └─────────────┘
 ```
 
@@ -143,6 +151,7 @@ ChatPanel 渲染 + 写入 nebulaStore
 * **读取**：`LanceStore::search(query_emb, k)` → 拉 SQLite 元数据 → 过滤 layer。
 * **反思**：`ReflectionEngine` 后台 worker 每 N 秒跑一次，把 L2–L3 浓缩成 L5 教训。
 * **压缩**：`BlackholeEngine` 在 N 天未访问时自动归档低重要性记忆。
+* **进化**：`EvolutionEngine` 4 阶段管线 (Extract→Compile→Reflect→Soul) 实现 L5→SOUL.md 自进化。
 
 ---
 
@@ -162,9 +171,9 @@ ChatPanel 渲染 + 写入 nebulaStore
 
 ---
 
-## 5. gRPC 服务（v1.1 JSON framing shim）
+## 5. gRPC 服务（tonic 实现，JSON framing fallback）
 
-`proto/nebula.proto` 定义 22 个 RPC：
+`proto/nebula.proto` 定义 23 个 RPC（v1.1 从 22 个扩展至 23 个）：
 
 | Service | RPCs |
 | ------- | ---- |
@@ -175,21 +184,15 @@ ChatPanel 渲染 + 写入 nebulaStore
 | ReflectionService | Trigger / ListRecent / Get |
 | Health | Health |
 
-* **transport** — hyper HTTP/2 server + 自定义 JSON framing shim（4-byte BE length prefix + JSON payload）。
-* **注意** — 当前实现**不是**完整的 gRPC/HTTP2 协议栈。它使用 serde_json 编解码替代 protobuf，
-  不支持 HPACK 头压缩、varint 编码或 gRPC 标准的 4MB 消息限制。
-  标准 `grpcurl` 或 `protoc-gen-tonic` 客户端**无法直接连接**。
-  调用方需使用兼容此 JSON framing 的自定义客户端。
-* **地址** — `127.0.0.1:50051` 默认（`NEBULA_GRPC_ADDR`）。
-* **关闭** — `NEBULA_GRPC=0` 禁用（`--no-default-features` 也可彻底剔除 tonic）。
-* **v1.1 状态** — 22 个 RPC 的 trait 方法体在
-  `src/grpc/server.rs::nebulaServiceImpl` 中已完整实现；
-  `handle_connection` 使用 hyper HTTP/2 + JSON framing shim 处理真实连接。
-  完整 protobuf wire 兼容（grpcurl / tonic 客户端可直连）推迟到未来版本。
-
-> **架构决策 (ADR)**：v1.x 阶段永久采用 JSON framing shim，不追求完整 protobuf wire 兼容。
-> 理由：nebula 是本地优先应用，Tauri IPC 已是主要通信通道；gRPC 仅作为可选的外部集成接口。
-> 完整 protobuf（grpcurl/tonic 直连）推迟到有明确需求时再评估。
+* **默认 transport** — `tonic v0.12` + prost v0.13 实现了完整的 protobuf wire 兼容。
+  5 个 prost 生成的 server trait 全部在 `grpc/tonic_server.rs` 实现。标准 `grpcurl` 或
+  tonic 客户端可直接连接。
+* **stream_events** — 使用 `async_stream::stream!` + AgentBus broadcast channel 实现真实 server-streaming。
+* **JSON framing fallback** — 旧的 `server.rs` (v0.3 JSON shim) 保留为 `json-framing` feature fallback。
+  默认路径走 tonic 实现，仅在开启 `json-framing` feature 且关闭 `grpc` feature 时使用 JSON shim。
+* **地址** — `127.0.0.1:50051` 默认（`NEBULA_GRPC_ADDR` 可配置）。
+* **关闭** — `NEBULA_GRPC=0` 禁用（`--no-default-features` 也可彻底剔除 tonic 依赖）。
+* **feature gate** — `grpc` feature 控制整套 gRPC 栈的编译；`rest-api` feature 独立控制 REST API。
 
 ---
 
@@ -198,7 +201,7 @@ ChatPanel 渲染 + 写入 nebulaStore
 * **KDF** — X25519 ECDH → HKDF-SHA256 → 32 字节对称密钥。
 * **AEAD** — AES-256-GCM，12 字节随机 nonce，附 16 字节 tag。
 * **Salt** — 每次握手随机 16 字节，绑定到 envelope。
-* **前向保密 (FS)** — v0.5 单棘轮；**v1.0 仍为单棘轮**，v1.1 升级到双棘轮。
+* **前向保密 (FS)** — v2.0 双棘轮（v0.5 单棘轮 → v1.0 单棘轮保留 → v2.0 升级双棘轮）。
 * **持久化** — 加密后的 envelope 落到本地 `sync_inbox/` 目录；接收方用 inbox 轮询拉取。
 
 ```
@@ -220,39 +223,48 @@ Alice                         Bob
 
 ---
 
-## 7. 性能监控 (v1.0)
+## 7. 性能监控 (v2.0)
 
-* **指标** — 启动时 6 个 `StartupTimer` 里程碑：`start / sqlite / migrations / lance / llm / editor / end`。
-* **运行时** — `PerfMonitor` 每秒采样 RSS / CPU（feature `perf-telemetry` 打开时）。
-* **预算** — RSS < 500 MB；冷启动 < 5s（macOS/Linux）/ < 8s（Windows）；command 响应 < 200ms。
-* **上报** — 通过 `startup_report` 和 `perf_sample` 两个 Tauri command 暴露给前端。
+* **指标** — 启动时 8+ 个 `StartupTimer` 里程碑：`start / sqlite / migrations / lance / llm / editor / end` 等。
+* **运行时** — `PerfMonitor` 每秒采样 RSS / CPU（feature `perf-telemetry` 打开时）；`metrics` 系统包含 Prometheus 原生指标（v1.8+，含 prometheus crate + axum 导出端点）。
+* **预算** — RSS < 500 MB；冷启动 < 3s（所有平台）；首响延迟 < 500ms；L0 缓存命中率 > 5%（语义缓存 L0.5 额外增加 35%+ 命中率）。
+* **上报** — 通过 `startup_report`、`perf_sample`、`metrics` 三个 Tauri command 暴露给前端；OpenTelemetry 导出可选（`otel` feature）。
+* **性能基准** — 3 个 criterion bench 持续跟踪（`dispatcher_construct` / `worktype_resolve_all_seven` / `dispatch_fail_fast_local`）。
 
 ---
 
 ## 8. 安全模型
 
+* **纵深防御 8 层** — L4 价值层 (ConstitutionalAI + RiskAssessor + PrivacyGuard + ValuePredictor) + MemoryAcl v2 (deny-all 默认) + E2EE + 注入检测 + SSRF 防护 + Shell 白名单 + 路径沙箱 + CSP。
 * **Tauri command 权限** — 所有 command 接受 `State<'_, AppState>`，由 AppState 内部做校验。
-* **Shell 白名单** — `ShellExecutor` 内置 24 个二进制；用户可加但 v1.0 不能运行时移除。
-* **路径沙箱** — `editor_*` 强制把工作区根拼到相对路径之前。
-* **E2EE** — 私钥永不出设备；inbox 文件是密文。
-* **API key** — 仅本地存储 (`settings.json`)，不外发；v1.1 计划用 OS keychain。
+* **Shell 白名单** — `ShellExecutor` 内置 24+ 个二进制；白名单策略可外部配置。
+* **路径沙箱** — `editor_*` 强制把工作区根拼到相对路径之前；路径遍历攻击被 SSRF guard 拦截。
+* **E2EE** — X25519 + HKDF-SHA256 + AES-256-GCM，私钥永不出设备；inbox 文件是密文；双棘轮提供前向保密。
+* **API key** — 使用 OS 原生 Keychain（macOS Keychain / Windows Credential Vault / Linux Secret Service）存储，`keyring` crate 实现。settings.json 不做持久凭证存储。
+* **SSRF 防护** — `ssrf_guard` 模块验证所有外发请求目标，阻止内网地址/云元数据端点/本地回环（26 个安全缺口已修复，见 SECURITY_AUDIT_REPORT.md）。
+* **注入检测** — `injection_guard` 模块在 prompt 注入和 Phase 3 反思阶段双向扫描（13 个缺口已修复）。
 * **CSP** — 默认禁止外网 JS；`connect-src` 仅放行 IPC + Ollama。
+* **SQLCipher** — `sqlcipher` feature 启用全库加密（`rusqlite/bundled-sqlcipher-vendored-openssl`）。
 
 ---
 
-## 9. i18n (v1.0)
+## 9. i18n (v2.0)
 
-* **Locales** — `zh-CN`, `en-US`。
-* **来源** — `localStorage` > `navigator.language` > `en-US`。
-* **运行时切换** — `setLocale(l)` 写回 `localStorage` + 触发 listeners。
+* **Locales** — `zh-CN`, `en-US`。基于 Preact Signals 实现响应式 i18n（`createSignal` + `computed`），locale 变更即时更新 UI。
+* **来源** — `localStorage` > `navigator.language` > `en-US`（`getInitialLocale` 链）。
+* **运行时切换** — `setLocale(l)` 写回 `localStorage` + signal 触发所有组件重渲染。
 * **键缺失** — 静默回退到 `en-US`；键完全缺失时回退到 key 本身（开发可见）。
+* **测试** — `src/i18n/__tests__/i18n.test.ts` 覆盖 get/set、signal 响应性、中英文字符串。
 
 ---
 
-## 10. 可观测性 (v1.0)
+## 10. 可观测性 (v2.0)
 
-* **结构化日志** — `NEBULA_LOG_FORMAT=json`。
-* **日志轮转** — `NEBULA_LOG_DIR=/path` 启用 daily rolling。
-* **指标** — `metrics` command 返回 7 个 atomic 计数器。
-* **启动报告** — `startup_report` command 返回 6 阶段耗时 + 状态。
-* **崩溃** — 前端 `ErrorBoundary` 把最近 5 次崩溃写到 `localStorage`；v1.1 计划用 Sentry。
+* **结构化日志** — `NEBULA_LOG_FORMAT=json`；`tracing` 生态 + `tracing-subscriber` env-filter。
+* **日志轮转** — `NEBULA_LOG_DIR=/path` 启用 daily rolling（`tracing-appender`）。
+* **指标** — `metrics` command 返回 Prometheus 指标（7+ 原子计数器），可选 axum `/metrics` 端点导出。
+* **OpenTelemetry** — `otel` feature 启用 OTLP gRPC 导出（opentelemetry + opentelemetry_sdk + opentelemetry-otlp）。
+* **12 trace span types** — chat / swarm / skill / memory / llm / reflect / acl / plan / crdt / sidecar / channel / export。
+* **启动报告** — `startup_report` command 返回 8+ 阶段耗时 + 状态。
+* **崩溃** — 前端 `ErrorBoundary` 把最近 5 次崩溃写到 `localStorage`；`DiagnosticsBus` 提供可信诊断通道。
+* **性能基准** — 3 个 criterion bench 持续跟踪启动/分发/调度延迟。
