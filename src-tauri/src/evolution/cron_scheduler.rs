@@ -113,19 +113,53 @@ impl CronTask {
         ]
     }
 
-    /// 检查任务是否应该执行(当前小时匹配且当天未执行过)。
+    /// 检查任务是否应该执行。
+    ///
+    /// T-E-L-02: 当 `cron_expr` 字段设置时,使用 `CronExpr::matches()` 进行
+    /// 5 字段匹配(支持一天多次执行);否则回退到旧的 `hour` 字段匹配(每天一次)。
+    ///
+    /// **防重复执行策略**:
+    /// - `cron_expr` 任务:距上次执行至少 60 秒(允许一天多次,但同一分钟不重复)
+    /// - `hour` 任务:同一天不重复(保持旧行为)
     fn should_run(&self, now: DateTime<Utc>) -> bool {
         if !self.enabled {
             return false;
         }
-        if now.hour() != self.hour {
+
+        // T-E-L-02: cron_expr 优先,解析失败回退到 hour 字段。
+        let time_matches = if let Some(expr_str) = &self.cron_expr {
+            match crate::cron_expr::CronExpr::parse(expr_str) {
+                Ok(expr) => expr.matches(now),
+                Err(e) => {
+                    warn!(
+                        target: "nebula.cron",
+                        task = %self.name,
+                        expr = %expr_str,
+                        error = %e,
+                        "invalid cron_expr, falling back to hour field"
+                    );
+                    now.hour() == self.hour
+                }
+            }
+        } else {
+            now.hour() == self.hour
+        };
+
+        if !time_matches {
             return false;
         }
+
+        // 防重复执行。
         match self.last_run {
             None => true,
             Some(last) => {
-                // 如果上次执行在同一天,则跳过。
-                last.date_naive() != now.date_naive()
+                if self.cron_expr.is_some() {
+                    // cron_expr 任务:至少间隔 60 秒(允许一天多次执行)。
+                    (now.timestamp() - last.timestamp()) >= 60
+                } else {
+                    // hour 任务:同一天不重复(保持旧行为)。
+                    last.date_naive() != now.date_naive()
+                }
             }
         }
     }
@@ -438,6 +472,126 @@ mod tests {
         };
         let now = Utc::now().with_hour(12).unwrap();
         assert!(task.should_run(now));
+    }
+
+    // ---- T-E-L-02: should_run() with cron_expr ----
+
+    #[test]
+    fn should_run_with_cron_expr_matching() {
+        use chrono::TimeZone;
+        // "0 9 * * 1-5" — 工作日 09:00
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 9,
+            enabled: true,
+            last_run: None,
+            cron_expr: Some("0 9 * * 1-5".to_string()),
+            ..Default::default()
+        };
+        // 2026-07-08 是周三 → 匹配
+        let now = Utc.with_ymd_and_hms(2026, 7, 8, 9, 0, 0).unwrap();
+        assert!(task.should_run(now));
+    }
+
+    #[test]
+    fn should_not_run_with_cron_expr_wrong_time() {
+        use chrono::TimeZone;
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 9,
+            enabled: true,
+            last_run: None,
+            cron_expr: Some("0 9 * * 1-5".to_string()),
+            ..Default::default()
+        };
+        // 10:00 不匹配
+        let now = Utc.with_ymd_and_hms(2026, 7, 8, 10, 0, 0).unwrap();
+        assert!(!task.should_run(now));
+    }
+
+    #[test]
+    fn should_not_run_with_cron_expr_weekend() {
+        use chrono::TimeZone;
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 9,
+            enabled: true,
+            last_run: None,
+            cron_expr: Some("0 9 * * 1-5".to_string()),
+            ..Default::default()
+        };
+        // 2026-07-11 是周六 → 不匹配
+        let now = Utc.with_ymd_and_hms(2026, 7, 11, 9, 0, 0).unwrap();
+        assert!(!task.should_run(now));
+    }
+
+    #[test]
+    fn cron_expr_allows_multiple_runs_per_day() {
+        use chrono::TimeZone;
+        // "*/15 * * * *" — 每 15 分钟
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 0,
+            enabled: true,
+            last_run: Some(Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap()),
+            cron_expr: Some("*/15 * * * *".to_string()),
+            ..Default::default()
+        };
+        // 12:15 — 距上次 15 分钟 > 60 秒 → 应该执行
+        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 15, 0).unwrap();
+        assert!(task.should_run(now));
+    }
+
+    #[test]
+    fn cron_expr_blocks_within_60s() {
+        use chrono::TimeZone;
+        // "*/15 * * * *" — 每 15 分钟
+        let last = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 0,
+            enabled: true,
+            last_run: Some(last),
+            cron_expr: Some("*/15 * * * *".to_string()),
+            ..Default::default()
+        };
+        // 12:00:30 — 距上次 30 秒 < 60 秒 → 不应执行
+        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 30).unwrap();
+        assert!(!task.should_run(now));
+    }
+
+    #[test]
+    fn invalid_cron_expr_falls_back_to_hour() {
+        use chrono::TimeZone;
+        let task = CronTask {
+            name: "test".to_string(),
+            hour: 12,
+            enabled: true,
+            last_run: None,
+            cron_expr: Some("invalid expr".to_string()),
+            ..Default::default()
+        };
+        // 无效表达式 → 回退到 hour=12 → 12:00 匹配
+        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
+        assert!(task.should_run(now));
+        // 13:00 不匹配
+        let now2 = Utc.with_ymd_and_hms(2026, 7, 8, 13, 0, 0).unwrap();
+        assert!(!task.should_run(now2));
+    }
+
+    #[test]
+    fn default_schedule_tasks_should_run_at_their_cron_time() {
+        use chrono::TimeZone;
+        let tasks = CronTask::default_schedule();
+        // memory-merge: "0 3 * * *" → 03:00 匹配
+        let now_3 = Utc.with_ymd_and_hms(2026, 7, 8, 3, 0, 0).unwrap();
+        assert!(tasks[0].should_run(now_3));
+        // evolution-self-check: "0 12 * * *" → 12:00 匹配
+        let now_12 = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
+        assert!(tasks[1].should_run(now_12));
+        // evening-review: "0 21 * * *" → 21:00 匹配
+        let now_21 = Utc.with_ymd_and_hms(2026, 7, 8, 21, 0, 0).unwrap();
+        assert!(tasks[2].should_run(now_21));
     }
 
     #[test]
