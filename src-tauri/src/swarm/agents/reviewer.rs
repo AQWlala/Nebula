@@ -4,8 +4,8 @@
 //! 不新建 maker_checker.rs。新增能力(分 4 个 commit):
 //! - Commit 1: 模型同质检测(detect_model_homogeneity) ✅
 //! - Commit 2: 对抗 prompt(adversarial_prompt) ✅
-//! - Commit 3: 独立 Context 通道(Checker 用独立 TeamContext + ShadowWorkspaceEngine worktree 隔离)
-//! - Commit 4: 自动降级 L4→L2(检测到模型同质时,enforce_homogeneity_policy 自动降级)
+//! - Commit 3: 独立 Context 通道(Checker 用独立 TeamContext + ShadowWorkspaceEngine worktree 隔离) ✅
+//! - Commit 4: 自动降级 L4→L2(检测到模型同质时,enforce_homogeneity_policy 自动降级) ✅
 //!
 //! 数据主权红线:Checker 不能用闭源模型(Claude/GPT),必须用本地 Ollama。
 //! 当 Maker 与 Checker 用同一闭源模型时,模型同质检测会触发自动降级 L4→L2,
@@ -91,6 +91,48 @@ pub struct IndependentReviewSetup {
     /// 如果创建了 Shadow Workspace worktree,这是其 id(供 cleanup)。
     /// `None` 表示未创建 worktree(降级模式 — 无 shadow_engine 或 create 失败)。
     pub workspace_id: Option<String>,
+}
+
+/// T-E-L-03 Commit 4: 模型同质策略执行结果。
+///
+/// 由 [`ReviewerAgent::enforce_homogeneity_policy`] 返回,告知调用方
+/// (MasterAgent / LoopEngine)是否需要降级自主度。
+///
+/// **设计依据**(7 专家评审):同模型自审无意义 — 当 Maker 与 Checker 用
+/// 同一闭源模型时,模型不会发现自己生成输出的盲点(confirmation bias),
+/// 此时 L4 蜂群(Maker-Checker 双 Agent)模式形同虚设,应自动降级到
+/// L2 对话模式(由人类最终裁决)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HomogeneityPolicy {
+    /// 检测到模型同质,自主度已从 L4 降级到 L2。
+    ///
+    /// 调用方应据此将实际执行自主度降为 L2,并记审计日志 +
+    /// 向用户发送降级通知(IM webhook / 通知中心)。
+    Enforced {
+        /// 原始自主度(应为 L4)。
+        original_level: crate::autonomy::AutonomyLevel,
+        /// 降级后的自主度(L2 对话模式,由人类最终裁决)。
+        downgraded_to: crate::autonomy::AutonomyLevel,
+        /// 触发降级的同质警告(含 maker/checker 模型描述 + reason)。
+        warning: HomogeneityWarning,
+    },
+    /// 当前自主度为 L4 但未检测到模型同质,无需降级。
+    ///
+    /// 可能原因:`maker_model` 未注入(旧调用方),或 Maker 与 Checker
+    /// 用不同模型(理想情况 — 不同家族,如 Maker 用 DeepSeek、Checker 用 Qwen)。
+    NoHomogeneity {
+        /// 当前自主度(未变更,L4)。
+        level: crate::autonomy::AutonomyLevel,
+    },
+    /// 当前自主度非 L4,不涉及 Maker-Checker 双 Agent 模式,无需同质检测。
+    ///
+    /// 同质检测仅在 L4(蜂群 + ApprovalGate,Maker + Checker 双 Agent)下
+    /// 有意义。L0-L3 是单 Agent 模式,L5 后台自动化有更严格的 Checker 要求
+    /// (需强 Checker + 审计日志),不在本策略范围。
+    NotCheckerMode {
+        /// 当前自主度。
+        level: crate::autonomy::AutonomyLevel,
+    },
 }
 
 pub struct ReviewerAgent {
@@ -331,6 +373,46 @@ impl ReviewerAgent {
             "checker independent review finished"
         );
         Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body).with_confidence(verdict))
+    }
+
+    // ---- T-E-L-03 Commit 4: 自动降级 L4→L2 ----
+
+    /// T-E-L-03 Commit 4: 根据模型同质检测结果决定是否降级自主度 L4→L2。
+    ///
+    /// 调用方(MasterAgent / LoopEngine)在执行 L4 蜂群任务前应先调用此方法:
+    /// - 若返回 `Enforced`,实际执行自主度应降为 L2(由人类最终裁决),
+    ///   并记审计日志 + 向用户发送降级通知。
+    /// - 若返回 `NoHomogeneity`,L4 模式可正常进行(Checker 与 Maker 不同模型)。
+    /// - 若返回 `NotCheckerMode`,当前非 L4,无需同质检测。
+    ///
+    /// **降级目标固定为 L2**(而非 L3)的设计依据:
+    /// - L3 仍是单 Agent Plan 模式,无 Checker 独立审查;
+    /// - L2 对话模式让人类直接介入裁决,是最安全的降级目标;
+    /// - 7 专家评审一致同意:L4 失效时退到 L2 而非 L3。
+    ///
+    /// **幂等性**:此方法是纯函数(只读 `self.maker_model` + 调用
+    /// `detect_model_homogeneity`),无副作用,可重复调用。
+    pub fn enforce_homogeneity_policy(
+        &self,
+        current_level: crate::autonomy::AutonomyLevel,
+    ) -> HomogeneityPolicy {
+        use crate::autonomy::AutonomyLevel;
+        match current_level {
+            AutonomyLevel::L4Swarm => {
+                if let Some(warning) = self.detect_model_homogeneity() {
+                    HomogeneityPolicy::Enforced {
+                        original_level: current_level,
+                        downgraded_to: AutonomyLevel::L2Chat,
+                        warning,
+                    }
+                } else {
+                    HomogeneityPolicy::NoHomogeneity {
+                        level: current_level,
+                    }
+                }
+            }
+            other => HomogeneityPolicy::NotCheckerMode { level: other },
+        }
     }
 }
 
@@ -756,5 +838,210 @@ mod tests {
         let agent =
             ReviewerAgent::new(Arc::new(LlmGateway::new_test())).with_shadow_workspace(engine);
         assert!(agent.shadow_engine.is_some(), "shadow_engine should be set");
+    }
+
+    // ---- T-E-L-03 Commit 4: 自动降级 L4→L2 测试 ----
+
+    #[test]
+    fn enforce_policy_l4_with_homogeneity_returns_enforced() {
+        // L4 + Maker 与 Checker 同模型 → Enforced,降级到 L2
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        match &policy {
+            HomogeneityPolicy::Enforced {
+                original_level,
+                downgraded_to,
+                warning,
+            } => {
+                assert_eq!(*original_level, AutonomyLevel::L4Swarm);
+                assert_eq!(*downgraded_to, AutonomyLevel::L2Chat);
+                assert_eq!(warning.maker.provider, "ollama");
+                assert_eq!(warning.checker.model_name, "test-model");
+            }
+            other => panic!("expected Enforced, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l4_without_maker_model_returns_no_homogeneity() {
+        // L4 + 未注入 maker_model(旧调用方)→ NoHomogeneity(向后兼容)
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        match policy {
+            HomogeneityPolicy::NoHomogeneity { level } => {
+                assert_eq!(level, AutonomyLevel::L4Swarm);
+            }
+            other => panic!("expected NoHomogeneity, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l4_with_different_models_returns_no_homogeneity() {
+        // L4 + Maker 与 Checker 不同模型 → NoHomogeneity(理想情况)
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("deepseek", "deepseek-chat"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        match policy {
+            HomogeneityPolicy::NoHomogeneity { level } => {
+                assert_eq!(level, AutonomyLevel::L4Swarm);
+            }
+            other => panic!("expected NoHomogeneity, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l0_returns_not_checker_mode() {
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L0InlineCompletion);
+        match policy {
+            HomogeneityPolicy::NotCheckerMode { level } => {
+                assert_eq!(level, AutonomyLevel::L0InlineCompletion);
+            }
+            other => panic!("expected NotCheckerMode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l1_returns_not_checker_mode() {
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L1DirectedEdit);
+        match policy {
+            HomogeneityPolicy::NotCheckerMode { level } => {
+                assert_eq!(level, AutonomyLevel::L1DirectedEdit);
+            }
+            other => panic!("expected NotCheckerMode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l2_returns_not_checker_mode() {
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L2Chat);
+        match policy {
+            HomogeneityPolicy::NotCheckerMode { level } => {
+                assert_eq!(level, AutonomyLevel::L2Chat);
+            }
+            other => panic!("expected NotCheckerMode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l3_returns_not_checker_mode() {
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L3Plan);
+        match policy {
+            HomogeneityPolicy::NotCheckerMode { level } => {
+                assert_eq!(level, AutonomyLevel::L3Plan);
+            }
+            other => panic!("expected NotCheckerMode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_l5_returns_not_checker_mode() {
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L5Background);
+        match policy {
+            HomogeneityPolicy::NotCheckerMode { level } => {
+                assert_eq!(level, AutonomyLevel::L5Background);
+            }
+            other => panic!("expected NotCheckerMode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn enforce_policy_enforced_downgraded_to_is_always_l2() {
+        // 关键不变式:降级目标永远是 L2Chat(而非 L3 Plan)
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        if let HomogeneityPolicy::Enforced { downgraded_to, .. } = policy {
+            assert_eq!(
+                downgraded_to,
+                AutonomyLevel::L2Chat,
+                "downgraded_to must always be L2Chat (human final adjudication)"
+            );
+        } else {
+            panic!("expected Enforced when models are homogeneous");
+        }
+    }
+
+    #[test]
+    fn enforce_policy_enforced_preserves_warning_details() {
+        // Enforced 分支应完整保留 warning(maker + checker 描述符 + reason)
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let policy = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        if let HomogeneityPolicy::Enforced { warning, .. } = policy {
+            assert_eq!(
+                warning.maker, warning.checker,
+                "homogeneous → maker == checker"
+            );
+            assert!(!warning.reason.is_empty(), "reason should not be empty");
+            assert!(
+                warning.reason.contains("self-review") || warning.reason.contains("confirmation"),
+                "reason should explain confirmation bias: {}",
+                warning.reason
+            );
+        } else {
+            panic!("expected Enforced");
+        }
+    }
+
+    #[test]
+    fn enforce_policy_is_idempotent() {
+        // 幂等性:重复调用结果一致(纯函数,无副作用)
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        let p1 = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        let p2 = agent.enforce_homogeneity_policy(AutonomyLevel::L4Swarm);
+        assert_eq!(p1, p2, "enforce_homogeneity_policy must be idempotent");
+    }
+
+    #[test]
+    fn enforce_policy_all_six_levels_covered() {
+        // 遍历所有 6 个等级,确保每个都有明确的策略结果
+        use crate::autonomy::AutonomyLevel;
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        for &level in AutonomyLevel::all() {
+            let policy = agent.enforce_homogeneity_policy(level);
+            match policy {
+                HomogeneityPolicy::Enforced { .. } => {
+                    assert_eq!(level, AutonomyLevel::L4Swarm, "Enforced only for L4");
+                }
+                HomogeneityPolicy::NoHomogeneity { .. } => {
+                    assert_eq!(
+                        level,
+                        AutonomyLevel::L4Swarm,
+                        "NoHomogeneity only for L4 (without maker_model or diff models)"
+                    );
+                }
+                HomogeneityPolicy::NotCheckerMode { .. } => {
+                    assert_ne!(
+                        level,
+                        AutonomyLevel::L4Swarm,
+                        "NotCheckerMode for non-L4 levels"
+                    );
+                }
+            }
+        }
     }
 }
