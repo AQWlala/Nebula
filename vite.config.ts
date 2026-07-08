@@ -63,13 +63,13 @@ export default defineConfig({
         'src/vite-env.d.ts',
       ],
       thresholds: {
-        // Stage 1 基线阈值,后续 Stage 逐步提升
-        // v2.0: 临时降低以通过 CI (本地 35.5%, Linux CI 可能更低),
-        // 后续补充测试后逐步提升回 40%+
-        lines: 30,
-        functions: 20,
-        branches: 25,
-        statements: 30,
+        // T-D-T-01: 基于实际覆盖率基线提升阈值(2026-07-09)
+        // 实测: Stmts 38.75% / Branch 59.31% / Funcs 28.51% / Lines 38.75%
+        // 留 ~3-9% 余量防止 CI flaky,后续补充测试后逐步提升至 50%+
+        lines: 35,
+        functions: 25,
+        branches: 50,
+        statements: 35,
       },
     },
   },
