@@ -20,6 +20,7 @@ use tracing::info;
 
 use crate::llm::{ChatMessage, LlmGateway};
 use crate::memory::types::MemoryLayer;
+use crate::shadow_workspace::engine::ShadowWorkspaceEngine;
 use crate::swarm::context::TeamContext;
 
 use super::{Agent, AgentKind, AgentOutput};
@@ -75,11 +76,32 @@ pub struct HomogeneityWarning {
     pub reason: String,
 }
 
+/// T-E-L-03 Commit 3: 独立审查的预备上下文。
+///
+/// 由 [`ReviewerAgent::prepare_independent_review`] 生成,包含 Checker 独立审查
+/// 所需的全部信息(独立 context + LLM messages + 可选的 worktree id)。
+/// 供 [`ReviewerAgent::run_independent`] 使用,也可单独测试(无需 LLM / git)。
+//
+// 注:不 derive Debug,因为 TeamContext 未实现 Debug(避免修改 context.rs)。
+pub struct IndependentReviewSetup {
+    /// 独立的 TeamContext(不引用 Maker 的 context,避免被锚定)。
+    pub context: TeamContext,
+    /// 传给 LLM 的 messages(system + adversarial prompt)。
+    pub messages: Vec<ChatMessage>,
+    /// 如果创建了 Shadow Workspace worktree,这是其 id(供 cleanup)。
+    /// `None` 表示未创建 worktree(降级模式 — 无 shadow_engine 或 create 失败)。
+    pub workspace_id: Option<String>,
+}
+
 pub struct ReviewerAgent {
     llm: Arc<LlmGateway>,
     /// T-E-L-03: Maker 使用的模型描述符(可选,未设置时不做同质检测)。
     /// 由 `with_maker_model()` 注入;Checker 据此与自身模型比较。
     maker_model: Option<ModelDescriptor>,
+    /// T-E-L-03 Commit 3: Shadow Workspace 引擎(可选,启用 worktree 隔离)。
+    /// 由 `with_shadow_workspace()` 注入;Checker 在独立 worktree 中执行,
+    /// 避免污染主仓库。未注入时降级为无 worktree 模式。
+    shadow_engine: Option<Arc<ShadowWorkspaceEngine>>,
 }
 
 impl ReviewerAgent {
@@ -87,6 +109,7 @@ impl ReviewerAgent {
         Self {
             llm,
             maker_model: None,
+            shadow_engine: None,
         }
     }
 
@@ -97,6 +120,15 @@ impl ReviewerAgent {
     /// Checker 据此在 [`detect_model_homogeneity`] 中与自身模型比较。
     pub fn with_maker_model(mut self, maker: ModelDescriptor) -> Self {
         self.maker_model = Some(maker);
+        self
+    }
+
+    /// T-E-L-03 Commit 3: Builder — 注入 ShadowWorkspaceEngine,启用 worktree 隔离。
+    ///
+    /// 启用后,[`run_independent`] 会在独立的 git worktree 中执行 Checker,
+    /// 避免污染主仓库。未注入时降级为无 worktree 模式(记 warn 日志)。
+    pub fn with_shadow_workspace(mut self, engine: Arc<ShadowWorkspaceEngine>) -> Self {
+        self.shadow_engine = Some(engine);
         self
     }
 
@@ -179,6 +211,126 @@ impl ReviewerAgent {
         } else {
             None
         }
+    }
+
+    // ---- T-E-L-03 Commit 3: 独立 Context 通道 + worktree 隔离 ----
+
+    /// T-E-L-03 Commit 3: 准备独立审查上下文。
+    ///
+    /// 与默认 [`Agent::run`] 的关键区别:
+    /// 1. 创建**独立的空 TeamContext**(不引用 Maker 的 context,避免被锚定)
+    /// 2. 用 [`adversarial_prompt`] 而非默认的「请审查以下工作」
+    /// 3. 如果有 shadow_engine,创建临时 worktree 供 Checker 隔离执行
+    ///
+    /// **降级策略**:无 shadow_engine 或 `create()` 失败时,
+    /// `workspace_id` 为 `None`,Checker 仍在独立 context 中执行,
+    /// 只是无 worktree 隔离(记 warn 日志)。
+    pub fn prepare_independent_review(&self, maker_work: &str) -> Result<IndependentReviewSetup> {
+        let context = TeamContext::new();
+
+        // 尝试创建 worktree(可选,失败降级)。
+        // worktree 让 Checker 能在隔离的 git 分支中 read 文件验证 Maker 的代码,
+        // 不污染主仓库。create() 失败的常见原因:repo_root 未设置 / 非 git 仓库。
+        let workspace_id = if let Some(engine) = &self.shadow_engine {
+            match engine.create(
+                "checker-independent-review".to_string(),
+                None, // base = current branch
+            ) {
+                Ok(ws) => {
+                    // 把 worktree path 写入独立 context,让 Checker 知道在哪读文件。
+                    context.push_str(
+                        "Checker",
+                        "workspace",
+                        &format!(
+                            "Independent review worktree created at: {}\n\
+                             Checker may read files in this path to verify Maker's work.",
+                            ws.path
+                        ),
+                    );
+                    Some(ws.id)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "nebula.swarm.checker",
+                        error = %e,
+                        "shadow workspace create failed, degrading to no-worktree mode"
+                    );
+                    None
+                }
+            }
+        } else {
+            tracing::warn!(
+                target: "nebula.swarm.checker",
+                "no shadow_engine injected, Checker running without worktree isolation"
+            );
+            None
+        };
+
+        let messages = vec![
+            ChatMessage::system(self.system_prompt()),
+            ChatMessage::user(self.adversarial_prompt(maker_work)),
+        ];
+
+        Ok(IndependentReviewSetup {
+            context,
+            messages,
+            workspace_id,
+        })
+    }
+
+    /// T-E-L-03 Commit 3: 清理独立审查资源(abort worktree)。
+    ///
+    /// 如果 `workspace_id` 为 `Some`,调用 `shadow_engine.abort()` 清理 worktree。
+    /// abort 失败仅记 warn(不阻断主流程 — worktree 会泄漏但 Checker 仍完成)。
+    pub fn cleanup_independent_review(&self, workspace_id: &Option<String>) {
+        if let (Some(id), Some(engine)) = (workspace_id, &self.shadow_engine) {
+            if let Err(e) = engine.abort(id) {
+                tracing::warn!(
+                    target: "nebula.swarm.checker",
+                    workspace_id = %id,
+                    error = %e,
+                    "failed to abort checker worktree (leaking workspace)"
+                );
+            }
+        }
+    }
+
+    /// T-E-L-03 Commit 3: 独立审查执行模式。
+    ///
+    /// 与默认 [`Agent::run`] 的区别:
+    /// - 用**独立 TeamContext**(不引用 Maker context,避免锚定)
+    /// - 用 [`adversarial_prompt`](对抗 prompt)而非默认 prompt
+    /// - 在 Shadow Workspace worktree 中隔离执行(可选)
+    ///
+    /// 流程:`prepare → llm.chat → cleanup → 返回 AgentOutput`
+    /// 审查结果写入独立 context(不污染 Maker 的 context)。
+    pub async fn run_independent(&self, maker_work: &str) -> Result<AgentOutput> {
+        let setup = self.prepare_independent_review(maker_work)?;
+
+        let resp = self.llm.chat(setup.messages).await?;
+        let body = resp.message.content;
+
+        // 把审查结果写入独立 context(不污染 Maker 的 context)。
+        setup
+            .context
+            .push_str(self.name(), "adversarial_review", &body);
+
+        self.cleanup_independent_review(&setup.workspace_id);
+
+        let verdict = if body.contains("APPROVE") {
+            0.9
+        } else if body.contains("REVISE") {
+            0.6
+        } else {
+            0.2
+        };
+        info!(
+            target: "nebula.swarm",
+            agent = %self.name(),
+            verdict,
+            "checker independent review finished"
+        );
+        Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body).with_confidence(verdict))
     }
 }
 
@@ -469,5 +621,140 @@ mod tests {
         let p1 = agent.adversarial_prompt("work X");
         let p2 = agent.adversarial_prompt("work X");
         assert_eq!(p1, p2, "adversarial_prompt must be deterministic");
+    }
+
+    // ---- T-E-L-03 Commit 3: 独立 Context 通道 + worktree 隔离测试 ----
+
+    #[test]
+    fn prepare_independent_review_creates_empty_context() {
+        // 独立 context 应初始为空(不包含 Maker 的 context 条目)
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let setup = agent
+            .prepare_independent_review("some work")
+            .expect("prepare should succeed without shadow_engine");
+        assert!(
+            setup.context.snapshot().is_empty(),
+            "independent context should be empty initially (no shadow_engine)"
+        );
+    }
+
+    #[test]
+    fn prepare_independent_review_uses_adversarial_prompt() {
+        // user message 应该是对抗 prompt(包含 FATAL / adversarial 指令)
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let setup = agent
+            .prepare_independent_review("fn foo() {}")
+            .expect("prepare should succeed");
+        let user_msg = setup
+            .messages
+            .iter()
+            .find(|m| m.role == "user")
+            .expect("should have a user message");
+        assert!(
+            user_msg.content.to_lowercase().contains("fatal"),
+            "user message should be adversarial (FATAL): {}",
+            user_msg.content
+        );
+        assert!(
+            user_msg.content.to_lowercase().contains("adversarial"),
+            "user message should mention ADVERSARIAL: {}",
+            user_msg.content
+        );
+        assert!(
+            user_msg.content.contains("fn foo() {}"),
+            "user message should include maker work verbatim"
+        );
+    }
+
+    #[test]
+    fn prepare_independent_review_without_shadow_engine_has_no_workspace() {
+        // 不注入 shadow_engine → workspace_id 应为 None
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let setup = agent
+            .prepare_independent_review("work")
+            .expect("prepare should succeed");
+        assert!(
+            setup.workspace_id.is_none(),
+            "no shadow_engine → no workspace"
+        );
+    }
+
+    #[test]
+    fn prepare_independent_review_with_unconfigured_shadow_engine_degrades() {
+        // shadow_engine 存在但 repo_root 未设置 → create() 失败 → 降级
+        use crate::shadow_workspace::engine::ShadowWorkspaceEngine;
+        let engine = Arc::new(ShadowWorkspaceEngine::with_default());
+        // repo_root 默认 None(未调用 set_repo_root)
+        let agent =
+            ReviewerAgent::new(Arc::new(LlmGateway::new_test())).with_shadow_workspace(engine);
+        let setup = agent
+            .prepare_independent_review("work")
+            .expect("prepare should succeed even when worktree create fails");
+        assert!(
+            setup.workspace_id.is_none(),
+            "unconfigured shadow_engine should degrade to no-workspace"
+        );
+        // context 应仍然为空(worktree 没创建,没写 path)
+        assert!(
+            setup.context.snapshot().is_empty(),
+            "context should be empty when worktree creation failed"
+        );
+    }
+
+    #[test]
+    fn prepare_independent_review_does_not_include_maker_context() {
+        // 关键不变式:Checker 的 context 不应包含 Maker 的 context 条目
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let setup = agent
+            .prepare_independent_review("maker output")
+            .expect("prepare should succeed");
+        for entry in setup.context.snapshot() {
+            assert!(
+                !entry.author.contains("Maker") && !entry.label.contains("maker"),
+                "independent context should not include Maker entries, found: {:?}",
+                entry
+            );
+        }
+    }
+
+    #[test]
+    fn prepare_independent_review_has_system_and_user_messages() {
+        // messages 应包含 system + user 两条(对抗 prompt)
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let setup = agent
+            .prepare_independent_review("work")
+            .expect("prepare should succeed");
+        assert_eq!(
+            setup.messages.len(),
+            2,
+            "should have system + user messages"
+        );
+        assert_eq!(setup.messages[0].role, "system");
+        assert_eq!(setup.messages[1].role, "user");
+    }
+
+    #[test]
+    fn cleanup_independent_review_without_workspace_is_noop() {
+        // workspace_id = None → cleanup 是 noop,不应 panic
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        agent.cleanup_independent_review(&None);
+    }
+
+    #[test]
+    fn cleanup_independent_review_without_shadow_engine_is_noop() {
+        // 无 shadow_engine 时,即使 workspace_id = Some(不可能但防御性测试),
+        // cleanup 不应 panic
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        let fake_id = Some("fake-id".to_string());
+        agent.cleanup_independent_review(&fake_id);
+    }
+
+    #[test]
+    fn with_shadow_workspace_builder_returns_self_for_chaining() {
+        use crate::shadow_workspace::engine::ShadowWorkspaceEngine;
+        let engine = Arc::new(ShadowWorkspaceEngine::with_default());
+        let agent =
+            ReviewerAgent::new(Arc::new(LlmGateway::new_test())).with_shadow_workspace(engine);
+        assert!(agent.shadow_engine.is_some(), "shadow_engine should be set");
     }
 }
