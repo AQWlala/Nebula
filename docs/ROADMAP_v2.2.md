@@ -295,10 +295,10 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 |---------|------|--------|--------|------|------|
 | T-E-L-01 | ✅ DONE (2026-07-08) — **MasterAgent Loop 执行模式**：master.rs 新增 `execute_loop()` 方法 + loop_def.rs（LOOP.md YAML 解析）+ StateMgr（STATE.md 只读投影，从 SQLite 生成）+ `loop_run`/`loop_state` Tauri 命令。Loop 执行模式与现有 Once/Plan 模式并列。【4 commit 完成：①loop_def.rs + 28 测试(6c054f2) ②state_projection() + 6 测试(e6da249) ③execute_loop() + 4 测试(6bd6309) ④loop_run/loop_state Tauri 命令(a9813aa)】 | P1 | L | T-E-C-10 | Loop 内化 |
 | T-E-L-02 | ✅ DONE (2026-07-08) — **CronTask 扩展**：扩展现有 `evolution/cron_scheduler.rs` 支持完整 5 字段 cron 表达式（不引入 tokio-cron-scheduler）+ Token/时间预算（AtomicU64 内存累加，异步落库）+ L0-L5 自主度字段。【4 commit 完成：①cron_expr.rs 5 字段解析器 + 20 测试(8bdca87,用 #[path] 绕过 self-evolution gate 让 CI 测试) ②CronTask 新增 6 字段(cron_expr/autonomy/budget_*) + Default(1ce3c52) ③should_run() 使用 CronExpr + 7 测试(6739c30) ④预算检查(AtomicU64 聚合 + budget_exceeded + record_token_usage + reset_all_budgets) + 10 测试(a6401c2)】 | P1 | M | T-E-L-01 | Loop 内化 |
-| T-E-L-03 | **ReviewerAgent 升级为 CheckerAgent**：升级现有 `swarm/agents/reviewer.rs`（加 worktree 隔离 + 对抗 prompt + 独立 Context 通道 + 模型同质检测 + 自动降级 L4→L2），不新建 maker_checker.rs | P1 | L | T-E-S-01, T-E-C-08 | Loop 内化 |
+| T-E-L-03 | ✅ DONE (2026-07-08) — **ReviewerAgent 升级为 CheckerAgent**：升级现有 `swarm/agents/reviewer.rs`（加 worktree 隔离 + 对抗 prompt + 独立 Context 通道 + 模型同质检测 + 自动降级 L4→L2），不新建 maker_checker.rs。【4 commit 完成：①模型同质检测 detect_model_homogeneity + 12 测试(8c406dd) ②对抗 prompt adversarial_prompt + 7 测试(0738000) ③独立 Context 通道 + ShadowWorkspaceEngine worktree 隔离 + 9 测试(af0386d) ④自动降级 L4→L2 enforce_homogeneity_policy + HomogeneityPolicy 枚举 + 10 测试(c6ee3e2)】。execute_loop() 端到端接入同质检测门禁在 T-E-L-06 中完成（master.rs 第 799-828 行,ValuesLayer Allow 后检查 L4 + 调用 enforce_homogeneity_policy,Enforced 时记 tracing::warn! 审计日志 + autonomy_downgraded 标记,5 个集成测试覆盖）。 | P1 | L | T-E-S-01, T-E-C-08 | Loop 内化 |
 | T-E-L-04 | **GitHub MCP 连接器（pull-only）**：读取 Actions 失败 + Issue + PR（**默认 pull-only，写操作人工触发**），为 CI Sweeper / PR Babysitter / Daily Triage 提供 Observation 信号 | P2 | L | T-E-C-18 | Loop 内化 |
 | T-E-L-05 | **Loop 模板库**：7 种 Loop 模式的 LOOP.md 模板 + 复用 TemplatesDialog（新增 automation 类别，默认只露 2 个入口） | P2 | M | T-E-L-01 | Loop 内化 |
-| T-E-L-06 | **Loop 预算管理 + 安全防护**：loop-budget.md（拆分本地 $0 / 云端两列）+ loop-cost 估算 + 超预算自动暂停 + loop-safety-guards.md（模型同质检测口径定义 + 自动降级触发条件） | P2 | M | T-E-L-02 | Loop 内化 |
+| T-E-L-06 | **Loop 预算管理 + 安全防护**：loop-budget.md（拆分本地 $0 / 云端两列）+ loop-cost 估算 + 超预算自动暂停 + loop-safety-guards.md（模型同质检测口径定义 + 自动降级触发条件） | P2 | M | T-E-L-02 | Loop 内化 | ✅ DONE (2026-07-08) |
 | T-E-L-07 | **Loop 审计日志**：loop-run-log.md（人类可读 Markdown，每次运行的 cadence/token/结果 + provenance）+ 异常告警（IM webhook 通知） | P3 | S | T-E-L-01 | Loop 内化 |
 | T-E-L-08a | **Loop 运行时阶段环**（评审拆分）：复用 SwarmView 的 AgentColumn + ToolCallCard，加五阶段高亮环（Intent→Context→Action→Observation→Adjustment），不等 WorkflowCanvas | P2 | M | T-E-S-11 | Loop 内化 |
 | T-E-L-08b | **Loop 设计节点**（评审拆分）：WorkflowCanvas 集成 Loop 节点（Intent/Context/Action/Observation/Adjustment 五阶段节点 + 停止条件边），依赖 T-E-S-10 | P3 | XL | T-E-S-10 | Loop 内化 |
@@ -373,7 +373,69 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 
 ---
 
-## 4. License 合规矩阵（Stage 7 新增）
+## 4. 技术债务（v2.2 新增，2026-07-08）
+
+> **来源**：代码质量审计（2026-07-08），覆盖 Rust 后端、前端 TypeScript、CI/构建配置、测试覆盖、安全配置五大维度。
+> **目的**：防止这些问题在后续版本推进中被遗漏，确保技术债务有跟踪、有计划、有闭环。
+> **任务编号**：`T-D-<领域>-<序号>`（Debt，领域 F=前端 / B=后端 / C=CI配置 / T=测试 / S=安全配置）
+
+### 4.1 P0 严重问题（必须修）
+
+| 任务 ID | 描述 | 领域 | 复杂度 | 影响 |
+|---------|------|------|--------|------|
+| T-D-B-01 | **tracing_setup.rs 8 路组合爆炸**：8 个几乎相同的 `registry().with(...).try_init()` 分支，用 builder pattern 可缩减为 1 个。降低维护成本 + 消除复制粘贴风险。 | 后端 | S | 代码可维护性 |
+| T-D-F-01 | **tauri.ts 单文件 3190 行/108KB**：对应 Rust commands/ 模块有 52 个子文件，但前端 API 层全部堆在一个文件里。按领域拆分（如 `tauri/swarm.ts` / `tauri/memory.ts` / `tauri/cost.ts` 等），与后端模块结构对齐。 | 前端 | M | 代码可维护性 |
+| T-D-C-01 | **CI 只在 Windows 上跑**：macOS/Linux runner 被注释掉（`test.yml` / `release.yml` / `release-minimal.yml`），跨平台 Rust 回归问题只能在发布时暴露。恢复 macOS + Linux matrix 或明确记录仅支持 Windows 的决策。 | CI | M | 跨平台回归风险 |
+| T-D-F-02 | **ESLint 配置不存在**：`package.json` 声明了 `"lint": "eslint src"` 但没有任何 `.eslintrc.*` 或 `eslint.config.*` 文件，`npm run lint` 实际不可用。新增 ESLint 配置（推荐 flat config）+ 修复 lint 错误。 | 前端 | S | 代码质量门禁缺失 |
+| T-D-S-01 | **cargo audit 忽略 14 个安全建议**：多数来自 transitive 依赖（wasmtime、protobuf、rustls-webpki 等），没有跟踪解决计划。逐项评估 + 建立 `cargo audit` 定期跟踪机制（如 CI cron job）+ 记录每个忽略的理由和跟踪 issue。 | 安全 | M | 安全债 |
+
+### 4.2 P1 重要问题（建议尽快修）
+
+#### 代码质量
+
+| 任务 ID | 描述 | 领域 | 复杂度 |
+|---------|------|------|--------|
+| T-D-F-03 | **重复代码提取**：① `renderMarkdown` 在 `ChatPanel.tsx` 和 `KnowledgeCardDialog.tsx` 中完全重复 → 提取为 `lib/markdown.ts`；② `downloadBlob` 模式在 3 个地方重复 → 提取为 `lib/download.ts`。 | 前端 | S |
+| T-D-F-04 | **硬编码中文字符串**：`ChatPanel.tsx`、`export.ts` 等多处绕过 i18n 系统直接写中文，违背项目自身的国际化设计。迁移到 i18n key。 | 前端 | M |
+| T-D-F-05 | **i18n 类型不安全**：`i18n/index.ts` 中 `zhCN as unknown as Dict` 跳过了跨语言文件的 key 完整性校验，运行时缺少 key 会静默回退。改为基于 `zh-CN.json` 的类型推导，en-US.json 缺 key 时编译期报错。 | 前端 | S |
+| T-D-F-06 | **cancelled 布尔变量反模式**：`Settings.tsx` 和 `Dashboard.tsx` 用 `let cancelled = false + setTimeout` 来绕过 unmount 后 setState。改用 `AbortController` 或 `useEffect` cleanup。 | 前端 | S |
+
+#### Rust 后端
+
+| 任务 ID | 描述 | 领域 | 复杂度 |
+|---------|------|------|--------|
+| T-D-B-02 | **bootstrap.rs 1113 行单函数**：单个函数编排 20+ 子系统初始化，难以测试和推理。拆分为独立的 bootstrap phase（如 `init_logging` / `init_database` / `init_llm` / `init_swarm` 等），每阶段独立可测。 | 后端 | L |
+| T-D-B-03 | **std::mem::forget(h) 泄露 JoinHandle**（`tauri_setup.rs`）：指标导出线程的 panic 会被静默吞掉。改为 spawn 后保存 JoinHandle + 添加 panic hook 记日志。 | 后端 | S |
+| T-D-B-04 | **memory/ 模块 40+ 子文件平铺**：没有内部子目录分组，不利于维护。按职能分组（如 `memory/store/` / `memory/values/` / `memory/retrieval/` 等）。 | 后端 | M |
+| T-D-B-05 | **features 死 feature 清理**：`custom-protocol`、`json-framing`、`perf-telemetry` 在源码中没有 `#[cfg]` 匹配。要么删除要么补充 `#[cfg]` 使用点。 | 后端 | S |
+
+#### 测试覆盖
+
+| 任务 ID | 描述 | 领域 | 复杂度 |
+|---------|------|------|--------|
+| T-D-T-01 | **vitest 覆盖率阈值过低**：当前仅 30%/20%/25%/30%，约 70% 前端代码无测试覆盖。分阶段提升至 60%/50%/55%/60%（目标值，非一次性达成）。 | 测试 | M |
+| T-D-T-02 | **核心文件零测试**：`bootstrap.rs`、`gateway.rs`（2500 行）、`dispatcher.rs`、`app_config.rs`（80+ 配置字段）均无单元测试。优先覆盖 `app_config.rs`（配置字段验证）和 `dispatcher.rs`（路由逻辑）。 | 测试 | L |
+| T-D-T-03 | **E2E 测试接入 CI**：当前仅 2 个冒烟用例且未接入 CI。新增 Playwright E2E CI job + 扩展用例覆盖核心用户流程。 | 测试 | M |
+
+#### 构建与配置
+
+| 任务 ID | 描述 | 领域 | 复杂度 |
+|---------|------|------|--------|
+| T-D-C-02 | **Vite/Vitest 配置重复**：`vite.config.mjs` 内嵌了 `test` 块，与 `vitest.config.ts` 几乎相同，将来会 drift。统一为单配置源（推荐 `vitest.config.ts` 引用 `vite.config.mjs`）。 | CI | S |
+| T-D-C-03 | **Prettier 配置不存在**：`package.json` 声明了 format 脚本引用 Prettier，但没有任何配置文件。新增 `.prettierrc` + 与 ESLint 集成。 | CI | S |
+| T-D-C-04 | **tsconfig 开启严格检查**：`tsconfig.json` 禁用了 `noUnusedLocals` 和 `noUnusedParameters`，开启可捕获死代码。分阶段开启（先 `noUnusedLocals`，修复后再开 `noUnusedParameters`）。 | CI | S |
+| T-D-C-05 | **Dockerfile 完善**：缺少 `HEALTHCHECK`、非 root 用户、多架构构建。补充生产级 Dockerfile 最佳实践。 | CI | M |
+
+### 4.3 技术债务推进原则
+
+1. **不阻塞功能开发**：技术债务任务与功能任务并行推进，P0 债务优先在 Wave 1-2 间隙处理
+2. **分批消化**：每个 Wave 结束后评估债务状态，批量消化 P0/P1 债务
+3. **测试先行**：拆分重构类任务（如 T-D-B-02 bootstrap 拆分）必须先补测试再重构
+4. **安全优先**：T-D-S-01（cargo audit）和 T-D-B-03（JoinHandle 泄露）涉及安全，优先处理
+
+---
+
+## 5. License 合规矩阵（Stage 7 新增）
 
 | 对标项目 | License | 与 nebula(MIT) 兼容 | 借鉴边界 |
 |---------|---------|------------------------|---------|
@@ -391,15 +453,15 @@ Stage 7（v2.2，创新支柱）  ← 依赖 Stage 1-2 完成（已完成）
 
 ---
 
-## 5. 与 v2.1 的衔接说明
+## 6. 与 v2.1 的衔接说明
 
-### 5.1 任务编号体系
+### 6.1 任务编号体系
 
 - **T-S\*-\*-\*\***（v2.1）：Stage 1-6 工程闭环任务，以 `ROADMAP_v2.1.md` §6 为准
 - **T-E-\*-\*\***（v2.2）：Stage 7 创新支柱任务，以本文档 §2 为准
 - **禁止混用**：commit message 必须明确引用对应编号体系
 
-### 5.2 依赖关系
+### 6.2 依赖关系
 
 Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 - 记忆系统（Stage 1 ✅）→ 支撑 T-E-B-\* 知识革命
@@ -407,7 +469,7 @@ Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 - 安全层（Stage 2b ✅）→ 支撑 T-E-S-20~29 安全增强
 - 蜂群基础（Stage 3 ✅）→ 支撑 T-E-S-01~14 蜂群协作
 
-### 5.3 执行顺序建议
+### 6.3 执行顺序建议
 
 **立即可做（本周）**：P0 任务中的小复杂度项
 1. T-E-S-20 exec fail-closed（S，安全加固）
@@ -421,9 +483,9 @@ Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 
 ---
 
-## 6. 附录
+## 7. 附录
 
-### 6.1 与 COMPREHENSIVE_EVOLUTION_v3.0.md 的映射
+### 7.1 与 COMPREHENSIVE_EVOLUTION_v3.0.md 的映射
 
 本文档前 68 个 T-E-\* 任务（T-E-A/B/C/D/S 系列）均来自 `COMPREHENSIVE_EVOLUTION_v3.0.md` §4，任务编号一致，可直接交叉引用。
 
@@ -436,7 +498,7 @@ Stage 7 大部分任务依赖 Stage 1-2 已完成的基础：
 - **来源 A+B**：双报告共同提出，互补合并
 - **来源 Loop 内化**：Loop Engineering 公开资料内化（`docs/skills/loop-engineering/`），7 专家评审通过
 
-### 6.3 测试策略（Stage 7 新增）
+### 7.3 测试策略（Stage 7 新增）
 
 | Wave | 测试要求 |
 |------|---------|
