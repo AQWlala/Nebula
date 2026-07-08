@@ -431,7 +431,8 @@ pub async fn memory_orchestrator_run(
     task: String,
 ) -> Result<ContextBundle, CommandError> {
     let bundle = state
-        .memory.orchestrator
+        .memory
+        .orchestrator
         .assemble_context(&task, "system")
         .await
         .map_err(|e| CommandError::internal("memory_orchestrator_run", &e))?;

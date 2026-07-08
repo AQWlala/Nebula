@@ -14,7 +14,8 @@ pub async fn skill_create(
     request: skill_types::CreateSkillRequest,
 ) -> Result<skill_types::Skill, CommandError> {
     state
-        .swarm.skills
+        .swarm
+        .skills
         .create_skill(request)
         .map_err(|e| CommandError::db("skill_create", &e))
 }
@@ -41,7 +42,8 @@ pub async fn skill_use(
     }
 
     state
-        .swarm.skills
+        .swarm
+        .skills
         .use_skill(request)
         .await
         .map_err(|e| CommandError::internal("skill_use", &e))
@@ -54,7 +56,8 @@ pub async fn skill_rate(
     request: skill_types::RateSkillRequest,
 ) -> Result<skill_types::Skill, CommandError> {
     state
-        .swarm.skills
+        .swarm
+        .skills
         .rate_skill(request)
         .map_err(|e| CommandError::db("skill_rate", &e))
 }
@@ -66,7 +69,8 @@ pub async fn skill_list(
     request: skill_types::ListSkillsRequest,
 ) -> Result<Vec<skill_types::Skill>, CommandError> {
     state
-        .swarm.skills
+        .swarm
+        .skills
         .list_skills(request)
         .map_err(|e| CommandError::db("skill_list", &e))
 }
@@ -78,7 +82,8 @@ pub async fn skill_search(
     request: skill_types::SkillSearchRequest,
 ) -> Result<Vec<skill_types::Skill>, CommandError> {
     state
-        .swarm.skills
+        .swarm
+        .skills
         .search_skills(request)
         .map_err(|e| CommandError::db("skill_search", &e))
 }
@@ -152,7 +157,8 @@ pub async fn skill_export_clawhub(
     output_path: Option<String>,
 ) -> Result<serde_json::Value, CommandError> {
     let skill = state
-        .swarm.skills
+        .swarm
+        .skills
         .store()
         .get(&skill_id)
         .map_err(|e| CommandError::db("skill_export_clawhub", &e))?
@@ -198,7 +204,8 @@ pub async fn marketplace_search(
     query: crate::skills::marketplace::MarketplaceQuery,
 ) -> Result<crate::skills::marketplace::MarketplaceResponse, CommandError> {
     state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .search(&query)
         .map_err(|e| CommandError::internal("marketplace_search", &e))
 }
@@ -216,7 +223,8 @@ pub async fn marketplace_quick_search(
         ..Default::default()
     };
     state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .search(&q)
         .map_err(|e| CommandError::internal("marketplace_quick_search", &e))
 }
@@ -230,7 +238,8 @@ pub async fn marketplace_install(
     identifier: String,
 ) -> Result<crate::skills::marketplace::SkillEntry, CommandError> {
     state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .install(&source, &identifier)
         .map_err(|e| CommandError::internal("marketplace_install", &e))
 }
@@ -251,7 +260,8 @@ pub async fn marketplace_refresh(
     state: State<'_, AppState>,
 ) -> Result<crate::skills::marketplace::MarketplaceStats, CommandError> {
     state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .refresh()
         .map_err(|e| CommandError::internal("marketplace_refresh", &e))
 }
@@ -282,7 +292,8 @@ pub async fn marketplace_generate_manifest(
     skill_id: String,
 ) -> Result<crate::skills::marketplace::PublishManifest, CommandError> {
     state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .generate_manifest(&skill_id)
         .map_err(|e| CommandError::internal("marketplace_generate_manifest", &e))
 }
@@ -313,7 +324,8 @@ pub async fn skill_publish(
 
     // 1. 读取 skill。
     let skill = state
-        .swarm.skills
+        .swarm
+        .skills
         .store()
         .get(&skill_id)
         .map_err(|e| CommandError::db("skill_publish", &e))?
@@ -325,7 +337,8 @@ pub async fn skill_publish(
 
     // 3. 生成 PublishManifest 并校验。
     let manifest = state
-        .swarm.marketplace
+        .swarm
+        .marketplace
         .generate_manifest(&skill_id)
         .map_err(|e| CommandError::internal("skill_publish", &e))?;
     crate::skills::marketplace::SkillMarketplace::validate_manifest(&manifest)

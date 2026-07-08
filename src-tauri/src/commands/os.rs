@@ -15,7 +15,8 @@ use crate::AppState;
 #[instrument(skip(state), fields(otel.kind = "os_clipboard_read"))]
 pub async fn os_clipboard_read(state: State<'_, AppState>) -> Result<String, CommandError> {
     state
-        .platform.clipboard
+        .platform
+        .clipboard
         .read_text()
         .map_err(|e| CommandError::internal("os_clipboard_read", &e))
 }
@@ -27,7 +28,8 @@ pub async fn os_clipboard_write(
     text: String,
 ) -> Result<(), CommandError> {
     state
-        .platform.clipboard
+        .platform
+        .clipboard
         .write_text(&text)
         .map_err(|e| CommandError::internal("os_clipboard_write", &e))
 }

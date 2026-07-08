@@ -98,10 +98,12 @@ impl RestApiServer {
                         Err(e) => (500, serde_json::json!({"error": e.to_string()})),
                     },
 
-                    ("GET", "/api/skills") => match state.swarm.skills.list_skills(Default::default()) {
-                        Ok(skills) => (200, serde_json::json!({"skills": skills})),
-                        Err(e) => (500, serde_json::json!({"error": e.to_string()})),
-                    },
+                    ("GET", "/api/skills") => {
+                        match state.swarm.skills.list_skills(Default::default()) {
+                            Ok(skills) => (200, serde_json::json!({"skills": skills})),
+                            Err(e) => (500, serde_json::json!({"error": e.to_string()})),
+                        }
+                    }
 
                     ("POST", "/api/chat") => {
                         let body_val = match body_json {
@@ -214,7 +216,9 @@ impl RestApiServer {
                             }
                         };
                         let k = search_req.k.unwrap_or(10);
-                        match state.memory.sponge
+                        match state
+                            .memory
+                            .sponge
                             .search_with_graph(&search_req.query, k, None)
                             .await
                         {

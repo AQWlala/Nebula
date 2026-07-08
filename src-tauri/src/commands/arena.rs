@@ -29,7 +29,8 @@ pub async fn arena_create_match(
     model_b: String,
 ) -> Result<String, CommandError> {
     state
-        .llm.arena
+        .llm
+        .arena
         .create_match(prompt, model_a, model_b)
         .await
         .map_err(|e| CommandError::internal("arena_create_match", &e))
@@ -47,7 +48,8 @@ pub async fn arena_vote(
     winner: String,
 ) -> Result<(), CommandError> {
     state
-        .llm.arena
+        .llm
+        .arena
         .vote(&match_id, winner)
         .await
         .map_err(|e| CommandError::internal("arena_vote", &e))

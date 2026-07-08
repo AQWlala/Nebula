@@ -51,7 +51,8 @@ pub async fn sidecar_list_status(
     for kind in SidecarKind::all() {
         let status = state.platform.sidecar_manager.status(kind);
         let pid = state
-            .platform.sidecar_manager
+            .platform
+            .sidecar_manager
             .listen_addr(kind)
             .map(|_| None)
             .unwrap_or(None); // 简化：进程内模式不暴露 pid
@@ -67,7 +68,8 @@ pub async fn sidecar_list_status(
 pub async fn sidecar_start(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
-        .platform.sidecar_manager
+        .platform
+        .sidecar_manager
         .start(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_start", &anyhow::anyhow!("{}", e)))?;
@@ -80,7 +82,8 @@ pub async fn sidecar_start(state: State<'_, AppState>, kind: String) -> Result<b
 pub async fn sidecar_stop(state: State<'_, AppState>, kind: String) -> Result<bool, CommandError> {
     let sidecar_kind = parse_kind(&kind)?;
     state
-        .platform.sidecar_manager
+        .platform
+        .sidecar_manager
         .stop(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_stop", &anyhow::anyhow!("{}", e)))?;
@@ -97,7 +100,8 @@ pub async fn sidecar_restart(
     let sidecar_kind = parse_kind(&kind)?;
     let _ = state.platform.sidecar_manager.stop(sidecar_kind).await;
     state
-        .platform.sidecar_manager
+        .platform
+        .sidecar_manager
         .start(sidecar_kind)
         .await
         .map_err(|e| CommandError::internal("sidecar_restart", &anyhow::anyhow!("{}", e)))?;

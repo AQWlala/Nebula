@@ -10,7 +10,12 @@ use crate::AppState;
 #[tauri::command]
 #[instrument(skip(state), fields(otel.kind = "editor_workspace_root"))]
 pub async fn editor_workspace_root(state: State<'_, AppState>) -> Result<String, CommandError> {
-    Ok(state.platform.editor.workspace_root().to_string_lossy().into_owned())
+    Ok(state
+        .platform
+        .editor
+        .workspace_root()
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[tauri::command]
@@ -20,7 +25,8 @@ pub async fn editor_read(
     path: String,
 ) -> Result<editor_ops::FileContent, CommandError> {
     state
-        .platform.editor
+        .platform
+        .editor
         .read_file(&path)
         .map_err(|e| CommandError::validation("editor_read").with_details(e.to_string()))
 }
@@ -33,7 +39,8 @@ pub async fn editor_write(
     content: String,
 ) -> Result<editor_ops::FileContent, CommandError> {
     state
-        .platform.editor
+        .platform
+        .editor
         .write_file(&path, &content)
         .map_err(|e| CommandError::validation("editor_write").with_details(e.to_string()))
 }
@@ -45,7 +52,8 @@ pub async fn editor_list(
     max_depth: Option<usize>,
 ) -> Result<Vec<editor_ops::FileEntry>, CommandError> {
     state
-        .platform.editor
+        .platform
+        .editor
         .list_tree(max_depth)
         .map_err(|e| CommandError::internal("editor_list", &e))
 }

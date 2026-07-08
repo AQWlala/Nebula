@@ -130,7 +130,8 @@ pub async fn im_test_send(
 ) -> Result<(), CommandError> {
     let message = ImMessage::new(title, body);
     state
-        .channels.im_engine
+        .channels
+        .im_engine
         .test_send(&id, &message)
         .await
         .map_err(|e| CommandError::internal("im_test_send", &e))

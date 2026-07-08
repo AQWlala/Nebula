@@ -44,7 +44,8 @@ pub async fn tool_invoke(
         arguments,
     };
     state
-        .infra.tool_registry
+        .infra
+        .tool_registry
         .invoke(input)
         .map_err(|e| CommandError::internal("tool_invoke", &e))
 }

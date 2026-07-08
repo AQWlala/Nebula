@@ -222,7 +222,8 @@ pub fn oauth_authorization_url(
 ) -> Result<String, CommandError> {
     let state_val = state_param.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     state
-        .platform.oauth_manager
+        .platform
+        .oauth_manager
         .authorization_url(&provider_id, &state_val)
         .map_err(|e| CommandError::internal("failed to build authorization URL", &e))
 }
@@ -235,7 +236,8 @@ pub async fn oauth_authorize(
     code: String,
 ) -> Result<(), CommandError> {
     state
-        .platform.oauth_manager
+        .platform
+        .oauth_manager
         .authorize(&provider_id, &code)
         .await
         .map_err(|e| CommandError::internal("OAuth authorization failed", &e))
@@ -248,7 +250,8 @@ pub async fn oauth_disconnect(
     provider_id: String,
 ) -> Result<(), CommandError> {
     state
-        .platform.oauth_manager
+        .platform
+        .oauth_manager
         .disconnect(&provider_id)
         .await
         .map_err(|e| CommandError::internal("OAuth disconnect failed", &e))
@@ -262,7 +265,8 @@ pub async fn oauth_status(
     provider_id: String,
 ) -> Result<bool, CommandError> {
     match state
-        .platform.oauth_manager
+        .platform
+        .oauth_manager
         .refresh_if_needed(&provider_id)
         .await
         .map_err(|e| CommandError::internal("OAuth status check failed", &e))?

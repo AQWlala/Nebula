@@ -121,10 +121,12 @@ pub async fn master_run(
     // 复用 ApprovalGate + ConfirmationRegistry + master_confirm 命令。
     // RemoteLlmDispatch 在 WorkerRiskMap 中强制 High,不受 autonomy 影响(隐私硬约束)。
     let autonomy_level = autonomy::get_level();
-    let verdict =
-        state
-            .infra.approval_gate
-            .assess(ActionKind::RemoteLlmDispatch, &input, autonomy_level, None);
+    let verdict = state.infra.approval_gate.assess(
+        ActionKind::RemoteLlmDispatch,
+        &input,
+        autonomy_level,
+        None,
+    );
     if let crate::autonomy::ApprovalVerdict::ConfirmRequired {
         confirmation_id,
         created_at,
@@ -273,10 +275,9 @@ pub async fn loop_run(
     // (即 LlmGateway 自身的 provider + default_model),用于同质检测。
     // Maker 与 Checker 用同一 gateway,因此 maker_model == checker_model,
     // 若 loop_def.autonomy == L4,会触发降级到 L2。
-    let reviewer = ReviewerAgent::new(state.llm.llm.clone()).with_maker_model(ModelDescriptor::new(
-        state.llm.llm.provider(),
-        state.llm.llm.default_model(),
-    ));
+    let reviewer = ReviewerAgent::new(state.llm.llm.clone()).with_maker_model(
+        ModelDescriptor::new(state.llm.llm.provider(), state.llm.llm.default_model()),
+    );
     let report = master
         .execute_loop(
             &loop_def,
@@ -666,7 +667,10 @@ pub async fn master_confirm(
     state: State<'_, AppState>,
     confirmation_id: String,
 ) -> Result<ConfirmationStatus, CommandError> {
-    Ok(state.infra.confirmation_registry.mark_confirmed(&confirmation_id))
+    Ok(state
+        .infra
+        .confirmation_registry
+        .mark_confirmed(&confirmation_id))
 }
 
 /// M6 #82: 查询 confirmation 状态(供前端显示倒计时 / 防重放提示)。

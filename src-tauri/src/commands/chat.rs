@@ -129,7 +129,8 @@ pub async fn chat_stream(
 
     // T-S1-A-02: 同样注入记忆上下文到流式路径。
     let context_bundle = state
-        .memory.orchestrator
+        .memory
+        .orchestrator
         .assemble_context(&request.user_message, "system")
         .await
         .map_err(|e| CommandError::internal("chat_stream", &e))?;
@@ -231,7 +232,8 @@ pub async fn chat_stream(
         // 注:turn_id 为空字符串时不编译(与原 Some(tid) 语义一致)。
         if !turn_id_for_wiki.is_empty() {
             if let Err(e) = state_for_wiki
-                .platform.wiki
+                .platform
+                .wiki
                 .compile_turn(&turn_id_for_wiki, &user_msg_for_wiki, &asst_msg_for_wiki)
                 .await
             {

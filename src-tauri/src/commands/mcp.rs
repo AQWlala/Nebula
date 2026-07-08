@@ -58,7 +58,8 @@ pub async fn mcp_list_tools(
         return Ok(state.platform.mcp_manager.list_all_tools().await);
     }
     state
-        .platform.mcp_manager
+        .platform
+        .mcp_manager
         .list_tools_for_server(&server_id)
         .await
         .map_err(|e| CommandError {
@@ -82,7 +83,8 @@ pub async fn mcp_invoke_tool(
     params: serde_json::Value,
 ) -> Result<McpToolResult, CommandError> {
     state
-        .platform.mcp_manager
+        .platform
+        .mcp_manager
         .invoke_tool(&server_id, &tool_name, params)
         .await
         .map_err(|e| CommandError {
@@ -119,7 +121,8 @@ pub async fn mcp_server_start(
     name: String,
 ) -> Result<(), CommandError> {
     state
-        .platform.mcp_registry
+        .platform
+        .mcp_registry
         .start(&name)
         .await
         .map_err(|e| CommandError {
@@ -134,7 +137,8 @@ pub async fn mcp_server_start(
 #[instrument(skip(state), fields(otel.kind = "mcp_server_stop"))]
 pub async fn mcp_server_stop(state: State<'_, AppState>, name: String) -> Result<(), CommandError> {
     state
-        .platform.mcp_registry
+        .platform
+        .mcp_registry
         .stop(&name)
         .await
         .map_err(|e| CommandError {
@@ -154,7 +158,8 @@ pub async fn mcp_server_status(
     name: String,
 ) -> Result<McpServerStatus, CommandError> {
     state
-        .platform.mcp_registry
+        .platform
+        .mcp_registry
         .status(&name)
         .ok_or_else(|| CommandError {
             code: ErrorCode::NotFound,
@@ -176,7 +181,8 @@ pub async fn mcp_server_logs(
 ) -> Result<Vec<String>, CommandError> {
     let tail = tail.unwrap_or(100);
     state
-        .platform.mcp_registry
+        .platform
+        .mcp_registry
         .logs(&name, tail)
         .await
         .map_err(|e| CommandError {

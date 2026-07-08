@@ -13,7 +13,9 @@ use std::path::PathBuf;
 use tracing_subscriber::{
     fmt,
     layer::{Layer, SubscriberExt as _},
-    registry, util::SubscriberInitExt as _, EnvFilter, Registry,
+    registry,
+    util::SubscriberInitExt as _,
+    EnvFilter, Registry,
 };
 
 type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
@@ -150,10 +152,7 @@ pub fn init_tracing() {
 
         // EnvFilter 不 box：它对所有 S: Subscriber 实现 Layer<S>，
         // 所以可以加到 Layered<Vec<BoxedLayer>, Registry> 上。
-        let _ = registry()
-            .with(layers)
-            .with(filter)
-            .try_init();
+        let _ = registry().with(layers).with(filter).try_init();
     });
 }
 

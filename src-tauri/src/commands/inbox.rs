@@ -33,7 +33,10 @@ fn build_store(state: &AppState) -> Result<InboxStore, CommandError> {
 /// 内部辅助:从 AppState 构造 `InboxManager`(出站路径用)。
 fn build_manager(state: &AppState) -> Result<InboxManager, CommandError> {
     let store = build_store(state)?;
-    Ok(InboxManager::new(store, state.channels.channel_router.clone()))
+    Ok(InboxManager::new(
+        store,
+        state.channels.channel_router.clone(),
+    ))
 }
 
 /// 列出收件箱消息。按时间戳降序。

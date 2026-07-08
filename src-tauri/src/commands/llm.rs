@@ -70,7 +70,8 @@ pub struct LlmChatDto {
 #[instrument(skip(state, text), fields(otel.kind = "llm_embed"))]
 pub async fn llm_embed(state: State<'_, AppState>, text: String) -> Result<Vec<f32>, CommandError> {
     state
-        .memory.embedder
+        .memory
+        .embedder
         .embed(&text)
         .await
         .map_err(|e| CommandError::llm("llm_embed", &e))
@@ -111,7 +112,8 @@ pub async fn describe_screenshot(
     };
     state
         .llm
-        .llm.describe_image(&state.infra.config.vision_model, msg)
+        .llm
+        .describe_image(&state.infra.config.vision_model, msg)
         .await
         .map_err(|e| CommandError::llm("describe_screenshot", &e))
 }

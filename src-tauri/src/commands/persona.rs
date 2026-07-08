@@ -54,7 +54,8 @@ pub async fn persona_get(
     state: State<'_, AppState>,
 ) -> Result<crate::llm::persona::PersonaConfig, CommandError> {
     Ok(state
-        .infra.config
+        .infra
+        .config
         .persona
         .as_ref()
         .map(|pc| pc.read().clone())
@@ -77,7 +78,8 @@ pub async fn persona_set_file(
     // 且 Arc 不允许 get_mut(除非是唯一的 Arc),我们无法在 None 时
     // 原地创建。采用策略:读取当前值(或默认),修改后通过 swarm 传播。
     let mut snapshot = state
-        .infra.config
+        .infra
+        .config
         .persona
         .as_ref()
         .map(|pc| pc.read().clone())

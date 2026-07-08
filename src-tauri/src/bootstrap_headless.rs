@@ -312,10 +312,7 @@ impl AppState {
                 info!(target: "nebula", "MasterOrchestrator ready (headless, M6 #82, runtime ON, T-D-C-08)");
                 mo
             } else {
-                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
-                    swarm.clone(),
-                    None,
-                ));
+                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(swarm.clone(), None));
                 warn!(target: "nebula", "MasterOrchestrator disabled at runtime (headless, T-D-C-08)");
                 mo
             }

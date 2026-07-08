@@ -34,7 +34,8 @@ pub async fn inline_complete(
     prefix: String,
 ) -> Result<Option<String>, String> {
     state
-        .llm.inline_completion
+        .llm
+        .inline_completion
         .suggest_completion(&prefix)
         .await
         .map_err(|e| e.to_string())

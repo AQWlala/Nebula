@@ -35,7 +35,11 @@ pub async fn plan_approve_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.swarm.plan_engine().approve_confirmation(&request_id))
+    Ok(state
+        .swarm
+        .swarm
+        .plan_engine()
+        .approve_confirmation(&request_id))
 }
 
 /// 拒绝准奏请求。
@@ -45,7 +49,11 @@ pub async fn plan_deny_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<bool, CommandError> {
-    Ok(state.swarm.swarm.plan_engine().deny_confirmation(&request_id))
+    Ok(state
+        .swarm
+        .swarm
+        .plan_engine()
+        .deny_confirmation(&request_id))
 }
 
 /// 批准 Plan 请求。
@@ -85,7 +93,11 @@ pub async fn plan_get_confirmation(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<Option<ConfirmationRequest>, CommandError> {
-    Ok(state.swarm.swarm.plan_engine().get_confirmation(&request_id))
+    Ok(state
+        .swarm
+        .swarm
+        .plan_engine()
+        .get_confirmation(&request_id))
 }
 
 /// 脱敏入口：在内容发送给 LLM 之前调用，返回脱敏后的内容。

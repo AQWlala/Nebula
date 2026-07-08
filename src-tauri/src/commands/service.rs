@@ -57,7 +57,8 @@ impl NebulaService for AppState {
         // T-S1-A-02: MemoryOrchestrator 接入 chat 路径。
         // 根据用户消息组装相关记忆上下文，拼接到 system prompt 前。
         let context_bundle = self
-            .memory.orchestrator
+            .memory
+            .orchestrator
             .assemble_context(&req.user_message, "system")
             .await?;
 
@@ -213,7 +214,8 @@ impl NebulaService for AppState {
         }
         let ids: Vec<String> = hits.iter().map(|(id, _)| id.clone()).collect();
         let memories = self
-            .memory.sqlite
+            .memory
+            .sqlite
             .get_many(&ids)
             .await
             .map_err(|e| anyhow::anyhow!("get_many error: {e}"))?;

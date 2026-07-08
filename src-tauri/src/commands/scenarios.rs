@@ -67,6 +67,7 @@ pub async fn scenario_instantiate(
     request: InstantiateScenarioRequest,
 ) -> Result<Option<SwarmTask>, CommandError> {
     Ok(state
-        .swarm.scenario_templates
+        .swarm
+        .scenario_templates
         .instantiate(&request.id, &request.user_input))
 }
