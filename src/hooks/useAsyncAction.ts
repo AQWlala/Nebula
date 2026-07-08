@@ -14,7 +14,7 @@
 import { useRef, useState, useCallback } from 'preact/hooks';
 
 export function useAsyncAction<T, A extends any[]>(
-  action: (...args: A) => Promise<T>,
+  action: (...args: A) => Promise<T>
 ): {
   run: (...args: A) => Promise<T | undefined>;
   loading: boolean;
@@ -49,7 +49,7 @@ export function useAsyncAction<T, A extends any[]>(
         setLoading(false);
       }
     },
-    [action],
+    [action]
   );
 
   const reset = useCallback(() => {

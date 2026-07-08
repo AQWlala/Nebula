@@ -18,7 +18,13 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import { t, LOCALES, type Locale, getLocale, setLocale } from '../i18n';
-import { nebulaAPI, type DeviceInfo, type ModelsConfig, type PersonaConfig, type ProviderConfig } from '../lib/tauri';
+import {
+  nebulaAPI,
+  type DeviceInfo,
+  type ModelsConfig,
+  type PersonaConfig,
+  type ProviderConfig,
+} from '../lib/tauri';
 import {
   currentTheme,
   currentAccent,
@@ -252,23 +258,21 @@ export function Settings({ onClose }: { onClose: () => void }) {
         if (cancelled || !dto) return;
         setS((prev) => ({
           ...prev,
-          llmProvider:
-            typeof dto.llm_provider === 'string' ? dto.llm_provider : prev.llmProvider,
+          llmProvider: typeof dto.llm_provider === 'string' ? dto.llm_provider : prev.llmProvider,
           openaiCompatUrl:
-            typeof dto.openai_compat_url === 'string' ? dto.openai_compat_url : prev.openaiCompatUrl,
+            typeof dto.openai_compat_url === 'string'
+              ? dto.openai_compat_url
+              : prev.openaiCompatUrl,
           openaiCompatModel:
             typeof dto.openai_compat_model === 'string'
               ? dto.openai_compat_model
               : prev.openaiCompatModel,
           dailyBudgetUsd:
-            typeof dto.daily_budget_usd === 'number'
-              ? dto.daily_budget_usd
-              : prev.dailyBudgetUsd,
+            typeof dto.daily_budget_usd === 'number' ? dto.daily_budget_usd : prev.dailyBudgetUsd,
           // T-E-B-09: 加载文件夹监控路径(后端 settings.json 为权威源)。
-          watchPaths:
-            Array.isArray(dto.watch_paths)
-              ? (dto.watch_paths as string[]).filter((p) => typeof p === 'string')
-              : prev.watchPaths,
+          watchPaths: Array.isArray(dto.watch_paths)
+            ? (dto.watch_paths as string[]).filter((p) => typeof p === 'string')
+            : prev.watchPaths,
         }));
       } catch {
         // Tauri runtime not available; keep localStorage values.
@@ -435,7 +439,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
               } catch {
                 return [p.id, false] as [string, boolean];
               }
-            }),
+            })
         );
         if (cancelled) return;
         setProviderKeyConfigured(Object.fromEntries(entries));
@@ -536,7 +540,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
     }
     // 基本字段完整性检查(与后端 ProviderConfig struct 对齐)。
     if (!parsed.id || !parsed.display_name || !parsed.kind || !Array.isArray(parsed.models)) {
-      setProviderError(t('settings.providers.errFields') || '缺少必填字段: id/display_name/kind/models');
+      setProviderError(
+        t('settings.providers.errFields') || '缺少必填字段: id/display_name/kind/models'
+      );
       return;
     }
     try {
@@ -646,17 +652,21 @@ export function Settings({ onClose }: { onClose: () => void }) {
       <div class="settings-card">
         <header class="settings-header">
           <h2 id="settings-title">{t('settings.title')}</h2>
-          <button class="icon-btn" onClick={onClose} aria-label={t('settings.close')}>×</button>
+          <button class="icon-btn" onClick={onClose} aria-label={t('settings.close')}>
+            ×
+          </button>
         </header>
         <div class="settings-body">
           <label class="row">
             <span>{t('settings.language')}</span>
             <select
               value={s.locale}
-              onChange={(e) => update('locale', (e.currentTarget.value as Locale))}
+              onChange={(e) => update('locale', e.currentTarget.value as Locale)}
             >
               {LOCALES.map((l) => (
-                <option key={l} value={l}>{l}</option>
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
             </select>
           </label>
@@ -687,7 +697,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   onClick={() => update('accent', o.value)}
                 >
                   <span class="swatch-dot" />
-                  {o.value === 'purple' ? 'Deep purple' : o.value === 'neon' ? 'Neon green' : 'Amber gold'}
+                  {o.value === 'purple'
+                    ? 'Deep purple'
+                    : o.value === 'neon'
+                      ? 'Neon green'
+                      : 'Amber gold'}
                 </button>
               ))}
             </div>
@@ -730,7 +744,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   UX; the form value stays empty. */}
               {keyConfigured && (
                 <span class="api-key-configured" data-testid="api-key-configured">
-                  {' '}✓ {t('settings.apiKeyConfigured')}
+                  {' '}
+                  ✓ {t('settings.apiKeyConfigured')}
                 </span>
               )}
             </span>
@@ -779,8 +794,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
             >
               <option value="deepseek">{t('settings.provider.deepseek') || 'DeepSeek'}</option>
               <option value="ollama">{t('settings.provider.ollama') || 'Ollama (本地)'}</option>
-              <option value="openai-compat">{t('settings.provider.openai-compat') || 'OpenAI 兼容'}</option>
-              <option value="anthropic">{t('settings.provider.anthropic') || 'Anthropic Claude'}</option>
+              <option value="openai-compat">
+                {t('settings.provider.openai-compat') || 'OpenAI 兼容'}
+              </option>
+              <option value="anthropic">
+                {t('settings.provider.anthropic') || 'Anthropic Claude'}
+              </option>
             </select>
           </label>
         </div>
@@ -799,7 +818,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
               />
             </label>
             <div style="color: var(--text-secondary); font-size: 11px; margin: -4px 0 8px 0;">
-              {t('settings.openaiCompatUrlHint') || '如 https://openrouter.ai/api/v1 或 http://localhost:1234/v1'}
+              {t('settings.openaiCompatUrlHint') ||
+                '如 https://openrouter.ai/api/v1 或 http://localhost:1234/v1'}
             </div>
             <label class="row">
               <span>{t('settings.openaiCompatModel') || '默认模型'}</span>
@@ -811,14 +831,16 @@ export function Settings({ onClose }: { onClose: () => void }) {
               />
             </label>
             <div style="color: var(--text-secondary); font-size: 11px; margin: -4px 0 8px 0;">
-              {t('settings.openaiCompatModelHint') || '如 openai/gpt-4o-mini / llama-3.1-8b-instruct'}
+              {t('settings.openaiCompatModelHint') ||
+                '如 openai/gpt-4o-mini / llama-3.1-8b-instruct'}
             </div>
             <label class="row">
               <span>
                 {t('settings.openaiCompatKey') || 'API Key'}
                 {openaiCompatKeyConfigured && (
                   <span class="api-key-configured" data-testid="openai-compat-key-configured">
-                    {' '}✓ {t('settings.openaiCompatKeyConfigured') || '已存储到系统钥匙串'}
+                    {' '}
+                    ✓ {t('settings.openaiCompatKeyConfigured') || '已存储到系统钥匙串'}
                   </span>
                 )}
               </span>
@@ -909,7 +931,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
         {/* v1.7: OS 集成（开机自启动） */}
         <div class="card" style="margin-top: 16px;">
           <h3 style="margin-bottom: 8px;">{t('settings.os') || '系统集成'}</h3>
-          <label class="row" style="display: flex; align-items: center; justify-content: space-between;">
+          <label
+            class="row"
+            style="display: flex; align-items: center; justify-content: space-between;"
+          >
             <span>{t('settings.autostart') || '开机自启动'}</span>
             <input
               type="checkbox"
@@ -923,7 +948,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
         {/* T-S5-A-03: AI 自动模式 — 启用 LLM 路由 vs 关键词启发式 */}
         <div class="card" style="margin-top: 16px;">
           <h3 style="margin-bottom: 8px;">AI 自动模式</h3>
-          <label class="row" style="display: flex; align-items: center; justify-content: space-between;">
+          <label
+            class="row"
+            style="display: flex; align-items: center; justify-content: space-between;"
+          >
             <span>LLM 智能路由（关闭后退化为关键词启发式）</span>
             <input
               type="checkbox"
@@ -955,7 +983,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   // 剪贴板不可用时回退到 toast 显示完整 DID
                   toast.success('DID 已生成', result.did);
                 }
-              } catch { /* noop */ }
+              } catch {
+                /* noop */
+              }
             }}
           >
             {t('settings.generateDid') || '生成 DID'}
@@ -964,7 +994,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         {/* T-E-S-41: LLM 提供商 — models.json 动态配置(provider 列表 + 添加 + 删除 + 设默认)。 */}
         <div class="card" style="margin-top: 16px;">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '4px',
+            }}
+          >
             <h3 style="margin: 0;">{t('settings.providers.title') || 'LLM 提供商'}</h3>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -977,7 +1014,10 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     console.error('reload models.json failed', e);
                   }
                 }}
-                title={t('settings.providers.reloadTitle') || '从磁盘重新加载 models.json(手动编辑文件后使用)'}
+                title={
+                  t('settings.providers.reloadTitle') ||
+                  '从磁盘重新加载 models.json(手动编辑文件后使用)'
+                }
                 style={{
                   fontSize: '12px',
                   padding: '4px 12px',
@@ -1009,7 +1049,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">
-            {t('settings.providers.hint') || '管理 LLM provider 列表;新增/删除重启生效,默认值可热更新'}
+            {t('settings.providers.hint') ||
+              '管理 LLM provider 列表;新增/删除重启生效,默认值可热更新'}
           </div>
           {modelsConfig === null ? (
             <Spinner label={t('common.loading')} />
@@ -1027,23 +1068,49 @@ export function Settings({ onClose }: { onClose: () => void }) {
                       background: isDefault ? 'var(--bg-secondary)' : 'transparent',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 500, fontSize: '13px' }}>
                           {p.display_name}
                           {isDefault && (
-                            <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent)' }}>
-                              {' '}✓ {t('settings.providers.default') || '默认'}
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                marginLeft: '6px',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              {' '}
+                              ✓ {t('settings.providers.default') || '默认'}
                             </span>
                           )}
                           {p.is_builtin && (
-                            <span style={{ fontSize: '10px', marginLeft: '6px', color: 'var(--text-secondary)' }}>
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                marginLeft: '6px',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
                               {t('settings.providers.builtin') || '内置'}
                             </span>
                           )}
                         </span>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '2px' }}>
-                          <code>{p.id}</code> · {p.kind} · {p.models.length} {t('settings.providers.models') || '个模型'}
+                        <div
+                          style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '11px',
+                            marginTop: '2px',
+                          }}
+                        >
+                          <code>{p.id}</code> · {p.kind} · {p.models.length}{' '}
+                          {t('settings.providers.models') || '个模型'}
                           {p.base_url ? ` · ${p.base_url}` : ''}
                         </div>
                       </div>
@@ -1088,7 +1155,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     </div>
                     {/* 自定义 provider 的 API key 输入(内置 provider 走 T-E-S-40 的旧 keychain 命令)。 */}
                     {!p.is_builtin && (
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '6px',
+                          marginTop: '6px',
+                          alignItems: 'center',
+                        }}
+                      >
                         <input
                           type="password"
                           value={providerKeys[p.id] ?? ''}
@@ -1099,8 +1173,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
                           spellcheck={false}
                           placeholder={
                             providerKeyConfigured[p.id]
-                              ? (t('settings.providers.keyConfigured') || '已配置(输入新值覆盖)')
-                              : (t('settings.providers.keyPlaceholder') || 'API Key(留空删除)')
+                              ? t('settings.providers.keyConfigured') || '已配置(输入新值覆盖)'
+                              : t('settings.providers.keyPlaceholder') || 'API Key(留空删除)'
                           }
                           style={{
                             flex: 1,
@@ -1138,7 +1212,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
           {/* 添加自定义 provider(JSON 文本框) */}
           <div style={{ marginTop: '12px' }}>
             <div style={{ fontSize: '12px', marginBottom: '4px', color: 'var(--text-secondary)' }}>
-              {t('settings.providers.add_hint') || '粘贴 provider JSON 添加自定义 provider(kind: openai-compat/anthropic/ollama/custom)'}
+              {t('settings.providers.add_hint') ||
+                '粘贴 provider JSON 添加自定义 provider(kind: openai-compat/anthropic/ollama/custom)'}
             </div>
             <textarea
               value={newProviderJson}
@@ -1162,7 +1237,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   ],
                 },
                 null,
-                2,
+                2
               )}
               rows={8}
               style={{
@@ -1202,8 +1277,15 @@ export function Settings({ onClose }: { onClose: () => void }) {
             {t('settings.watch.hint') || '监控目录下文件变更,自动吸收到 L3 语义记忆'}
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-            <span style={{ fontSize: '12px', color: watchActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
-              {watchActive ? (t('settings.watch.active') || '监控中') : (t('settings.watch.inactive') || '未启用')}
+            <span
+              style={{
+                fontSize: '12px',
+                color: watchActive ? 'var(--accent)' : 'var(--text-secondary)',
+              }}
+            >
+              {watchActive
+                ? t('settings.watch.active') || '监控中'
+                : t('settings.watch.inactive') || '未启用'}
             </span>
             <button
               type="button"
@@ -1216,11 +1298,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 border: '1px solid var(--border)',
                 background: 'transparent',
                 color: 'var(--text-primary)',
-                cursor: (s.watchPaths.length === 0 && !watchActive) ? 'not-allowed' : 'pointer',
-                opacity: (s.watchPaths.length === 0 && !watchActive) ? 0.5 : 1,
+                cursor: s.watchPaths.length === 0 && !watchActive ? 'not-allowed' : 'pointer',
+                opacity: s.watchPaths.length === 0 && !watchActive ? 0.5 : 1,
               }}
             >
-              {watchActive ? (t('settings.watch.disable') || '停用监控') : (t('settings.watch.enable') || '启用监控')}
+              {watchActive
+                ? t('settings.watch.disable') || '停用监控'
+                : t('settings.watch.enable') || '启用监控'}
             </button>
           </div>
           {s.watchPaths.length === 0 ? (
@@ -1241,7 +1325,17 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     border: '1px solid var(--border)',
                   }}
                 >
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }} title={p}>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '12px',
+                    }}
+                    title={p}
+                  >
                     {p}
                   </span>
                   <button
@@ -1279,14 +1373,17 @@ export function Settings({ onClose }: { onClose: () => void }) {
         <div class="card" style="margin-top: 16px;">
           <h3 style="margin-bottom: 4px;">{t('settings.persona.title') || 'AI 人格'}</h3>
           <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">
-            {t('settings.persona.hint') || '从工作区根目录读取 SOUL.md/AGENTS.md/TOOLS.md,注入到 LLM system prompt 前缀'}
+            {t('settings.persona.hint') ||
+              '从工作区根目录读取 SOUL.md/AGENTS.md/TOOLS.md,注入到 LLM system prompt 前缀'}
           </div>
           <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
-            {([
-              ['SOUL.md', 'soul_md', t('settings.persona.soul') || 'SOUL.md'],
-              ['AGENTS.md', 'agents_md', t('settings.persona.agents') || 'AGENTS.md'],
-              ['TOOLS.md', 'tools_md', t('settings.persona.tools') || 'TOOLS.md'],
-            ] as const).map(([filename, field, label]) => {
+            {(
+              [
+                ['SOUL.md', 'soul_md', t('settings.persona.soul') || 'SOUL.md'],
+                ['AGENTS.md', 'agents_md', t('settings.persona.agents') || 'AGENTS.md'],
+                ['TOOLS.md', 'tools_md', t('settings.persona.tools') || 'TOOLS.md'],
+              ] as const
+            ).map(([filename, field, label]) => {
               const isLoaded = persona ? persona[field] != null : false;
               return (
                 <div
@@ -1300,20 +1397,24 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     border: '1px solid var(--border)',
                   }}
                 >
-                  <span style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: isLoaded ? 'var(--accent)' : 'var(--text-secondary)',
-                      opacity: isLoaded ? 1 : 0.4,
-                    }} />
+                  <span
+                    style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: isLoaded ? 'var(--accent)' : 'var(--text-secondary)',
+                        opacity: isLoaded ? 1 : 0.4,
+                      }}
+                    />
                     {label}
                     <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
                       {isLoaded
-                        ? (t('settings.persona.loaded') || '已加载')
-                        : (t('settings.persona.missing') || '未配置')}
+                        ? t('settings.persona.loaded') || '已加载'
+                        : t('settings.persona.missing') || '未配置'}
                     </span>
                   </span>
                   <button
@@ -1356,9 +1457,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
               opacity: personaReloading ? 0.6 : 1,
             }}
           >
-            {personaReloading
-              ? <Spinner size={16} showLabel={false} />
-              : (t('settings.persona.reload') || '重新加载')}
+            {personaReloading ? (
+              <Spinner size={16} showLabel={false} />
+            ) : (
+              t('settings.persona.reload') || '重新加载'
+            )}
           </button>
           <button
             type="button"
@@ -1389,11 +1492,16 @@ export function Settings({ onClose }: { onClose: () => void }) {
         <EvolutionLogView open={evolutionLogOpen} onClose={() => setEvolutionLogOpen(false)} />
 
         {/* M6 #83: WorkType 配置 Modal — 从 LLM 提供商卡片"⚙ WorkType 配置"按钮触发。 */}
-        <WorkTypeConfigView open={workTypeConfigOpen} onClose={() => setWorkTypeConfigOpen(false)} />
+        <WorkTypeConfigView
+          open={workTypeConfigOpen}
+          onClose={() => setWorkTypeConfigOpen(false)}
+        />
 
         <footer class="settings-footer">
           <span class="settings-status">{saved ? t('settings.saved') : ''}</span>
-          <button class="primary" onClick={save}>{t('settings.save')}</button>
+          <button class="primary" onClick={save}>
+            {t('settings.save')}
+          </button>
         </footer>
       </div>
     </div>

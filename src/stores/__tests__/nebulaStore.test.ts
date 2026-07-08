@@ -1,10 +1,10 @@
-﻿/**
+/**
  * P0-C: nebulaStore core state management tests.
  *
  * Covers: initial signal values, direct mutations, and
  * signal-type correctness for mode/autonomy/ready signals.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { nebulaStore } from '../nebulaStore';
 
 describe('nebulaStore – signal defaults', () => {

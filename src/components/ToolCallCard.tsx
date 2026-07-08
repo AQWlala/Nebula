@@ -33,18 +33,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         }}
         onClick={() => setExpanded(!expanded)}
       >
-        <span style={{ color: statusColor, fontWeight: 600, fontSize: 14 }}>
-          {statusIcon}
-        </span>
+        <span style={{ color: statusColor, fontWeight: 600, fontSize: 14 }}>{statusIcon}</span>
         <span style={{ fontFamily: 'Menlo, Consolas, monospace', fontSize: 12, flex: 1 }}>
           {toolCall.tool_name}
         </span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-          {toolCall.duration_ms}ms
-        </span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-          {expanded ? '▲' : '▼'}
-        </span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{toolCall.duration_ms}ms</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
         <div

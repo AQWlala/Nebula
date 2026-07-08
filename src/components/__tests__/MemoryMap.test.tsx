@@ -22,13 +22,19 @@ beforeAll(() => {
 // 提供 MemoryMap 用到的全部 API 的 no-op stub。
 vi.mock('pixi.js', () => {
   class ContainerMock {
-    x = 0; y = 0;
+    x = 0;
+    y = 0;
     scale = { set: vi.fn() };
     addChild = vi.fn();
     removeChildren = vi.fn();
   }
   class GraphicsMock {
-    x = 0; y = 0; alpha = 1; visible = true; eventMode = ''; cursor = '';
+    x = 0;
+    y = 0;
+    alpha = 1;
+    visible = true;
+    eventMode = '';
+    cursor = '';
     circle = vi.fn().mockReturnThis();
     fill = vi.fn().mockReturnThis();
     stroke = vi.fn().mockReturnThis();
@@ -41,7 +47,8 @@ vi.mock('pixi.js', () => {
   }
   class TextMock {
     anchor = { set: vi.fn() };
-    x = 0; y = 0;
+    x = 0;
+    y = 0;
     constructor(_opts: unknown) {}
   }
   class ApplicationMock {
@@ -105,7 +112,10 @@ function makeMemory(id: string, layer = 'L2' as const) {
   };
 }
 
-function makeSnapshot(rootId: string, opts?: { edges?: number; truncated?: boolean; nodeCount?: number }) {
+function makeSnapshot(
+  rootId: string,
+  opts?: { edges?: number; truncated?: boolean; nodeCount?: number }
+) {
   const nodeCount = opts?.nodeCount ?? 3;
   const nodes = Array.from({ length: nodeCount }, (_, i) => ({
     id: i === 0 ? rootId : `node-${i}`,
@@ -226,7 +236,8 @@ describe('MemoryMap (T-E-B-07)', () => {
     fireEvent.click(getByTestId('view-graph'));
     await waitFor(() => expect(mockMdrmGetGraph).toHaveBeenCalled());
     // 头部应显示 "5 节点 / 4 边"
-    const headerText = container.querySelector('.flex.items-center.justify-between')?.textContent ?? '';
+    const headerText =
+      container.querySelector('.flex.items-center.justify-between')?.textContent ?? '';
     expect(headerText).toContain('5 节点 / 4 边');
   });
 });

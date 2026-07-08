@@ -31,9 +31,9 @@ export const THEME_DEFAULT: Theme = 'dark';
 
 /** Same preset list as Settings.tsx; keep them in sync. */
 export const ACCENT_OPTIONS: { value: Accent; cssVar: string; preview: string }[] = [
-  { value: 'purple', cssVar: '--accent-purple',   preview: '#9d4edd' },
-  { value: 'neon',   cssVar: '--accent-neon',     preview: '#00ff9d' },
-  { value: 'amber',  cssVar: '--accent-warning',  preview: '#ffb86b' },
+  { value: 'purple', cssVar: '--accent-purple', preview: '#9d4edd' },
+  { value: 'neon', cssVar: '--accent-neon', preview: '#00ff9d' },
+  { value: 'amber', cssVar: '--accent-warning', preview: '#ffb86b' },
 ];
 
 const VALID_THEMES: Theme[] = ['dark', 'light', 'system'];
@@ -95,9 +95,7 @@ function readStored(): ThemeSnapshot {
     return {
       theme: isValidTheme(parsed.theme) ? parsed.theme : THEME_DEFAULT,
       accent: isValidAccent(parsed.accent) ? parsed.accent : ACCENT_DEFAULT,
-      fontSize: clampFontSize(
-        typeof parsed.fontSize === 'number' ? parsed.fontSize : FONT_DEFAULT,
-      ),
+      fontSize: clampFontSize(typeof parsed.fontSize === 'number' ? parsed.fontSize : FONT_DEFAULT),
     };
   } catch {
     return { theme: THEME_DEFAULT, accent: ACCENT_DEFAULT, fontSize: FONT_DEFAULT };

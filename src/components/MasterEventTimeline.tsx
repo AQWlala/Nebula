@@ -1,4 +1,4 @@
-﻿/**
+/**
  * M6 #82: Master 编排事件时间线 + L4 审批交互组件。
  *
  * ## 功能
@@ -17,13 +17,12 @@
  * - 后端未启用 master-orchestrator feature 时,masterRun invoke 会 reject,
  *   显示 "Master 编排功能未启用" 提示。
  */
-import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import {
   nebulaAPI,
   type MasterEvent,
   type MasterReport,
   type ExecuteMode,
-  type PendingConfirmation,
   type ConfirmationStatus,
   CONFIRMATION_TIMEOUT_MS,
 } from '../lib/tauri';
@@ -50,20 +49,40 @@ interface PendingApproval {
 }
 
 /** 把 MasterEvent.kind 转为中文标签 + emoji 图标。 */
-function eventLabel(kind: MasterEvent['kind']): { icon: string; label: string; tone: 'info' | 'success' | 'warning' | 'error' } {
+function eventLabel(kind: MasterEvent['kind']): {
+  icon: string;
+  label: string;
+  tone: 'info' | 'success' | 'warning' | 'error';
+} {
   switch (kind) {
-    case 'decompose_started': return { icon: '🧩', label: t('masterTimeline.event.decomposeStarted'), tone: 'info' };
-    case 'decompose_completed': return { icon: '✅', label: t('masterTimeline.event.decomposeCompleted'), tone: 'success' };
-    case 'decompose_failed': return { icon: '❌', label: t('masterTimeline.event.decomposeFailed'), tone: 'error' };
-    case 'layer_started': return { icon: '▶️', label: t('masterTimeline.event.layerStarted'), tone: 'info' };
-    case 'layer_completed': return { icon: '✅', label: t('masterTimeline.event.layerCompleted'), tone: 'success' };
-    case 'sub_task_started': return { icon: '🚀', label: t('masterTimeline.event.subTaskStarted'), tone: 'info' };
-    case 'sub_task_completed': return { icon: '✅', label: t('masterTimeline.event.subTaskCompleted'), tone: 'success' };
-    case 'synthesize_started': return { icon: '🧪', label: t('masterTimeline.event.synthesizeStarted'), tone: 'info' };
-    case 'synthesize_completed': return { icon: '✅', label: t('masterTimeline.event.synthesizeCompleted'), tone: 'success' };
-    case 'dag_failed': return { icon: '❌', label: t('masterTimeline.event.dagFailed'), tone: 'error' };
-    case 'user_confirmation_required': return { icon: '⚠️', label: t('masterTimeline.event.userConfirmationRequired'), tone: 'warning' };
-    case 'master_completed': return { icon: '🎉', label: t('masterTimeline.event.masterCompleted'), tone: 'success' };
+    case 'decompose_started':
+      return { icon: '🧩', label: t('masterTimeline.event.decomposeStarted'), tone: 'info' };
+    case 'decompose_completed':
+      return { icon: '✅', label: t('masterTimeline.event.decomposeCompleted'), tone: 'success' };
+    case 'decompose_failed':
+      return { icon: '❌', label: t('masterTimeline.event.decomposeFailed'), tone: 'error' };
+    case 'layer_started':
+      return { icon: '▶️', label: t('masterTimeline.event.layerStarted'), tone: 'info' };
+    case 'layer_completed':
+      return { icon: '✅', label: t('masterTimeline.event.layerCompleted'), tone: 'success' };
+    case 'sub_task_started':
+      return { icon: '🚀', label: t('masterTimeline.event.subTaskStarted'), tone: 'info' };
+    case 'sub_task_completed':
+      return { icon: '✅', label: t('masterTimeline.event.subTaskCompleted'), tone: 'success' };
+    case 'synthesize_started':
+      return { icon: '🧪', label: t('masterTimeline.event.synthesizeStarted'), tone: 'info' };
+    case 'synthesize_completed':
+      return { icon: '✅', label: t('masterTimeline.event.synthesizeCompleted'), tone: 'success' };
+    case 'dag_failed':
+      return { icon: '❌', label: t('masterTimeline.event.dagFailed'), tone: 'error' };
+    case 'user_confirmation_required':
+      return {
+        icon: '⚠️',
+        label: t('masterTimeline.event.userConfirmationRequired'),
+        tone: 'warning',
+      };
+    case 'master_completed':
+      return { icon: '🎉', label: t('masterTimeline.event.masterCompleted'), tone: 'success' };
   }
 }
 
@@ -117,7 +136,7 @@ export function MasterEventTimeline() {
           return { ...p, status: 'expired', status_message: t('masterTimeline.approval.expired') };
         }
         return p;
-      }),
+      })
     );
   }, [nowTick]);
 
@@ -162,11 +181,18 @@ export function MasterEventTimeline() {
       const result = await nebulaAPI.masterRun(
         { input: input.trim(), mode },
         handleEvent,
-        controller.signal,
+        controller.signal
       );
       if (!controller.signal.aborted) {
         setReport(result);
-        toast.success(t('masterTimeline.toast.completed.title'), t('masterTimeline.toast.completed.body', { taskId: result.task_id, success: result.successful_sub_tasks, total: result.total_sub_tasks }));
+        toast.success(
+          t('masterTimeline.toast.completed.title'),
+          t('masterTimeline.toast.completed.body', {
+            taskId: result.task_id,
+            success: result.successful_sub_tasks,
+            total: result.total_sub_tasks,
+          })
+        );
       }
     } catch (e) {
       if (!controller.signal.aborted) {
@@ -174,7 +200,10 @@ export function MasterEventTimeline() {
         setError(msg);
         // 检测 feature 未启用的错误
         if (msg.includes('not found') || msg.includes('command')) {
-          toast.error(t('masterTimeline.toast.unavailable.title'), t('masterTimeline.toast.unavailable.body'));
+          toast.error(
+            t('masterTimeline.toast.unavailable.title'),
+            t('masterTimeline.toast.unavailable.body')
+          );
         } else {
           toast.error(t('masterTimeline.toast.failed.title'), msg);
         }
@@ -194,11 +223,7 @@ export function MasterEventTimeline() {
   /** 用户确认审批请求。 */
   async function confirmApproval(confirmationId: string) {
     setPendingApprovals((prev) =>
-      prev.map((p) =>
-        p.confirmation_id === confirmationId
-          ? { ...p, status: 'confirming' }
-          : p,
-      ),
+      prev.map((p) => (p.confirmation_id === confirmationId ? { ...p, status: 'confirming' } : p))
     );
     try {
       const status: ConfirmationStatus = await nebulaAPI.masterConfirm(confirmationId);
@@ -206,7 +231,11 @@ export function MasterEventTimeline() {
         prev.map((p) => {
           if (p.confirmation_id !== confirmationId) return p;
           if (status === 'confirmed') {
-            return { ...p, status: 'confirmed', status_message: t('masterTimeline.confirmStatus.confirmed') };
+            return {
+              ...p,
+              status: 'confirmed',
+              status_message: t('masterTimeline.confirmStatus.confirmed'),
+            };
           }
           const label = {
             already_used: t('masterTimeline.confirmStatus.alreadyUsed'),
@@ -215,20 +244,29 @@ export function MasterEventTimeline() {
             confirmed: t('masterTimeline.confirmStatus.confirmed'),
           }[status];
           return { ...p, status: 'error', status_message: label };
-        }),
+        })
       );
       if (status === 'confirmed') {
-        toast.success(t('masterTimeline.toast.approvalConfirmed.title'), confirmationId.slice(0, 8));
+        toast.success(
+          t('masterTimeline.toast.approvalConfirmed.title'),
+          confirmationId.slice(0, 8)
+        );
       } else {
-        toast.warning(t('masterTimeline.toast.approvalAbnormal.title'), t('masterTimeline.toast.approvalAbnormal.body', { status, id: confirmationId.slice(0, 8) }));
+        toast.warning(
+          t('masterTimeline.toast.approvalAbnormal.title'),
+          t('masterTimeline.toast.approvalAbnormal.body', {
+            status,
+            id: confirmationId.slice(0, 8),
+          })
+        );
       }
     } catch (e) {
       setPendingApprovals((prev) =>
         prev.map((p) =>
           p.confirmation_id === confirmationId
             ? { ...p, status: 'error', status_message: String(e) }
-            : p,
-        ),
+            : p
+        )
       );
       toast.error(t('masterTimeline.toast.approvalConfirmFailed.title'), String(e));
     }
@@ -240,10 +278,13 @@ export function MasterEventTimeline() {
       prev.map((p) =>
         p.confirmation_id === confirmationId
           ? { ...p, status: 'error', status_message: t('masterTimeline.approval.rejected') }
-          : p,
-      ),
+          : p
+      )
     );
-    toast.info(t('masterTimeline.toast.approvalRejected.title'), t('masterTimeline.toast.approvalRejected.body', { id: confirmationId.slice(0, 8) }));
+    toast.info(
+      t('masterTimeline.toast.approvalRejected.title'),
+      t('masterTimeline.toast.approvalRejected.body', { id: confirmationId.slice(0, 8) })
+    );
   }
 
   return (
@@ -270,18 +311,18 @@ export function MasterEventTimeline() {
           <option value="plan">Plan</option>
         </select>
         {running ? (
-          <button class="btn btn-stop" onClick={stopMaster}>{t('masterTimeline.button.stop')}</button>
+          <button class="btn btn-stop" onClick={stopMaster}>
+            {t('masterTimeline.button.stop')}
+          </button>
         ) : (
-          <button class="btn btn-neon" onClick={startMaster} disabled={!input.trim()}>{t('masterTimeline.button.start')}</button>
+          <button class="btn btn-neon" onClick={startMaster} disabled={!input.trim()}>
+            {t('masterTimeline.button.start')}
+          </button>
         )}
       </div>
 
       {/* 错误提示 */}
-      {error && (
-        <div class="error master-error">
-          {error}
-        </div>
-      )}
+      {error && <div class="error master-error">{error}</div>}
 
       {/* M6 #79: 视图切换 — 时间线 / DAG 画布(仅在有事件时显示) */}
       {timeline.length > 0 && (
@@ -336,14 +377,25 @@ export function MasterEventTimeline() {
                 <h3>{t('masterTimeline.approvalModal.title')}</h3>
                 {p.status === 'pending' && (
                   <span class={`approval-countdown ${remaining < 60 ? 'urgent' : ''}`}>
-                    {t('masterTimeline.approvalModal.countdown', { minutes: Math.floor(remaining / 60), seconds: (remaining % 60).toString().padStart(2, '0') })}
+                    {t('masterTimeline.approvalModal.countdown', {
+                      minutes: Math.floor(remaining / 60),
+                      seconds: (remaining % 60).toString().padStart(2, '0'),
+                    })}
                   </span>
                 )}
               </div>
               <div class="modal__body">
                 <div class="approval-meta">
-                  <span class="badge">{t('masterTimeline.approvalModal.taskBadge', { taskId: p.task_id.slice(0, 12) })}</span>
-                  <span class="badge">{t('masterTimeline.approvalModal.subTaskBadge', { subTaskId: p.sub_task_id.slice(0, 12) })}</span>
+                  <span class="badge">
+                    {t('masterTimeline.approvalModal.taskBadge', {
+                      taskId: p.task_id.slice(0, 12),
+                    })}
+                  </span>
+                  <span class="badge">
+                    {t('masterTimeline.approvalModal.subTaskBadge', {
+                      subTaskId: p.sub_task_id.slice(0, 12),
+                    })}
+                  </span>
                   <span class="badge">ID {p.confirmation_id.slice(0, 8)}</span>
                 </div>
                 <pre class="approval-prompt">{p.prompt}</pre>
@@ -351,30 +403,22 @@ export function MasterEventTimeline() {
               <div class="modal__actions">
                 {p.status === 'pending' && (
                   <>
-                    <button
-                      class="btn btn-neon"
-                      onClick={() => confirmApproval(p.confirmation_id)}
-                    >
+                    <button class="btn btn-neon" onClick={() => confirmApproval(p.confirmation_id)}>
                       {t('masterTimeline.approvalModal.confirm')}
                     </button>
-                    <button
-                      class="btn"
-                      onClick={() => rejectApproval(p.confirmation_id)}
-                    >
+                    <button class="btn" onClick={() => rejectApproval(p.confirmation_id)}>
                       {t('masterTimeline.approvalModal.reject')}
                     </button>
                   </>
                 )}
-                {p.status === 'confirming' && <span>{t('masterTimeline.approvalModal.confirming')}</span>}
+                {p.status === 'confirming' && (
+                  <span>{t('masterTimeline.approvalModal.confirming')}</span>
+                )}
                 {p.status === 'expired' && (
-                  <span class="approval-status approval-status-error">
-                    {p.status_message}
-                  </span>
+                  <span class="approval-status approval-status-error">{p.status_message}</span>
                 )}
                 {p.status === 'error' && (
-                  <span class="approval-status approval-status-error">
-                    {p.status_message}
-                  </span>
+                  <span class="approval-status approval-status-error">{p.status_message}</span>
                 )}
               </div>
             </div>
@@ -391,7 +435,7 @@ export function MasterEventTimeline() {
               const { icon, label, tone } = eventLabel(entry.event.kind);
               const isSelected =
                 selectedSubTask !== null &&
-                ('sub_task_id' in entry.event) &&
+                'sub_task_id' in entry.event &&
                 entry.event.sub_task_id === selectedSubTask;
               return (
                 <li
@@ -401,9 +445,7 @@ export function MasterEventTimeline() {
                   <span class="timeline-time">{formatTime(entry.event.timestamp)}</span>
                   <span class="timeline-icon">{icon}</span>
                   <span class="timeline-label">{label}</span>
-                  <span class="timeline-detail">
-                    {eventDetail(entry.event)}
-                  </span>
+                  <span class="timeline-detail">{eventDetail(entry.event)}</span>
                 </li>
               );
             })}
@@ -416,10 +458,23 @@ export function MasterEventTimeline() {
         <div class="card master-report">
           <h4>{t('masterTimeline.report.title')}</h4>
           <div class="master-report-meta">
-            <span class="badge">{t('masterTimeline.report.taskId', { taskId: report.task_id })}</span>
-            <span class="badge">{t('masterTimeline.report.elapsed', { seconds: (report.elapsed_ms / 1000).toFixed(2) })}</span>
-            <span class="badge">{t('masterTimeline.report.subTasks', { success: report.successful_sub_tasks, total: report.total_sub_tasks })}</span>
-            {report.bypassed && <span class="badge badge-l4">{t('masterTimeline.report.bypassed')}</span>}
+            <span class="badge">
+              {t('masterTimeline.report.taskId', { taskId: report.task_id })}
+            </span>
+            <span class="badge">
+              {t('masterTimeline.report.elapsed', {
+                seconds: (report.elapsed_ms / 1000).toFixed(2),
+              })}
+            </span>
+            <span class="badge">
+              {t('masterTimeline.report.subTasks', {
+                success: report.successful_sub_tasks,
+                total: report.total_sub_tasks,
+              })}
+            </span>
+            {report.bypassed && (
+              <span class="badge badge-l4">{t('masterTimeline.report.bypassed')}</span>
+            )}
           </div>
           <pre class="master-output">{report.output}</pre>
         </div>
@@ -432,15 +487,27 @@ export function MasterEventTimeline() {
 function eventDetail(event: MasterEvent): string {
   switch (event.kind) {
     case 'decompose_started':
-      return t('masterTimeline.detail.decomposeStarted', { summary: event.input_summary.slice(0, 80) + (event.input_summary.length > 80 ? '...' : '') });
+      return t('masterTimeline.detail.decomposeStarted', {
+        summary: event.input_summary.slice(0, 80) + (event.input_summary.length > 80 ? '...' : ''),
+      });
     case 'decompose_completed':
-      return t('masterTimeline.detail.decomposeCompleted', { nodes: event.node_count, edges: event.edge_count });
+      return t('masterTimeline.detail.decomposeCompleted', {
+        nodes: event.node_count,
+        edges: event.edge_count,
+      });
     case 'decompose_failed':
       return event.error.slice(0, 120);
     case 'layer_started':
-      return t('masterTimeline.detail.layerStarted', { index: event.layer_index, nodes: event.node_count });
+      return t('masterTimeline.detail.layerStarted', {
+        index: event.layer_index,
+        nodes: event.node_count,
+      });
     case 'layer_completed':
-      return t('masterTimeline.detail.layerCompleted', { index: event.layer_index, success: event.success_count, failure: event.failure_count });
+      return t('masterTimeline.detail.layerCompleted', {
+        index: event.layer_index,
+        success: event.success_count,
+        failure: event.failure_count,
+      });
     case 'sub_task_started':
       return `${event.sub_task_id.slice(0, 12)}, ${event.worker_count} workers`;
     case 'sub_task_completed':
@@ -454,6 +521,10 @@ function eventDetail(event: MasterEvent): string {
     case 'user_confirmation_required':
       return `${event.confirmation_id.slice(0, 8)} — ${event.prompt.slice(0, 80)}`;
     case 'master_completed':
-      return t('masterTimeline.detail.masterCompleted', { success: event.successful_sub_tasks, total: event.total_sub_tasks, ms: event.elapsed_ms });
+      return t('masterTimeline.detail.masterCompleted', {
+        success: event.successful_sub_tasks,
+        total: event.total_sub_tasks,
+        ms: event.elapsed_ms,
+      });
   }
 }

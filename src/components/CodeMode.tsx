@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v0.5: Code 模式（增强）
  *
  * 三栏布局：
@@ -15,8 +15,8 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as monaco from 'monaco-editor';
-import Editor, { DiffEditor } from '@monaco-editor/react';
-import { nebulaAPI, type FileEntry, type FileContent, type GitStatus, type GitLogEntry } from '../lib/tauri';
+import { DiffEditor } from '@monaco-editor/react';
+import { nebulaAPI, type FileEntry, type GitStatus, type GitLogEntry } from '../lib/tauri';
 import { nebulaStore } from '../stores/nebulaStore';
 import { MonacoEditor, detectLanguage } from './editor/MonacoEditor';
 import { FileTree, refreshFileTree } from './editor/FileTree';
@@ -39,7 +39,11 @@ export function CodeMode() {
   const [showGit, setShowGit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // P1-5: Agent 文件修改 Diff 预览状态
-  const [agentDiff, setAgentDiff] = useState<{ original: string; modified: string; path: string } | null>(null);
+  const [agentDiff, setAgentDiff] = useState<{
+    original: string;
+    modified: string;
+    path: string;
+  } | null>(null);
   const [showAgentDiff, setShowAgentDiff] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLang, setAiLang] = useState('rust');
@@ -47,17 +51,17 @@ export function CodeMode() {
   const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    nebulaAPI.editorWorkspaceRoot().then(setWorkspace).catch((e) => setError(String(e)));
+    nebulaAPI
+      .editorWorkspaceRoot()
+      .then(setWorkspace)
+      .catch((e) => setError(String(e)));
     refreshFileTree(setEntries);
     refreshGit();
   }, []);
 
   const refreshGit = async () => {
     try {
-      const [s, l] = await Promise.all([
-        nebulaAPI.gitStatus(),
-        nebulaAPI.gitLog(10),
-      ]);
+      const [s, l] = await Promise.all([nebulaAPI.gitStatus(), nebulaAPI.gitLog(10)]);
       setGitStatus(s);
       setGitLog(l);
     } catch (e) {
@@ -158,7 +162,7 @@ export function CodeMode() {
     setAiResult('');
     try {
       const text = await nebulaAPI.llmComplete(
-        `用 ${aiLang} 实现：\n${aiPrompt}\n\n只返回代码，不要解释。`,
+        `用 ${aiLang} 实现：\n${aiPrompt}\n\n只返回代码，不要解释。`
       );
       setAiResult(text);
     } catch (e) {
@@ -202,17 +206,26 @@ export function CodeMode() {
     <div class="code-mode">
       <div class="code-toolbar">
         <span class="code-title">{t('codeMode.title')}</span>
-        <span class="code-workspace" title={workspace}>{workspace}</span>
+        <span class="code-workspace" title={workspace}>
+          {workspace}
+        </span>
         {gitStatus && (
           <span class={`git-pill ${gitStatus.clean ? 'clean' : 'dirty'}`}>
-            {gitStatus.branch} · {gitStatus.clean ? '✓' : `${gitStatus.entries.length} ${t('codeMode.changes')}`}
+            {gitStatus.branch} ·{' '}
+            {gitStatus.clean ? '✓' : `${gitStatus.entries.length} ${t('codeMode.changes')}`}
           </span>
         )}
         <div class="spacer" />
         <button onClick={onShowDiff}>{t('codeMode.diff')}</button>
-        <button onClick={refreshGit} title={t('codeMode.refreshGit')}>↻</button>
-        <button onClick={onCommit} disabled={!gitStatus || gitStatus.clean}>{t('codeMode.commit')}</button>
-        <button onClick={() => setShowGit((v) => !v)}>{showGit ? t('codeMode.closeGit') : t('codeMode.git')}</button>
+        <button onClick={refreshGit} title={t('codeMode.refreshGit')}>
+          ↻
+        </button>
+        <button onClick={onCommit} disabled={!gitStatus || gitStatus.clean}>
+          {t('codeMode.commit')}
+        </button>
+        <button onClick={() => setShowGit((v) => !v)}>
+          {showGit ? t('codeMode.closeGit') : t('codeMode.git')}
+        </button>
       </div>
 
       {error && <div class="code-error">{error}</div>}
@@ -232,10 +245,16 @@ export function CodeMode() {
           {showAgentDiff && agentDiff ? (
             <>
               <header class="editor-header">
-                <span class="editor-path">{t('codeMode.diffPreview')}: {agentDiff.path}</span>
+                <span class="editor-path">
+                  {t('codeMode.diffPreview')}: {agentDiff.path}
+                </span>
                 <div class="spacer" />
-                <button onClick={onApplyAgentDiff} class="primary">{t('codeMode.applyChanges')}</button>
-                <button onClick={onRevertAgentDiff} class="ghost">{t('codeMode.revert')}</button>
+                <button onClick={onApplyAgentDiff} class="primary">
+                  {t('codeMode.applyChanges')}
+                </button>
+                <button onClick={onRevertAgentDiff} class="ghost">
+                  {t('codeMode.revert')}
+                </button>
               </header>
               <div class="editor-host">
                 <DiffEditor
@@ -261,7 +280,9 @@ export function CodeMode() {
                 {dirty && <span class="editor-dirty">●</span>}
                 <div class="spacer" />
                 <span class="editor-lang">{detectLanguage(openPath)}</span>
-                <button onClick={onSave} disabled={!dirty} class="primary">{t('codeMode.save')}</button>
+                <button onClick={onSave} disabled={!dirty} class="primary">
+                  {t('codeMode.save')}
+                </button>
               </header>
               <div class="editor-host">
                 <MonacoEditor
@@ -275,7 +296,7 @@ export function CodeMode() {
                       if (
                         nebulaStore.autonomyLevel.value === 'L1' &&
                         (e.ctrlKey || e.metaKey) &&
-                        (e.keyCode === monaco.KeyCode.KeyR)
+                        e.keyCode === monaco.KeyCode.KeyR
                       ) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -286,12 +307,15 @@ export function CodeMode() {
                         }
                         const selected = editor.getModel()?.getValueInRange(sel) ?? '';
                         if (!selected) return;
-                        nebulaAPI.directedEdit(selected)
+                        nebulaAPI
+                          .directedEdit(selected)
                           .then((rewritten) => {
-                            editor.executeEdits('l1-directed-edit', [{
-                              range: sel,
-                              text: rewritten,
-                            }]);
+                            editor.executeEdits('l1-directed-edit', [
+                              {
+                                range: sel,
+                                text: rewritten,
+                              },
+                            ]);
                             editor.pushUndoStop();
                             setOpenContent(editor.getValue());
                             setDirty(true);
@@ -300,7 +324,10 @@ export function CodeMode() {
                       }
                     });
                   }}
-                  onChange={(v) => { setOpenContent(v); setDirty(true); }}
+                  onChange={(v) => {
+                    setOpenContent(v);
+                    setDirty(true);
+                  }}
                 />
               </div>
             </>
@@ -343,7 +370,9 @@ export function CodeMode() {
               {aiResult && <button onClick={onStoreAsSkill}>{t('codeMode.saveAsSkill')}</button>}
             </div>
             {aiResult && (
-              <pre class="ai-out"><code>{aiResult}</code></pre>
+              <pre class="ai-out">
+                <code>{aiResult}</code>
+              </pre>
             )}
           </div>
           <div class="code-terminal">
@@ -362,19 +391,24 @@ export function CodeMode() {
             </header>
             <section>
               <h4>{t('codeMode.status')}</h4>
-              {gitStatus && (gitStatus.clean ? (
-                <p class="muted">{t('codeMode.clean')}</p>
-              ) : (
-                <ul class="git-status-list">
-                  {gitStatus.entries.map((e) => (
-                    <li key={`${e.code}-${e.path}`}><code>{e.code}</code> {e.path}</li>
-                  ))}
-                </ul>
-              ))}
+              {gitStatus &&
+                (gitStatus.clean ? (
+                  <p class="muted">{t('codeMode.clean')}</p>
+                ) : (
+                  <ul class="git-status-list">
+                    {gitStatus.entries.map((e) => (
+                      <li key={`${e.code}-${e.path}`}>
+                        <code>{e.code}</code> {e.path}
+                      </li>
+                    ))}
+                  </ul>
+                ))}
             </section>
             <section>
               <h4>{t('codeMode.uncommittedDiff')}</h4>
-              <pre class="git-diff"><code>{diff || t('codeMode.clickDiffHint')}</code></pre>
+              <pre class="git-diff">
+                <code>{diff || t('codeMode.clickDiffHint')}</code>
+              </pre>
             </section>
             <section>
               <h4>{t('codeMode.recentCommits')}</h4>

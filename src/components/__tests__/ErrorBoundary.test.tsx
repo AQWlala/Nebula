@@ -2,7 +2,7 @@
  * v1.0: ErrorBoundary tests.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup, fireEvent } from '@testing-library/preact';
+import { render, cleanup } from '@testing-library/preact';
 import type { ComponentChildren } from 'preact';
 import { ErrorBoundary, readCrashLog } from '../ErrorBoundary';
 
@@ -18,7 +18,9 @@ function Boom(): ComponentChildren {
 describe('ErrorBoundary', () => {
   it('renders children when no error', () => {
     const { getByText } = render(
-      <ErrorBoundary><div>ok</div></ErrorBoundary>,
+      <ErrorBoundary>
+        <div>ok</div>
+      </ErrorBoundary>
     );
     expect(getByText('ok')).toBeTruthy();
   });
@@ -27,7 +29,9 @@ describe('ErrorBoundary', () => {
     // Suppress the React/Preact error log for this test.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { getByText } = render(
-      <ErrorBoundary><Boom /></ErrorBoundary>,
+      <ErrorBoundary>
+        <Boom />
+      </ErrorBoundary>
     );
     expect(getByText('boom-test')).toBeTruthy();
     expect(spy).toHaveBeenCalled();
@@ -37,7 +41,11 @@ describe('ErrorBoundary', () => {
   it('records the crash to localStorage', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     localStorage.clear();
-    render(<ErrorBoundary><Boom /></ErrorBoundary>);
+    render(
+      <ErrorBoundary>
+        <Boom />
+      </ErrorBoundary>
+    );
     const log = readCrashLog();
     expect(log).toHaveLength(1);
     expect(log[0].message).toBe('boom-test');

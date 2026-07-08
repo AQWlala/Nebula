@@ -93,7 +93,7 @@ export function FloatingBall() {
                 setTaskCount(event.payload.task_count);
               }
             }
-          },
+          }
         );
 
         // T-E-D-06: 悬浮球窗口专用拖拽事件 → sponge_absorb_file。
@@ -120,7 +120,7 @@ export function FloatingBall() {
           if (ok > 0) {
             toast.success(
               t('floatingBall.absorbedMemory', { count: ok }),
-              fail > 0 ? t('floatingBall.absorbPartial', { ok, fail }) : undefined,
+              fail > 0 ? t('floatingBall.absorbPartial', { ok, fail }) : undefined
             );
           }
           setState(prevState);
@@ -243,9 +243,7 @@ export function FloatingBall() {
         <span class="floating-ball__icon">🐍</span>
       </div>
       {state === 'working' && taskCount > 0 && (
-        <div class="floating-ball__badge">
-          {taskCount > 99 ? '99+' : taskCount}
-        </div>
+        <div class="floating-ball__badge">{taskCount > 99 ? '99+' : taskCount}</div>
       )}
       {menuOpen && (
         <div class="floating-ball__menu" role="menu">

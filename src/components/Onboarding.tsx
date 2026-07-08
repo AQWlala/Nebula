@@ -72,7 +72,9 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   async function checkOllama() {
     setOllamaStatus('checking');
     try {
-      const health = await invoke<{ status: string; version: string; ollama?: 'ok' | 'down' }>('health');
+      const health = await invoke<{ status: string; version: string; ollama?: 'ok' | 'down' }>(
+        'health'
+      );
       setOllamaStatus(health?.ollama === 'ok' ? 'ok' : 'down');
     } catch {
       setOllamaStatus('down');
@@ -90,10 +92,11 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         {/* P1-7: 3 步进度指示器 */}
         <div class="onboarding-progress">
           {STEP_META.map((meta, i) => (
-            <div key={`step-${i}`} class={`step-indicator ${i === idx ? 'active' : i < idx ? 'done' : ''}`}>
-              <div class="step-dot">
-                {i < idx ? '✓' : i + 1}
-              </div>
+            <div
+              key={`step-${i}`}
+              class={`step-indicator ${i === idx ? 'active' : i < idx ? 'done' : ''}`}
+            >
+              <div class="step-dot">{i < idx ? '✓' : i + 1}</div>
               <div class="step-label">
                 <span class="step-title">{t(meta.labelKey as any)}</span>
                 <span class="step-desc">{t(meta.descKey as any)}</span>
@@ -130,22 +133,20 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                 {t('onboarding.retry')}
               </button>
             </div>
-            {ollamaStatus === 'down' && (
-              <div class="ollama-hint">
-                {t('onboarding.ollamaHint')}
-              </div>
-            )}
+            {ollamaStatus === 'down' && <div class="ollama-hint">{t('onboarding.ollamaHint')}</div>}
           </div>
         )}
 
         <footer class="onboarding-footer">
-          <button class="ghost" onClick={finish}>{t('onboarding.skip')}</button>
+          <button class="ghost" onClick={finish}>
+            {t('onboarding.skip')}
+          </button>
           <div class="spacer" />
-          {idx > 0 && (
-            <button onClick={() => setIdx(idx - 1)}>{t('onboarding.back')}</button>
-          )}
+          {idx > 0 && <button onClick={() => setIdx(idx - 1)}>{t('onboarding.back')}</button>}
           {last ? (
-            <button class="primary" onClick={finish}>{t('onboarding.finish')}</button>
+            <button class="primary" onClick={finish}>
+              {t('onboarding.finish')}
+            </button>
           ) : (
             <button class="primary" onClick={() => setIdx(idx + 1)}>
               {t('onboarding.next')}
@@ -163,5 +164,9 @@ export function shouldShowOnboarding(): boolean {
 
 export function __resetOnboardingForTests(): void {
   onboarded.value = false;
-  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 }

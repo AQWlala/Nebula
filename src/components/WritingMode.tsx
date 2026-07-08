@@ -11,11 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { marked } from 'marked';
-import {
-  nebulaAPI,
-  type Document,
-  type WritingTemplate,
-} from '../lib/tauri';
+import { nebulaAPI, type Document, type WritingTemplate } from '../lib/tauri';
 import { t } from '../i18n';
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -33,7 +29,10 @@ export function WritingMode() {
 
   // 初始加载
   useEffect(() => {
-    nebulaAPI.writingListTemplates().then(setTemplates).catch((e) => setError(String(e)));
+    nebulaAPI
+      .writingListTemplates()
+      .then(setTemplates)
+      .catch((e) => setError(String(e)));
     refreshDocuments();
   }, []);
 
@@ -67,7 +66,7 @@ export function WritingMode() {
 
   const currentTemplate = useMemo(
     () => templates.find((t) => t.id === templateId) ?? null,
-    [templates, templateId],
+    [templates, templateId]
   );
 
   const wordCount = useMemo(() => countWords(content), [content]);
@@ -203,16 +202,18 @@ export function WritingMode() {
           ) : (
             <ul>
               {documents.map((d) => (
-                <li
-                  key={d.id}
-                  class={currentId === d.id ? 'active' : ''}
-                  onClick={() => onOpen(d)}
-                >
+                <li key={d.id} class={currentId === d.id ? 'active' : ''} onClick={() => onOpen(d)}>
                   <div class="doc-title">{d.title}</div>
                   <div class="doc-meta">
                     {d.word_count} {t('writingMode.words')} · {tplLabel(d.template_id, templates)}
                   </div>
-                  <button class="doc-del" onClick={(e) => { e.stopPropagation(); onDelete(d.id); }}>
+                  <button
+                    class="doc-del"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(d.id);
+                    }}
+                  >
                     ×
                   </button>
                 </li>
@@ -239,7 +240,9 @@ export function WritingMode() {
                 {saveState === 'error' && t('writingMode.saveError')}
               </span>
               <div class="spacer" />
-              <span class="stats">{t('writingMode.wordCount', { count: wordCount, minutes: readMinutes })}</span>
+              <span class="stats">
+                {t('writingMode.wordCount', { count: wordCount, minutes: readMinutes })}
+              </span>
               <button onClick={() => onExport('markdown')}>{t('writingMode.exportMd')}</button>
               <button onClick={() => onExport('html')}>{t('writingMode.exportHtml')}</button>
             </header>

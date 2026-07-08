@@ -67,13 +67,14 @@ export function setLocale(l: Locale): void {
 export function t(key: keyof Dict, vars?: Record<string, string | number>): string {
   const locale = currentLocale.value;
   const dict = DICTS[locale] || DICTS['en-US'];
-  const raw = (dict as Record<string, string>)[key as string]
-    ?? (DICTS['en-US'] as Record<string, string>)[key as string]
-    ?? key;
+  const raw =
+    (dict as Record<string, string>)[key as string] ??
+    (DICTS['en-US'] as Record<string, string>)[key as string] ??
+    key;
   if (!vars) return raw;
   return Object.entries(vars).reduce(
     (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)),
-    raw,
+    raw
   );
 }
 

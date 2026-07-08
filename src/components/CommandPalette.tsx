@@ -26,19 +26,99 @@ export function buildDefaultCommands(
     setSubMode: (m: 'writing' | 'work' | 'code') => void;
     openSettings: () => void;
     triggerReflection: () => void;
-  },
+  }
 ): CommandItem[] {
   return [
-    { id: 'view.chat', title: t('command.view.chat'), group: t('command.group.view'), run: () => { actions.setMode('chat'); onClose(); } },
-    { id: 'view.swarm', title: t('command.view.swarm'), group: t('command.group.view'), run: () => { actions.setMode('swarm'); onClose(); } },
-    { id: 'view.memory', title: t('command.view.memory'), group: t('command.group.view'), run: () => { actions.setMode('memory'); onClose(); } },
-    { id: 'view.code', title: t('command.view.code'), group: t('command.group.view'), run: () => { actions.setMode('code'); onClose(); } },
-    { id: 'view.skills', title: t('command.view.skills'), group: t('command.group.view'), run: () => { actions.setMode('skills'); onClose(); } },
-    { id: 'submode.writing', title: t('command.submode.writing'), group: t('command.group.submode'), run: () => { actions.setSubMode('writing'); onClose(); } },
-    { id: 'submode.work', title: t('command.submode.work'), group: t('command.group.submode'), run: () => { actions.setSubMode('work'); onClose(); } },
-    { id: 'submode.code', title: t('command.submode.code'), group: t('command.group.submode'), run: () => { actions.setSubMode('code'); onClose(); } },
-    { id: 'action.reflect', title: t('command.action.reflect'), group: t('command.group.action'), run: () => { actions.triggerReflection(); onClose(); } },
-    { id: 'action.open-settings', title: t('command.action.openSettings'), group: t('command.group.action'), run: () => { actions.openSettings(); onClose(); } },
+    {
+      id: 'view.chat',
+      title: t('command.view.chat'),
+      group: t('command.group.view'),
+      run: () => {
+        actions.setMode('chat');
+        onClose();
+      },
+    },
+    {
+      id: 'view.swarm',
+      title: t('command.view.swarm'),
+      group: t('command.group.view'),
+      run: () => {
+        actions.setMode('swarm');
+        onClose();
+      },
+    },
+    {
+      id: 'view.memory',
+      title: t('command.view.memory'),
+      group: t('command.group.view'),
+      run: () => {
+        actions.setMode('memory');
+        onClose();
+      },
+    },
+    {
+      id: 'view.code',
+      title: t('command.view.code'),
+      group: t('command.group.view'),
+      run: () => {
+        actions.setMode('code');
+        onClose();
+      },
+    },
+    {
+      id: 'view.skills',
+      title: t('command.view.skills'),
+      group: t('command.group.view'),
+      run: () => {
+        actions.setMode('skills');
+        onClose();
+      },
+    },
+    {
+      id: 'submode.writing',
+      title: t('command.submode.writing'),
+      group: t('command.group.submode'),
+      run: () => {
+        actions.setSubMode('writing');
+        onClose();
+      },
+    },
+    {
+      id: 'submode.work',
+      title: t('command.submode.work'),
+      group: t('command.group.submode'),
+      run: () => {
+        actions.setSubMode('work');
+        onClose();
+      },
+    },
+    {
+      id: 'submode.code',
+      title: t('command.submode.code'),
+      group: t('command.group.submode'),
+      run: () => {
+        actions.setSubMode('code');
+        onClose();
+      },
+    },
+    {
+      id: 'action.reflect',
+      title: t('command.action.reflect'),
+      group: t('command.group.action'),
+      run: () => {
+        actions.triggerReflection();
+        onClose();
+      },
+    },
+    {
+      id: 'action.open-settings',
+      title: t('command.action.openSettings'),
+      group: t('command.group.action'),
+      run: () => {
+        actions.openSettings();
+        onClose();
+      },
+    },
   ];
 }
 
@@ -58,14 +138,21 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const all = useMemo(() => [...commands, ...(extraItems ?? [])], [commands, extraItems]);
-  const fuse = useMemo(() => new Fuse(all, {
-    keys: ['title', 'hint', 'group'],
-    threshold: 0.4,
-    ignoreLocation: true,
-  }), [all]);
+  const fuse = useMemo(
+    () =>
+      new Fuse(all, {
+        keys: ['title', 'hint', 'group'],
+        threshold: 0.4,
+        ignoreLocation: true,
+      }),
+    [all]
+  );
   const results = useMemo(() => {
     if (!q.trim()) return all.slice(0, 20);
-    return fuse.search(q).map((r) => r.item).slice(0, 20);
+    return fuse
+      .search(q)
+      .map((r) => r.item)
+      .slice(0, 20);
   }, [q, all, fuse]);
 
   useEffect(() => {
@@ -118,13 +205,14 @@ export function CommandPalette({
           class="command-input"
           placeholder={t('command.placeholder')}
           value={q}
-          onInput={(e) => { setQ(e.currentTarget.value); setActive(0); }}
+          onInput={(e) => {
+            setQ(e.currentTarget.value);
+            setActive(0);
+          }}
           onKeyDown={onKey}
         />
         <ul class="command-list">
-          {results.length === 0 && (
-            <li class="command-empty">{t('command.empty')}</li>
-          )}
+          {results.length === 0 && <li class="command-empty">{t('command.empty')}</li>}
           {results.map((it, i) => (
             <li
               key={it.id}

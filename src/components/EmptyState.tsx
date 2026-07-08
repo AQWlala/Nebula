@@ -32,26 +32,14 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div class="empty-state">
-      {icon && (
-        <div style="font-size: 48px; margin-bottom: 16px; line-height: 1;">
-          {icon}
-        </div>
-      )}
-      <div style="font-size: 14px; font-weight: 600; color: var(--text);">
-        {title}
-      </div>
+      {icon && <div style="font-size: 48px; margin-bottom: 16px; line-height: 1;">{icon}</div>}
+      <div style="font-size: 14px; font-weight: 600; color: var(--text);">{title}</div>
       {description && (
-        <div style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">
-          {description}
-        </div>
+        <div style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">{description}</div>
       )}
       {children}
       {actionLabel && onAction && (
-        <button
-          class="btn"
-          onClick={onAction}
-          style="margin-top: 16px;"
-        >
+        <button class="btn" onClick={onAction} style="margin-top: 16px;">
           {actionLabel}
         </button>
       )}

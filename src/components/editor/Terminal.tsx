@@ -40,12 +40,22 @@ export function Terminal() {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
-    try { fit.fit(); } catch { /* container not ready */ }
+    try {
+      fit.fit();
+    } catch {
+      /* container not ready */
+    }
     xtermRef.current = term;
     fitRef.current = fit;
     writePrompt();
     term.onData((data) => handleData(data));
-    const onResize = () => { try { fit.fit(); } catch { /* */ } };
+    const onResize = () => {
+      try {
+        fit.fit();
+      } catch {
+        /* */
+      }
+    };
     window.addEventListener('resize', onResize);
     return () => {
       window.removeEventListener('resize', onResize);

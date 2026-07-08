@@ -25,10 +25,7 @@ type ChannelFilter = 'all' | 'telegram' | 'discord' | 'web';
 
 /** 渠道 → 显示名 + 主题色映射。
  *  web 包含 webchat / web 两种 source_channel 字符串。 */
-const CHANNEL_META: Record<
-  string,
-  { label: string; color: string }
-> = {
+const CHANNEL_META: Record<string, { label: string; color: string }> = {
   telegram: { label: 'Telegram', color: '#2AABEE' },
   discord: { label: 'Discord', color: '#5865F2' },
   webchat: { label: 'Web', color: '#22C55E' },
@@ -49,8 +46,10 @@ function formatTime(ts: number): string {
   try {
     const d = new Date(ts);
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-      `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+      `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
   } catch {
     return String(ts);
   }
@@ -70,17 +69,25 @@ export function InboxView({ messages, onReply, onMarkRead }: InboxViewProps) {
 
   const filtered = useMemo(
     () => messages.filter((m) => matchesFilter(m, filter)),
-    [messages, filter],
+    [messages, filter]
   );
 
   const unreadCount = useMemo(
     () => messages.filter((m) => m.inbound && !m.read).length,
-    [messages],
+    [messages]
   );
 
   return (
     <div class="panel inbox-panel" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div class="panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+      <div
+        class="panel-header"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}
+      >
         <span class="panel-title">📥 收件箱</span>
         <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
           {filtered.length} / {messages.length} 条
@@ -94,7 +101,10 @@ export function InboxView({ messages, onReply, onMarkRead }: InboxViewProps) {
 
       {/* 渠道筛选下拉 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <label htmlFor="inbox-channel-filter" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+        <label
+          htmlFor="inbox-channel-filter"
+          style={{ fontSize: '12px', color: 'var(--text-muted)' }}
+        >
           渠道
         </label>
         <select
@@ -169,7 +179,9 @@ export function InboxView({ messages, onReply, onMarkRead }: InboxViewProps) {
                 </span>
                 {/* 入站/出站标识 */}
                 {!m.inbound && (
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  <span
+                    style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic' }}
+                  >
                     出站
                   </span>
                 )}

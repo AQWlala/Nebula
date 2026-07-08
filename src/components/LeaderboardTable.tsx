@@ -54,13 +54,23 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
           return (
             <tr
               key={model}
-              class={isChampion ? 'arena-leaderboard__row arena-leaderboard__row--champion' : 'arena-leaderboard__row'}
+              class={
+                isChampion
+                  ? 'arena-leaderboard__row arena-leaderboard__row--champion'
+                  : 'arena-leaderboard__row'
+              }
               data-testid={`arena-leaderboard-row-${idx}`}
             >
               <td class="arena-leaderboard__rank">{idx + 1}</td>
               <td class="arena-leaderboard__model">{model}</td>
               <td class="arena-leaderboard__elo">{formatElo(elo)}</td>
-              <td class={delta < 0 ? 'arena-leaderboard__delta arena-leaderboard__delta--neg' : 'arena-leaderboard__delta'}>
+              <td
+                class={
+                  delta < 0
+                    ? 'arena-leaderboard__delta arena-leaderboard__delta--neg'
+                    : 'arena-leaderboard__delta'
+                }
+              >
                 {formatDelta(delta)}
               </td>
             </tr>

@@ -24,7 +24,6 @@ import {
   type StepStatus,
 } from '../lib/tauri';
 import { toast } from './Toast';
-import { t } from '../i18n';
 
 const STATUS_COLORS: Record<LongTaskStatus, string> = {
   pending: '#9CA3AF',
@@ -95,9 +94,10 @@ export function LongTaskPanel() {
   const [stepsLoading, setStepsLoading] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
   // 确认对话框
-  const [confirmAction, setConfirmAction] = useState<
-    { id: string; kind: 'cancel' | 'delete' } | null
-  >(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    id: string;
+    kind: 'cancel' | 'delete';
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -154,7 +154,7 @@ export function LongTaskPanel() {
         goal.trim(),
         stepInputs,
         workspaceId.trim() || null,
-        planId.trim() || null,
+        planId.trim() || null
       );
       toast.success(`已创建长任务: ${task.id.slice(0, 8)}`);
       setGoal('');
@@ -211,7 +211,8 @@ export function LongTaskPanel() {
     }
   };
 
-  const handleResume = async (id: string) => {
+  // T-E-C-10: Resume handler — will be wired to UI in future iteration.
+  const _handleResume = async (id: string) => {
     try {
       await nebulaAPI.longTaskResume(id);
       toast.success('已恢复');
@@ -220,6 +221,7 @@ export function LongTaskPanel() {
       toast.error('恢复失败', String(e));
     }
   };
+  void _handleResume;
 
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
@@ -293,13 +295,19 @@ export function LongTaskPanel() {
         {/* 步骤编辑器 */}
         <div className="space-y-1">
           {steps.map((step, idx) => (
-            <div key={idx} className="flex gap-1 items-center" data-testid={`long-task-step-row-${idx}`}>
+            <div
+              key={idx}
+              className="flex gap-1 items-center"
+              data-testid={`long-task-step-row-${idx}`}
+            >
               <span className="text-xs text-gray-500 w-6">#{idx + 1}</span>
               <input
                 type="text"
                 placeholder="步骤描述"
                 value={step.description}
-                onInput={(e) => handleStepChange(idx, 'description', (e.target as HTMLInputElement).value)}
+                onInput={(e) =>
+                  handleStepChange(idx, 'description', (e.target as HTMLInputElement).value)
+                }
                 className="flex-1 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
                 data-testid={`long-task-step-desc-${idx}`}
               />
@@ -307,7 +315,9 @@ export function LongTaskPanel() {
                 type="text"
                 placeholder="程序(cargo/npm/git...)"
                 value={step.program}
-                onInput={(e) => handleStepChange(idx, 'program', (e.target as HTMLInputElement).value)}
+                onInput={(e) =>
+                  handleStepChange(idx, 'program', (e.target as HTMLInputElement).value)
+                }
                 className="w-32 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
                 data-testid={`long-task-step-program-${idx}`}
               />
@@ -378,7 +388,10 @@ export function LongTaskPanel() {
                   <span className="text-xs text-gray-600">·</span>
                   <span className="text-xs text-gray-500 font-mono">{task.id.slice(0, 8)}</span>
                 </div>
-                <div className="text-sm text-white truncate" data-testid={`long-task-goal-${task.id}`}>
+                <div
+                  className="text-sm text-white truncate"
+                  data-testid={`long-task-goal-${task.id}`}
+                >
                   {task.goal}
                 </div>
                 {/* 进度条 */}
@@ -408,7 +421,10 @@ export function LongTaskPanel() {
                   )}
                 </div>
                 {task.error && (
-                  <div className="mt-1 text-xs text-red-400 truncate" data-testid={`long-task-error-${task.id}`}>
+                  <div
+                    className="mt-1 text-xs text-red-400 truncate"
+                    data-testid={`long-task-error-${task.id}`}
+                  >
                     ⚠ {task.error}
                   </div>
                 )}
@@ -462,10 +478,16 @@ export function LongTaskPanel() {
 
             {/* 步骤时间线(展开) */}
             {expandedTask === task.id && (
-              <div className="mt-3 pl-4 border-l border-gray-800" data-testid={`long-task-steps-view-${task.id}`}>
+              <div
+                className="mt-3 pl-4 border-l border-gray-800"
+                data-testid={`long-task-steps-view-${task.id}`}
+              >
                 {stepsLoading && <div className="text-xs text-gray-500">加载步骤…</div>}
                 {!stepsLoading && stepsData.length === 0 && (
-                  <div className="text-xs text-gray-600" data-testid={`long-task-steps-empty-${task.id}`}>
+                  <div
+                    className="text-xs text-gray-600"
+                    data-testid={`long-task-steps-empty-${task.id}`}
+                  >
                     无步骤数据
                   </div>
                 )}

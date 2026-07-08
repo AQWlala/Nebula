@@ -30,8 +30,7 @@ export function BarChart({
         const barHeight = (d.value / maxVal) * barAreaHeight;
         const x = i * barWidth + 2;
         const y = barAreaHeight - barHeight + 4;
-        const truncatedLabel =
-          d.label.length > 12 ? d.label.slice(0, 10) + '..' : d.label;
+        const truncatedLabel = d.label.length > 12 ? d.label.slice(0, 10) + '..' : d.label;
         return (
           <g key={d.label}>
             <rect

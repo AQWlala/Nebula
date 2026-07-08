@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 蜂群视图 - 实时显示多 Agent 协作进度
  *
  * v1.0.1 (P0#08):
@@ -18,7 +18,7 @@
  */
 import { useState, useEffect } from 'preact/hooks';
 import { nebulaStore } from '../stores/nebulaStore';
-import { subscribeEvents, type SwarmAgentResult, type AgentToolCall, type EventEnvelope } from '../lib/tauri';
+import { subscribeEvents, type SwarmAgentResult, type AgentToolCall } from '../lib/tauri';
 import { AgentColumn } from './AgentColumn';
 import { EventStreamViewer } from './EventStreamViewer';
 import { MasterEventTimeline } from './MasterEventTimeline';
@@ -48,7 +48,9 @@ export function SwarmView() {
   const [agents, setAgents] = useState(['coder', 'writer', 'reviewer']);
   const [viewMode, setViewMode] = useState<'list' | 'columns' | 'events' | 'master'>('list');
   const [agentToolCalls, setAgentToolCalls] = useState<Record<string, AgentToolCall[]>>({});
-  const [agentStatuses, setAgentStatuses] = useState<Record<string, 'running' | 'completed' | 'failed'>>({});
+  const [agentStatuses, setAgentStatuses] = useState<
+    Record<string, 'running' | 'completed' | 'failed'>
+  >({});
   const taskState = nebulaStore.currentTask.value;
   const outputs = nebulaStore.swarmOutputs.value;
   const running = taskState?.status === 'running';
@@ -76,11 +78,13 @@ export function SwarmView() {
           [event.agent_kind]: event.success ? 'completed' : 'failed',
         }));
       }
-    }).then((fn) => {
-      unsubscribe = fn;
-    }).catch(() => {
-      // 非 Tauri 环境静默忽略
-    });
+    })
+      .then((fn) => {
+        unsubscribe = fn;
+      })
+      .catch(() => {
+        // 非 Tauri 环境静默忽略
+      });
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -112,10 +116,13 @@ export function SwarmView() {
     await nebulaStore.runSwarmSingle(task, agent);
   }
 
-  const totalToolCalls = Object.values(agentToolCalls).reduce((sum, calls) => sum + calls.length, 0);
+  const totalToolCalls = Object.values(agentToolCalls).reduce(
+    (sum, calls) => sum + calls.length,
+    0
+  );
   const totalToolDuration = Object.values(agentToolCalls).reduce(
     (sum, calls) => sum + calls.reduce((s, c) => s + c.duration_ms, 0),
-    0,
+    0
   );
 
   return (
@@ -123,9 +130,7 @@ export function SwarmView() {
       <div class="panel-header">
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span class="panel-title">{t('swarm.title')}</span>
-          <span style="color: var(--text-muted); font-size: 12px;">
-            {t('swarm.subtitle')}
-          </span>
+          <span style="color: var(--text-muted); font-size: 12px;">{t('swarm.subtitle')}</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {taskState && (
@@ -146,35 +151,35 @@ export function SwarmView() {
                 {t('swarm.listView')}
               </button>
               <button
-              onClick={() => setViewMode('columns')}
-              style={{
-                padding: '4px 10px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                border: '1px solid var(--border)',
-                borderRadius: '4px',
-                background: viewMode === 'columns' ? 'var(--accent-neon)' : 'transparent',
-                color: viewMode === 'columns' ? 'var(--bg-primary)' : 'var(--text-muted)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {t('swarm.columnsView')}
-            </button>
-            <button
-              onClick={() => setViewMode('events')}
-              style={{
-                padding: '4px 10px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                border: '1px solid var(--border)',
-                borderRadius: '4px',
-                background: viewMode === 'events' ? 'var(--accent-neon)' : 'transparent',
-                color: viewMode === 'events' ? 'var(--bg-primary)' : 'var(--text-muted)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {t('swarm.eventsView')}
-            </button>
+                onClick={() => setViewMode('columns')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: viewMode === 'columns' ? 'var(--accent-neon)' : 'transparent',
+                  color: viewMode === 'columns' ? 'var(--bg-primary)' : 'var(--text-muted)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t('swarm.columnsView')}
+              </button>
+              <button
+                onClick={() => setViewMode('events')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: viewMode === 'events' ? 'var(--accent-neon)' : 'transparent',
+                  color: viewMode === 'events' ? 'var(--bg-primary)' : 'var(--text-muted)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t('swarm.eventsView')}
+              </button>
             </>
           )}
           <button
@@ -232,7 +237,11 @@ export function SwarmView() {
           ))}
         </div>
 
-        <button class="btn btn-neon" onClick={run} disabled={running || !task.trim() || agents.length < 2}>
+        <button
+          class="btn btn-neon"
+          onClick={run}
+          disabled={running || !task.trim() || agents.length < 2}
+        >
           {running ? t('swarm.running') : t('swarm.start')}
         </button>
       </div>
@@ -248,8 +257,8 @@ export function SwarmView() {
                   taskState.status === 'success'
                     ? '#1e5f3a'
                     : taskState.status === 'failed' || taskState.status === 'error'
-                    ? '#5f1e1e'
-                    : '#3a3a5f',
+                      ? '#5f1e1e'
+                      : '#3a3a5f',
                 color: 'var(--text-primary)',
               }}
             >
@@ -271,15 +280,27 @@ export function SwarmView() {
                 alignItems: 'center',
               }}
             >
-              <span dangerouslySetInnerHTML={{ __html: t('swarm.toolCalls', { count: totalToolCalls }) }} />
-              <span dangerouslySetInnerHTML={{ __html: t('swarm.totalDuration', { duration: totalToolDuration }) }} />
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: t('swarm.toolCalls', { count: totalToolCalls }),
+                }}
+              />
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: t('swarm.totalDuration', { duration: totalToolDuration }),
+                }}
+              />
             </div>
           )}
 
           {viewMode === 'list' && outputs.length > 0 && (
             <div class="swarm-outputs">
               {outputs.map((o) => {
-                const meta = AGENT_META[o.agent] || { icon: '🐍', color: 'var(--text-muted)', descKey: '' };
+                const meta = AGENT_META[o.agent] || {
+                  icon: '🐍',
+                  color: 'var(--text-muted)',
+                  descKey: '',
+                };
                 const failed = isFailure(o);
                 const toolCalls = agentToolCalls[o.agent] || [];
                 return (
@@ -293,7 +314,9 @@ export function SwarmView() {
                     <summary class="swarm-output__summary">
                       <span style="font-size: 20px;">{meta.icon}</span>
                       <strong>{o.agent}</strong>
-                      <span style="color: var(--text-muted); font-size: 12px;">{meta.descKey ? t(meta.descKey as any) : ''}</span>
+                      <span style="color: var(--text-muted); font-size: 12px;">
+                        {meta.descKey ? t(meta.descKey as any) : ''}
+                      </span>
                       {toolCalls.length > 0 && (
                         <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
                           🔧 {toolCalls.length}
@@ -318,7 +341,13 @@ export function SwarmView() {
                       )}
                     </summary>
                     {toolCalls.length > 0 && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          paddingTop: 8,
+                          borderTop: '1px solid var(--border-subtle)',
+                        }}
+                      >
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
                           {t('swarm.toolCallCount', { count: toolCalls.length })}
                         </div>
@@ -337,7 +366,11 @@ export function SwarmView() {
                               marginBottom: 4,
                             }}
                           >
-                            <span style={{ color: tc.success ? 'var(--accent-success)' : 'var(--accent-error)' }}>
+                            <span
+                              style={{
+                                color: tc.success ? 'var(--accent-success)' : 'var(--accent-error)',
+                              }}
+                            >
                               {tc.success ? '✓' : '✗'}
                             </span>
                             <span style={{ flex: 1 }}>{tc.tool_name}</span>
@@ -345,7 +378,13 @@ export function SwarmView() {
                           </div>
                         ))}
                         {toolCalls.length > 5 && (
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: 'var(--text-muted)',
+                              textAlign: 'center',
+                            }}
+                          >
                             {t('swarm.moreTools', { count: toolCalls.length - 5 })}
                           </div>
                         )}
@@ -358,7 +397,10 @@ export function SwarmView() {
                       {o.content}
                     </pre>
                     {failed && (
-                      <div class="swarm-output__failure" data-testid={`swarm-output-${o.agent}-failure`}>
+                      <div
+                        class="swarm-output__failure"
+                        data-testid={`swarm-output-${o.agent}-failure`}
+                      >
                         {o.error && (
                           <div class="swarm-output__error">
                             <strong>error:</strong> <code>{o.error}</code>
@@ -367,13 +409,17 @@ export function SwarmView() {
                         {o.stdout && (
                           <details>
                             <summary>stdout (last {TAIL_LINES} lines)</summary>
-                            <pre data-testid={`swarm-output-${o.agent}-stdout`}>{tail(o.stdout, TAIL_LINES)}</pre>
+                            <pre data-testid={`swarm-output-${o.agent}-stdout`}>
+                              {tail(o.stdout, TAIL_LINES)}
+                            </pre>
                           </details>
                         )}
                         {o.stderr && (
                           <details open>
                             <summary>stderr (last {TAIL_LINES} lines)</summary>
-                            <pre data-testid={`swarm-output-${o.agent}-stderr`}>{tail(o.stderr, TAIL_LINES)}</pre>
+                            <pre data-testid={`swarm-output-${o.agent}-stderr`}>
+                              {tail(o.stderr, TAIL_LINES)}
+                            </pre>
                           </details>
                         )}
                         {o.elapsed_ms != null && (
@@ -411,7 +457,9 @@ export function SwarmView() {
               {agents.map((agentName) => {
                 const output = outputs.find((o) => o.agent === agentName);
                 const toolCalls = agentToolCalls[agentName] || [];
-                const status = agentStatuses[agentName] || (output ? (isFailure(output) ? 'failed' : 'completed') : 'running');
+                const status =
+                  agentStatuses[agentName] ||
+                  (output ? (isFailure(output) ? 'failed' : 'completed') : 'running');
                 return (
                   <AgentColumn
                     key={agentName}

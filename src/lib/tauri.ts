@@ -27,7 +27,7 @@ import { invoke, Channel } from '@tauri-apps/api/core';
 // `nebulaAPI` static methods below.
 export async function invokeTauri<T = unknown>(
   cmd: string,
-  args?: Record<string, unknown>,
+  args?: Record<string, unknown>
 ): Promise<T | null> {
   try {
     return (await invoke(cmd, args)) as T;
@@ -38,12 +38,7 @@ export async function invokeTauri<T = unknown>(
 
 // L0-L5 are active in v1.x; L6-L7 reserved for v1.5+
 export type Layer = 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7';
-export type MemoryType =
-  | 'Semantic'
-  | 'Episodic'
-  | 'Procedural'
-  | 'Emotional'
-  | 'Metacognitive';
+export type MemoryType = 'Semantic' | 'Episodic' | 'Procedural' | 'Emotional' | 'Metacognitive';
 
 export interface Memory {
   id: string;
@@ -157,12 +152,7 @@ export type ScenarioRole = 'writer' | 'coder' | 'manager';
 
 /** AgentKind lowercase 序列化(generic/coder/writer/reviewer/researcher/planner)。 */
 export type ScenarioAgentKind =
-  | 'generic'
-  | 'coder'
-  | 'writer'
-  | 'reviewer'
-  | 'researcher'
-  | 'planner';
+  'generic' | 'coder' | 'writer' | 'reviewer' | 'researcher' | 'planner';
 
 /** 单个 agent 规格(传给 SwarmOrchestrator 的 agent 种类 + 角色标签)。 */
 export interface AgentSpec {
@@ -466,12 +456,7 @@ export interface CommandError {
 // -----------------------------------------------------------------------
 
 /** 5 维关系维度(与后端 `RelationDimension::as_str()` 一致)。 */
-export type RelationDimension =
-  | 'causal'
-  | 'temporal'
-  | 'entity'
-  | 'hierarchical'
-  | 'similarity';
+export type RelationDimension = 'causal' | 'temporal' | 'entity' | 'hierarchical' | 'similarity';
 
 /** 节点角色(后端 `#[serde(rename_all = "snake_case")]`)。 */
 export type GraphNodeRole = 'root' | 'inner' | 'leaf';
@@ -555,12 +540,7 @@ export interface OperationRecord {
 
 // T-E-C-10: 异步长任务类型(镜像 src-tauri/src/long_task/engine.rs)
 export type LongTaskStatus =
-  | 'pending'
-  | 'running'
-  | 'paused'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+  'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 export type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 
@@ -604,7 +584,9 @@ export interface StepInput {
 
 export class nebulaAPI {
   static chat(req: ChatRequest): Promise<ChatResponse> {
-    return invoke('chat', { request: { user_message: req.message, conversation_id: req.conversation_id } });
+    return invoke('chat', {
+      request: { user_message: req.message, conversation_id: req.conversation_id },
+    });
   }
 
   /**
@@ -619,7 +601,9 @@ export class nebulaAPI {
   }
 
   static memorySearch(req: SearchRequest): Promise<SearchResponse> {
-    return invoke('memory_search', { request: { query: req.query, k: req.k ?? 10, layer: req.layer } });
+    return invoke('memory_search', {
+      request: { query: req.query, k: req.k ?? 10, layer: req.layer },
+    });
   }
 
   static memoryListRecent(limit: number): Promise<Memory[]> {
@@ -797,7 +781,7 @@ export class nebulaAPI {
    */
   static skillExportClawhub(
     skillId: string,
-    outputPath?: string | null,
+    outputPath?: string | null
   ): Promise<{ content?: string; path?: string }> {
     return invoke('skill_export_clawhub', {
       skill_id: skillId,
@@ -1029,7 +1013,7 @@ export class nebulaAPI {
   static chatStream(
     req: ChatRequest,
     onToken: (token: StreamToken) => void,
-    abortSignal?: AbortSignal,
+    abortSignal?: AbortSignal
   ): Promise<ChatComplete> {
     const channel = new Channel<StreamToken>();
     channel.onmessage = (token) => {
@@ -1103,11 +1087,7 @@ export class nebulaAPI {
    * @param offset 偏移量(默认 0)
    * @param channel 可选渠道过滤(telegram / discord / webchat / jiuwenswarm)
    */
-  static inboxList(
-    limit = 50,
-    offset = 0,
-    channel?: string | null,
-  ): Promise<UnifiedMessage[]> {
+  static inboxList(limit = 50, offset = 0, channel?: string | null): Promise<UnifiedMessage[]> {
     return invoke('inbox_list', { limit, offset, channel: channel ?? null });
   }
 
@@ -1317,7 +1297,7 @@ export class nebulaAPI {
    */
   static modelsConfigSetDefault(
     defaultProvider: string,
-    defaultModel: string,
+    defaultModel: string
   ): Promise<ModelsConfig> {
     return invoke('models_config_set_default', { defaultProvider, defaultModel });
   }
@@ -1757,7 +1737,7 @@ export class nebulaAPI {
   static masterRun(
     req: { input: string; mode?: ExecuteMode },
     onEvent: (event: MasterEvent) => void,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<MasterReport> {
     const channel = new Channel<MasterEvent>();
     channel.onmessage = (event) => {
@@ -1897,7 +1877,7 @@ export class nebulaAPI {
   static mdrmGetGraph(
     memoryId: string,
     dims?: RelationDimension[] | null,
-    params?: MdrmQueryParams | null,
+    params?: MdrmQueryParams | null
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_get_graph', {
       memoryId,
@@ -1909,7 +1889,7 @@ export class nebulaAPI {
   /** T-E-B-16: 时序维度 — 沿 `Before` 边追溯时间链。 */
   static mdrmTraceTemporal(
     memoryId: string,
-    params?: MdrmQueryParams | null,
+    params?: MdrmQueryParams | null
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_trace_temporal', { memoryId, params: params ?? null });
   }
@@ -1917,7 +1897,7 @@ export class nebulaAPI {
   /** T-E-B-16: 实体维度 — 查找同实体记忆簇(SameEntity/References)。 */
   static mdrmFindEntities(
     memoryId: string,
-    params?: MdrmQueryParams | null,
+    params?: MdrmQueryParams | null
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_find_entities', { memoryId, params: params ?? null });
   }
@@ -1925,7 +1905,7 @@ export class nebulaAPI {
   /** T-E-B-16: 层级维度 — 追溯 Contains/DerivedFrom 层级。 */
   static mdrmTraceHierarchy(
     memoryId: string,
-    params?: MdrmQueryParams | null,
+    params?: MdrmQueryParams | null
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_trace_hierarchy', { memoryId, params: params ?? null });
   }
@@ -1933,7 +1913,7 @@ export class nebulaAPI {
   /** T-E-B-16: 相似度维度 — 查找相似记忆(Similar)。 */
   static mdrmFindSimilar(
     memoryId: string,
-    params?: MdrmQueryParams | null,
+    params?: MdrmQueryParams | null
   ): Promise<GraphSnapshot> {
     return invoke('mdrm_find_similar', { memoryId, params: params ?? null });
   }
@@ -1944,7 +1924,7 @@ export class nebulaAPI {
 
   static shadowCreate(
     taskDescription: string,
-    baseBranch?: string | null,
+    baseBranch?: string | null
   ): Promise<ShadowWorkspace> {
     return invoke('shadow_create', {
       taskDescription,
@@ -1964,11 +1944,7 @@ export class nebulaAPI {
     return invoke('shadow_diff', { workspaceId });
   }
 
-  static shadowRunCommand(
-    workspaceId: string,
-    program: string,
-    args: string[],
-  ): Promise<string> {
+  static shadowRunCommand(workspaceId: string, program: string, args: string[]): Promise<string> {
     return invoke('shadow_run_command', { workspaceId, program, args });
   }
 
@@ -1999,7 +1975,7 @@ export class nebulaAPI {
     target: string,
     detail: string,
     success: boolean,
-    message: string,
+    message: string
   ): Promise<OperationRecord> {
     return invoke('shadow_record', { workspaceId, kind, target, detail, success, message });
   }
@@ -2020,7 +1996,7 @@ export class nebulaAPI {
     goal: string,
     steps: StepInput[],
     workspaceId?: string | null,
-    planId?: string | null,
+    planId?: string | null
   ): Promise<LongTask> {
     return invoke('long_task_create', {
       goal,
@@ -2367,8 +2343,14 @@ export type RiskLevel = 'Low' | 'Medium' | 'High';
 export type SandboxPolicy = 'Strict' | 'Permissive' | 'LlmOnly';
 
 export type CapabilityKind =
-  | 'file:read' | 'file:write' | 'network' | 'subprocess'
-  | 'env:read' | 'clipboard:read' | 'llm:call' | 'db:access';
+  | 'file:read'
+  | 'file:write'
+  | 'network'
+  | 'subprocess'
+  | 'env:read'
+  | 'clipboard:read'
+  | 'llm:call'
+  | 'db:access';
 
 export interface SandboxConfig {
   capabilities: { granted: CapabilityKind[] };
@@ -2473,15 +2455,54 @@ export interface AgentToolCall {
  */
 export type SwarmEvent =
   | { kind: 'agent_started'; agent_kind: string; task_id: string; timestamp: number }
-  | { kind: 'agent_completed'; agent_kind: string; task_id: string; success: boolean; error: string | null; timestamp: number }
+  | {
+      kind: 'agent_completed';
+      agent_kind: string;
+      task_id: string;
+      success: boolean;
+      error: string | null;
+      timestamp: number;
+    }
   | { kind: 'negotiation_started'; task_id: string; candidate_count: number; timestamp: number }
-  | { kind: 'arbitration_resolved'; task_id: string; chosen_kind: string; method: string; conflict_detected: boolean; timestamp: number }
-  | { kind: 'swarm_completed'; task_id: string; success_count: number; failure_count: number; approved: boolean; timestamp: number }
-  | { kind: 'agent_tool_call'; agent_id: string; agent_role: string; tool_name: string; start_ts: number; end_ts: number; duration_ms: number; success: boolean; output_preview: string | null; error: string | null; task_id: string }
+  | {
+      kind: 'arbitration_resolved';
+      task_id: string;
+      chosen_kind: string;
+      method: string;
+      conflict_detected: boolean;
+      timestamp: number;
+    }
+  | {
+      kind: 'swarm_completed';
+      task_id: string;
+      success_count: number;
+      failure_count: number;
+      approved: boolean;
+      timestamp: number;
+    }
+  | {
+      kind: 'agent_tool_call';
+      agent_id: string;
+      agent_role: string;
+      tool_name: string;
+      start_ts: number;
+      end_ts: number;
+      duration_ms: number;
+      success: boolean;
+      output_preview: string | null;
+      error: string | null;
+      task_id: string;
+    }
   | { kind: 'agent_output_chunk'; agent_id: string; delta: string; ts: number; task_id: string }
   | { kind: 'deadlock_detected'; cycle: string[]; task_id: string; timestamp: number }
   | { kind: 'tree_of_thoughts_started'; branches: number; task_id: string; timestamp: number }
-  | { kind: 'path_completed'; path_id: string; strategy: string; task_id: string; timestamp: number };
+  | {
+      kind: 'path_completed';
+      path_id: string;
+      strategy: string;
+      task_id: string;
+      timestamp: number;
+    };
 
 /**
  * T-E-S-26: EventEnvelope — 协议化事件信封(镜像 src-tauri/src/swarm/events.rs::EventEnvelope)。
@@ -2757,12 +2778,7 @@ export interface WatchStatus {
 
 /** 诊断事件来源层。 */
 export type DiagnosticOrigin =
-  | 'kernel'
-  | 'l4_value_layer'
-  | 'acl'
-  | 'injection_guard'
-  | 'sidecar'
-  | 'tracing_hook';
+  'kernel' | 'l4_value_layer' | 'acl' | 'injection_guard' | 'sidecar' | 'tracing_hook';
 
 /** 可信级别。 */
 export type TrustLevel = 'signed' | 'trusted' | 'unverified';
@@ -2906,7 +2922,7 @@ export async function subscribeEvents(cb: (envelope: EventEnvelope) => void): Pr
  * @returns unsubscribe 函数,在组件卸载时调用以释放监听器
  */
 export async function listenClipboardDetected(
-  cb: (event: ClipboardEvent) => void,
+  cb: (event: ClipboardEvent) => void
 ): Promise<() => void> {
   const { listen } = await import('@tauri-apps/api/event');
   const unlisten = await listen<ClipboardEvent>('nebula://clipboard-detected', (event) => {
@@ -2939,15 +2955,54 @@ export type ExecuteMode = 'standard' | 'bypass' | 'plan';
  */
 export type MasterEvent =
   | { kind: 'decompose_started'; task_id: string; input_summary: string; timestamp: number }
-  | { kind: 'decompose_completed'; task_id: string; node_count: number; edge_count: number; timestamp: number }
+  | {
+      kind: 'decompose_completed';
+      task_id: string;
+      node_count: number;
+      edge_count: number;
+      timestamp: number;
+    }
   | { kind: 'decompose_failed'; task_id: string; error: string; timestamp: number }
-  | { kind: 'layer_started'; task_id: string; layer_index: number; node_count: number; timestamp: number }
-  | { kind: 'layer_completed'; task_id: string; layer_index: number; success_count: number; failure_count: number; timestamp: number }
-  | { kind: 'sub_task_started'; task_id: string; sub_task_id: string; worker_count: number; timestamp: number }
-  | { kind: 'sub_task_completed'; task_id: string; sub_task_id: string; success: boolean; error: string | null; elapsed_ms: number; timestamp: number }
+  | {
+      kind: 'layer_started';
+      task_id: string;
+      layer_index: number;
+      node_count: number;
+      timestamp: number;
+    }
+  | {
+      kind: 'layer_completed';
+      task_id: string;
+      layer_index: number;
+      success_count: number;
+      failure_count: number;
+      timestamp: number;
+    }
+  | {
+      kind: 'sub_task_started';
+      task_id: string;
+      sub_task_id: string;
+      worker_count: number;
+      timestamp: number;
+    }
+  | {
+      kind: 'sub_task_completed';
+      task_id: string;
+      sub_task_id: string;
+      success: boolean;
+      error: string | null;
+      elapsed_ms: number;
+      timestamp: number;
+    }
   | { kind: 'synthesize_started'; task_id: string; result_count: number; timestamp: number }
   | { kind: 'synthesize_completed'; task_id: string; output_length: number; timestamp: number }
-  | { kind: 'dag_failed'; task_id: string; failed_sub_task_id: string; reason: string; timestamp: number }
+  | {
+      kind: 'dag_failed';
+      task_id: string;
+      failed_sub_task_id: string;
+      reason: string;
+      timestamp: number;
+    }
   | {
       kind: 'user_confirmation_required';
       task_id: string;
@@ -2960,7 +3015,14 @@ export type MasterEvent =
       created_at: number;
       timestamp: number;
     }
-  | { kind: 'master_completed'; task_id: string; total_sub_tasks: number; successful_sub_tasks: number; elapsed_ms: number; timestamp: number };
+  | {
+      kind: 'master_completed';
+      task_id: string;
+      total_sub_tasks: number;
+      successful_sub_tasks: number;
+      elapsed_ms: number;
+      timestamp: number;
+    };
 
 /**
  * M6 #82: MasterOrchestrator 编排结果。

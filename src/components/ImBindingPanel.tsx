@@ -13,12 +13,7 @@
  * 本组件 catch 后展示在 `errorText` 区域。
  */
 import { useEffect, useState } from 'preact/hooks';
-import {
-  nebulaAPI,
-  type ImBinding,
-  type ImPlatform,
-  type ImBroadcastResult,
-} from '../lib/tauri';
+import { nebulaAPI, type ImBinding, type ImPlatform, type ImBroadcastResult } from '../lib/tauri';
 import { t } from '../i18n';
 
 /** 平台选项(供 <select> 渲染)。 */
@@ -76,7 +71,9 @@ export function ImBindingPanel() {
       const list = await nebulaAPI.imListBindings();
       setBindings(list);
     } catch (e) {
-      setErrorText(t('imBinding.loadFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.loadFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     } finally {
       setLoading(false);
     }
@@ -106,7 +103,9 @@ export function ImBindingPanel() {
       setNewDisplayName('');
       await refresh();
     } catch (e) {
-      setErrorText(t('imBinding.createFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.createFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     } finally {
       setCreating(false);
     }
@@ -119,10 +118,12 @@ export function ImBindingPanel() {
       await nebulaAPI.imSetEnabled(id, !currentEnabled);
       // 本地更新,避免重新拉取全表。
       setBindings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, enabled: !currentEnabled } : b)),
+        prev.map((b) => (b.id === id ? { ...b, enabled: !currentEnabled } : b))
       );
     } catch (e) {
-      setErrorText(t('imBinding.toggleFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.toggleFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     }
   }
 
@@ -134,7 +135,9 @@ export function ImBindingPanel() {
       await nebulaAPI.imDeleteBinding(id);
       setBindings((prev) => prev.filter((b) => b.id !== id));
     } catch (e) {
-      setErrorText(t('imBinding.deleteFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.deleteFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     }
   }
 
@@ -151,7 +154,9 @@ export function ImBindingPanel() {
       // 测试发送成功后刷新列表(更新 last_used_at)。
       await refresh();
     } catch (e) {
-      setErrorText(t('imBinding.testFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.testFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     } finally {
       setTestingId(null);
     }
@@ -174,7 +179,9 @@ export function ImBindingPanel() {
       });
       setBroadcastResult(result);
     } catch (e) {
-      setErrorText(t('imBinding.broadcastFailed', { error: e instanceof Error ? e.message : String(e) }));
+      setErrorText(
+        t('imBinding.broadcastFailed', { error: e instanceof Error ? e.message : String(e) })
+      );
     } finally {
       setBroadcasting(false);
     }
@@ -203,15 +210,22 @@ export function ImBindingPanel() {
       )}
 
       {/* 创建表单 */}
-      <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+      <form
+        onSubmit={handleCreate}
+        style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}
+      >
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <select
             value={newPlatform}
-            onChange={(e) => setNewPlatform((e.currentTarget as HTMLSelectElement).value as ImPlatform)}
+            onChange={(e) =>
+              setNewPlatform((e.currentTarget as HTMLSelectElement).value as ImPlatform)
+            }
             style={{ flex: '0 0 140px', padding: '4px 6px', fontSize: '12px' }}
           >
             {PLATFORM_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{platformLabel(o.value)}</option>
+              <option key={o.value} value={o.value}>
+                {platformLabel(o.value)}
+              </option>
             ))}
           </select>
           <input
@@ -275,11 +289,20 @@ export function ImBindingPanel() {
               background: 'var(--bg-secondary, rgba(255,255,255,0.02))',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+              }}
+            >
               <span style={{ fontSize: '12px', fontWeight: 600 }}>
                 {platformLabel(b.platform)}
                 {b.display_name && (
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 400, marginLeft: '6px' }}>
+                  <span
+                    style={{ color: 'var(--text-secondary)', fontWeight: 400, marginLeft: '6px' }}
+                  >
                     {b.display_name}
                   </span>
                 )}
@@ -318,20 +341,27 @@ export function ImBindingPanel() {
               </span>
             </div>
             {b.kind.kind === 'webhook' && (
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+              <div
+                style={{ fontSize: '11px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}
+              >
                 {truncateUrl(b.kind.url)}
               </div>
             )}
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-              {t('imBinding.lastUsed', { time: formatTs(b.last_used_at) })} · {t('imBinding.created', { time: formatTs(b.created_at) })}
+              {t('imBinding.lastUsed', { time: formatTs(b.last_used_at) })} ·{' '}
+              {t('imBinding.created', { time: formatTs(b.created_at) })}
             </div>
           </div>
         ))}
       </div>
 
       {/* 单条测试发送 */}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginBottom: '12px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{t('imBinding.testSendTitle')}</div>
+      <div
+        style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginBottom: '12px' }}
+      >
+        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+          {t('imBinding.testSendTitle')}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <input
             type="text"
@@ -381,8 +411,13 @@ export function ImBindingPanel() {
 
       {/* 全量广播 */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{t('imBinding.broadcastTitle')}</div>
-        <form onSubmit={handleBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+          {t('imBinding.broadcastTitle')}
+        </div>
+        <form
+          onSubmit={handleBroadcast}
+          style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+        >
           <input
             type="text"
             placeholder={t('imBinding.broadcastTitlePlaceholder')}
@@ -416,7 +451,10 @@ export function ImBindingPanel() {
             </button>
             {broadcastResult && (
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                {t('imBinding.broadcastResult', { success: broadcastResult.success, failure: broadcastResult.failure })}
+                {t('imBinding.broadcastResult', {
+                  success: broadcastResult.success,
+                  failure: broadcastResult.failure,
+                })}
               </span>
             )}
           </div>

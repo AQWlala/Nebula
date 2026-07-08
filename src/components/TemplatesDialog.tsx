@@ -142,7 +142,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
 
   // 当前选中类别的模板列表(scenario 类别用 grouped,automation 用 automationList)。
   const isAutomation = selectedCategory === 'automation';
-  const currentList = isAutomation ? [] : grouped[selectedCategory as ScenarioCategory] ?? [];
+  const currentList = isAutomation ? [] : (grouped[selectedCategory as ScenarioCategory] ?? []);
 
   /** 提交用户输入,实例化模板并启动蜂群。 */
   async function handleSubmit() {
@@ -158,12 +158,18 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
         user_input: userInput.trim(),
       });
       if (!task) {
-        toast.error(t('templatesDialog.templateNotFound'), t('templatesDialog.templateNotFoundBody', { id: pendingTemplate.id }));
+        toast.error(
+          t('templatesDialog.templateNotFound'),
+          t('templatesDialog.templateNotFoundBody', { id: pendingTemplate.id })
+        );
         return;
       }
       // 启动蜂群。
       await nebulaAPI.swarmExecute(task);
-      toast.success(t('templatesDialog.swarmStarted'), t('templatesDialog.swarmStartedBody', { name: pendingTemplate.name }));
+      toast.success(
+        t('templatesDialog.swarmStarted'),
+        t('templatesDialog.swarmStartedBody', { name: pendingTemplate.name })
+      );
       onSwarmStarted?.(task);
       // 关闭整个对话框。
       onClose();
@@ -219,8 +225,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                 {CATEGORY_ORDER.map((cat) => {
                   const meta = CATEGORY_META[cat];
                   // T-E-L-05: automation 类别计数来自 loopTemplates,非 grouped。
-                  const count =
-                    cat === 'automation' ? loopTemplates.length : grouped[cat].length;
+                  const count = cat === 'automation' ? loopTemplates.length : grouped[cat].length;
                   const active = selectedCategory === cat;
                   return (
                     <button
@@ -237,9 +242,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                         borderLeft: active
                           ? '3px solid var(--accent-neon)'
                           : '3px solid transparent',
-                        background: active
-                          ? 'rgba(var(--accent-rgb), 0.08)'
-                          : 'transparent',
+                        background: active ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent',
                         color: active ? 'var(--accent-neon)' : 'var(--text-primary)',
                         fontSize: '13px',
                         fontWeight: active ? 600 : 400,
@@ -370,10 +373,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
               }
             }}
           >
-            <div
-              class="modal"
-              style={{ minWidth: '480px', maxWidth: '600px' }}
-            >
+            <div class="modal" style={{ minWidth: '480px', maxWidth: '600px' }}>
               <div class="modal__header">
                 <h3>{t('templatesDialog.useTemplate', { name: pendingTemplate.name })}</h3>
                 <button
@@ -403,7 +403,8 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                     whiteSpace: 'pre-wrap',
                   }}
                 >
-                  <strong>{t('templatesDialog.systemPrompt')}</strong> {pendingTemplate.system_prompt}
+                  <strong>{t('templatesDialog.systemPrompt')}</strong>{' '}
+                  {pendingTemplate.system_prompt}
                 </div>
                 <label
                   style={{
@@ -417,9 +418,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                 </label>
                 <textarea
                   value={userInput}
-                  onInput={(e) =>
-                    setUserInput((e.target as HTMLTextAreaElement).value)
-                  }
+                  onInput={(e) => setUserInput((e.target as HTMLTextAreaElement).value)}
                   placeholder={t('templatesDialog.taskContentPlaceholder')}
                   rows={4}
                   autoFocus
@@ -457,8 +456,7 @@ export function TemplatesDialog({ onClose, onSwarmStarted }: TemplatesDialogProp
                   disabled={submitting || !userInput.trim()}
                   style={{
                     padding: '6px 14px',
-                    cursor:
-                      submitting || !userInput.trim() ? 'not-allowed' : 'pointer',
+                    cursor: submitting || !userInput.trim() ? 'not-allowed' : 'pointer',
                     border: '1px solid var(--accent-neon)',
                     borderRadius: '4px',
                     background: 'var(--accent-neon)',
@@ -602,14 +600,12 @@ function TemplateCard({ template, onUse }: TemplateCardProps) {
           transition: 'all 0.15s',
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            'var(--accent-neon)';
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent-neon)';
           (e.currentTarget as HTMLButtonElement).style.color = '#000';
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-          (e.currentTarget as HTMLButtonElement).style.color =
-            'var(--accent-neon)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent-neon)';
         }}
       >
         {t('templatesDialog.use')}
@@ -677,9 +673,7 @@ function LoopTemplateCard({ template }: LoopTemplateCardProps) {
           marginBottom: '6px',
         }}
       >
-        <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-          {template.name}
-        </strong>
+        <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{template.name}</strong>
         <span
           style={{
             fontSize: '10px',

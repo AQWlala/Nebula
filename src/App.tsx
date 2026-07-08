@@ -20,7 +20,12 @@ import { AutonomySlider } from './components/AutonomySlider';
 import { Onboarding, shouldShowOnboarding } from './components/Onboarding';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { CommandPalette, buildDefaultCommands, buildMemoryItems, useCommandPaletteShortcut } from './components/CommandPalette';
+import {
+  CommandPalette,
+  buildDefaultCommands,
+  buildMemoryItems,
+  useCommandPaletteShortcut,
+} from './components/CommandPalette';
 import { Toasts, toast } from './components/Toast';
 import { nebulaStore, type View } from './stores/nebulaStore';
 import { t, currentLocale } from './i18n';
@@ -34,29 +39,56 @@ import { invokeTauri } from './lib/tauri';
 // ModeSwitcher/StatusBar/ErrorBoundary/Toasts(常驻)、
 // Onboarding(模块因 shouldShowOnboarding 已加载)、
 // CommandPalette(工具函数需 eager)。
-const ChatPanel = lazy(() => import('./components/ChatPanel').then((m) => ({ default: m.ChatPanel })));
-const SwarmView = lazy(() => import('./components/SwarmView').then((m) => ({ default: m.SwarmView })));
-const MemoryInspector = lazy(() => import('./components/MemoryInspector').then((m) => ({ default: m.MemoryInspector })));
-const MemoryMap = lazy(() => import('./components/MemoryMap').then((m) => ({ default: m.MemoryMap })));
-const TimelineView = lazy(() => import('./components/TimelineView').then((m) => ({ default: m.TimelineView })));
+const ChatPanel = lazy(() =>
+  import('./components/ChatPanel').then((m) => ({ default: m.ChatPanel }))
+);
+const SwarmView = lazy(() =>
+  import('./components/SwarmView').then((m) => ({ default: m.SwarmView }))
+);
+const MemoryInspector = lazy(() =>
+  import('./components/MemoryInspector').then((m) => ({ default: m.MemoryInspector }))
+);
+const MemoryMap = lazy(() =>
+  import('./components/MemoryMap').then((m) => ({ default: m.MemoryMap }))
+);
+const TimelineView = lazy(() =>
+  import('./components/TimelineView').then((m) => ({ default: m.TimelineView }))
+);
 const SkillPanel = lazy(() => import('./components/SkillPanel'));
-const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })));
-const CreditsDashboard = lazy(() => import('./components/CreditsDashboard').then((m) => ({ default: m.CreditsDashboard })));
+const Dashboard = lazy(() =>
+  import('./components/Dashboard').then((m) => ({ default: m.Dashboard }))
+);
+const CreditsDashboard = lazy(() =>
+  import('./components/CreditsDashboard').then((m) => ({ default: m.CreditsDashboard }))
+);
 const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })));
-const WritingMode = lazy(() => import('./components/WritingMode').then((m) => ({ default: m.WritingMode })));
+const WritingMode = lazy(() =>
+  import('./components/WritingMode').then((m) => ({ default: m.WritingMode }))
+);
 const WorkMode = lazy(() => import('./components/WorkMode').then((m) => ({ default: m.WorkMode })));
 // T-E-S-27: Trusted Diagnostics Channels 前端面板。
-const DiagnosticsView = lazy(() => import('./components/DiagnosticsView').then((m) => ({ default: m.DiagnosticsView })));
+const DiagnosticsView = lazy(() =>
+  import('./components/DiagnosticsView').then((m) => ({ default: m.DiagnosticsView }))
+);
 // T-E-C-08: Shadow Workspace 隔离执行环境面板。
-const ShadowWorkspacePanel = lazy(() => import('./components/ShadowWorkspacePanel').then((m) => ({ default: m.ShadowWorkspacePanel })));
+const ShadowWorkspacePanel = lazy(() =>
+  import('./components/ShadowWorkspacePanel').then((m) => ({ default: m.ShadowWorkspacePanel }))
+);
 // T-E-C-10: 异步长任务面板。
-const LongTaskPanel = lazy(() => import('./components/LongTaskPanel').then((m) => ({ default: m.LongTaskPanel })));
+const LongTaskPanel = lazy(() =>
+  import('./components/LongTaskPanel').then((m) => ({ default: m.LongTaskPanel }))
+);
 
 /** T-S5-B-03: 懒加载 chunk 下载期间的统一 fallback。 */
 function LoadingFallback() {
   return (
-    <div class="lazy-loading-fallback" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px;">
-      <span class="lazy-spinner" style="margin-right:8px;">⏳</span>
+    <div
+      class="lazy-loading-fallback"
+      style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px;"
+    >
+      <span class="lazy-spinner" style="margin-right:8px;">
+        ⏳
+      </span>
       {t('app.loading')}
     </div>
   );
@@ -93,7 +125,7 @@ export function App() {
   // descendant calls `t(...)` which itself reads the signal, so
   // they are individually subscribed too — this top-level read is
   // just belt-and-suspenders.
-  const _localeTick = currentLocale.value;
+  void currentLocale.value;
 
   // 启动时检查后端
   useEffect(() => {
@@ -111,7 +143,7 @@ export function App() {
         // this is no longer racing with the async backend bootstrap.
         setShowOnboarding(shouldShowOnboarding());
       },
-      (e) => setError(String(e)),
+      (e) => setError(String(e))
     );
 
     // P0#07: poll the Ollama health endpoint every 30s so the
@@ -132,7 +164,16 @@ export function App() {
         // view 切换
         const u1 = await listen<string>('nebula://switch-view', (event) => {
           const view = event.payload;
-          if (view === 'memory' || view === 'swarm' || view === 'chat' || view === 'code' || view === 'skills' || view === 'dashboard' || view === 'shadow' || view === 'longtask') {
+          if (
+            view === 'memory' ||
+            view === 'swarm' ||
+            view === 'chat' ||
+            view === 'code' ||
+            view === 'skills' ||
+            view === 'dashboard' ||
+            view === 'shadow' ||
+            view === 'longtask'
+          ) {
             currentMode.value = view;
           }
         });
@@ -181,7 +222,9 @@ export function App() {
     };
   }, []);
 
-  useCommandPaletteShortcut(() => { paletteOpen.value = true; });
+  useCommandPaletteShortcut(() => {
+    paletteOpen.value = true;
+  });
 
   if (error) {
     return (
@@ -267,25 +310,40 @@ export function App() {
         <StatusBar />
         <Suspense fallback={<LoadingFallback />}>
           {settingsOpen.value && (
-            <Settings onClose={() => { settingsOpen.value = false; toast.success(t('settings.saved')); }} />
+            <Settings
+              onClose={() => {
+                settingsOpen.value = false;
+                toast.success(t('settings.saved'));
+              }}
+            />
           )}
         </Suspense>
         <CommandPalette
           open={paletteOpen.value}
-          onClose={() => { paletteOpen.value = false; }}
+          onClose={() => {
+            paletteOpen.value = false;
+          }}
           commands={buildDefaultCommands(
-            () => { paletteOpen.value = false; },
+            () => {
+              paletteOpen.value = false;
+            },
             {
-              setMode: (m) => { currentMode.value = m; },
-              setSubMode: (m) => { nebulaStore.mode.value = m; },
-              openSettings: () => { settingsOpen.value = true; },
+              setMode: (m) => {
+                currentMode.value = m;
+              },
+              setSubMode: (m) => {
+                nebulaStore.mode.value = m;
+              },
+              openSettings: () => {
+                settingsOpen.value = true;
+              },
               triggerReflection: () => {
                 nebulaStore.triggerReflection().then(
                   () => toast.success('Reflection complete'),
-                  (e) => toast.error('Reflection failed', String(e)),
+                  (e) => toast.error('Reflection failed', String(e))
                 );
               },
-            },
+            }
           )}
           extraItems={[]}
         />
@@ -349,7 +407,9 @@ function Sidebar() {
       <div class="sidebar-footer">
         <button
           class="nav-item settings-btn"
-          onClick={() => { settingsOpen.value = true; }}
+          onClick={() => {
+            settingsOpen.value = true;
+          }}
           title={t('nav.settings')}
         >
           <span class="nav-icon">⚙️</span>

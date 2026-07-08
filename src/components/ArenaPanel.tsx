@@ -82,7 +82,8 @@ export function ArenaPanel() {
     if (!pending) return;
     try {
       await nebulaAPI.arenaVote(pending.matchId, winner);
-      const winnerLabel = winner === 'a' ? pending.modelA : winner === 'b' ? pending.modelB : t('arena.tie');
+      const winnerLabel =
+        winner === 'a' ? pending.modelA : winner === 'b' ? pending.modelB : t('arena.tie');
       toast.success(t('arena.voted', { winner: winnerLabel }));
       setPending(null);
       void refreshLeaderboard();
@@ -158,11 +159,18 @@ export function ArenaPanel() {
       {pending && (
         <div class="arena-panel__vote" data-testid="arena-vote-section">
           <div class="arena-panel__vote-info">
-            <span dangerouslySetInnerHTML={{ __html: t('arena.matchCreatedInfo', { id: pending.matchId.slice(0, 8) }) }} />
+            <span
+              dangerouslySetInnerHTML={{
+                __html: t('arena.matchCreatedInfo', { id: pending.matchId.slice(0, 8) }),
+              }}
+            />
             <br />
             <strong>{pending.modelA}</strong> {t('arena.vs')} <strong>{pending.modelB}</strong>
             <br />
-            <small>prompt: {pending.prompt.slice(0, 60)}{pending.prompt.length > 60 ? '...' : ''}</small>
+            <small>
+              prompt: {pending.prompt.slice(0, 60)}
+              {pending.prompt.length > 60 ? '...' : ''}
+            </small>
           </div>
           <div class="arena-panel__vote-buttons">
             <button

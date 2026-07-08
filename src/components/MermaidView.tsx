@@ -77,7 +77,7 @@ export default function MermaidView({ code, idPrefix = 'mmd' }: MermaidViewProps
             setError(msg);
             setSvg(null);
             setLoading(false);
-          },
+          }
         );
       })
       .catch((err: unknown) => {

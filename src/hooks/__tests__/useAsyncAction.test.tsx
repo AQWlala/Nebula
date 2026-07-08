@@ -34,16 +34,16 @@ describe('useAsyncAction', () => {
   });
 
   it('propagates error', async () => {
-    const fn = vi.fn(async () => { throw new Error('boom'); });
+    const fn = vi.fn(async () => {
+      throw new Error('boom');
+    });
     const { hook } = renderHook(fn);
     await expect(hook().run()).rejects.toThrow('boom');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('does not call action twice when run called concurrently', async () => {
-    const fn = vi.fn(
-      () => new Promise<string>((r) => setTimeout(() => r('ok'), 10)),
-    );
+    const fn = vi.fn(() => new Promise<string>((r) => setTimeout(() => r('ok'), 10)));
     const { hook } = renderHook(fn);
     const p1 = hook().run();
     hook().run(); // second call: should be skipped

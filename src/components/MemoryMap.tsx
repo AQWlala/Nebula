@@ -17,7 +17,13 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
 import { Application, Container, Graphics, Text } from 'pixi.js';
-import { nebulaAPI, type Memory, type Layer, type GraphSnapshot, type RelationDimension } from '../lib/tauri';
+import {
+  nebulaAPI,
+  type Memory,
+  type Layer,
+  type GraphSnapshot,
+  type RelationDimension,
+} from '../lib/tauri';
 import { t } from '../i18n';
 
 interface MemoryNode {
@@ -56,14 +62,20 @@ const LAYER_RADII: Record<Layer, number> = {
 
 /** T-E-B-07: 5 维关系边配色(与 LAYER_COLORS 解耦,便于辨识关系类型)。 */
 const DIM_COLORS: Record<RelationDimension, string> = {
-  causal: '#EF4444',        // red — 因果
-  temporal: '#3B82F6',      // blue — 时序
-  entity: '#10B981',        // green — 实体
-  hierarchical: '#A78BFA',  // purple — 层级
-  similarity: '#F59E0B',    // amber — 相似度
+  causal: '#EF4444', // red — 因果
+  temporal: '#3B82F6', // blue — 时序
+  entity: '#10B981', // green — 实体
+  hierarchical: '#A78BFA', // purple — 层级
+  similarity: '#F59E0B', // amber — 相似度
 };
 
-const ALL_DIMS: RelationDimension[] = ['causal', 'temporal', 'entity', 'hierarchical', 'similarity'];
+const ALL_DIMS: RelationDimension[] = [
+  'causal',
+  'temporal',
+  'entity',
+  'hierarchical',
+  'similarity',
+];
 
 const DIM_LABELS: Record<RelationDimension, string> = {
   causal: '因果',
@@ -81,7 +93,7 @@ function hashCode(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return Math.abs(hash);
@@ -145,9 +157,7 @@ export function MemoryMap() {
   const [graphSnapshot, setGraphSnapshot] = useState<GraphSnapshot | null>(null);
   const [graphRootId, setGraphRootId] = useState<string | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
-  const [activeDims, setActiveDims] = useState<Set<RelationDimension>>(
-    new Set(ALL_DIMS),
-  );
+  const [activeDims, setActiveDims] = useState<Set<RelationDimension>>(new Set(ALL_DIMS));
 
   // PixiJS 资源引用
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -165,15 +175,30 @@ export function MemoryMap() {
   const nodesCountRef = useRef(0);
   const viewModeRef = useRef<ViewMode>('layer');
   const graphSnapshotRef = useRef<GraphSnapshot | null>(null);
-  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
-  useEffect(() => { hoveredIdRef.current = hoveredId; }, [hoveredId]);
-  useEffect(() => { nodesCountRef.current = nodes.length; }, [nodes]);
-  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
-  useEffect(() => { graphSnapshotRef.current = graphSnapshot; }, [graphSnapshot]);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+  useEffect(() => {
+    hoveredIdRef.current = hoveredId;
+  }, [hoveredId]);
+  useEffect(() => {
+    nodesCountRef.current = nodes.length;
+  }, [nodes]);
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+  useEffect(() => {
+    graphSnapshotRef.current = graphSnapshot;
+  }, [graphSnapshot]);
 
   // 拖拽状态 + hover 节流时间戳
   const dragRef = useRef<DragState>({
-    isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false,
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    moved: false,
   });
   const lastHoverUpdateRef = useRef(0);
 
@@ -186,11 +211,7 @@ export function MemoryMap() {
 
       // 标记新加入的节点（5秒内的）
       const now = Date.now() / 1000;
-      const recent = new Set(
-        newNodes
-          .filter(n => now - n.created_at < 5)
-          .map(n => n.id)
-      );
+      const recent = new Set(newNodes.filter((n) => now - n.created_at < 5).map((n) => n.id));
       if (recent.size > 0) {
         setNewNodeIds(recent);
         setTimeout(() => setNewNodeIds(new Set()), 800);
@@ -209,20 +230,23 @@ export function MemoryMap() {
   }, [loadMemories]);
 
   // T-E-B-07: 加载 MDRM 图谱(以指定记忆为根)。
-  const loadGraph = useCallback(async (rootId: string) => {
-    setGraphLoading(true);
-    try {
-      const dims = activeDims.size === 0 ? null : Array.from(activeDims);
-      const snapshot = await nebulaAPI.mdrmGetGraph(rootId, dims);
-      setGraphSnapshot(snapshot);
-      setGraphRootId(rootId);
-    } catch (e) {
-      console.error('loadGraph failed:', e);
-      setGraphSnapshot(null);
-    } finally {
-      setGraphLoading(false);
-    }
-  }, [activeDims]);
+  const loadGraph = useCallback(
+    async (rootId: string) => {
+      setGraphLoading(true);
+      try {
+        const dims = activeDims.size === 0 ? null : Array.from(activeDims);
+        const snapshot = await nebulaAPI.mdrmGetGraph(rootId, dims);
+        setGraphSnapshot(snapshot);
+        setGraphRootId(rootId);
+      } catch (e) {
+        console.error('loadGraph failed:', e);
+        setGraphSnapshot(null);
+      } finally {
+        setGraphLoading(false);
+      }
+    },
+    [activeDims]
+  );
 
   // 切换到 Graph View 时,若未指定根,选第一个节点
   useEffect(() => {
@@ -274,7 +298,7 @@ export function MemoryMap() {
 
       // 7 层同心圆(Layer View 跟 Graph View 都显示,作为背景参考)
       const rings = new Graphics();
-      (Object.keys(LAYER_RADII) as Layer[]).forEach(layer => {
+      (Object.keys(LAYER_RADII) as Layer[]).forEach((layer) => {
         const r = LAYER_RADII[layer];
         const color = hexToNumber(LAYER_COLORS[layer]);
         rings.circle(0, 0, r);
@@ -285,7 +309,7 @@ export function MemoryMap() {
       // 中心奇点
       const centerGfx = new Graphics();
       centerGfx.circle(0, 0, 22);
-      centerGfx.fill({ color: 0xFFD700, alpha: 0.9 });
+      centerGfx.fill({ color: 0xffd700, alpha: 0.9 });
       world.addChild(centerGfx);
 
       // "核心" 文字
@@ -339,8 +363,10 @@ export function MemoryMap() {
         if (!dragRef.current.isDragging || !worldRef.current) return;
         const dx = e.clientX - dragRef.current.lastX;
         const dy = e.clientY - dragRef.current.lastY;
-        if (Math.abs(e.clientX - dragRef.current.startX) > 3 ||
-            Math.abs(e.clientY - dragRef.current.startY) > 3) {
+        if (
+          Math.abs(e.clientX - dragRef.current.startX) > 3 ||
+          Math.abs(e.clientY - dragRef.current.startY) > 3
+        ) {
           dragRef.current.moved = true;
         }
         worldRef.current.x += dx;
@@ -397,8 +423,14 @@ export function MemoryMap() {
             const k = 0.02 * edge.weight;
             const fx = (dx / dist) * (dist - ideal) * k;
             const fy = (dy / dist) * (dist - ideal) * k;
-            if (!a.pinned) { a.vx += fx; a.vy += fy; }
-            if (!b.pinned) { b.vx -= fx; b.vy -= fy; }
+            if (!a.pinned) {
+              a.vx += fx;
+              a.vy += fy;
+            }
+            if (!b.pinned) {
+              b.vx -= fx;
+              b.vy -= fy;
+            }
           }
           // 3. 向心力(拉回原点,防止图飘走) + 阻尼 + 位置更新
           for (const [, ng] of nodeGraphicsRef.current) {
@@ -516,7 +548,7 @@ export function MemoryMap() {
       graphSnapshot.nodes.forEach((gn, idx) => {
         const isRoot = gn.id === graphSnapshot.root_id;
         const angle = (idx * 2.4) % (Math.PI * 2); // 黄金角分散初始位置
-        const initR = isRoot ? 0 : 60 + (gn.depth * 40);
+        const initR = isRoot ? 0 : 60 + gn.depth * 40;
         const targetX = isRoot ? 0 : initR * Math.cos(angle);
         const targetY = isRoot ? 0 : initR * Math.sin(angle);
 
@@ -525,7 +557,7 @@ export function MemoryMap() {
 
         const halo = new Graphics();
         halo.circle(0, 0, baseSize + 6);
-        halo.stroke({ width: 2, color: isRoot ? 0xFFD700 : 0xFFFFFF, alpha: 0.8 });
+        halo.stroke({ width: 2, color: isRoot ? 0xffd700 : 0xffffff, alpha: 0.8 });
         halo.visible = false;
 
         const g = new Graphics();
@@ -553,7 +585,9 @@ export function MemoryMap() {
         halo.y = targetY;
         g.alpha = 1;
 
-        g.on('pointerdown', (e) => { e.stopPropagation(); });
+        g.on('pointerdown', (e) => {
+          e.stopPropagation();
+        });
         g.on('pointertap', (e) => {
           e.stopPropagation();
           if (dragRef.current.moved) return;
@@ -583,8 +617,8 @@ export function MemoryMap() {
     }
 
     // ---- Layer View: 原有同心圆布局 ----
-    nodes.forEach(node => {
-      const angle = (hashCode(node.id) % 360) * Math.PI / 180;
+    nodes.forEach((node) => {
+      const angle = ((hashCode(node.id) % 360) * Math.PI) / 180;
       const r = LAYER_RADII[node.layer];
       // 层内分散扰动：基于 id hash 的 -10..10 偏移，避免节点重叠
       const scatter = (hashCode(node.id + 'scatter') % 21) - 10;
@@ -598,7 +632,7 @@ export function MemoryMap() {
       // 选中态外发光圆环
       const halo = new Graphics();
       halo.circle(0, 0, size + 6);
-      halo.stroke({ width: 2, color: 0xFFFFFF, alpha: 0.8 });
+      halo.stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
       halo.visible = false;
 
       // 主体节点
@@ -630,7 +664,9 @@ export function MemoryMap() {
       g.alpha = ng.alpha;
 
       // 节点事件：点击选中、hover 显示浮层
-      g.on('pointerdown', (e) => { e.stopPropagation(); });
+      g.on('pointerdown', (e) => {
+        e.stopPropagation();
+      });
       g.on('pointertap', (e) => {
         e.stopPropagation();
         // 拖拽发生过则不视为点击
@@ -662,13 +698,13 @@ export function MemoryMap() {
     });
   }, [selectedId]);
 
-  const selectedNode = nodes.find(n => n.id === selectedId);
-  const hoveredNode = nodes.find(n => n.id === hoveredId);
-  const hoveredGraphNode = graphSnapshot?.nodes.find(n => n.id === hoveredId);
+  const selectedNode = nodes.find((n) => n.id === selectedId);
+  const hoveredNode = nodes.find((n) => n.id === hoveredId);
+  const hoveredGraphNode = graphSnapshot?.nodes.find((n) => n.id === hoveredId);
 
   // 维度筛选切换
   const toggleDim = (dim: RelationDimension) => {
-    setActiveDims(prev => {
+    setActiveDims((prev) => {
       const next = new Set(prev);
       if (next.has(dim)) {
         next.delete(dim);
@@ -723,7 +759,7 @@ export function MemoryMap() {
       {viewMode === 'graph' && (
         <div className="flex flex-wrap items-center gap-3 px-4 py-1.5 border-b border-gray-800 text-xs">
           <span className="text-gray-500">维度:</span>
-          {ALL_DIMS.map(dim => (
+          {ALL_DIMS.map((dim) => (
             <label
               key={dim}
               data-testid={`dim-${dim}`}
@@ -757,11 +793,7 @@ export function MemoryMap() {
 
       {/* WebGL 画布区 */}
       <div ref={containerRef} className="flex-1 overflow-hidden relative">
-        <canvas
-          ref={canvasRef}
-          className="block w-full h-full"
-          style={{ touchAction: 'none' }}
-        />
+        <canvas ref={canvasRef} className="block w-full h-full" style={{ touchAction: 'none' }} />
 
         {/* Hover 摘要浮层（HTML absolute，位置由 ticker 直接更新 style）*/}
         {hoveredNode && !selectedId && viewMode === 'layer' && (
@@ -779,9 +811,13 @@ export function MemoryMap() {
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: LAYER_COLORS[hoveredNode.layer] }}
               />
-              <span className="text-gray-400">{hoveredNode.layer} · {layerLabel(hoveredNode.layer)}</span>
+              <span className="text-gray-400">
+                {hoveredNode.layer} · {layerLabel(hoveredNode.layer)}
+              </span>
             </div>
-            <div className="text-gray-200 line-clamp-3">{hoveredNode.summary || hoveredNode.content}</div>
+            <div className="text-gray-200 line-clamp-3">
+              {hoveredNode.summary || hoveredNode.content}
+            </div>
           </div>
         )}
         {hoveredGraphNode && !selectedId && viewMode === 'graph' && (
@@ -827,10 +863,7 @@ export function MemoryMap() {
                 </span>
               )}
             </div>
-            <button
-              onClick={() => setSelectedId(null)}
-              className="text-gray-500 hover:text-white"
-            >
+            <button onClick={() => setSelectedId(null)} className="text-gray-500 hover:text-white">
               ×
             </button>
           </div>
@@ -841,15 +874,20 @@ export function MemoryMap() {
             </div>
           )}
           <div className="flex gap-4 mt-2 text-xs text-gray-500">
-            <span>{t('memoryMap.importance')}: {selectedNode.importance.toFixed(2)}</span>
-            <span>{t('memoryMap.created')}: {new Date(selectedNode.created_at * 1000).toLocaleString('zh-CN')}</span>
+            <span>
+              {t('memoryMap.importance')}: {selectedNode.importance.toFixed(2)}
+            </span>
+            <span>
+              {t('memoryMap.created')}:{' '}
+              {new Date(selectedNode.created_at * 1000).toLocaleString('zh-CN')}
+            </span>
           </div>
         </div>
       )}
 
       {/* Layer Legend */}
       <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-gray-800 text-xs">
-        {(Object.keys(LAYER_COLORS) as Layer[]).map(layer => (
+        {(Object.keys(LAYER_COLORS) as Layer[]).map((layer) => (
           <div key={layer} className="flex items-center gap-1">
             <div
               className="w-3 h-3 rounded-full"

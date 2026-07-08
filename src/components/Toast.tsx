@@ -49,14 +49,22 @@ export function Toasts() {
   // No-op effect: re-render on signal change is automatic in
   // Preact, but a small useEffect keeps the array pinned to the
   // signal lifecycle (helps tests).
-  useEffect(() => { /* */ }, [list]);
+  useEffect(() => {
+    /* */
+  }, [list]);
   return (
     <div class="toast-stack" role="region" aria-label={t('toast.region')}>
       {list.map((tt) => (
         <div key={tt.id} class={`toast toast-${tt.level}`} role="alert">
           <div class="toast-title">{tt.title}</div>
           {tt.body && <div class="toast-body">{tt.body}</div>}
-          <button class="toast-close" onClick={() => dismissToast(tt.id)} aria-label={t('toast.dismiss')}>×</button>
+          <button
+            class="toast-close"
+            onClick={() => dismissToast(tt.id)}
+            aria-label={t('toast.dismiss')}
+          >
+            ×
+          </button>
         </div>
       ))}
     </div>

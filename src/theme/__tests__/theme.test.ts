@@ -55,7 +55,9 @@ describe('theme store (P0#06)', () => {
     const state = { matches: true as boolean };
     const listeners: Array<(e: { matches: boolean }) => void> = [];
     const mql = {
-      get matches() { return state.matches; },
+      get matches() {
+        return state.matches;
+      },
       media: '(prefers-color-scheme: dark)',
       onchange: null,
       addEventListener: (ev: string, cb: (e: { matches: boolean }) => void) => {
@@ -70,12 +72,10 @@ describe('theme store (P0#06)', () => {
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     } as unknown as MediaQueryList;
-    const matchMediaSpy = vi
-      .spyOn(window, 'matchMedia')
-      .mockImplementation((q: string) => {
-        if (q === '(prefers-color-scheme: dark)') return mql;
-        return mql;
-      });
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation((q: string) => {
+      if (q === '(prefers-color-scheme: dark)') return mql;
+      return mql;
+    });
 
     setTheme('system');
     applyTheme();
@@ -109,16 +109,17 @@ describe('theme store (P0#06)', () => {
   it('accent_signal_updates_css_var', () => {
     setAccent('neon');
     applyTheme();
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-neon)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('var(--accent-neon)');
     setAccent('amber');
     applyTheme();
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-warning)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      'var(--accent-warning)'
+    );
     setAccent('purple');
     applyTheme();
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-purple)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      'var(--accent-purple)'
+    );
   });
 
   it('startThemeEffect auto-applies on signal change', () => {
@@ -128,8 +129,7 @@ describe('theme store (P0#06)', () => {
     // jsdom + signals effect: synchronous in this version.
     // We assert that the document got updated as a side-effect of
     // simply mutating the signal.
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-neon)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('var(--accent-neon)');
     dispose();
   });
 

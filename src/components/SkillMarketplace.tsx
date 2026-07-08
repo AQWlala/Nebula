@@ -138,7 +138,10 @@ export function SkillMarketplace(): JSX.Element {
       <div class="skill-browser__filters">
         <label>
           {t('skillMarketplace.language')}
-          <select value={langFilter} onChange={(e) => setLangFilter((e.target as HTMLSelectElement).value)}>
+          <select
+            value={langFilter}
+            onChange={(e) => setLangFilter((e.target as HTMLSelectElement).value)}
+          >
             <option value="">{t('skillMarketplace.all')}</option>
             {allLanguages.map((l) => (
               <option key={l} value={l}>
@@ -149,7 +152,10 @@ export function SkillMarketplace(): JSX.Element {
         </label>
         <label>
           {t('skillMarketplace.tag')}
-          <select value={tagFilter} onChange={(e) => setTagFilter((e.target as HTMLSelectElement).value)}>
+          <select
+            value={tagFilter}
+            onChange={(e) => setTagFilter((e.target as HTMLSelectElement).value)}
+          >
             <option value="">{t('skillMarketplace.all')}</option>
             {allTags.map((t) => (
               <option key={t} value={t}>
@@ -175,7 +181,9 @@ export function SkillMarketplace(): JSX.Element {
                 <h3>{s.name}</h3>
                 <span class="skill-card__lang">{LANG_BADGE[s.language] ?? s.language}</span>
               </div>
-              <p class="skill-card__desc">{s.description || <em>{t('skillMarketplace.noDescription')}</em>}</p>
+              <p class="skill-card__desc">
+                {s.description || <em>{t('skillMarketplace.noDescription')}</em>}
+              </p>
               <div class="skill-card__meta">
                 <span>{formatRating(s.avg_rating, s.rating_count)}</span>
                 <span>·</span>
@@ -204,13 +212,21 @@ export function SkillMarketplace(): JSX.Element {
       )}
 
       {useResult && (
-        <Modal open={true} title={t('skillMarketplace.skillOutput')} onClose={() => setUseResult(null)}>
+        <Modal
+          open={true}
+          title={t('skillMarketplace.skillOutput')}
+          onClose={() => setUseResult(null)}
+        >
           <pre class="skill-output">{useResult.output || t('skillMarketplace.emptyOutput')}</pre>
         </Modal>
       )}
 
       {rateOpen && (
-        <Modal open={true} title={t('skillMarketplace.rateTitle', { name: rateOpen.name })} onClose={() => setRateOpen(null)}>
+        <Modal
+          open={true}
+          title={t('skillMarketplace.rateTitle', { name: rateOpen.name })}
+          onClose={() => setRateOpen(null)}
+        >
           <RatingPicker
             onSubmit={(r) => void submitRating(rateOpen, r)}
             onCancel={() => setRateOpen(null)}
@@ -243,11 +259,7 @@ function RatingPicker({
     <div>
       <div class="rating-picker">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            class={n <= value ? 'star star--on' : 'star'}
-            onClick={() => setValue(n)}
-          >
+          <button key={n} class={n <= value ? 'star star--on' : 'star'} onClick={() => setValue(n)}>
             ★
           </button>
         ))}
@@ -316,7 +328,10 @@ function CreateSkillModal({
         </label>
         <label>
           {t('skillMarketplace.languageLabel')}
-          <select value={language} onChange={(e) => setLanguage((e.target as HTMLSelectElement).value)}>
+          <select
+            value={language}
+            onChange={(e) => setLanguage((e.target as HTMLSelectElement).value)}
+          >
             <option value="rust">rust</option>
             <option value="python">python</option>
             <option value="javascript">javascript</option>
@@ -353,5 +368,3 @@ function CreateSkillModal({
     </Modal>
   );
 }
-
-

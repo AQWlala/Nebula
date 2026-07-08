@@ -60,9 +60,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(err: Error, info: unknown) {
-    const infoStr = typeof info === 'string'
-      ? info
-      : (info as { componentStack?: string })?.componentStack || String(info);
+    const infoStr =
+      typeof info === 'string'
+        ? info
+        : (info as { componentStack?: string })?.componentStack || String(info);
     this.setState({ info: infoStr });
     recordCrash({
       ts: Date.now(),
@@ -126,15 +127,21 @@ export class ErrorBoundary extends Component<Props, State> {
         <p>{t('errorBoundary.crash')}</p>
         <pre class="error-message">{this.state.err.message}</pre>
         {this.state.fingerprint && (
-          <p class="error-fingerprint">{t('errorBoundary.fingerprint')} <code>{this.state.fingerprint}</code></p>
+          <p class="error-fingerprint">
+            {t('errorBoundary.fingerprint')} <code>{this.state.fingerprint}</code>
+          </p>
         )}
         <details class="error-details">
           <summary>{t('errorBoundary.stack')}</summary>
           <pre>{this.state.err.stack || t('errorBoundary.noStack')}</pre>
         </details>
         <div class="error-actions">
-          <button class="primary" onClick={this.reload}>{t('errorBoundary.reload')}</button>
-          <button class="secondary" onClick={this.exportLog}>{t('errorBoundary.exportLog')}</button>
+          <button class="primary" onClick={this.reload}>
+            {t('errorBoundary.reload')}
+          </button>
+          <button class="secondary" onClick={this.exportLog}>
+            {t('errorBoundary.exportLog')}
+          </button>
         </div>
       </div>
     );

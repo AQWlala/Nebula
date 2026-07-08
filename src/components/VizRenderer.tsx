@@ -46,7 +46,11 @@ export function extractMermaidCode(output: string): string | null {
   // 退化:如果输出本身看起来就是 mermaid 源(以 flowchart/sequenceDiagram/
   // gantt/stateDiagram/classDiagram/mindmap 开头),直接当作源码。
   const trimmed = output.trim();
-  if (/^(flowchart|graph|sequenceDiagram|gantt|stateDiagram|classDiagram|mindmap|erDiagram|pie|gitGraph|journey)\b/i.test(trimmed)) {
+  if (
+    /^(flowchart|graph|sequenceDiagram|gantt|stateDiagram|classDiagram|mindmap|erDiagram|pie|gitGraph|journey)\b/i.test(
+      trimmed
+    )
+  ) {
     return trimmed;
   }
   return null;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * M6 #77: Soul 编辑器 UI — SOUL.md 双分区可视化编辑。
  *
  * ## 功能
@@ -25,10 +25,7 @@
  * 从 Settings.tsx 的 persona 卡片"编辑"按钮触发,作为 Modal 弹出。
  */
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import {
-  nebulaAPI,
-  type PersonaConfig,
-} from '../lib/tauri';
+import { nebulaAPI } from '../lib/tauri';
 import { Modal } from './Modal';
 import { toast } from './Toast';
 import { t } from '../i18n';
@@ -101,10 +98,17 @@ function parseSoulMd(text: string): ParsedSoul {
   for (const tag of tags) {
     if (tag.kind === 'begin') {
       if (!KNOWN_SECTIONS.includes(tag.name as SectionName)) {
-        errors.push(t('soulEditor.parseError.unknownSection', { line: tag.line + 1, name: tag.name }));
+        errors.push(
+          t('soulEditor.parseError.unknownSection', { line: tag.line + 1, name: tag.name })
+        );
       }
       if (stack.length > 0) {
-        errors.push(t('soulEditor.parseError.nestedSection', { line: tag.line + 1, name: stack[stack.length - 1].name }));
+        errors.push(
+          t('soulEditor.parseError.nestedSection', {
+            line: tag.line + 1,
+            name: stack[stack.length - 1].name,
+          })
+        );
       }
       stack.push({ name: tag.name, beginLine: tag.line });
     } else {
@@ -115,12 +119,21 @@ function parseSoulMd(text: string): ParsedSoul {
       }
       const top = stack.pop()!;
       if (top.name !== tag.name) {
-        errors.push(t('soulEditor.parseError.mismatch', { line: tag.line + 1, endName: tag.name, beginName: top.name, beginLine: top.beginLine + 1 }));
+        errors.push(
+          t('soulEditor.parseError.mismatch', {
+            line: tag.line + 1,
+            endName: tag.name,
+            beginName: top.name,
+            beginLine: top.beginLine + 1,
+          })
+        );
       }
     }
   }
   for (const unmatched of stack) {
-    errors.push(t('soulEditor.parseError.missingEnd', { line: unmatched.beginLine + 1, name: unmatched.name }));
+    errors.push(
+      t('soulEditor.parseError.missingEnd', { line: unmatched.beginLine + 1, name: unmatched.name })
+    );
   }
   result.errors = errors;
 
@@ -159,10 +172,22 @@ function parseSoulMd(text: string): ParsedSoul {
     const sorted = [...pairs].sort((a, b) => a.beginLine - b.beginLine);
     const first = sorted[0];
     const second = sorted[1];
-    result.between = lines.slice(first.endLine + 1, second.beginLine).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
-    result.trailing = lines.slice(second.endLine + 1).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+    result.between = lines
+      .slice(first.endLine + 1, second.beginLine)
+      .join('\n')
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '');
+    result.trailing = lines
+      .slice(second.endLine + 1)
+      .join('\n')
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '');
   } else if (pairs.length === 1) {
-    result.trailing = lines.slice(pairs[0].endLine + 1).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+    result.trailing = lines
+      .slice(pairs[0].endLine + 1)
+      .join('\n')
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '');
   }
 
   return result;
@@ -345,7 +370,8 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
               border: 'none',
               background: parseErrors.length > 0 ? 'var(--text-muted)' : 'var(--accent-neon)',
               color: parseErrors.length > 0 ? 'var(--text-secondary)' : 'var(--bg-primary)',
-              cursor: !isDirty || saving || loading || parseErrors.length > 0 ? 'not-allowed' : 'pointer',
+              cursor:
+                !isDirty || saving || loading || parseErrors.length > 0 ? 'not-allowed' : 'pointer',
               opacity: !isDirty || saving || loading ? 0.5 : 1,
             }}
           >
@@ -376,9 +402,7 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
           )}
 
           {/* 说明 */}
-          <div class="soul-editor-hint">
-            {t('soulEditor.hint.structure')}
-          </div>
+          <div class="soul-editor-hint">{t('soulEditor.hint.structure')}</div>
 
           {/* preamble(可编辑) */}
           <div class="soul-section soul-section-editable">
@@ -402,15 +426,13 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
               <span class="soul-section-label">🔒 immutable_from_ai</span>
               <span class="soul-section-tag soul-tag-readonly">{t('soulEditor.tag.readonly')}</span>
             </div>
-            <div class="soul-section-desc">
-              {t('soulEditor.section.immutable.desc')}
-            </div>
+            <div class="soul-section-desc">{t('soulEditor.section.immutable.desc')}</div>
             {hasImmutable ? (
-              <pre class="soul-readonly-content">{immutableContent || t('soulEditor.section.immutable.empty')}</pre>
+              <pre class="soul-readonly-content">
+                {immutableContent || t('soulEditor.section.immutable.empty')}
+              </pre>
             ) : (
-              <div class="soul-section-empty">
-                {t('soulEditor.section.immutable.missing')}
-              </div>
+              <div class="soul-section-empty">{t('soulEditor.section.immutable.missing')}</div>
             )}
           </div>
 
@@ -434,12 +456,12 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
           {/* evolution-append(可编辑) */}
           <div class="soul-section soul-section-editable">
             <div class="soul-section-header">
-              <span class="soul-section-label">{t('soulEditor.section.evolutionAppend.title')}</span>
+              <span class="soul-section-label">
+                {t('soulEditor.section.evolutionAppend.title')}
+              </span>
               <span class="soul-section-tag">{t('soulEditor.tag.editable')}</span>
             </div>
-            <div class="soul-section-desc">
-              {t('soulEditor.section.evolutionAppend.desc')}
-            </div>
+            <div class="soul-section-desc">{t('soulEditor.section.evolutionAppend.desc')}</div>
             <textarea
               class="soul-textarea soul-textarea-large"
               value={evolutionAppend}
@@ -466,11 +488,7 @@ export function SoulEditor({ open, onClose }: SoulEditorProps) {
           )}
 
           {/* dirty 指示器 */}
-          {isDirty && (
-            <div class="soul-dirty-indicator">
-              {t('soulEditor.dirtyIndicator')}
-            </div>
-          )}
+          {isDirty && <div class="soul-dirty-indicator">{t('soulEditor.dirtyIndicator')}</div>}
         </div>
       )}
     </Modal>

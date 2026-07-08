@@ -69,12 +69,7 @@ export interface InlineSuggestionProps {
   children: (renderProps: InlineSuggestionRenderProps) => any;
 }
 
-export function InlineSuggestion({
-  prefix,
-  onAccept,
-  onReject,
-  children,
-}: InlineSuggestionProps) {
+export function InlineSuggestion({ prefix, onAccept, onReject, children }: InlineSuggestionProps) {
   const [suggestion, setSuggestion] = useState('');
   const [loading, setLoading] = useState(false);
   /** Mirror span ref — 用于测量 prefix 文本宽度,从而定位 ghost text。 */

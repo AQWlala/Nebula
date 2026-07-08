@@ -72,9 +72,7 @@ describe('SwarmView (P0#08)', () => {
     nebulaStore.currentTask.value = { id: 'task-1', status: 'failed' };
     nebulaStore.swarmOutputs.value = makeOutputs();
 
-    const runSwarmSingle = vi
-      .spyOn(nebulaStore, 'runSwarmSingle')
-      .mockResolvedValue();
+    const runSwarmSingle = vi.spyOn(nebulaStore, 'runSwarmSingle').mockResolvedValue();
 
     const { getByTestId, getByPlaceholderText } = render(<SwarmView />);
     // The user must enter a task description so the retry button

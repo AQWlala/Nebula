@@ -84,7 +84,9 @@ function loadBudget(): number {
       const parsed = JSON.parse(raw);
       return parsed.monthlyBudgetUsd ?? 0;
     }
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   return 0;
 }
 
@@ -95,7 +97,9 @@ function loadDailyBudget(): number {
       const parsed = JSON.parse(raw);
       return parsed.dailyBudgetUsd ?? 0;
     }
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   return 0;
 }
 
@@ -112,20 +116,35 @@ export function CreditsDashboard() {
     let mounted = true;
     const load = () => {
       invoke<CreditsOverview>('credits_overview')
-        .then((data: CreditsOverview) => { if (mounted) setOverview(data); })
-        .catch((e: unknown) => { if (mounted) setError(String(e)); });
+        .then((data: CreditsOverview) => {
+          if (mounted) setOverview(data);
+        })
+        .catch((e: unknown) => {
+          if (mounted) setError(String(e));
+        });
     };
     load();
     // T-E-A-10: 2s 轮询实时刷新省 Token / 省钱 / 命中率。
     const timer = setInterval(load, 2000);
-    return () => { mounted = false; clearInterval(timer); };
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
   }, []);
 
   if (error) {
-    return <div class="credits-dashboard"><p style="color:var(--text-secondary)">{error}</p></div>;
+    return (
+      <div class="credits-dashboard">
+        <p style="color:var(--text-secondary)">{error}</p>
+      </div>
+    );
   }
   if (!overview) {
-    return <div class="credits-dashboard"><p>{t('common.loading')}</p></div>;
+    return (
+      <div class="credits-dashboard">
+        <p>{t('common.loading')}</p>
+      </div>
+    );
   }
 
   const trendData =
@@ -182,14 +201,20 @@ export function CreditsDashboard() {
 
   // T-E-A-10: 命中率 <30% 报警(样本数 >10 才触发,避免冷启动误报),去重不刷屏。
   if (cacheHitRate < 30 && cacheTotal > 10 && !alarmedRef.current) {
-    toast.warning(t('creditsDashboard.cacheRateLow'), t('creditsDashboard.cacheRateLowBody', { rate: cacheHitRate.toFixed(1) }));
+    toast.warning(
+      t('creditsDashboard.cacheRateLow'),
+      t('creditsDashboard.cacheRateLowBody', { rate: cacheHitRate.toFixed(1) })
+    );
     alarmedRef.current = true;
   } else if (cacheHitRate >= 30) {
     alarmedRef.current = false;
   }
 
   return (
-    <div class="credits-dashboard" style="padding:16px;display:flex;flex-direction:column;gap:16px;">
+    <div
+      class="credits-dashboard"
+      style="padding:16px;display:flex;flex-direction:column;gap:16px;"
+    >
       {/* 顶部:总费用 + 预算进度条 */}
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="metric-card card-accent-green" style="flex:1;padding:12px;">
@@ -199,7 +224,12 @@ export function CreditsDashboard() {
           </div>
           {budget > 0 && (
             <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
-              {t('creditsDashboard.monthlyBudget', { budget: budget.toFixed(2) })} {overBudget ? t('creditsDashboard.overBudget') : t('creditsDashboard.budgetRemaining', { amount: (budget - overview.total_cost_usd).toFixed(2) })}
+              {t('creditsDashboard.monthlyBudget', { budget: budget.toFixed(2) })}{' '}
+              {overBudget
+                ? t('creditsDashboard.overBudget')
+                : t('creditsDashboard.budgetRemaining', {
+                    amount: (budget - overview.total_cost_usd).toFixed(2),
+                  })}
             </div>
           )}
         </div>
@@ -214,7 +244,9 @@ export function CreditsDashboard() {
           <div class="metric-title">{t('creditsDashboard.saved')}</div>
           <div class="metric-value">${overview.cost_saved_usd.toFixed(4)}</div>
           <div style="font-size:11px;color:var(--text-secondary)">
-            {t('creditsDashboard.prefixCacheTokens', { count: overview.prefix_cache_cached_tokens })}
+            {t('creditsDashboard.prefixCacheTokens', {
+              count: overview.prefix_cache_cached_tokens,
+            })}
           </div>
         </div>
         {/* T-E-A-05: 当日费用 / 日预算进度 */}
@@ -232,10 +264,17 @@ export function CreditsDashboard() {
           </div>
           {dailyBudget > 0 ? (
             <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
-              {t('creditsDashboard.dailyBudget', { budget: dailyBudget.toFixed(2) })} {overDailyBudget ? t('creditsDashboard.overDailyBudget') : t('creditsDashboard.dailyBudgetRemaining', { amount: (dailyBudget - todayCost).toFixed(2) })}
+              {t('creditsDashboard.dailyBudget', { budget: dailyBudget.toFixed(2) })}{' '}
+              {overDailyBudget
+                ? t('creditsDashboard.overDailyBudget')
+                : t('creditsDashboard.dailyBudgetRemaining', {
+                    amount: (dailyBudget - todayCost).toFixed(2),
+                  })}
             </div>
           ) : (
-            <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">{t('creditsDashboard.dailyBudgetNotSet')}</div>
+            <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
+              {t('creditsDashboard.dailyBudgetNotSet')}
+            </div>
           )}
         </div>
       </div>
@@ -377,9 +416,7 @@ export function CreditsDashboard() {
 
             {/* 中部:7 桶柱状图(每桶独立着色,local_only 半透明虚线边框) */}
             {workTypeBuckets.length === 0 ? (
-              <div class="work-type-empty">
-                {t('common.loading')}
-              </div>
+              <div class="work-type-empty">{t('common.loading')}</div>
             ) : (
               <svg
                 class="work-type-bar-chart"
@@ -469,7 +506,10 @@ export function CreditsDashboard() {
                       {t('creditsDashboard.workTypeCalls', { count: w.calls })}
                     </span>
                     {meta.localOnly && (
-                      <span class="work-type-badge" title={t('creditsDashboard.workTypeLocalOnlyHint')}>
+                      <span
+                        class="work-type-badge"
+                        title={t('creditsDashboard.workTypeLocalOnlyHint')}
+                      >
                         local-only
                       </span>
                     )}
@@ -486,7 +526,9 @@ export function CreditsDashboard() {
       {/* 分桶图 */}
       <div style="display:flex;gap:12px;">
         <div class="metric-card" style="flex:1;padding:12px;">
-          <div class="metric-title" style="margin-bottom:8px;">{t('creditsDashboard.byProvider')}</div>
+          <div class="metric-title" style="margin-bottom:8px;">
+            {t('creditsDashboard.byProvider')}
+          </div>
           <BarChart
             data={overview.by_provider.map((p) => ({ label: p.provider, value: p.cost_usd }))}
             width={270}
@@ -496,7 +538,9 @@ export function CreditsDashboard() {
           />
         </div>
         <div class="metric-card" style="flex:1;padding:12px;">
-          <div class="metric-title" style="margin-bottom:8px;">{t('creditsDashboard.byAgent')}</div>
+          <div class="metric-title" style="margin-bottom:8px;">
+            {t('creditsDashboard.byAgent')}
+          </div>
           <BarChart
             data={overview.by_agent.map((a) => ({ label: a.provider, value: a.cost_usd }))}
             width={270}

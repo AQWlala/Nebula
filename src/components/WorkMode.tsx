@@ -13,9 +13,9 @@ import { nebulaAPI, type WorkTask, type WorkTaskStatus } from '../lib/tauri';
 import { t } from '../i18n';
 
 const COLUMNS: { id: WorkTaskStatus; labelKey: string; accent: string }[] = [
-  { id: 'todo',  labelKey: 'workMode.todo', accent: '#7a8a9a' },
+  { id: 'todo', labelKey: 'workMode.todo', accent: '#7a8a9a' },
   { id: 'doing', labelKey: 'workMode.doing', accent: '#ffb86b' },
-  { id: 'done',  labelKey: 'workMode.done', accent: '#39d98a' },
+  { id: 'done', labelKey: 'workMode.done', accent: '#39d98a' },
 ];
 
 export function WorkMode() {
@@ -24,7 +24,9 @@ export function WorkMode() {
   const [tickStart, setTickStart] = useState<number>(0);
   const [showMeeting, setShowMeeting] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [meetingOut, setMeetingOut] = useState<{ decisions: string[]; actions: string[] } | null>(null);
+  const [meetingOut, setMeetingOut] = useState<{ decisions: string[]; actions: string[] } | null>(
+    null
+  );
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newPriority, setNewPriority] = useState(0);
@@ -33,7 +35,10 @@ export function WorkMode() {
 
   useEffect(() => {
     refresh();
-    nebulaAPI.workActiveTimer().then(setActiveTimer).catch(() => undefined);
+    nebulaAPI
+      .workActiveTimer()
+      .then(setActiveTimer)
+      .catch(() => undefined);
   }, []);
 
   const refresh = async () => {
@@ -157,7 +162,9 @@ export function WorkMode() {
           placeholder={t('workMode.newTaskPlaceholder')}
           value={newTitle}
           onInput={(e) => setNewTitle((e.target as HTMLInputElement).value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') onCreate(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCreate();
+          }}
         />
         <input
           class="work-new-desc"
@@ -183,10 +190,14 @@ export function WorkMode() {
           onInput={(e) => setNewDue((e.target as HTMLInputElement).value)}
           title={t('workMode.dueTitle')}
         />
-        <button class="primary" onClick={onCreate}>{t('workMode.add')}</button>
+        <button class="primary" onClick={onCreate}>
+          {t('workMode.add')}
+        </button>
         <div class="spacer" />
         <button class="ghost" onClick={() => setShowMeeting((v) => !v)}>
-          {t('workMode.toggleMeeting', { state: showMeeting ? t('workMode.collapse') : t('workMode.expand') })}
+          {t('workMode.toggleMeeting', {
+            state: showMeeting ? t('workMode.collapse') : t('workMode.expand'),
+          })}
         </button>
       </header>
 
@@ -199,11 +210,17 @@ export function WorkMode() {
             rows={6}
           />
           <div class="row">
-            <button onClick={onSummarise} class="primary">{t('workMode.generateSummary')}</button>
+            <button onClick={onSummarise} class="primary">
+              {t('workMode.generateSummary')}
+            </button>
             {meetingOut && (
               <>
-                <span class="meeting-stat">{t('workMode.decisionCount', { count: meetingOut.decisions.length })}</span>
-                <span class="meeting-stat">{t('workMode.actionCount', { count: meetingOut.actions.length })}</span>
+                <span class="meeting-stat">
+                  {t('workMode.decisionCount', { count: meetingOut.decisions.length })}
+                </span>
+                <span class="meeting-stat">
+                  {t('workMode.actionCount', { count: meetingOut.actions.length })}
+                </span>
               </>
             )}
           </div>
@@ -212,13 +229,17 @@ export function WorkMode() {
               <div>
                 <h4>{t('workMode.decisions')}</h4>
                 <ol>
-                  {meetingOut.decisions.map((d) => (<li key={d}>{d}</li>))}
+                  {meetingOut.decisions.map((d) => (
+                    <li key={d}>{d}</li>
+                  ))}
                 </ol>
               </div>
               <div>
                 <h4>{t('workMode.actionItems')}</h4>
                 <ul>
-                  {meetingOut.actions.map((a) => (<li key={a}>{a}</li>))}
+                  {meetingOut.actions.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -259,18 +280,20 @@ export function WorkMode() {
                     <div class="task-head">
                       <span class={`prio prio-${task.priority}`}>P{task.priority}</span>
                       <h4 class="task-title">{task.title}</h4>
-                      <button class="task-del" onClick={() => onDelete(task)}>×</button>
+                      <button class="task-del" onClick={() => onDelete(task)}>
+                        ×
+                      </button>
                     </div>
                     {task.description && <p class="task-desc">{task.description}</p>}
                     <div class="task-foot">
-                      {task.due_at && (
-                        <span class="task-due">📅 {formatTime(task.due_at)}</span>
-                      )}
+                      {task.due_at && <span class="task-due">📅 {formatTime(task.due_at)}</span>}
                       <span class="task-time">⏱ {formatDuration(task.time_spent_ms)}</span>
                       <div class="spacer" />
                       {activeTimer === task.id ? (
                         <button class="timer-btn running" onClick={() => onStopTimer(task)}>
-                          {t('workMode.stopTimer', { duration: formatDuration(Date.now() - tickStart) })}
+                          {t('workMode.stopTimer', {
+                            duration: formatDuration(Date.now() - tickStart),
+                          })}
                         </button>
                       ) : (
                         <button class="timer-btn" onClick={() => onStartTimer(task)}>

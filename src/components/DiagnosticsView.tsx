@@ -57,7 +57,8 @@ export function DiagnosticsView() {
     let cancelled = false;
 
     // 1) 拉取最近事件快照作为初始状态。
-    nebulaAPI.diagnosticsSnapshot(50)
+    nebulaAPI
+      .diagnosticsSnapshot(50)
       .then((snap) => {
         if (cancelled) return;
         setEvents(snap.events);
@@ -70,14 +71,15 @@ export function DiagnosticsView() {
 
     // 2) 启动实时订阅。Promise 在后端通道关闭时 resolve(组件卸载时
     //    Tauri runtime 自动关闭 ipc::Channel,后端 recv 循环退出)。
-    nebulaAPI.diagnosticsSubscribe((evt) => {
-      if (cancelled) return;
-      setEvents((prev) => {
-        // 限制本地缓存 200 条,防止内存膨胀。
-        const next = [evt, ...prev];
-        return next.length > 200 ? next.slice(0, 200) : next;
-      });
-    })
+    nebulaAPI
+      .diagnosticsSubscribe((evt) => {
+        if (cancelled) return;
+        setEvents((prev) => {
+          // 限制本地缓存 200 条,防止内存膨胀。
+          const next = [evt, ...prev];
+          return next.length > 200 ? next.slice(0, 200) : next;
+        });
+      })
       .then(() => {
         if (!cancelled) setSubscribed(false);
       })
@@ -127,11 +129,7 @@ export function DiagnosticsView() {
       </div>
 
       <div class="card" style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
-        <button
-          class="btn"
-          onClick={openLogs}
-          title={t('diagnostics.openLogs')}
-        >
+        <button class="btn" onClick={openLogs} title={t('diagnostics.openLogs')}>
           📂 {t('diagnostics.openLogs')}
         </button>
         <span style="flex: 1;" />

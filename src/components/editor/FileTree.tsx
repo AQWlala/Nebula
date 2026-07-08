@@ -81,15 +81,28 @@ export function FileTree({ entries, workspace, currentPath, onOpen, onRefresh }:
   return (
     <div class="file-tree">
       <header class="ft-header">
-        <span title={workspace} class="ft-root">{workspace}</span>
-        <button class="ft-refresh" onClick={onRefresh} title="刷新文件树">↻</button>
+        <span title={workspace} class="ft-root">
+          {workspace}
+        </span>
+        <button class="ft-refresh" onClick={onRefresh} title="刷新文件树">
+          ↻
+        </button>
       </header>
       <div class="ft-body">
         {tree.length === 0 ? (
           <p class="ft-empty">空目录</p>
         ) : (
-          tree.map((n) => <Node key={n.path} node={n} depth={0} expanded={expanded}
-            currentPath={currentPath} onOpen={onOpen} toggle={toggle} />)
+          tree.map((n) => (
+            <Node
+              key={n.path}
+              node={n}
+              depth={0}
+              expanded={expanded}
+              currentPath={currentPath}
+              onOpen={onOpen}
+              toggle={toggle}
+            />
+          ))
         )}
       </div>
     </div>
@@ -118,10 +131,19 @@ function Node({ node, depth, expanded, currentPath, onOpen, toggle }: NodeProps)
         <span class="ft-icon">{node.isDir ? (isOpen ? '📂' : '📁') : '📄'}</span>
         <span class="ft-name">{node.name}</span>
       </div>
-      {node.isDir && isOpen && node.children.map((c) => (
-        <Node key={c.path} node={c} depth={depth + 1} expanded={expanded}
-          currentPath={currentPath} onOpen={onOpen} toggle={toggle} />
-      ))}
+      {node.isDir &&
+        isOpen &&
+        node.children.map((c) => (
+          <Node
+            key={c.path}
+            node={c}
+            depth={depth + 1}
+            expanded={expanded}
+            currentPath={currentPath}
+            onOpen={onOpen}
+            toggle={toggle}
+          />
+        ))}
     </>
   );
 }

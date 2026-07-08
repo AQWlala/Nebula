@@ -24,8 +24,8 @@ interface ModeMeta {
 
 const MODES: ModeMeta[] = [
   { id: 'writing', icon: '✍️', accent: '#39d98a', shortcutNum: 1 },
-  { id: 'work',    icon: '📋', accent: '#ffb86b', shortcutNum: 2 },
-  { id: 'code',    icon: '💻', accent: '#5fa8ff', shortcutNum: 3 },
+  { id: 'work', icon: '📋', accent: '#ffb86b', shortcutNum: 2 },
+  { id: 'code', icon: '💻', accent: '#5fa8ff', shortcutNum: 3 },
 ];
 
 function modeLabel(m: Mode): string {
@@ -61,7 +61,9 @@ export function ModeSwitcher() {
             role="tab"
             aria-selected={active}
             class={`mode-pill ${active ? 'active' : ''}`}
-            style={active ? { boxShadow: `0 0 0 1px ${m.accent}`, borderColor: m.accent } : undefined}
+            style={
+              active ? { boxShadow: `0 0 0 1px ${m.accent}`, borderColor: m.accent } : undefined
+            }
             onClick={() => handleManualSwitch(m.id)}
           >
             <span class="mode-icon" style={{ color: active ? m.accent : undefined }}>
@@ -71,14 +73,23 @@ export function ModeSwitcher() {
               <span class="mode-label">{modeLabel(m.id)}</span>
               <span class="mode-subtitle">{modeSubtitle(m.id)}</span>
             </span>
-            <span class="mode-shortcut-hint" title={t('modeSwitcher.shortcutHint', { num: m.shortcutNum })}>
+            <span
+              class="mode-shortcut-hint"
+              title={t('modeSwitcher.shortcutHint', { num: m.shortcutNum })}
+            >
               {m.shortcutNum}
             </span>
           </button>
         );
       })}
       <div class="mode-spacer" />
-      <div class="mode-hint">{t('modeSwitcher.hint', { mode: nebulaStore.aiAutoMode.value ? t('modeSwitcher.llmRoute') : t('modeSwitcher.keywordHeuristic') })}</div>
+      <div class="mode-hint">
+        {t('modeSwitcher.hint', {
+          mode: nebulaStore.aiAutoMode.value
+            ? t('modeSwitcher.llmRoute')
+            : t('modeSwitcher.keywordHeuristic'),
+        })}
+      </div>
     </div>
   );
 }

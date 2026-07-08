@@ -39,7 +39,7 @@ const MAX_NESTING_DEPTH = 3;
 function renderMarkdown(md: string): string {
   const withWikiLinks = md.replace(
     /\[\[([^\]]+)\]\]/g,
-    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`,
+    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`
   );
   const html = marked.parse(withWikiLinks) as string;
   return DOMPurify.sanitize(html, {
@@ -71,7 +71,8 @@ export function KnowledgeCardDialog({ slug, onClose }: KnowledgeCardDialogProps)
     }
     setLoading(true);
     setError(null);
-    nebulaAPI.wikiGetCard(currentSlug)
+    nebulaAPI
+      .wikiGetCard(currentSlug)
       .then((c) => {
         setCard(c);
         setLoading(false);
@@ -86,7 +87,10 @@ export function KnowledgeCardDialog({ slug, onClose }: KnowledgeCardDialogProps)
 
   const handleRelatedClick = (entitySlug: string) => {
     if (depth >= MAX_NESTING_DEPTH - 1) {
-      toast.warning(t('knowledgeCardDialog.nestingLimit'), t('knowledgeCardDialog.nestingLimitBody', { count: MAX_NESTING_DEPTH }));
+      toast.warning(
+        t('knowledgeCardDialog.nestingLimit'),
+        t('knowledgeCardDialog.nestingLimitBody', { count: MAX_NESTING_DEPTH })
+      );
       return;
     }
     setCurrentSlug(entitySlug);

@@ -24,7 +24,14 @@ interface MonacoEditorProps {
   onEditorMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-export function MonacoEditor({ value, language, path, readOnly, onChange, onEditorMount }: MonacoEditorProps) {
+export function MonacoEditor({
+  value,
+  language,
+  path,
+  readOnly,
+  onChange,
+  onEditorMount,
+}: MonacoEditorProps) {
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor; // T-E-S-52: store instance for L1 directed edit
     monaco.editor.defineTheme('nebula-dark', {
@@ -45,7 +52,12 @@ export function MonacoEditor({ value, language, path, readOnly, onChange, onEdit
 
   // 编辑器实例引用，留给父组件（不常用）
   const editorRef = useRef<unknown>(null);
-  useEffect(() => () => { editorRef.current = null; }, []);
+  useEffect(
+    () => () => {
+      editorRef.current = null;
+    },
+    []
+  );
 
   return (
     <Editor

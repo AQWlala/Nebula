@@ -41,10 +41,30 @@ const PHASE_META: Record<
   EvolutionPhase,
   { icon: string; label: string; color: string; bg: string }
 > = {
-  extract: { icon: '🔍', label: t('evolutionLog.phase.extract'), color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-  compile: { icon: '🔧', label: t('evolutionLog.phase.compile'), color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-  reflect: { icon: '🧠', label: t('evolutionLog.phase.reflect'), color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
-  soul: { icon: '✨', label: t('evolutionLog.phase.soul'), color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  extract: {
+    icon: '🔍',
+    label: t('evolutionLog.phase.extract'),
+    color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.12)',
+  },
+  compile: {
+    icon: '🔧',
+    label: t('evolutionLog.phase.compile'),
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.12)',
+  },
+  reflect: {
+    icon: '🧠',
+    label: t('evolutionLog.phase.reflect'),
+    color: '#8b5cf6',
+    bg: 'rgba(139,92,246,0.12)',
+  },
+  soul: {
+    icon: '✨',
+    label: t('evolutionLog.phase.soul'),
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.12)',
+  },
 };
 
 /** 格式化字节数为人类可读(B / KB / MB)。 */
@@ -60,8 +80,10 @@ function formatTimestamp(rfc3339: string): string {
     const d = new Date(rfc3339);
     if (Number.isNaN(d.getTime())) return rfc3339;
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    );
   } catch {
     return rfc3339;
   }
@@ -116,7 +138,7 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
           // self-evolution 启用但 evolution-engine 未启用 → 提示用户
           toast.warning(
             t('evolutionLog.toast.engineNotCompiled.title'),
-            t('evolutionLog.toast.engineNotCompiled.body'),
+            t('evolutionLog.toast.engineNotCompiled.body')
           );
         }
       }
@@ -142,7 +164,7 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
       setEnabled(!enabled);
       toast.success(
         !enabled ? t('evolutionLog.toast.enabled.title') : t('evolutionLog.toast.disabled.title'),
-        !enabled ? t('evolutionLog.toast.enabled.body') : t('evolutionLog.toast.disabled.body'),
+        !enabled ? t('evolutionLog.toast.enabled.body') : t('evolutionLog.toast.disabled.body')
       );
     } catch (err) {
       toastFromError(err);
@@ -154,7 +176,10 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
   /** 执行回滚。 */
   const handleRollback = useCallback(async () => {
     if (rollbackN < 1) {
-      toast.warning(t('evolutionLog.toast.invalidCount.title'), t('evolutionLog.toast.invalidCount.body'));
+      toast.warning(
+        t('evolutionLog.toast.invalidCount.title'),
+        t('evolutionLog.toast.invalidCount.body')
+      );
       return;
     }
     setRolling(true);
@@ -164,14 +189,20 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
       if (result.failed === 0 && result.rolled_back > 0) {
         toast.success(
           t('evolutionLog.toast.rollbackSuccess.title', { rolled_back: result.rolled_back }),
-          result.entry_ids.join('\n'),
+          result.entry_ids.join('\n')
         );
       } else if (result.rolled_back === 0) {
-        toast.warning(t('evolutionLog.toast.rollbackEmpty.title'), result.warnings[0] ?? t('evolutionLog.toast.rollbackEmpty.body'));
+        toast.warning(
+          t('evolutionLog.toast.rollbackEmpty.title'),
+          result.warnings[0] ?? t('evolutionLog.toast.rollbackEmpty.body')
+        );
       } else {
         toast.warning(
-          t('evolutionLog.toast.rollbackPartial.title', { rolled_back: result.rolled_back, failed: result.failed }),
-          result.warnings.join('\n'),
+          t('evolutionLog.toast.rollbackPartial.title', {
+            rolled_back: result.rolled_back,
+            failed: result.failed,
+          }),
+          result.warnings.join('\n')
         );
       }
       // 刷新列表
@@ -251,9 +282,21 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
                 onClick={handleToggleEnabled}
                 disabled={toggling || enabled === null}
                 class={`evolution-toggle-btn ${enabled ? 'on' : 'off'}`}
-                title={enabled === null ? t('evolutionLog.toggle.unknownTitle') : enabled ? t('evolutionLog.toggle.disableTitle') : t('evolutionLog.toggle.enableTitle')}
+                title={
+                  enabled === null
+                    ? t('evolutionLog.toggle.unknownTitle')
+                    : enabled
+                      ? t('evolutionLog.toggle.disableTitle')
+                      : t('evolutionLog.toggle.enableTitle')
+                }
               >
-                {toggling ? t('evolutionLog.toggle.toggling') : enabled === null ? t('evolutionLog.toggle.unknown') : enabled ? t('evolutionLog.toggle.enabled') : t('evolutionLog.toggle.disabled')}
+                {toggling
+                  ? t('evolutionLog.toggle.toggling')
+                  : enabled === null
+                    ? t('evolutionLog.toggle.unknown')
+                    : enabled
+                      ? t('evolutionLog.toggle.enabled')
+                      : t('evolutionLog.toggle.disabled')}
               </button>
             </div>
             <div class="evolution-status-item">
@@ -309,7 +352,9 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
                 opacity: rolling || rollbackN < 1 ? 0.6 : 1,
               }}
             >
-              {rolling ? t('evolutionLog.rollback.rolling') : t('evolutionLog.rollback.button', { n: rollbackN })}
+              {rolling
+                ? t('evolutionLog.rollback.rolling')
+                : t('evolutionLog.rollback.button', { n: rollbackN })}
             </button>
           </div>
         )}
@@ -319,12 +364,18 @@ export function EvolutionLogView({ open, onClose }: EvolutionLogViewProps) {
           <div class="evolution-rollback-result">
             <strong>{t('evolutionLog.rollbackResult.title')}</strong>
             <div style={{ marginTop: 4 }}>
-              {t('evolutionLog.rollbackResult.summary', { requested: lastRollback.requested_count, success: lastRollback.rolled_back, failed: lastRollback.failed })}
+              {t('evolutionLog.rollbackResult.summary', {
+                requested: lastRollback.requested_count,
+                success: lastRollback.rolled_back,
+                failed: lastRollback.failed,
+              })}
             </div>
             {lastRollback.entry_ids.length > 0 && (
               <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 11 }}>
                 {lastRollback.entry_ids.map((id) => (
-                  <li key={id} style={{ fontFamily: 'monospace' }}>{id}</li>
+                  <li key={id} style={{ fontFamily: 'monospace' }}>
+                    {id}
+                  </li>
                 ))}
               </ul>
             )}

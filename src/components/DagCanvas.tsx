@@ -166,23 +166,57 @@ function reconstructDag(events: MasterEvent[]): {
 }
 
 /** 节点状态 → 颜色 + emoji。 */
-const STATUS_STYLE: Record<NodeStatus, { color: string; bg: string; border: string; icon: string; label: string }> = {
-  pending: { color: '#9ca3af', bg: 'rgba(156,163,175,0.08)', border: '#9ca3af', icon: '⏳', label: t('dagCanvas.status.pending') },
-  running: { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', border: '#3b82f6', icon: '🔄', label: t('dagCanvas.status.running') },
-  success: { color: '#10b981', bg: 'rgba(16,185,129,0.12)', border: '#10b981', icon: '✅', label: t('dagCanvas.status.success') },
-  failed: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: '#ef4444', icon: '❌', label: t('dagCanvas.status.failed') },
+const STATUS_STYLE: Record<
+  NodeStatus,
+  { color: string; bg: string; border: string; icon: string; label: string }
+> = {
+  pending: {
+    color: '#9ca3af',
+    bg: 'rgba(156,163,175,0.08)',
+    border: '#9ca3af',
+    icon: '⏳',
+    label: t('dagCanvas.status.pending'),
+  },
+  running: {
+    color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.12)',
+    border: '#3b82f6',
+    icon: '🔄',
+    label: t('dagCanvas.status.running'),
+  },
+  success: {
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.12)',
+    border: '#10b981',
+    icon: '✅',
+    label: t('dagCanvas.status.success'),
+  },
+  failed: {
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+    border: '#ef4444',
+    icon: '❌',
+    label: t('dagCanvas.status.failed'),
+  },
 };
 
 /** 层状态 → 颜色。 */
 function layerBadge(layer: DagLayer): { text: string; color: string } {
   if (!layer.started) return { text: t('dagCanvas.layerStatus.notStarted'), color: '#9ca3af' };
   if (!layer.completed) return { text: t('dagCanvas.layerStatus.running'), color: '#3b82f6' };
-  if (layer.failureCount > 0) return { text: t('dagCanvas.layerStatus.completedWithFailures', { count: layer.failureCount }), color: '#f59e0b' };
+  if (layer.failureCount > 0)
+    return {
+      text: t('dagCanvas.layerStatus.completedWithFailures', { count: layer.failureCount }),
+      color: '#f59e0b',
+    };
   return { text: t('dagCanvas.layerStatus.completed'), color: '#10b981' };
 }
 
 /** 计算节点在画布中的坐标。 */
-function layoutNodes(layers: DagLayer[], canvasWidth: number): {
+function layoutNodes(
+  layers: DagLayer[],
+  canvasWidth: number
+): {
   nodes: Array<{ node: DagNode; x: number; y: number; width: number; height: number }>;
   layerYs: number[];
 } {
@@ -245,10 +279,7 @@ interface DagCanvasProps {
 
 export function DagCanvas({ events, canvasWidth = 800, onNodeClick }: DagCanvasProps) {
   const dag = useMemo(() => reconstructDag(events), [events]);
-  const layout = useMemo(
-    () => layoutNodes(dag.layers, canvasWidth),
-    [dag.layers, canvasWidth],
-  );
+  const layout = useMemo(() => layoutNodes(dag.layers, canvasWidth), [dag.layers, canvasWidth]);
 
   const canvasHeight = dag.layers.length * 180 + 40;
 
@@ -316,21 +347,20 @@ export function DagCanvas({ events, canvasWidth = 800, onNodeClick }: DagCanvasP
                   strokeWidth={1}
                   strokeDasharray="4 4"
                 />
-                <text
-                  x={8}
-                  y={y - 26}
-                  fill={badge.color}
-                  fontSize={11}
-                  fontWeight={600}
-                >
-                  {t('dagCanvas.layer.label', { idx, status: badge.text, actual: layer.nodes.length, expected: layer.expectedNodeCount })}
+                <text x={8} y={y - 26} fill={badge.color} fontSize={11} fontWeight={600}>
+                  {t('dagCanvas.layer.label', {
+                    idx,
+                    status: badge.text,
+                    actual: layer.nodes.length,
+                    expected: layer.expectedNodeCount,
+                  })}
                 </text>
               </g>
             );
           })}
 
           {/* 层间连接线(简化:每层节点连到下一层所有节点) */}
-          {dag.layers.slice(0, -1).map((layer, layerIdx) => {
+          {dag.layers.slice(0, -1).map((_layer, layerIdx) => {
             const nextLayer = dag.layers[layerIdx + 1];
             if (!nextLayer) return null;
             const currentNodes = layout.nodes.filter((n) => n.node.layerIndex === layerIdx);
@@ -344,8 +374,7 @@ export function DagCanvas({ events, canvasWidth = 800, onNodeClick }: DagCanvasP
                 const midY = (y1 + y2) / 2;
                 // 贝塞尔曲线
                 const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-                const isFailed =
-                  src.node.status === 'failed' || dst.node.status === 'failed';
+                const isFailed = src.node.status === 'failed' || dst.node.status === 'failed';
                 return (
                   <path
                     key={`edge-${layerIdx}-${srcIdx}-${dstIdx}`}
@@ -356,7 +385,7 @@ export function DagCanvas({ events, canvasWidth = 800, onNodeClick }: DagCanvasP
                     strokeOpacity={isFailed ? 0.7 : 0.4}
                   />
                 );
-              }),
+              })
             );
           })}
 
@@ -411,9 +440,7 @@ export function DagCanvas({ events, canvasWidth = 800, onNodeClick }: DagCanvasP
                 >
                   {node.elapsedMs !== null ? `${(node.elapsedMs / 1000).toFixed(2)}s` : style.label}
                 </text>
-                {node.error && (
-                  <title>{node.error}</title>
-                )}
+                {node.error && <title>{node.error}</title>}
               </g>
             );
           })}

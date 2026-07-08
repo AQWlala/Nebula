@@ -36,25 +36,23 @@ describe('ChatPanel (P0#07)', () => {
     // real `Promise<ChatResponse>` signature even though we
     // never resolve it.
     type ChatArgs = { message: string; signal?: AbortSignal };
-    const slowChat = vi
-      .spyOn(nebulaAPI, 'chat')
-      .mockImplementation((req: ChatArgs) => {
-        return new Promise<unknown>((_resolve, reject) => {
-          if (req?.signal) {
-            if (req.signal.aborted) {
-              const e = new Error('aborted');
-              e.name = 'AbortError';
-              reject(e);
-              return;
-            }
-            req.signal.addEventListener('abort', () => {
-              const e = new Error('aborted');
-              e.name = 'AbortError';
-              reject(e);
-            });
+    const slowChat = vi.spyOn(nebulaAPI, 'chat').mockImplementation((req: ChatArgs) => {
+      return new Promise<unknown>((_resolve, reject) => {
+        if (req?.signal) {
+          if (req.signal.aborted) {
+            const e = new Error('aborted');
+            e.name = 'AbortError';
+            reject(e);
+            return;
           }
-        }) as unknown as ReturnType<typeof nebulaAPI.chat>;
-      });
+          req.signal.addEventListener('abort', () => {
+            const e = new Error('aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        }
+      }) as unknown as ReturnType<typeof nebulaAPI.chat>;
+    });
 
     const { getByPlaceholderText, getByText } = render(<ChatPanel />);
     const input = getByPlaceholderText('输入消息...') as HTMLInputElement;

@@ -12,7 +12,17 @@ import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { nebulaAPI, type ChatResponse, type ConsistencyReport, type ConsistencyWarning, type ReasoningChain, type ReasoningStep, type StreamToken, type WikiNote, listenClipboardDetected } from '../lib/tauri';
+import {
+  nebulaAPI,
+  type ChatResponse,
+  type ConsistencyReport,
+  type ConsistencyWarning,
+  type ReasoningChain,
+  type ReasoningStep,
+  type StreamToken,
+  type WikiNote,
+  listenClipboardDetected,
+} from '../lib/tauri';
 import { nebulaStore } from '../stores/nebulaStore';
 import { OllamaStatusBanner } from './OllamaStatusBanner';
 import { InlineSuggestion } from './InlineSuggestion';
@@ -64,7 +74,7 @@ function warningLabel(w: ConsistencyWarning): string {
 function renderMarkdown(content: string): string {
   const withWikiLinks = content.replace(
     /\[\[([^\]]+)\]\]/g,
-    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`,
+    (_, s) => `<a class="wiki-link" data-slug="${s}">${s}</a>`
   );
   const html = marked.parse(withWikiLinks) as string;
   return DOMPurify.sanitize(html, {
@@ -99,6 +109,7 @@ const MessageContent = memo(function MessageContent({
   streaming?: boolean;
 }) {
   // M6 #80: 流式期间用纯文本显示（保留换行），流结束后才 markdown 渲染。
+  const html = useMemo(() => renderMarkdown(content), [content]);
   if (streaming) {
     return (
       <div class="msg-content msg-content-streaming">
@@ -107,7 +118,6 @@ const MessageContent = memo(function MessageContent({
       </div>
     );
   }
-  const html = useMemo(() => renderMarkdown(content), [content]);
   return (
     <div
       class="msg-content"
@@ -169,7 +179,8 @@ function ConsistencyBadge({ report }: { report: ConsistencyReport }) {
       }}
     >
       <summary style={{ cursor: 'pointer', padding: '2px 8px', color }}>
-        ⚠ {report.warnings.map(warningLabel).join(' · ')} (风险 {(report.risk_score * 100).toFixed(0)}%)
+        ⚠ {report.warnings.map(warningLabel).join(' · ')} (风险{' '}
+        {(report.risk_score * 100).toFixed(0)}%)
       </summary>
       <div style={{ padding: '4px 8px', borderTop: `1px solid ${border}` }}>
         {report.warnings.map((w, idx) => (
@@ -183,8 +194,17 @@ function ConsistencyBadge({ report }: { report: ConsistencyReport }) {
           </div>
         )}
         {report.cited.map((c, idx) => (
-          <div key={idx} style={{ fontSize: '10px', opacity: 0.8, marginLeft: '8px', color: 'var(--text-muted)' }}>
-            · [{c.source}{c.tool ? `/${c.tool}` : ''}] {c.snippet.slice(0, 60)}
+          <div
+            key={idx}
+            style={{
+              fontSize: '10px',
+              opacity: 0.8,
+              marginLeft: '8px',
+              color: 'var(--text-muted)',
+            }}
+          >
+            · [{c.source}
+            {c.tool ? `/${c.tool}` : ''}] {c.snippet.slice(0, 60)}
           </div>
         ))}
       </div>
@@ -210,7 +230,7 @@ async function resolveFileTokens(text: string): Promise<string> {
   let result = text;
   for (const match of matches) {
     const fullToken = match[0]; // #filename
-    const filePath = match[1];  // filename
+    const filePath = match[1]; // filename
     try {
       const file = await nebulaAPI.editorRead(filePath);
       const lang = filePath.split('.').pop() || '';
@@ -259,24 +279,35 @@ export function ChatPanel() {
     listenClipboardDetected((event) => {
       const kindLabel = (() => {
         switch (event.kind.type) {
-          case 'code': return event.kind.language ? `代码(${event.kind.language})` : '代码';
-          case 'markdowntable': return 'Markdown 表格';
-          case 'json': return 'JSON';
-          case 'url': return 'URL';
-          case 'tsvcsv': return 'TSV/CSV';
-          case 'email': return '邮箱';
-          case 'ip': return 'IP 地址';
-          case 'path': return '路径';
-          default: return '内容';
+          case 'code':
+            return event.kind.language ? `代码(${event.kind.language})` : '代码';
+          case 'markdowntable':
+            return 'Markdown 表格';
+          case 'json':
+            return 'JSON';
+          case 'url':
+            return 'URL';
+          case 'tsvcsv':
+            return 'TSV/CSV';
+          case 'email':
+            return '邮箱';
+          case 'ip':
+            return 'IP 地址';
+          case 'path':
+            return '路径';
+          default:
+            return '内容';
         }
       })();
       toast.info(`剪贴板检测到 ${kindLabel}`, event.content_preview || '已注入到输入框');
       setInput(event.content_full);
-    }).then((fn) => {
-      unlisten = fn;
-    }).catch(() => {
-      // 非 Tauri 环境(浏览器预览 / 单测)无 listen API,静默忽略。
-    });
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {
+        // 非 Tauri 环境(浏览器预览 / 单测)无 listen API,静默忽略。
+      });
     return () => {
       if (unlisten) unlisten();
     };
@@ -370,22 +401,34 @@ export function ChatPanel() {
               const snapshot = accumulated;
               setMessages((prev) => {
                 const updated = [...prev];
-                if (updated.length > 0 && updated[updated.length - 1].role === 'assistant' && updated[updated.length - 1].timestamp === -1) {
-                  updated[updated.length - 1] = { role: 'assistant', content: snapshot, timestamp: -1 };
+                if (
+                  updated.length > 0 &&
+                  updated[updated.length - 1].role === 'assistant' &&
+                  updated[updated.length - 1].timestamp === -1
+                ) {
+                  updated[updated.length - 1] = {
+                    role: 'assistant',
+                    content: snapshot,
+                    timestamp: -1,
+                  };
                 }
                 return updated;
               });
             });
           }
         },
-        controller.signal,
+        controller.signal
       );
 
       // 流结束：用 ChatComplete.content 做最终同步（防止 token 丢失）
       if (!controller.signal.aborted) {
         setMessages((prev) => {
           const updated = [...prev];
-          if (updated.length > 0 && updated[updated.length - 1].role === 'assistant' && updated[updated.length - 1].timestamp === -1) {
+          if (
+            updated.length > 0 &&
+            updated[updated.length - 1].role === 'assistant' &&
+            updated[updated.length - 1].timestamp === -1
+          ) {
             updated[updated.length - 1] = {
               role: 'assistant',
               content: complete.content || accumulated,
@@ -407,15 +450,28 @@ export function ChatPanel() {
       } else if (!accumulated) {
         setMessages((prev) => {
           // 移除空占位消息
-          const filtered = prev.filter((m) => !(m.role === 'assistant' && m.timestamp === -1 && m.content === ''));
-          return [...filtered, { role: 'assistant', content: t('chatPanel.streamFailed'), timestamp: Date.now() }];
+          const filtered = prev.filter(
+            (m) => !(m.role === 'assistant' && m.timestamp === -1 && m.content === '')
+          );
+          return [
+            ...filtered,
+            { role: 'assistant', content: t('chatPanel.streamFailed'), timestamp: Date.now() },
+          ];
         });
       } else {
         // 已有累积内容，保留并标记失败
         setMessages((prev) => {
           const updated = [...prev];
-          if (updated.length > 0 && updated[updated.length - 1].role === 'assistant' && updated[updated.length - 1].timestamp === -1) {
-            updated[updated.length - 1] = { role: 'assistant', content: accumulated + t('chatPanel.streamInterrupted'), timestamp: Date.now() };
+          if (
+            updated.length > 0 &&
+            updated[updated.length - 1].role === 'assistant' &&
+            updated[updated.length - 1].timestamp === -1
+          ) {
+            updated[updated.length - 1] = {
+              role: 'assistant',
+              content: accumulated + t('chatPanel.streamInterrupted'),
+              timestamp: Date.now(),
+            };
           }
           return updated;
         });
@@ -586,18 +642,28 @@ export function ChatPanel() {
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={m.turnId || `${m.role}-${i}-${m.content.slice(0, 20)}`} class={`msg msg-${m.role}`}>
+          <div
+            key={m.turnId || `${m.role}-${i}-${m.content.slice(0, 20)}`}
+            class={`msg msg-${m.role}`}
+          >
             <div class="msg-role">{m.role === 'user' ? '你' : 'Nebula'}</div>
             {m.role === 'assistant' && m.reasoningChain && (
-              <details class="reasoning-chain" style="margin-bottom:4px;font-size:12px;color:var(--text-secondary);">
+              <details
+                class="reasoning-chain"
+                style="margin-bottom:4px;font-size:12px;color:var(--text-secondary);"
+              >
                 <summary style="cursor:pointer;">推理过程</summary>
                 <div style="padding:4px 8px;border-left:2px solid var(--border);margin:4px 0;">
-                  {('steps' in m.reasoningChain ? m.reasoningChain.steps : m.reasoningChain).map((step, idx) => (
-                    <div key={idx} style="margin-bottom:4px;">
-                      <div>→ {step.inference}</div>
-                      {step.evidence && <div style="font-size:11px;opacity:0.7;">证据: {step.evidence}</div>}
-                    </div>
-                  ))}
+                  {('steps' in m.reasoningChain ? m.reasoningChain.steps : m.reasoningChain).map(
+                    (step, idx) => (
+                      <div key={idx} style="margin-bottom:4px;">
+                        <div>→ {step.inference}</div>
+                        {step.evidence && (
+                          <div style="font-size:11px;opacity:0.7;">证据: {step.evidence}</div>
+                        )}
+                      </div>
+                    )
+                  )}
                 </div>
               </details>
             )}
@@ -606,9 +672,7 @@ export function ChatPanel() {
               onWikiLinkClick={setKnowledgeCardSlug}
               streaming={m.timestamp === -1}
             />
-            {m.role === 'assistant' && m.consistency && (
-              <ConsistencyBadge report={m.consistency} />
-            )}
+            {m.role === 'assistant' && m.consistency && <ConsistencyBadge report={m.consistency} />}
             {/* T-E-S-28: 👍/👎 标注按钮 + 评论框。
                 仅在有 turnId 的 assistant 消息(流式正常结束)上显示。
                 点击 👍/👎 立即调用 annotationUpsert;差评+非空评论会触发
@@ -628,7 +692,9 @@ export function ChatPanel() {
                     borderColor: m.annotation === 'good' ? '#4caf50' : 'var(--border)',
                     color: m.annotation === 'good' ? '#4caf50' : 'var(--text-muted)',
                   }}
-                >👍</button>
+                >
+                  👍
+                </button>
                 <button
                   onClick={() => handleAnnotate(m.turnId!, 'bad')}
                   title="差回答(差评+评论会回流到记忆用于改进)"
@@ -642,12 +708,19 @@ export function ChatPanel() {
                     borderColor: m.annotation === 'bad' ? '#f44336' : 'var(--border)',
                     color: m.annotation === 'bad' ? '#f44336' : 'var(--text-muted)',
                   }}
-                >👎</button>
+                >
+                  👎
+                </button>
                 <input
                   type="text"
                   placeholder="评论(可选,差评评论会用于改进)"
                   value={annotationComments[m.turnId] ?? ''}
-                  onInput={(e) => setAnnotationComments((prev) => ({ ...prev, [m.turnId!]: (e.target as HTMLInputElement).value }))}
+                  onInput={(e) =>
+                    setAnnotationComments((prev) => ({
+                      ...prev,
+                      [m.turnId!]: (e.target as HTMLInputElement).value,
+                    }))
+                  }
                   style={{
                     flex: 1,
                     fontSize: '11px',
@@ -677,7 +750,9 @@ export function ChatPanel() {
         <InlineSuggestion
           prefix={input}
           onAccept={(text) => setInput(text)}
-          onReject={() => { /* 建议清空由组件内部状态管理 */ }}
+          onReject={() => {
+            /* 建议清空由组件内部状态管理 */
+          }}
         >
           {({ onKeyDown }) => (
             <input
@@ -696,7 +771,8 @@ export function ChatPanel() {
                   if (!prefix.endsWith('[')) {
                     setWikiCompletionStart(pos - 2);
                     setWikiCompletionVisible(true);
-                    nebulaAPI.wikiList(10)
+                    nebulaAPI
+                      .wikiList(10)
                       .then((notes) => {
                         setWikiCompletions(notes);
                       })
@@ -716,7 +792,8 @@ export function ChatPanel() {
                       } else {
                         // 实时过滤:用 [[ 后的文本过滤候选
                         const query = afterOpen.toLowerCase();
-                        nebulaAPI.wikiList(10)
+                        nebulaAPI
+                          .wikiList(10)
                           .then((notes) => {
                             const filtered = notes.filter(
                               (n) => n.slug.includes(query) || n.title.toLowerCase().includes(query)
@@ -738,14 +815,20 @@ export function ChatPanel() {
                   return;
                 }
                 // T-E-B-05: 选择 Wiki 补全项(Tab 或 Enter)
-                if (wikiCompletionVisible && wikiCompletions.length > 0 && (e.key === 'Tab' || (e.key === 'Enter' && wikiCompletionStart >= 0))) {
+                if (
+                  wikiCompletionVisible &&
+                  wikiCompletions.length > 0 &&
+                  (e.key === 'Tab' || (e.key === 'Enter' && wikiCompletionStart >= 0))
+                ) {
                   const afterOpen = input.slice(wikiCompletionStart + 2);
                   // 仅在 [[ 未关闭时拦截(即尚未输入 ]])
                   if (!afterOpen.includes(']]')) {
                     e.preventDefault();
                     const note = wikiCompletions[0];
                     if (note) {
-                      const afterCursor = input.slice((e.target as HTMLInputElement).selectionStart ?? 0);
+                      const afterCursor = input.slice(
+                        (e.target as HTMLInputElement).selectionStart ?? 0
+                      );
                       const replacement = `${input.slice(0, wikiCompletionStart)}[[${note.slug}]]${afterCursor}`;
                       setInput(replacement);
                     }
@@ -768,7 +851,8 @@ export function ChatPanel() {
                     return;
                   }
                   const selected = input.slice(start, end);
-                  nebulaAPI.directedEdit(selected)
+                  nebulaAPI
+                    .directedEdit(selected)
                     .then((rewritten) => {
                       setInput(input.slice(0, start) + rewritten + input.slice(end));
                     })
@@ -782,19 +866,21 @@ export function ChatPanel() {
         </InlineSuggestion>
         {/* T-E-B-05: [[ Wiki 链接自动补全浮动列表 */}
         {wikiCompletionVisible && wikiCompletions.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            bottom: '100%',
-            left: 0,
-            right: 0,
-            background: 'var(--bg-elevated, #1e1e2e)',
-            border: '1px solid var(--border, #444)',
-            borderRadius: '6px',
-            maxHeight: '200px',
-            overflowY: 'auto',
-            zIndex: 100,
-            boxShadow: '0 -4px 12px rgba(0,0,0,0.3)',
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              right: 0,
+              background: 'var(--bg-elevated, #1e1e2e)',
+              border: '1px solid var(--border, #444)',
+              borderRadius: '6px',
+              maxHeight: '200px',
+              overflowY: 'auto',
+              zIndex: 100,
+              boxShadow: '0 -4px 12px rgba(0,0,0,0.3)',
+            }}
+          >
             {wikiCompletions.map((note) => (
               <div
                 key={note.id}
@@ -810,7 +896,8 @@ export function ChatPanel() {
                 }}
                 onClick={() => {
                   if (wikiCompletionStart >= 0) {
-                    const pos = (document.activeElement as HTMLInputElement)?.selectionStart ?? input.length;
+                    const pos =
+                      (document.activeElement as HTMLInputElement)?.selectionStart ?? input.length;
                     const afterCursor = input.slice(pos);
                     const replacement = `${input.slice(0, wikiCompletionStart)}[[${note.slug}]]${afterCursor}`;
                     setInput(replacement);
@@ -818,24 +905,33 @@ export function ChatPanel() {
                   setWikiCompletionVisible(false);
                 }}
                 onMouseEnter={(e) => {
-                  (e.target as HTMLElement).style.background = 'var(--bg-hover, rgba(255,255,255,0.08))';
+                  (e.target as HTMLElement).style.background =
+                    'var(--bg-hover, rgba(255,255,255,0.08))';
                 }}
                 onMouseLeave={(e) => {
                   (e.target as HTMLElement).style.background = 'transparent';
                 }}
               >
-                <span style={{ color: 'var(--accent, #89b4fa)', fontFamily: 'monospace', fontSize: '12px' }}>
+                <span
+                  style={{
+                    color: 'var(--accent, #89b4fa)',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                  }}
+                >
                   [[{note.slug}]]
                 </span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                  {note.title}
-                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{note.title}</span>
               </div>
             ))}
           </div>
         )}
         {streaming ? (
-          <button class="btn btn-stop" onClick={stopStreaming} title={t('chatPanel.stopButtonTitle')}>
+          <button
+            class="btn btn-stop"
+            onClick={stopStreaming}
+            title={t('chatPanel.stopButtonTitle')}
+          >
             {t('chatPanel.stopButton')}
           </button>
         ) : (
@@ -875,10 +971,7 @@ export function ChatPanel() {
         />
       )}
       {knowledgeCardSlug && (
-        <KnowledgeCardDialog
-          slug={knowledgeCardSlug}
-          onClose={() => setKnowledgeCardSlug(null)}
-        />
+        <KnowledgeCardDialog slug={knowledgeCardSlug} onClose={() => setKnowledgeCardSlug(null)} />
       )}
     </div>
   );

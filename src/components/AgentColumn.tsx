@@ -148,15 +148,9 @@ export function AgentColumn({
           }}
           onClick={() => setShowToolCalls(!showToolCalls)}
         >
-          <span>
-            {t('agentColumn.toolCalls', { count: toolCalls.length })}
-          </span>
-          <span style={{ color: 'var(--accent-success)' }}>
-            ✓ {successCount}
-          </span>
-          <span style={{ color: 'var(--accent-error)' }}>
-            ✗ {failCount}
-          </span>
+          <span>{t('agentColumn.toolCalls', { count: toolCalls.length })}</span>
+          <span style={{ color: 'var(--accent-success)' }}>✓ {successCount}</span>
+          <span style={{ color: 'var(--accent-error)' }}>✗ {failCount}</span>
           <span style={{ marginLeft: 'auto' }}>
             {t('agentColumn.totalDuration', { duration: totalToolDuration })}
           </span>

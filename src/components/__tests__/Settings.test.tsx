@@ -48,8 +48,7 @@ describe('Settings (P0#4)', () => {
   it('applies --font-size to <html> on mount', () => {
     render(<Settings onClose={() => {}} />);
     // Default font size is 14 (set by the input's `value`).
-    expect(document.documentElement.style.getPropertyValue('--font-size'))
-      .toBe('14px');
+    expect(document.documentElement.style.getPropertyValue('--font-size')).toBe('14px');
   });
 
   it('updates --font-size when the user changes the input', () => {
@@ -59,29 +58,30 @@ describe('Settings (P0#4)', () => {
     // The component also commits on save() — but the useEffect
     // that mirrors state → CSS variable runs synchronously on
     // re-render, so the side-effect must already be visible.
-    expect(document.documentElement.style.getPropertyValue('--font-size'))
-      .toBe('18px');
+    expect(document.documentElement.style.getPropertyValue('--font-size')).toBe('18px');
   });
 
   it('clamps an out-of-range value before applying it', () => {
     const { getByDisplayValue } = render(<Settings onClose={() => {}} />);
     const input = getByDisplayValue('14') as HTMLInputElement;
     fireEvent.input(input, { target: { value: '999' } });
-    expect(document.documentElement.style.getPropertyValue('--font-size'))
-      .toBe(`${__test__.FONT_MAX}px`);
+    expect(document.documentElement.style.getPropertyValue('--font-size')).toBe(
+      `${__test__.FONT_MAX}px`
+    );
   });
 
   it('switching accent updates --accent on <html>', () => {
     const { getByText } = render(<Settings onClose={() => {}} />);
     // Initial accent is "purple".
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-purple)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      'var(--accent-purple)'
+    );
     fireEvent.click(getByText('Neon green'));
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-neon)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('var(--accent-neon)');
     fireEvent.click(getByText('Amber gold'));
-    expect(document.documentElement.style.getPropertyValue('--accent'))
-      .toBe('var(--accent-warning)');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      'var(--accent-warning)'
+    );
   });
 
   it('save() persists the clamped values to localStorage', () => {

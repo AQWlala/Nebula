@@ -23,23 +23,13 @@ export function OllamaStatusBanner() {
   }
 
   return (
-    <div
-      class="ollama-banner"
-      role="alert"
-      aria-live="polite"
-      data-testid="ollama-banner"
-    >
+    <div class="ollama-banner" role="alert" aria-live="polite" data-testid="ollama-banner">
       <div class="ollama-banner__body">
         <strong>{t('ollama.banner.title')}</strong>
         <span>{t('ollama.banner.body')}</span>
       </div>
       <div class="ollama-banner__actions">
-        <a
-          class="ollama-banner__link"
-          href={OLLAMA_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
+        <a class="ollama-banner__link" href={OLLAMA_URL} target="_blank" rel="noreferrer noopener">
           {t('ollama.banner.howto')} ↗
         </a>
         <button

@@ -1,8 +1,8 @@
-﻿/**
+/**
  * 记忆检视器 - 查看 / 搜索记忆
  */
 import { useEffect, useState } from 'preact/hooks';
-import { nebulaAPI, type Memory, type Layer, type WikiNote } from '../lib/tauri';
+import { nebulaAPI, type Memory, type WikiNote } from '../lib/tauri';
 import { Spinner } from './Spinner';
 import { t } from '../i18n';
 
@@ -138,7 +138,9 @@ export function MemoryInspector() {
         <button class="btn" onClick={search} disabled={loading}>
           {loading ? <Spinner size={16} showLabel={false} /> : t('memoryInspector.search')}
         </button>
-        <button class="btn" onClick={loadRecent}>{t('memoryInspector.recent')}</button>
+        <button class="btn" onClick={loadRecent}>
+          {t('memoryInspector.recent')}
+        </button>
       </div>
 
       <div class="memory-list">
@@ -156,7 +158,10 @@ export function MemoryInspector() {
       </div>
 
       {/* T-E-B-03: Wiki 笔记双向同步 — 编辑入口 */}
-      <div class="wiki-section" style="margin-top: 24px; border-top: 1px solid var(--border-color, #333); padding-top: 16px;">
+      <div
+        class="wiki-section"
+        style="margin-top: 24px; border-top: 1px solid var(--border-color, #333); padding-top: 16px;"
+      >
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
           <span style="font-size: 14px; font-weight: 600;">{t('memoryInspector.wikiTitle')}</span>
           <span style="color: var(--text-muted); font-size: 11px;">
@@ -204,32 +209,26 @@ export function MemoryInspector() {
                     style="width: 100%; box-sizing: border-box; padding: 8px; font-family: monospace; font-size: 12px; resize: vertical; min-height: 120px;"
                   />
                   {editError && (
-                    <div style="color: #ff6b6b; font-size: 11px;">{t('memoryInspector.saveFailed', { error: editError })}</div>
+                    <div style="color: #ff6b6b; font-size: 11px;">
+                      {t('memoryInspector.saveFailed', { error: editError })}
+                    </div>
                   )}
                   <div style="display: flex; gap: 8px;">
-                    <button
-                      class="btn"
-                      onClick={saveEditNote}
-                      disabled={editSaving}
-                    >
-                      {editSaving ? <Spinner size={16} showLabel={false} /> : t('memoryInspector.save')}
+                    <button class="btn" onClick={saveEditNote} disabled={editSaving}>
+                      {editSaving ? (
+                        <Spinner size={16} showLabel={false} />
+                      ) : (
+                        t('memoryInspector.save')
+                      )}
                     </button>
-                    <button
-                      class="btn"
-                      onClick={cancelEditNote}
-                      disabled={editSaving}
-                    >
+                    <button class="btn" onClick={cancelEditNote} disabled={editSaving}>
                       {t('memoryInspector.cancel')}
                     </button>
                   </div>
                 </div>
               ) : (
                 <div style="display: flex; gap: 8px;">
-                  <button
-                    class="btn"
-                    onClick={() => startEditNote(note)}
-                    style="font-size: 11px;"
-                  >
+                  <button class="btn" onClick={() => startEditNote(note)} style="font-size: 11px;">
                     {t('memoryInspector.edit')}
                   </button>
                   <a
@@ -255,8 +254,16 @@ function MemoryCard({ memory }: { memory: Memory }) {
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
         <span class={`badge badge-${memory.layer.toLowerCase()}`}>{memory.layer}</span>
         <span class={`badge badge-${memory.memory_type.toLowerCase()}`}>{memory.memory_type}</span>
-        {memory.pinned && <span class="badge" style="background: #ffd66d; color: #000;">📌 L7</span>}
-        {memory.compressed_from && <span class="badge" style="background: #5f3a3a; color: #ff9c9c;">{t('memoryInspector.compressed')}</span>}
+        {memory.pinned && (
+          <span class="badge" style="background: #ffd66d; color: #000;">
+            📌 L7
+          </span>
+        )}
+        {memory.compressed_from && (
+          <span class="badge" style="background: #5f3a3a; color: #ff9c9c;">
+            {t('memoryInspector.compressed')}
+          </span>
+        )}
         {/* T-E-B-04: 记忆溯源 [来源:工具] badge */}
         {memory.metadata?.provenance && (
           <span class="badge" style="background: #3b5998; color: #fff;">
@@ -270,7 +277,11 @@ function MemoryCard({ memory }: { memory: Memory }) {
         )}
         {/* T-E-A-09: 吸收成本 badge(仅非零时显示) */}
         {memory.ingest_cost != null && memory.ingest_cost > 0 && (
-          <span class="badge" style="background: #2e7d32; color: #fff;" title={t('memoryInspector.ingestCost')}>
+          <span
+            class="badge"
+            style="background: #2e7d32; color: #fff;"
+            title={t('memoryInspector.ingestCost')}
+          >
             💰 ${memory.ingest_cost.toFixed(4)}
           </span>
         )}

@@ -15,9 +15,14 @@
  * - 录屏在合并/丢弃后仍可查看(引擎保留录屏供事后审查)
  */
 import { useState, useEffect, useCallback } from 'preact/hooks';
-import { nebulaAPI, type ShadowWorkspace, type ShadowStatus, type OperationKind, type OperationRecord } from '../lib/tauri';
+import {
+  nebulaAPI,
+  type ShadowWorkspace,
+  type ShadowStatus,
+  type OperationKind,
+  type OperationRecord,
+} from '../lib/tauri';
 import { toast } from './Toast';
-import { t } from '../i18n';
 
 const STATUS_COLORS: Record<ShadowStatus, string> = {
   creating: '#9CA3AF',
@@ -88,7 +93,10 @@ export function ShadowWorkspacePanel() {
   const [recOps, setRecOps] = useState<OperationRecord[]>([]);
   const [recLoading, setRecLoading] = useState(false);
   const [recExpanded, setRecExpanded] = useState<number | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ id: string; kind: 'merge' | 'abort' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    id: string;
+    kind: 'merge' | 'abort';
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -199,7 +207,10 @@ export function ShadowWorkspacePanel() {
   };
 
   return (
-    <div className="shadow-workspace-panel h-full flex flex-col bg-gray-950 text-white" data-testid="shadow-workspace-panel">
+    <div
+      className="shadow-workspace-panel h-full flex flex-col bg-gray-950 text-white"
+      data-testid="shadow-workspace-panel"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
         <h2 className="text-sm font-semibold text-gray-300">🌑 Shadow Workspace</h2>
@@ -245,7 +256,8 @@ export function ShadowWorkspacePanel() {
           </button>
         </div>
         <p className="text-xs text-gray-600">
-          Agent 将在独立 git worktree + 分支 <code className="text-gray-500">agent/&lt;id&gt;</code> 中执行,不影响当前工作区。
+          Agent 将在独立 git worktree + 分支 <code className="text-gray-500">agent/&lt;id&gt;</code>{' '}
+          中执行,不影响当前工作区。
         </p>
       </div>
 
@@ -260,7 +272,8 @@ export function ShadowWorkspacePanel() {
           const isExpanded = diffFor === ws.id;
           const isRecExpanded = recFor === ws.id;
           const canMerge = ws.status === 'completed' || ws.status === 'running';
-          const canAbort = ws.status === 'running' || ws.status === 'completed' || ws.status === 'failed';
+          const canAbort =
+            ws.status === 'running' || ws.status === 'completed' || ws.status === 'failed';
           const canComplete = ws.status === 'running';
           return (
             <div
@@ -277,14 +290,19 @@ export function ShadowWorkspacePanel() {
                 <span className="text-xs text-gray-500 font-mono">{ws.id}</span>
                 <span
                   className="text-xs px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: `${STATUS_COLORS[ws.status]}33`, color: STATUS_COLORS[ws.status] }}
+                  style={{
+                    backgroundColor: `${STATUS_COLORS[ws.status]}33`,
+                    color: STATUS_COLORS[ws.status],
+                  }}
                 >
                   {STATUS_LABELS[ws.status]}
                 </span>
                 <span className="text-xs text-gray-600">·</span>
                 <span className="text-xs text-gray-500 font-mono">{ws.branch}</span>
                 {ws.error && (
-                  <span className="text-xs text-red-400 truncate" title={ws.error}>⚠ {ws.error}</span>
+                  <span className="text-xs text-red-400 truncate" title={ws.error}>
+                    ⚠ {ws.error}
+                  </span>
                 )}
               </div>
               {/* 任务描述 */}
@@ -355,7 +373,10 @@ export function ShadowWorkspacePanel() {
                   {recLoading ? (
                     <div className="text-xs text-gray-500">加载录屏…</div>
                   ) : recOps.length === 0 ? (
-                    <div className="text-xs text-gray-600" data-testid={`shadow-recording-empty-${ws.id}`}>
+                    <div
+                      className="text-xs text-gray-600"
+                      data-testid={`shadow-recording-empty-${ws.id}`}
+                    >
                       暂无操作记录(命令执行会自动记录,文件操作需 Agent 显式记录)
                     </div>
                   ) : (
@@ -372,22 +393,37 @@ export function ShadowWorkspacePanel() {
                             onClick={() => setRecExpanded(recExpanded === op.seq ? null : op.seq)}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-600 font-mono w-6 flex-shrink-0">#{op.seq}</span>
+                              <span className="text-xs text-gray-600 font-mono w-6 flex-shrink-0">
+                                #{op.seq}
+                              </span>
                               <span className="text-sm flex-shrink-0">{OP_ICONS[op.kind]}</span>
-                              <span className="text-xs text-gray-400 flex-shrink-0">{OP_LABELS[op.kind]}</span>
+                              <span className="text-xs text-gray-400 flex-shrink-0">
+                                {OP_LABELS[op.kind]}
+                              </span>
                               {op.target && (
-                                <span className="text-xs text-gray-300 font-mono truncate flex-1">{op.target}</span>
+                                <span className="text-xs text-gray-300 font-mono truncate flex-1">
+                                  {op.target}
+                                </span>
                               )}
-                              <span className={`text-xs flex-shrink-0 ${op.success ? 'text-green-400' : 'text-red-400'}`}>
+                              <span
+                                className={`text-xs flex-shrink-0 ${op.success ? 'text-green-400' : 'text-red-400'}`}
+                              >
                                 {op.success ? '✓' : '✗'}
                               </span>
-                              <span className="text-xs text-gray-600 flex-shrink-0">{formatRecTime(op.ts_ms)}</span>
+                              <span className="text-xs text-gray-600 flex-shrink-0">
+                                {formatRecTime(op.ts_ms)}
+                              </span>
                             </div>
                             {op.detail && recExpanded !== op.seq && (
-                              <div className="text-xs text-gray-600 mt-0.5 ml-8 truncate">{op.detail}</div>
+                              <div className="text-xs text-gray-600 mt-0.5 ml-8 truncate">
+                                {op.detail}
+                              </div>
                             )}
                             {recExpanded === op.seq && (
-                              <div className="mt-1 ml-8 space-y-1" data-testid={`shadow-recording-detail-${ws.id}-${op.seq}`}>
+                              <div
+                                className="mt-1 ml-8 space-y-1"
+                                data-testid={`shadow-recording-detail-${ws.id}-${op.seq}`}
+                              >
                                 {op.detail && (
                                   <div>
                                     <span className="text-xs text-gray-500">详情: </span>
@@ -397,7 +433,9 @@ export function ShadowWorkspacePanel() {
                                 {op.message && (
                                   <div>
                                     <span className="text-xs text-gray-500">消息: </span>
-                                    <pre className="text-xs text-gray-400 bg-gray-900 border border-gray-800 rounded p-1 mt-0.5 overflow-auto max-h-40 whitespace-pre-wrap inline-block w-full">{op.message}</pre>
+                                    <pre className="text-xs text-gray-400 bg-gray-900 border border-gray-800 rounded p-1 mt-0.5 overflow-auto max-h-40 whitespace-pre-wrap inline-block w-full">
+                                      {op.message}
+                                    </pre>
                                   </div>
                                 )}
                               </div>
@@ -416,7 +454,10 @@ export function ShadowWorkspacePanel() {
 
       {/* 二次确认对话框 */}
       {confirmAction && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" data-testid="shadow-confirm-dialog">
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          data-testid="shadow-confirm-dialog"
+        >
           <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 max-w-sm">
             <h3 className="text-sm font-semibold text-white mb-2">
               {confirmAction.kind === 'merge' ? '确认合并' : '确认丢弃'}

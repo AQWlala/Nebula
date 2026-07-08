@@ -42,7 +42,12 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
     memory_type: overrides.memory_type ?? 'Semantic',
     layer: overrides.layer ?? 'L2',
     content: overrides.content ?? '默认记忆内容',
-    summary: overrides.summary ?? { s50: '摘要50', s150: '摘要150', s500: '摘要500', s2000: '摘要2000' },
+    summary: overrides.summary ?? {
+      s50: '摘要50',
+      s150: '摘要150',
+      s500: '摘要500',
+      s2000: '摘要2000',
+    },
     importance: overrides.importance ?? 0.5,
     access_count: overrides.access_count ?? 0,
     last_access: overrides.last_access ?? 0,
@@ -124,7 +129,7 @@ describe('TimelineView', () => {
     await findByTestId('timeline-item-b');
 
     // 拉到 0.5 → 仅保留 importance >= 0.5
-    const slider = await findByTestId('timeline-importance-slider') as HTMLInputElement;
+    const slider = (await findByTestId('timeline-importance-slider')) as HTMLInputElement;
     fireEvent.change(slider, { target: { value: '0.5' } });
 
     await waitFor(() => {
@@ -135,7 +140,14 @@ describe('TimelineView', () => {
 
   it('clicking_item_toggles_expanded_details', async () => {
     mockMemoryListRecent.mockResolvedValue([
-      makeMemory({ id: 'a', content: '完整正文内容', source: 'chat', memory_type: 'Semantic', access_count: 3, ingest_cost: 0.0012 }),
+      makeMemory({
+        id: 'a',
+        content: '完整正文内容',
+        source: 'chat',
+        memory_type: 'Semantic',
+        access_count: 3,
+        ingest_cost: 0.0012,
+      }),
     ]);
     const { TimelineView } = await import('../TimelineView');
     const { findByTestId, queryByText } = render(<TimelineView />);

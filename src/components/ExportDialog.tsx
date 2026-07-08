@@ -1,6 +1,11 @@
-﻿import { useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import type { Message } from './ChatPanel';
-import { exportToMarkdown, downloadMarkdown, printToPdf, downloadBlob, type ExportOptions } from '../utils/export';
+import {
+  exportToMarkdown,
+  downloadMarkdown,
+  printToPdf,
+  type ExportOptions,
+} from '../utils/export';
 import { nebulaAPI } from '../lib/tauri';
 import { toast } from './Toast';
 import { Modal } from './Modal';
@@ -57,7 +62,10 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
             },
           });
           if (result?.file_path) {
-            toast.success(t('exportDialog.exportSuccess'), t('exportDialog.docxSaved', { path: result.file_path }));
+            toast.success(
+              t('exportDialog.exportSuccess'),
+              t('exportDialog.docxSaved', { path: result.file_path })
+            );
             onClose();
           } else {
             throw new Error(t('exportDialog.noFilePath'));
@@ -73,18 +81,10 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
 
   const footer = (
     <>
-      <button
-        class="btn btn-secondary"
-        onClick={onClose}
-        disabled={exporting}
-      >
+      <button class="btn btn-secondary" onClick={onClose} disabled={exporting}>
         {t('exportDialog.cancel')}
       </button>
-      <button
-        class="btn"
-        onClick={handleExport}
-        disabled={exporting || messages.length === 0}
-      >
+      <button class="btn" onClick={handleExport} disabled={exporting || messages.length === 0}>
         {exporting ? <Spinner size={16} showLabel={false} /> : t('exportDialog.export')}
       </button>
     </>
@@ -94,7 +94,14 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
     <Modal open={true} title={t('exportDialog.title')} onClose={onClose} size="sm" footer={footer}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, color: 'var(--text-primary)' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '6px',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+            }}
+          >
             {t('exportDialog.format')}
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -123,7 +130,14 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, color: 'var(--text-primary)' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '6px',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+            }}
+          >
             {t('exportDialog.titleLabel')}
           </label>
           <input
@@ -144,7 +158,16 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              fontSize: '13px',
+            }}
+          >
             <input
               type="checkbox"
               checked={includeTimestamps}
@@ -153,7 +176,16 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
             />
             {t('exportDialog.includeTimestamps')}
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              fontSize: '13px',
+            }}
+          >
             <input
               type="checkbox"
               checked={includeToolCalls}
@@ -164,7 +196,15 @@ export function ExportDialog({ messages, onClose }: ExportDialogProps) {
           </label>
         </div>
 
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '6px' }}>
+        <div
+          style={{
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            background: 'var(--bg-tertiary)',
+            padding: '8px 12px',
+            borderRadius: '6px',
+          }}
+        >
           {t('exportDialog.messageCount', { count: messages.length })}
         </div>
       </div>

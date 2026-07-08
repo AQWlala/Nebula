@@ -56,12 +56,23 @@ const EVENT_COLORS: Record<string, string> = {
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 function formatMs(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  return d.toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+  });
 }
 
 /** 提取事件摘要 */
@@ -123,11 +134,13 @@ export function EventStreamViewer() {
         // 限制最大事件数
         return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;
       });
-    }).then((fn) => {
-      unsubscribe = fn;
-    }).catch(() => {
-      // 非 Tauri 环境静默忽略
-    });
+    })
+      .then((fn) => {
+        unsubscribe = fn;
+      })
+      .catch(() => {
+        // 非 Tauri 环境静默忽略
+      });
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -356,13 +369,29 @@ export function EventStreamViewer() {
         >
           <button
             onClick={selectAll}
-            style={{ fontSize: 10, padding: '2px 6px', cursor: 'pointer', border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', color: 'var(--text-secondary)' }}
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              cursor: 'pointer',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
           >
             {t('eventStream.selectAll')}
           </button>
           <button
             onClick={selectNone}
-            style={{ fontSize: 10, padding: '2px 6px', cursor: 'pointer', border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', color: 'var(--text-secondary)' }}
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              cursor: 'pointer',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
           >
             {t('eventStream.selectNone')}
           </button>
@@ -442,9 +471,7 @@ export function EventStreamViewer() {
                 }}
               >
                 <span style={{ fontSize: 14 }}>{icon}</span>
-                <span style={{ color, fontWeight: 600, minWidth: 140 }}>
-                  {envelope.event_type}
-                </span>
+                <span style={{ color, fontWeight: 600, minWidth: 140 }}>{envelope.event_type}</span>
                 <span style={{ color: 'var(--text-muted)', fontSize: 11, flex: 1 }}>
                   {eventSummary(envelope.payload)}
                 </span>
@@ -466,7 +493,9 @@ export function EventStreamViewer() {
                     <span style={{ color: 'var(--text-muted)', fontSize: 10, marginRight: 8 }}>
                       {t('eventStream.traceId')}
                     </span>
-                    <code style={{ fontSize: 11, color: 'var(--accent-neon)', wordBreak: 'break-all' }}>
+                    <code
+                      style={{ fontSize: 11, color: 'var(--accent-neon)', wordBreak: 'break-all' }}
+                    >
                       {envelope.trace_id}
                     </code>
                   </div>
@@ -477,7 +506,14 @@ export function EventStreamViewer() {
                     <code style={{ fontSize: 11 }}>{formatMs(envelope.timestamp)}</code>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <span
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontSize: 10,
+                        display: 'block',
+                        marginBottom: 4,
+                      }}
+                    >
                       {t('eventStream.payload')}
                     </span>
                     <pre

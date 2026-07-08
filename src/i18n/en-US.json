@@ -874,7 +874,6 @@
   "workTypeConfig.toast.saved.title": "WorkType config saved",
   "workTypeConfig.toast.saved.body": "models.json persisted + AppState hot-reloaded + cost_tracker override pushed",
 
-
   "diagnostics.live": "live",
   "diagnostics.idle": "idle",
   "diagnostics.eventsCount": "{count} events · capacity {capacity}{live}",

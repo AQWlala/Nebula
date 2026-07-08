@@ -114,7 +114,7 @@ export function FloatingChat() {
             return updated;
           });
         },
-        controller.signal,
+        controller.signal
       );
 
       // 流结束:用 ChatComplete.content 做最终同步
@@ -142,7 +142,7 @@ export function FloatingChat() {
       } else if (!accumulated) {
         setMessages((prev) => {
           const filtered = prev.filter(
-            (m) => !(m.role === 'assistant' && m.timestamp === -1 && m.content === ''),
+            (m) => !(m.role === 'assistant' && m.timestamp === -1 && m.content === '')
           );
           return [
             ...filtered,
@@ -200,8 +200,13 @@ export function FloatingChat() {
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={`${m.role}-${i}-${m.content.slice(0, 20)}`} class={`floating-msg floating-msg-${m.role}`}>
-            <div class="floating-msg__role">{m.role === 'user' ? t('floatingChat.you') : t('floatingChat.assistant')}</div>
+          <div
+            key={`${m.role}-${i}-${m.content.slice(0, 20)}`}
+            class={`floating-msg floating-msg-${m.role}`}
+          >
+            <div class="floating-msg__role">
+              {m.role === 'user' ? t('floatingChat.you') : t('floatingChat.assistant')}
+            </div>
             <div class="floating-msg__content">{m.content}</div>
           </div>
         ))}
@@ -225,7 +230,11 @@ export function FloatingChat() {
           disabled={streaming}
         />
         {streaming ? (
-          <button class="floating-chat__btn floating-chat__btn-stop" onClick={stopStreaming} title={t('floatingChat.stop')}>
+          <button
+            class="floating-chat__btn floating-chat__btn-stop"
+            onClick={stopStreaming}
+            title={t('floatingChat.stop')}
+          >
             ⏹
           </button>
         ) : (

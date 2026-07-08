@@ -18,7 +18,14 @@ beforeAll(() => {
   }
 });
 
-const { mockShadowList, mockShadowCreate, mockShadowDiff, mockShadowMerge, mockShadowAbort, mockShadowRecordingList } = vi.hoisted(() => ({
+const {
+  mockShadowList,
+  mockShadowCreate,
+  mockShadowDiff,
+  mockShadowMerge,
+  mockShadowAbort,
+  mockShadowRecordingList,
+} = vi.hoisted(() => ({
   mockShadowList: vi.fn(),
   mockShadowCreate: vi.fn(),
   mockShadowDiff: vi.fn(),
@@ -95,8 +102,8 @@ describe('ShadowWorkspacePanel', () => {
     const { findByTestId } = render(<ShadowWorkspacePanel />);
     await findByTestId('shadow-empty');
 
-    const input = await findByTestId('shadow-task-input') as HTMLInputElement;
-    const btn = await findByTestId('shadow-create-btn') as HTMLButtonElement;
+    const input = (await findByTestId('shadow-task-input')) as HTMLInputElement;
+    const btn = (await findByTestId('shadow-create-btn')) as HTMLButtonElement;
     fireEvent.input(input, { target: { value: '新任务' } });
     fireEvent.click(btn);
 
@@ -186,7 +193,7 @@ describe('ShadowWorkspacePanel', () => {
     const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
     const { findByTestId } = render(<ShadowWorkspacePanel />);
     await findByTestId('shadow-empty');
-    const btn = await findByTestId('shadow-create-btn') as HTMLButtonElement;
+    const btn = (await findByTestId('shadow-create-btn')) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
 
@@ -227,9 +234,33 @@ describe('ShadowWorkspacePanel', () => {
 
   it('recording_view_renders_operation_timeline', async () => {
     const ops: OperationRecord[] = [
-      { seq: 1, ts_ms: Date.now(), kind: 'note', target: '', detail: '开始任务', success: true, message: '' },
-      { seq: 2, ts_ms: Date.now(), kind: 'command', target: 'cargo', detail: 'build', success: true, message: 'Compiling nebula...\nFinished' },
-      { seq: 3, ts_ms: Date.now(), kind: 'file_write', target: 'src/main.rs', detail: 'fn main() {}', success: true, message: '' },
+      {
+        seq: 1,
+        ts_ms: Date.now(),
+        kind: 'note',
+        target: '',
+        detail: '开始任务',
+        success: true,
+        message: '',
+      },
+      {
+        seq: 2,
+        ts_ms: Date.now(),
+        kind: 'command',
+        target: 'cargo',
+        detail: 'build',
+        success: true,
+        message: 'Compiling nebula...\nFinished',
+      },
+      {
+        seq: 3,
+        ts_ms: Date.now(),
+        kind: 'file_write',
+        target: 'src/main.rs',
+        detail: 'fn main() {}',
+        success: true,
+        message: '',
+      },
     ];
     mockShadowList.mockResolvedValue([makeWs({ id: 'ops00001', status: 'completed' })]);
     mockShadowRecordingList.mockResolvedValue(ops);
@@ -251,7 +282,15 @@ describe('ShadowWorkspacePanel', () => {
 
   it('clicking_op_expands_detail', async () => {
     const ops: OperationRecord[] = [
-      { seq: 1, ts_ms: Date.now(), kind: 'command', target: 'cargo', detail: 'test', success: true, message: 'test result: ok. 3 passed' },
+      {
+        seq: 1,
+        ts_ms: Date.now(),
+        kind: 'command',
+        target: 'cargo',
+        detail: 'test',
+        success: true,
+        message: 'test result: ok. 3 passed',
+      },
     ];
     mockShadowList.mockResolvedValue([makeWs({ id: 'det00001', status: 'completed' })]);
     mockShadowRecordingList.mockResolvedValue(ops);

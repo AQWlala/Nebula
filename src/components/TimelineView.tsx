@@ -49,7 +49,12 @@ function groupByDay(memories: Memory[]): DayGroup[] {
     if (!group) {
       group = {
         date: dateKey,
-        label: d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }),
+        label: d.toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        }),
         memories: [],
         layerCounts: {},
       };
@@ -123,10 +128,14 @@ export function TimelineView() {
     });
   };
 
-  const expandedMemory = memories.find((m) => m.id === expandedId);
+  const _expandedMemory = memories.find((m) => m.id === expandedId);
+  void _expandedMemory; // used for future rendering expansion
 
   return (
-    <div className="timeline-view h-full flex flex-col bg-gray-950 text-white" data-testid="timeline-view">
+    <div
+      className="timeline-view h-full flex flex-col bg-gray-950 text-white"
+      data-testid="timeline-view"
+    >
       {/* Header + 统计 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
         <h2 className="text-sm font-semibold text-gray-300">记忆时间轴 · Journey</h2>
@@ -154,7 +163,10 @@ export function TimelineView() {
               if (count === 0) return null;
               return (
                 <span key={l} className="flex items-center gap-0.5" title={`${l}: ${count} 条`}>
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: LAYER_COLORS[l] }} />
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: LAYER_COLORS[l] }}
+                  />
                   {count}
                 </span>
               );
@@ -178,7 +190,10 @@ export function TimelineView() {
               onChange={() => toggleLayer(layer)}
               className="w-3 h-3"
             />
-            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: LAYER_COLORS[layer] }} />
+            <span
+              className="w-2 h-2 rounded-full inline-block"
+              style={{ backgroundColor: LAYER_COLORS[layer] }}
+            />
             <span className="text-gray-400">{layer}</span>
           </label>
         ))}
@@ -217,12 +232,12 @@ export function TimelineView() {
               {group.memories.map((m) => {
                 const isExpanded = expandedId === m.id;
                 const summary = m.summary.s150 || m.summary.s50 || m.content.slice(0, 150);
-                const time = new Date(m.created_at * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                const time = new Date(m.created_at * 1000).toLocaleTimeString('zh-CN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
                 return (
-                  <div
-                    key={m.id}
-                    className="relative mb-3"
-                  >
+                  <div key={m.id} className="relative mb-3">
                     {/* 节点圆点 */}
                     <span
                       className="absolute -left-4 top-2 w-3 h-3 rounded-full border-2 border-gray-950"
@@ -236,13 +251,19 @@ export function TimelineView() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-gray-500">{time}</span>
                         <span className="text-xs text-gray-600">·</span>
-                        <span className="text-xs" style={{ color: LAYER_COLORS[m.layer] }}>{m.layer}</span>
+                        <span className="text-xs" style={{ color: LAYER_COLORS[m.layer] }}>
+                          {m.layer}
+                        </span>
                         <span className="text-xs text-gray-600">{layerLabel(m.layer)}</span>
                         {m.compressed_from && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300">压缩</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300">
+                            压缩
+                          </span>
                         )}
                         {m.pinned && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/60 text-yellow-300">置顶</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/60 text-yellow-300">
+                            置顶
+                          </span>
                         )}
                         {/* importance 条 */}
                         <span className="flex items-center gap-1 ml-auto">
@@ -284,7 +305,10 @@ export function TimelineView() {
       <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-gray-800 text-xs">
         {LAYER_ORDER.map((layer) => (
           <div key={layer} className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LAYER_COLORS[layer] }} />
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: LAYER_COLORS[layer] }}
+            />
             <span className="text-gray-400">{layer}</span>
             <span className="text-gray-600">{layerLabel(layer)}</span>
           </div>

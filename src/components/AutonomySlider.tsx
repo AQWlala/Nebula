@@ -183,7 +183,10 @@ export function AutonomySlider() {
   const zh = currentLocale.value === 'zh-CN';
 
   const infos: AutonomyLevelInfo[] = AUTONOMY_LEVEL_INFOS;
-  const currentIndex = Math.max(0, infos.findIndex((i) => i.level === level));
+  const currentIndex = Math.max(
+    0,
+    infos.findIndex((i) => i.level === level)
+  );
   const current = infos[currentIndex];
 
   function apply(next: AutonomyLevel): void {
@@ -244,9 +247,7 @@ export function AutonomySlider() {
               aria-label={`${info.level} ${zh ? info.label_zh : info.label}`}
             >
               <span class="autonomy-slider__tick-level">{info.level}</span>
-              <span class="autonomy-slider__tick-label">
-                {zh ? info.label_zh : info.label}
-              </span>
+              <span class="autonomy-slider__tick-label">{zh ? info.label_zh : info.label}</span>
             </button>
           );
         })}

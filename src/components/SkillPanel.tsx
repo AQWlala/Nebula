@@ -53,7 +53,9 @@ export default function SkillPanel() {
     }
   }, []);
 
-  useEffect(() => { loadTopTags(); }, [loadTopTags]);
+  useEffect(() => {
+    loadTopTags();
+  }, [loadTopTags]);
 
   // Load skills
   const loadSkills = useCallback(async () => {
@@ -73,31 +75,34 @@ export default function SkillPanel() {
     }
   }, [selectedTags, tagMatch]);
 
-  useEffect(() => { loadSkills(); }, [loadSkills]);
+  useEffect(() => {
+    loadSkills();
+  }, [loadSkills]);
 
   // Filtered skills
-  const filtered = skills.filter(s => {
+  const filtered = skills.filter((s) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
       s.name.toLowerCase().includes(q) ||
       s.description.toLowerCase().includes(q) ||
-      s.tags.some(t => t.toLowerCase().includes(q))
+      s.tags.some((t) => t.toLowerCase().includes(q))
     );
   });
 
   // T-E-S-37: 标签云源 — 优先用 skill_tags 命令的全局聚合,降级到当前 skills 派生。
   // 显示用:tag + 频次。过滤用:selectedTags 数组。
-  const tagCloud: { tag: string; count: number }[] = topTags.length > 0
-    ? topTags
-    : [...new Set(skills.flatMap(s => s.tags))]
-        .map(tag => ({ tag, count: skills.filter(s => s.tags.includes(tag)).length }))
-        .sort((a, b) => b.count - a.count);
+  const tagCloud: { tag: string; count: number }[] =
+    topTags.length > 0
+      ? topTags
+      : [...new Set(skills.flatMap((s) => s.tags))]
+          .map((tag) => ({ tag, count: skills.filter((s) => s.tags.includes(tag)).length }))
+          .sort((a, b) => b.count - a.count);
 
   // T-E-S-37: 切换单个 tag 的选中状态(空 -> 加入 / 已存在 -> 移除)。
   const toggleTag = (tag: string) => {
-    setSelectedTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   };
 
@@ -148,8 +153,16 @@ export default function SkillPanel() {
       {/* Header */}
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700">
         <div class="flex items-center gap-1">
-          <TabButton label={t('skillPanel.browse')} active={tab === 'browse'} onClick={() => setTab('browse')} />
-          <TabButton label={t('skillPanel.import')} active={tab === 'import'} onClick={() => setTab('import')} />
+          <TabButton
+            label={t('skillPanel.browse')}
+            active={tab === 'browse'}
+            onClick={() => setTab('browse')}
+          />
+          <TabButton
+            label={t('skillPanel.import')}
+            active={tab === 'import'}
+            onClick={() => setTab('import')}
+          />
           {selectedSkill && (
             <TabButton
               label={t('skillPanel.detail', { name: selectedSkill.name })}
@@ -158,7 +171,9 @@ export default function SkillPanel() {
             />
           )}
         </div>
-        <span class="text-xs text-gray-500">{t('skillPanel.skillCount', { count: skills.length })}</span>
+        <span class="text-xs text-gray-500">
+          {t('skillPanel.skillCount', { count: skills.length })}
+        </span>
       </div>
 
       {/* Tab content */}
@@ -204,10 +219,7 @@ export default function SkillPanel() {
 
       {/* T-E-S-38: 可视化生成弹窗 */}
       {vizDialogKind && (
-        <VisualCreatorDialog
-          initialKind={vizDialogKind}
-          onClose={() => setVizDialogKind(null)}
-        />
+        <VisualCreatorDialog initialKind={vizDialogKind} onClose={() => setVizDialogKind(null)} />
       )}
     </div>
   );
@@ -217,14 +229,20 @@ export default function SkillPanel() {
 // TabButton
 // ---------------------------------------------------------------------------
 
-function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
       class={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-        active
-          ? 'bg-blue-600 text-white'
-          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+        active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'
       }`}
     >
       {label}
@@ -237,9 +255,19 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
 // ---------------------------------------------------------------------------
 
 function BrowseTab({
-  search, onSearch, tagCloud, selectedTags, onToggleTag, onClearTags,
-  tagMatch, onTagMatchChange,
-  skills, loading, onSelect, onRefresh, onOpenVizCreator,
+  search,
+  onSearch,
+  tagCloud,
+  selectedTags,
+  onToggleTag,
+  onClearTags,
+  tagMatch,
+  onTagMatchChange,
+  skills,
+  loading,
+  onSelect,
+  onRefresh,
+  onOpenVizCreator,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -259,7 +287,9 @@ function BrowseTab({
     <div>
       {/* T-E-S-38: 三个可视化 creator 快速入口卡片 */}
       <div class="mb-5">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('skillPanel.vizCreators')}</h3>
+        <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-2">
+          {t('skillPanel.vizCreators')}
+        </h3>
         <div class="grid grid-cols-3 gap-2">
           <VizQuickEntry
             icon="🎨"
@@ -306,7 +336,10 @@ function BrowseTab({
         <div class="mb-4">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-xs text-gray-500 uppercase tracking-wide">
-              {t('skillPanel.popularTags')}{selectedTags.length > 0 ? ` · ${t('skillPanel.selectedTags', { count: selectedTags.length })}` : ''}
+              {t('skillPanel.popularTags')}
+              {selectedTags.length > 0
+                ? ` · ${t('skillPanel.selectedTags', { count: selectedTags.length })}`
+                : ''}
             </h3>
             {/* T-E-S-37: 多 tag 匹配模式切换(仅当选中 ≥ 2 个 tag 时显示)。 */}
             {selectedTags.length >= 2 && (
@@ -353,7 +386,7 @@ function BrowseTab({
         </div>
       ) : (
         <div class="grid gap-3 grid-cols-1">
-          {skills.map(skill => (
+          {skills.map((skill) => (
             <SkillCard key={skill.id} skill={skill} onClick={() => onSelect(skill)} />
           ))}
         </div>
@@ -367,7 +400,9 @@ function BrowseTab({
 // ---------------------------------------------------------------------------
 
 function MatchModeButton({
-  label, active, onClick,
+  label,
+  active,
+  onClick,
 }: {
   label: string;
   active: boolean;
@@ -377,9 +412,7 @@ function MatchModeButton({
     <button
       onClick={onClick}
       class={`px-2 py-0.5 rounded transition-colors ${
-        active
-          ? 'bg-blue-600 text-white'
-          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+        active ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
       }`}
     >
       {label}
@@ -392,7 +425,10 @@ function MatchModeButton({
 // ---------------------------------------------------------------------------
 
 function VizQuickEntry({
-  icon, label, hint, onClick,
+  icon,
+  label,
+  hint,
+  onClick,
 }: {
   icon: string;
   label: string;
@@ -430,15 +466,20 @@ function SkillCard({ skill, onClick }: { skill: Skill; onClick: () => void }) {
         </div>
         <div class="flex items-center gap-2 ml-3 shrink-0">
           {skill.avg_rating > 0 && (
-            <span class="text-xs text-yellow-500" title={t('skillPanel.rating', { value: skill.avg_rating.toFixed(1) })}>
+            <span
+              class="text-xs text-yellow-500"
+              title={t('skillPanel.rating', { value: skill.avg_rating.toFixed(1) })}
+            >
               {'★'.repeat(Math.round(skill.avg_rating))}
             </span>
           )}
-          <span class="text-xs text-gray-500">{t('skillPanel.usageCount', { count: skill.usage_count })}</span>
+          <span class="text-xs text-gray-500">
+            {t('skillPanel.usageCount', { count: skill.usage_count })}
+          </span>
         </div>
       </div>
       <div class="flex flex-wrap gap-1 mt-2">
-        {skill.tags.map(tag => (
+        {skill.tags.map((tag) => (
           <span key={tag} class="px-1.5 py-0.5 text-[10px] bg-gray-700 text-gray-400 rounded">
             {tag}
           </span>
@@ -455,14 +496,20 @@ function SkillCard({ skill, onClick }: { skill: Skill; onClick: () => void }) {
 // TagChip
 // ---------------------------------------------------------------------------
 
-function TagChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TagChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
       class={`px-2 py-0.5 text-xs rounded-full transition-colors ${
-        active
-          ? 'bg-blue-600 text-white'
-          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+        active ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
       }`}
     >
       {label}
@@ -475,8 +522,13 @@ function TagChip({ label, active, onClick }: { label: string; active: boolean; o
 // ---------------------------------------------------------------------------
 
 function ImportTab({
-  url, onUrlChange, source, onSourceChange,
-  importing, result, onImport,
+  url,
+  onUrlChange,
+  source,
+  onSourceChange,
+  importing,
+  result,
+  onImport,
 }: {
   url: string;
   onUrlChange: (v: string) => void;
@@ -496,7 +548,7 @@ function ImportTab({
           { value: 'url', label: t('skillPanel.urlLabel') },
           { value: 'clawhub', label: t('skillPanel.clawhubLabel') },
           { value: 'teamskillshub', label: t('skillPanel.teamSkillHubLabel') },
-        ].map(opt => (
+        ].map((opt) => (
           <button
             key={opt.value}
             onClick={() => onSourceChange(opt.value)}
@@ -514,18 +566,22 @@ function ImportTab({
       {/* URL / slug input */}
       <div class="mb-4">
         <label class="block text-xs text-gray-400 mb-1">
-          {source === 'clawhub' ? t('skillPanel.clawhubSlugHint') :
-           source === 'teamskillshub' ? t('skillPanel.assetIdHint') :
-           t('skillPanel.skillUrlHint')}
+          {source === 'clawhub'
+            ? t('skillPanel.clawhubSlugHint')
+            : source === 'teamskillshub'
+              ? t('skillPanel.assetIdHint')
+              : t('skillPanel.skillUrlHint')}
         </label>
         <input
           type="text"
           value={url}
           onInput={(e) => onUrlChange((e.target as HTMLInputElement).value)}
           placeholder={
-            source === 'clawhub' ? 'clawd/text-summarizer' :
-            source === 'teamskillshub' ? 'asset-12345' :
-            'https://raw.githubusercontent.com/.../SKILL.md'
+            source === 'clawhub'
+              ? 'clawd/text-summarizer'
+              : source === 'teamskillshub'
+                ? 'asset-12345'
+                : 'https://raw.githubusercontent.com/.../SKILL.md'
           }
           class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-sm
                  placeholder-gray-500 focus:outline-none focus:border-blue-500"
@@ -543,15 +599,24 @@ function ImportTab({
 
       {/* Result */}
       {result && (
-        <div class={`mt-4 p-3 rounded-md text-sm ${
-          result.success ? 'bg-green-900/30 border border-green-700 text-green-300' :
-                          'bg-red-900/30 border border-red-700 text-red-300'
-        }`}>
+        <div
+          class={`mt-4 p-3 rounded-md text-sm ${
+            result.success
+              ? 'bg-green-900/30 border border-green-700 text-green-300'
+              : 'bg-red-900/30 border border-red-700 text-red-300'
+          }`}
+        >
           {result.success ? (
             <div>
               <p class="font-semibold">{t('skillPanel.importSuccess')}</p>
-              <p class="mt-1">{t('skillPanel.skillLabel')}<strong>{result.skill?.name}</strong></p>
-              <p class="text-xs text-green-400 mt-1">{t('skillPanel.sourceLabel')}{result.source}</p>
+              <p class="mt-1">
+                {t('skillPanel.skillLabel')}
+                <strong>{result.skill?.name}</strong>
+              </p>
+              <p class="text-xs text-green-400 mt-1">
+                {t('skillPanel.sourceLabel')}
+                {result.source}
+              </p>
             </div>
           ) : (
             <div>
@@ -579,7 +644,9 @@ function DetailTab({
   onUseSkill: (skill: Skill) => void;
 }) {
   const [exporting, setExporting] = useState(false);
-  const [exportToast, setExportToast] = useState<{ kind: 'success' | 'error'; msg: string } | null>(null);
+  const [exportToast, setExportToast] = useState<{ kind: 'success' | 'error'; msg: string } | null>(
+    null
+  );
 
   // T-E-S-38: 判断当前 skill 是否为可视化 creator(显示"使用 skill"按钮)。
   const isVizCreator =
@@ -610,10 +677,7 @@ function DetailTab({
   return (
     <div class="max-w-2xl">
       <div class="flex items-center justify-between mb-4">
-        <button
-          onClick={onBack}
-          class="text-sm text-blue-400 hover:text-blue-300 inline-block"
-        >
+        <button onClick={onBack} class="text-sm text-blue-400 hover:text-blue-300 inline-block">
           {t('skillPanel.backToList')}
         </button>
         <div class="flex items-center gap-2">
@@ -641,12 +705,15 @@ function DetailTab({
       </div>
 
       {exportToast && (
-        <div class={`mb-4 px-3 py-2 rounded-md text-sm ${
-          exportToast.kind === 'success'
-            ? 'bg-green-900/30 border border-green-700 text-green-300'
-            : 'bg-red-900/30 border border-red-700 text-red-300'
-        }`}>
-          {exportToast.kind === 'success' ? '✅ ' : '❌ '}{exportToast.msg}
+        <div
+          class={`mb-4 px-3 py-2 rounded-md text-sm ${
+            exportToast.kind === 'success'
+              ? 'bg-green-900/30 border border-green-700 text-green-300'
+              : 'bg-red-900/30 border border-red-700 text-red-300'
+          }`}
+        >
+          {exportToast.kind === 'success' ? '✅ ' : '❌ '}
+          {exportToast.msg}
         </div>
       )}
 
@@ -679,13 +746,15 @@ function DetailTab({
           </div>
           <div>
             <span class="text-gray-500">{t('skillPanel.createdAtLabel')}</span>
-            <span class="ml-2 text-gray-300">{new Date(skill.created_at).toLocaleDateString('zh-CN')}</span>
+            <span class="ml-2 text-gray-300">
+              {new Date(skill.created_at).toLocaleDateString('zh-CN')}
+            </span>
           </div>
         </div>
 
         {/* Tags */}
         <div class="flex flex-wrap gap-1 mb-4">
-          {skill.tags.map(tag => (
+          {skill.tags.map((tag) => (
             <span key={tag} class="px-2 py-0.5 text-xs bg-gray-700 text-gray-400 rounded-full">
               {tag}
             </span>

@@ -16,11 +16,7 @@
  * 透明背景:覆盖 global.css 的不透明背景,让窗口 transparent:true 生效。
  */
 import { useEffect, useState, useCallback, useRef } from 'preact/hooks';
-import {
-  subscribeEvents,
-  swarmCancel,
-  type SwarmEvent,
-} from '../lib/tauri';
+import { subscribeEvents, swarmCancel, type SwarmEvent } from '../lib/tauri';
 import { t } from '../i18n';
 
 type ProgressStatus = 'running' | 'completed' | 'failed';

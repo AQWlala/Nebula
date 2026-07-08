@@ -144,9 +144,7 @@ export default function VisualCreatorDialog({
             </div>
             <textarea
               value={description}
-              onInput={(e) =>
-                setDescription((e.target as HTMLTextAreaElement).value)
-              }
+              onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
               placeholder={creatorPlaceholder(currentCreator.kind)}
               class="flex-1 w-full p-3 bg-gray-800 border border-gray-600 rounded-md text-sm
                      text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500
@@ -162,7 +160,11 @@ export default function VisualCreatorDialog({
                 class="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700
                        disabled:text-gray-500 text-white text-sm rounded-md transition-colors"
               >
-                {loading ? <Spinner size={16} showLabel={false} /> : t('visualCreatorDialog.generate')}
+                {loading ? (
+                  <Spinner size={16} showLabel={false} />
+                ) : (
+                  t('visualCreatorDialog.generate')
+                )}
               </button>
             </div>
           </div>

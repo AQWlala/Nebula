@@ -125,7 +125,7 @@ function rowsFromConfig(config: ModelsConfig): Record<WorkType, WorkTypeRowState
 
 /** 从行状态构建 override map(空 provider 的行跳过)。 */
 function overridesFromRows(
-  rows: Record<WorkType, WorkTypeRowState>,
+  rows: Record<WorkType, WorkTypeRowState>
 ): Record<string, WorkTypeOverrideEntry> {
   const out: Record<string, WorkTypeOverrideEntry> = {};
   for (const wt of WORK_TYPES) {
@@ -178,15 +178,12 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
   }, [open, reload]);
 
   /** 单行字段更新。 */
-  const updateRow = useCallback(
-    (wt: WorkType, patch: Partial<WorkTypeRowState>) => {
-      setRows((prev) => {
-        if (!prev) return prev;
-        return { ...prev, [wt]: { ...prev[wt], ...patch } };
-      });
-    },
-    [],
-  );
+  const updateRow = useCallback((wt: WorkType, patch: Partial<WorkTypeRowState>) => {
+    setRows((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [wt]: { ...prev[wt], ...patch } };
+    });
+  }, []);
 
   /** local_only WorkType 的 provider 被用户改动时,回滚到 local_provider。 */
   const handleProviderChange = useCallback(
@@ -197,7 +194,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
       }
       updateRow(wt, { provider: newProvider });
     },
-    [updateRow],
+    [updateRow]
   );
 
   /** 测试某个 provider。 */
@@ -219,12 +216,12 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
           t('workTypeConfig.toast.testOk.body', {
             latency: result.latency_ms,
             status: result.status_code ?? 'N/A',
-          }),
+          })
         );
       } else {
         toast.warning(
           t('workTypeConfig.toast.testFail.title'),
-          result.error ?? t('workTypeConfig.toast.testFail.body'),
+          result.error ?? t('workTypeConfig.toast.testFail.body')
         );
       }
     } catch (err) {
@@ -248,10 +245,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
       const result = await nebulaAPI.modelsConfigSave(updated);
       setConfig(result);
       setRows(rowsFromConfig(result));
-      toast.success(
-        t('workTypeConfig.toast.saved.title'),
-        t('workTypeConfig.toast.saved.body'),
-      );
+      toast.success(t('workTypeConfig.toast.saved.title'), t('workTypeConfig.toast.saved.body'));
     } catch (err) {
       toastFromError(err);
     } finally {
@@ -429,7 +423,9 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
                         {t('workTypeConfig.localOnlyBadge')}
                       </span>
                     )}
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '2px' }}>
+                    <div
+                      style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '2px' }}
+                    >
                       {meta.desc}
                     </div>
                   </div>
@@ -482,9 +478,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
                             cursor: isLocalOnly ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          <option value="">
-                            ({t('workTypeConfig.field.providerDefault')})
-                          </option>
+                          <option value="">({t('workTypeConfig.field.providerDefault')})</option>
                           {config.providers.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.display_name} ({p.id})
@@ -518,9 +512,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
                             color: 'var(--text-primary)',
                           }}
                         >
-                          <option value="">
-                            ({t('workTypeConfig.field.modelDefault')})
-                          </option>
+                          <option value="">({t('workTypeConfig.field.modelDefault')})</option>
                           {modelOptions.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.display_name} ({m.id})
@@ -612,9 +604,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
                             background: 'transparent',
                             color: 'var(--text-primary)',
                             cursor:
-                              !effectiveProvider || testState?.loading
-                                ? 'not-allowed'
-                                : 'pointer',
+                              !effectiveProvider || testState?.loading ? 'not-allowed' : 'pointer',
                             opacity: !effectiveProvider || testState?.loading ? 0.5 : 1,
                             whiteSpace: 'nowrap',
                           }}
@@ -637,7 +627,7 @@ export function WorkTypeConfigView({ open, onClose }: WorkTypeConfigViewProps) {
                                   latency: testState.result.latency_ms,
                                   status: testState.result.status_code ?? 'N/A',
                                 })
-                              : testState.result.error ?? t('workTypeConfig.testResult.fail')}
+                              : (testState.result.error ?? t('workTypeConfig.testResult.fail'))}
                           </div>
                         )}
                       </div>

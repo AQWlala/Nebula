@@ -18,23 +18,16 @@ beforeAll(() => {
   }
 });
 
-const {
-  mockList,
-  mockCreate,
-  mockSteps,
-  mockStart,
-  mockPause,
-  mockCancel,
-  mockDelete,
-} = vi.hoisted(() => ({
-  mockList: vi.fn(),
-  mockCreate: vi.fn(),
-  mockSteps: vi.fn(),
-  mockStart: vi.fn(),
-  mockPause: vi.fn(),
-  mockCancel: vi.fn(),
-  mockDelete: vi.fn(),
-}));
+const { mockList, mockCreate, mockSteps, mockStart, mockPause, mockCancel, mockDelete } =
+  vi.hoisted(() => ({
+    mockList: vi.fn(),
+    mockCreate: vi.fn(),
+    mockSteps: vi.fn(),
+    mockStart: vi.fn(),
+    mockPause: vi.fn(),
+    mockCancel: vi.fn(),
+    mockDelete: vi.fn(),
+  }));
 
 vi.mock('../../lib/tauri', async () => {
   const actual = await vi.importActual<typeof import('../../lib/tauri')>('../../lib/tauri');
@@ -147,7 +140,7 @@ describe('LongTaskPanel', () => {
         '新任务',
         [{ description: '编译', program: 'cargo', args: ['build', '--release'] }],
         null,
-        null,
+        null
       );
     });
   });
@@ -283,8 +276,22 @@ describe('LongTaskPanel', () => {
   it('steps_view_renders_step_timeline', async () => {
     mockList.mockResolvedValue([makeTask({ id: 'tlp00001', status: 'completed' })]);
     mockSteps.mockResolvedValue([
-      makeStep({ task_id: 'tlp00001', seq: 1, program: 'cargo', args: ['build'], status: 'done', output: 'Compiling...' }),
-      makeStep({ task_id: 'tlp00001', seq: 2, program: 'cargo', args: ['test'], status: 'failed', error: '3 tests failed' }),
+      makeStep({
+        task_id: 'tlp00001',
+        seq: 1,
+        program: 'cargo',
+        args: ['build'],
+        status: 'done',
+        output: 'Compiling...',
+      }),
+      makeStep({
+        task_id: 'tlp00001',
+        seq: 2,
+        program: 'cargo',
+        args: ['test'],
+        status: 'failed',
+        error: '3 tests failed',
+      }),
     ]);
     const { LongTaskPanel } = await import('../LongTaskPanel');
     const { findByTestId, getByText } = render(<LongTaskPanel />);

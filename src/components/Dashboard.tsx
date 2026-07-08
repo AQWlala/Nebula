@@ -16,7 +16,14 @@
  * 数据每 2 秒刷新一次，来源于 `metrics` 和 `perf_sample` 命令。
  */
 import { useEffect, useState } from 'preact/hooks';
-import { invokeTauri, nebulaAPI, type MetricsSnapshot, type PerfSample, type SidecarStatusInfo, type SelfReflection } from '../lib/tauri';
+import {
+  invokeTauri,
+  nebulaAPI,
+  type MetricsSnapshot,
+  type PerfSample,
+  type SidecarStatusInfo,
+  type SelfReflection,
+} from '../lib/tauri';
 import { t } from '../i18n';
 
 interface DashboardData {
@@ -79,7 +86,10 @@ function MetricCard({ title, value, subtitle, icon, accent = 'blue', progress }:
       {subtitle && <div class="metric-subtitle">{subtitle}</div>}
       {progress != null && (
         <div class="metric-progress-bar">
-          <div class="metric-progress-fill" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+          <div
+            class="metric-progress-fill"
+            style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+          />
         </div>
       )}
     </div>
@@ -136,7 +146,10 @@ export function Dashboard() {
   const rssAccent = rssPct > 90 ? 'red' : rssPct > 70 ? 'amber' : 'green';
 
   // 向量检索延迟卡片数据
-  const searchAvg = fmtMs(metrics?.memory_search_latency_us_total, metrics?.memory_search_latency_count);
+  const searchAvg = fmtMs(
+    metrics?.memory_search_latency_us_total,
+    metrics?.memory_search_latency_count
+  );
   const searchCount = metrics?.memory_search_latency_count ?? 0;
 
   // 蜂群状态卡片数据
@@ -145,7 +158,8 @@ export function Dashboard() {
   // 缓存命中率卡片数据
   const cacheHits = metrics?.embedding_cache_hits ?? 0;
   const cacheMisses = metrics?.embedding_cache_misses ?? 0;
-  const cacheRatio = cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)) * 100 : 0;
+  const cacheRatio =
+    cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)) * 100 : 0;
   const cacheAccent = cacheRatio > 80 ? 'green' : cacheRatio > 50 ? 'blue' : 'amber';
 
   // L4 拦截率 — T-S1-B-03: 接入真实 L4 裁定计数。
@@ -219,11 +233,16 @@ export function Dashboard() {
 
   function sidecarStatusColor(status: string): string {
     switch (status) {
-      case 'running': return 'status-green';
-      case 'starting': return 'status-amber';
-      case 'restarting': return 'status-amber';
-      case 'crashed': return 'status-red';
-      default: return 'status-gray';
+      case 'running':
+        return 'status-green';
+      case 'starting':
+        return 'status-amber';
+      case 'restarting':
+        return 'status-amber';
+      case 'crashed':
+        return 'status-red';
+      default:
+        return 'status-gray';
     }
   }
 
@@ -366,7 +385,8 @@ export function Dashboard() {
           <div class="detail-row">
             <span class="detail-label">{t('dashboard.observability.l4Breakdown')}</span>
             <span class="detail-value">
-              ✓{fmtCount(l4Allow)} / ?{fmtCount(l4Confirm)} / P{fmtCount(l4Plan)} / ✗{fmtCount(l4Deny)}
+              ✓{fmtCount(l4Allow)} / ?{fmtCount(l4Confirm)} / P{fmtCount(l4Plan)} / ✗
+              {fmtCount(l4Deny)}
             </span>
           </div>
           <div class="detail-row">
@@ -438,13 +458,13 @@ export function Dashboard() {
               onClick={handleSelfReflect}
               disabled={reflecting}
             >
-              {reflecting ? t('dashboard.selfReflect.reflecting') : t('dashboard.selfReflect.button')}
+              {reflecting
+                ? t('dashboard.selfReflect.reflecting')
+                : t('dashboard.selfReflect.button')}
             </button>
           </div>
           {reflections.length === 0 ? (
-            <div class="detail-empty">
-              {t('dashboard.selfReflect.button')} →
-            </div>
+            <div class="detail-empty">{t('dashboard.selfReflect.button')} →</div>
           ) : (
             reflections.map((r) => (
               <div key={`${r.kind}-${r.title}`} class="reflection-card">
@@ -455,7 +475,10 @@ export function Dashboard() {
                   </span>
                 </div>
                 <h4 class="reflection-title">{r.title}</h4>
-                <div class="reflection-body" dangerouslySetInnerHTML={{ __html: r.content.replace(/\n/g, '<br/>') }} />
+                <div
+                  class="reflection-body"
+                  dangerouslySetInnerHTML={{ __html: r.content.replace(/\n/g, '<br/>') }}
+                />
                 {r.insights.length > 0 && (
                   <div class="reflection-insights">
                     <strong>{t('dashboard.selfReflect.insights')}:</strong>
@@ -477,8 +500,12 @@ export function Dashboard() {
                   </div>
                 )}
                 <div class="reflection-meta">
-                  <span>{t('dashboard.selfReflect.confidence')}: {Math.round(r.confidence * 100)}%</span>
-                  <span>{t('dashboard.selfReflect.severity')}: {Math.round(r.severity * 100)}%</span>
+                  <span>
+                    {t('dashboard.selfReflect.confidence')}: {Math.round(r.confidence * 100)}%
+                  </span>
+                  <span>
+                    {t('dashboard.selfReflect.severity')}: {Math.round(r.severity * 100)}%
+                  </span>
                 </div>
               </div>
             ))

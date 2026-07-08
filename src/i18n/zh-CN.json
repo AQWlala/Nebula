@@ -874,7 +874,6 @@
   "workTypeConfig.toast.saved.title": "WorkType 配置已保存",
   "workTypeConfig.toast.saved.body": "models.json 已落盘 + AppState 热更新 + cost_tracker override 推送",
 
-
   "diagnostics.live": "live",
   "diagnostics.idle": "idle",
   "diagnostics.eventsCount": "{count} events · capacity {capacity}{live}",

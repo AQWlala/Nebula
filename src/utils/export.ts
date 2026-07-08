@@ -74,9 +74,10 @@ export function printToPdf(messages: Message[], options: ExportOptions): void {
     .map((msg) => {
       const roleLabel = msg.role === 'user' ? '用户' : 'Nebula';
       const roleColor = msg.role === 'user' ? '#2196f3' : '#4caf50';
-      const ts = options.includeTimestamps && msg.timestamp > 0
-        ? `<div style="font-size:12px;color:#888;margin-bottom:4px;">${formatTimestamp(msg.timestamp)}</div>`
-        : '';
+      const ts =
+        options.includeTimestamps && msg.timestamp > 0
+          ? `<div style="font-size:12px;color:#888;margin-bottom:4px;">${formatTimestamp(msg.timestamp)}</div>`
+          : '';
       return `
         <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:${msg.role === 'user' ? 'rgba(33,150,243,0.05)' : 'rgba(76,175,80,0.05)'};border-left:4px solid ${roleColor};">
           <div style="font-weight:bold;color:${roleColor};margin-bottom:4px;">${roleLabel}</div>
