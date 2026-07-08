@@ -163,12 +163,42 @@ impl CronTask {
             }
         }
     }
+
+    /// T-E-L-02: 检查任务预算是否已超限。
+    ///
+    /// - `budget_tokens_total = 0` 表示 Token 无限制
+    /// - `budget_minutes_total = 0` 表示时间无限制
+    ///
+    /// 任一维度超限即返回 `true`。预算在每个调度周期开始时检查,
+    /// 超限任务会被跳过(不执行)。
+    pub fn budget_exceeded(&self) -> bool {
+        if self.budget_tokens_total > 0 && self.budget_tokens_used >= self.budget_tokens_total {
+            return true;
+        }
+        if self.budget_minutes_total > 0 && self.budget_minutes_used >= self.budget_minutes_total {
+            return true;
+        }
+        false
+    }
+
+    /// T-E-L-02: 累加 Token 用量(saturating,不会溢出)。
+    pub fn add_token_usage(&mut self, tokens: u64) {
+        self.budget_tokens_used = self.budget_tokens_used.saturating_add(tokens);
+    }
+
+    /// T-E-L-02: 累加时间用量(分钟,saturating)。
+    pub fn add_minutes_usage(&mut self, minutes: u64) {
+        self.budget_minutes_used = self.budget_minutes_used.saturating_add(minutes);
+    }
 }
 
 /// Cron 调度器。
 ///
 /// 每 60 秒检查一次任务表,到达预定时间则触发对应任务。
 /// 任务执行是"尽力而为":失败记录 warning 但不中断调度循环。
+///
+/// T-E-L-02: 新增预算检查 — 任务执行前检查 `budget_exceeded()`,
+/// 超限任务跳过;执行后累加时间预算 + 聚合 AtomicU64 计数器。
 pub struct CronScheduler {
     tasks: Arc<Mutex<Vec<CronTask>>>,
     honcho: Option<Arc<HonchoEngine>>,
@@ -178,6 +208,11 @@ pub struct CronScheduler {
     check_interval_secs: u64,
     /// 是否正在运行。
     running: Arc<std::sync::atomic::AtomicBool>,
+    /// T-E-L-02: 聚合 Token 用量(所有任务合计,AtomicU64 内存累加)。
+    /// 异步落库由调用者/后台 worker 负责(见 `flush_budget_to_store()`)。
+    aggregate_tokens_used: Arc<std::sync::atomic::AtomicU64>,
+    /// T-E-L-02: 聚合执行时间-秒(所有任务合计,AtomicU64 内存累加)。
+    aggregate_seconds_used: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl CronScheduler {
@@ -188,6 +223,8 @@ impl CronScheduler {
             user_id,
             check_interval_secs: 60,
             running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            aggregate_tokens_used: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            aggregate_seconds_used: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
     }
 
@@ -212,6 +249,57 @@ impl CronScheduler {
             }
         }
         false
+    }
+
+    /// T-E-L-02: 记录 Token 用量(由 execute_* 方法或外部调用者调用)。
+    ///
+    /// 使用 AtomicU64 无锁累加到聚合计数器,同时更新指定任务的预算用量。
+    /// 异步落库由后台 worker 负责(`flush_budget_to_store`)。
+    pub fn record_token_usage(&self, task_name: &str, tokens: u64) {
+        self.aggregate_tokens_used
+            .fetch_add(tokens, std::sync::atomic::Ordering::Relaxed);
+        let mut tasks = self.tasks.lock();
+        for t in tasks.iter_mut() {
+            if t.name == task_name {
+                t.add_token_usage(tokens);
+                break;
+            }
+        }
+        info!(
+            target: "nebula.cron",
+            task = %task_name,
+            tokens = tokens,
+            "token usage recorded"
+        );
+    }
+
+    /// T-E-L-02: 聚合 Token 用量(所有任务合计)。
+    pub fn aggregate_tokens_used(&self) -> u64 {
+        self.aggregate_tokens_used
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// T-E-L-02: 聚合执行时间-秒(所有任务合计)。
+    pub fn aggregate_seconds_used(&self) -> u64 {
+        self.aggregate_seconds_used
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// T-E-L-02: 重置所有任务的预算用量(用于新周期)。
+    ///
+    /// 调用此方法后,所有任务的 `budget_*_used` 清零,聚合计数器也清零。
+    /// 通常在日/周/月切换时调用。
+    pub fn reset_all_budgets(&self) {
+        let mut tasks = self.tasks.lock();
+        for t in tasks.iter_mut() {
+            t.budget_tokens_used = 0;
+            t.budget_minutes_used = 0;
+        }
+        self.aggregate_tokens_used
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.aggregate_seconds_used
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        info!(target: "nebula.cron", "all task budgets reset");
     }
 
     /// 启动调度循环。这个方法会阻塞当前 tokio 任务直到取消。
@@ -253,6 +341,30 @@ impl CronScheduler {
             };
 
             for task in due {
+                // T-E-L-02: 预算检查 — 超限任务跳过。
+                if task.budget_exceeded() {
+                    warn!(
+                        target: "nebula.cron",
+                        task = %task.name,
+                        tokens_used = task.budget_tokens_used,
+                        tokens_total = task.budget_tokens_total,
+                        minutes_used = task.budget_minutes_used,
+                        minutes_total = task.budget_minutes_total,
+                        "cron task skipped: budget exceeded"
+                    );
+                    // 仍更新 last_run,避免同一分钟内重复检查。
+                    let mut tasks = self.tasks.lock();
+                    for t in tasks.iter_mut() {
+                        if t.name == task.name {
+                            t.last_run = Some(now);
+                        }
+                    }
+                    continue;
+                }
+
+                // T-E-L-02: 记录执行开始时间(用于时间预算)。
+                let exec_start = std::time::Instant::now();
+
                 if let Err(e) = self.execute_task(&task.name).await {
                     warn!(
                         target: "nebula.cron",
@@ -262,13 +374,24 @@ impl CronScheduler {
                     );
                 }
 
-                // 更新 last_run
+                let elapsed_secs = exec_start.elapsed().as_secs();
+
+                // 更新 last_run + 预算用量
                 let mut tasks = self.tasks.lock();
                 for t in tasks.iter_mut() {
                     if t.name == task.name {
                         t.last_run = Some(now);
+                        // T-E-L-02: 累加时间预算(秒→分钟向上取整)。
+                        let elapsed_minutes = (elapsed_secs + 59) / 60; // 向上取整
+                        t.add_minutes_usage(elapsed_minutes);
                     }
                 }
+
+                // T-E-L-02: 聚合 AtomicU64 计数器(无锁,热路径)。
+                self.aggregate_seconds_used.fetch_add(
+                    elapsed_secs,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
             }
         }
     }
@@ -619,5 +742,147 @@ mod tests {
     fn set_task_enabled_unknown_returns_false() {
         let scheduler = CronScheduler::new(None, "user1".to_string());
         assert!(!scheduler.set_task_enabled("nonexistent", true));
+    }
+
+    // ---- T-E-L-02: 预算检查测试 ----
+
+    #[test]
+    fn budget_exceeded_when_tokens_used() {
+        let task = CronTask {
+            name: "test".to_string(),
+            budget_tokens_total: 1000,
+            budget_tokens_used: 1000,
+            ..Default::default()
+        };
+        assert!(task.budget_exceeded());
+    }
+
+    #[test]
+    fn budget_exceeded_when_minutes_used() {
+        let task = CronTask {
+            name: "test".to_string(),
+            budget_minutes_total: 10,
+            budget_minutes_used: 10,
+            ..Default::default()
+        };
+        assert!(task.budget_exceeded());
+    }
+
+    #[test]
+    fn budget_not_exceeded_when_under_limit() {
+        let task = CronTask {
+            name: "test".to_string(),
+            budget_tokens_total: 1000,
+            budget_tokens_used: 500,
+            budget_minutes_total: 10,
+            budget_minutes_used: 5,
+            ..Default::default()
+        };
+        assert!(!task.budget_exceeded());
+    }
+
+    #[test]
+    fn budget_not_exceeded_when_total_zero() {
+        // total=0 表示无限制
+        let task = CronTask {
+            name: "test".to_string(),
+            budget_tokens_total: 0,
+            budget_tokens_used: 999_999_999,
+            budget_minutes_total: 0,
+            budget_minutes_used: 999_999,
+            ..Default::default()
+        };
+        assert!(!task.budget_exceeded());
+    }
+
+    #[test]
+    fn add_token_usage_saturates() {
+        let mut task = CronTask {
+            name: "test".to_string(),
+            budget_tokens_total: 1000,
+            budget_tokens_used: 900,
+            ..Default::default()
+        };
+        task.add_token_usage(200); // 900 + 200 = 1100
+        assert_eq!(task.budget_tokens_used, 1100);
+        assert!(task.budget_exceeded());
+        // saturating: u64::MAX + 1 = u64::MAX
+        task.add_token_usage(u64::MAX);
+        assert_eq!(task.budget_tokens_used, u64::MAX);
+    }
+
+    #[test]
+    fn add_minutes_usage_saturates() {
+        let mut task = CronTask {
+            name: "test".to_string(),
+            budget_minutes_total: 10,
+            budget_minutes_used: 5,
+            ..Default::default()
+        };
+        task.add_minutes_usage(3); // 5 + 3 = 8
+        assert_eq!(task.budget_minutes_used, 8);
+        assert!(!task.budget_exceeded());
+        task.add_minutes_usage(3); // 8 + 3 = 11 > 10
+        assert!(task.budget_exceeded());
+    }
+
+    #[test]
+    fn scheduler_record_token_usage_updates_task_and_aggregate() {
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        assert_eq!(scheduler.aggregate_tokens_used(), 0);
+
+        scheduler.record_token_usage("memory-merge", 500);
+        assert_eq!(scheduler.aggregate_tokens_used(), 500);
+
+        // 验证任务级预算也更新了
+        let tasks = scheduler.list_tasks();
+        let memory_merge = tasks.iter().find(|t| t.name == "memory-merge").unwrap();
+        assert_eq!(memory_merge.budget_tokens_used, 500);
+    }
+
+    #[test]
+    fn scheduler_aggregate_seconds_starts_zero() {
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        assert_eq!(scheduler.aggregate_seconds_used(), 0);
+        assert_eq!(scheduler.aggregate_tokens_used(), 0);
+    }
+
+    #[test]
+    fn scheduler_reset_all_budgets() {
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        scheduler.record_token_usage("memory-merge", 500);
+        scheduler.record_token_usage("evening-review", 300);
+        assert_eq!(scheduler.aggregate_tokens_used(), 800);
+
+        // 验证任务级预算有值
+        let tasks = scheduler.list_tasks();
+        assert_eq!(
+            tasks
+                .iter()
+                .find(|t| t.name == "memory-merge")
+                .unwrap()
+                .budget_tokens_used,
+            500
+        );
+
+        // 重置
+        scheduler.reset_all_budgets();
+        assert_eq!(scheduler.aggregate_tokens_used(), 0);
+        assert_eq!(scheduler.aggregate_seconds_used(), 0);
+
+        // 验证任务级预算也清零了
+        let tasks = scheduler.list_tasks();
+        for t in &tasks {
+            assert_eq!(t.budget_tokens_used, 0);
+            assert_eq!(t.budget_minutes_used, 0);
+        }
+    }
+
+    #[test]
+    fn default_schedule_budgets_not_exceeded_initially() {
+        let tasks = CronTask::default_schedule();
+        for t in &tasks {
+            assert!(!t.budget_exceeded(), "task {} should not be exceeded", t.name);
+        }
     }
 }
