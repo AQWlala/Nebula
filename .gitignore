@@ -5,6 +5,7 @@ dist/
 
 # Rust
 src-tauri/target/
+src-tauri/target-check/
 target/
 src-tauri/WixTools/
 
