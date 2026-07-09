@@ -14,9 +14,17 @@
 pub mod agents;
 pub mod bus;
 pub mod composer;
+// T-E-S-11: 蜂群运行时画布 — 实时蜂群 agent 运行状态可视化数据流。
+pub mod runtime_canvas;
+// T-E-S-26: Event Stream 协议化 — 版本化 + 过滤 + 回放。
+pub mod event_stream;
+// T-E-S-12: 节点交互 — 拖拽/选中/连线/右键菜单。
+pub mod canvas_interaction;
+// T-E-S-14: 执行回放 — 录制 + 逐步回放 + 快进 + 跳转。
 pub mod context;
 pub mod context_pool;
 pub mod crdt_sync;
+pub mod execution_replay;
 // M3 #40-43: TaskDag + SubTask + WorkerCapability + SubTaskResultMap
 #[cfg(feature = "master-orchestrator")]
 pub mod dag;

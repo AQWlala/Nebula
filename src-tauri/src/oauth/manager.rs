@@ -27,6 +27,7 @@ use super::{generate_state, OAuthProvider, TokenSet};
 
 /// 一个进行中的授权流程的临时状态(state → verifier + 接收回调的 channel)。
 struct PendingFlow {
+    #[allow(dead_code)]
     state: String,
     pkce_verifier: Option<String>,
     rx: tokio::sync::oneshot::Receiver<CallbackResult>,
@@ -234,7 +235,8 @@ impl OAuthManager {
         self.store.lock().delete(provider_id)?;
 
         if let Some(stored) = token {
-            if let Some(provider) = self.providers.read().get(provider_id).cloned() {
+            let provider = self.providers.read().get(provider_id).cloned();
+            if let Some(provider) = provider {
                 if let Err(e) = provider.revoke(&stored.token_set.access_token).await {
                     warn!(
                         target: "nebula.oauth",

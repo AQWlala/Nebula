@@ -9,6 +9,8 @@ pub mod detectors;
 pub mod injection_guard;
 pub mod keychain;
 pub mod ssrf_guard;
+// T-E-S-22: AIO 应用隔离沙箱 — 路径/网络/环境变量/资源限制。
+pub mod aio_sandbox;
 
 // re-export detectors functions for convenience
 pub use detectors::{contains_sensitive, scan_content, SensitiveScanner};

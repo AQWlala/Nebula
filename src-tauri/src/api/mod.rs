@@ -25,4 +25,7 @@ pub mod auth;
 #[cfg(feature = "rest-api")]
 pub mod rest;
 
+// T-E-S-60: Gateway 守护进程 — HTTP 代理网关 + 路由转发 + 认证 + 限流。
+pub mod gateway_daemon;
+
 pub use server::NebulaService;

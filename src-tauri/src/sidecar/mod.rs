@@ -25,6 +25,8 @@ pub mod manager;
 pub mod memory_service;
 /// T-S6-A-01a: OS-Controller sidecar 服务处理器。
 pub mod os_controller_service;
+// T-E-C-05: OS-Controller Sidecar 守护进程 — 独立进程运行 OS 控制能力。
+pub mod os_controller_daemon;
 pub mod protocol;
 /// T-S4-B-02: Reflection sidecar 服务处理器。
 pub mod reflection_service;

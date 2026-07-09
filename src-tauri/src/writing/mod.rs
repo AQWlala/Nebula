@@ -15,6 +15,10 @@
 //! transforms — no network calls, no LLM involvement.
 
 pub mod scenarios;
+// T-E-AE-03: 自媒体写作场景端到端工作流。
+pub mod self_media_workflow;
+// T-E-AE-03b: 长篇小说写作场景端到端工作流。
+pub mod novel_workflow;
 pub mod templates;
 
 use std::sync::Arc;

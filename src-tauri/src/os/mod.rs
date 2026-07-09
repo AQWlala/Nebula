@@ -24,6 +24,14 @@ pub mod shortcut;
 pub mod tray;
 // T-E-C-03: UiAutomator 抽象层 — trait-based UI 自动化抽象。
 pub mod uiautomator;
+// T-E-C-01: OS-Controller VLM 模式 — 截图→VLM 分析→操作执行闭环。
+pub mod controller_vlm;
+// T-E-C-04: ActionExecutor — 统一 UI 动作执行器。
+pub mod action_executor;
+// T-E-C-11: 操作录制回放 — UI 操作录制 + 回放。
+pub mod action_recorder;
+// T-E-C-12: Design Mode — 可视化设计界面创建自动化流程。
+pub mod design_mode;
 
 pub use clipboard::ClipboardService;
 // T-E-C-14: 剪贴板监听引擎 re-export。

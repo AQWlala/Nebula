@@ -341,7 +341,7 @@ impl BrowserAgent for ApiBrowserAgent {
             .join("\n");
         let raw_html = elements
             .iter()
-            .map(|e| render_element_html(e))
+            .map(render_element_html)
             .collect::<Vec<_>>()
             .join("\n");
         Ok(ExtractedContent {
@@ -548,7 +548,7 @@ fn parse_selector(selector: &str) -> Result<ParsedSelector, BrowserError> {
     }
 
     // 提取 tag 部分(开头到第一个 # 或 . 之前)。
-    let tag_end = s.find(|c| c == '#' || c == '.').unwrap_or(s.len());
+    let tag_end = s.find(['#', '.']).unwrap_or(s.len());
     let tag = if tag_end == 0 {
         None
     } else {
@@ -869,6 +869,8 @@ fn find_enclosing_form(html: &str, submit: &BrowserElement) -> Option<ParsedForm
     let submit_name = submit.attributes.get("name").cloned();
 
     // 遍历表单,找一个包含与提交按钮匹配的 <button>/<input type=submit>。
+    let opt_re =
+        Regex::new(r"(?is)<option[^>]*>(.*?)</option>").expect("option regex should compile");
     for (form_tag, content_start, content_end) in &forms {
         let form_content = &html[*content_start..*content_end];
         let inner_tags = scan_start_tags(form_content);
@@ -941,8 +943,6 @@ fn find_enclosing_form(html: &str, submit: &BrowserElement) -> Option<ParsedForm
                         // 简化:取第一个 <option> 的文本作为值。
                         let (cs, ce) = find_element_content_range(form_content, t);
                         let sel_content = if ce > cs { &form_content[cs..ce] } else { "" };
-                        let opt_re = Regex::new(r"(?is)<option[^>]*>(.*?)</option>")
-                            .expect("option regex should compile");
                         let value = opt_re
                             .captures(sel_content)
                             .and_then(|c| Some(strip_tags(c.get(1)?.as_str())))

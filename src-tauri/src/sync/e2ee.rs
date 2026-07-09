@@ -547,7 +547,7 @@ impl Pair {
         if trial.send_chain_key.is_none() {
             let (new_priv, new_pub) = RatchetState::generate_dh();
             let dh_out = new_priv.diffie_hellman(&trial.peer_dh_pub);
-            let (new_rk, new_ck) = kdf_rk(&trial.root_key, &(*dh_out.as_bytes()));
+            let (new_rk, new_ck) = kdf_rk(&trial.root_key, dh_out.as_bytes());
             trial.root_key = new_rk;
             trial.send_chain_key = Some(new_ck);
             trial.dh_priv = new_priv;
@@ -611,7 +611,7 @@ impl Pair {
 
             // 步骤 1:用当前 dh_priv 推导接收链
             let dh_out = trial.dh_priv.diffie_hellman(&env_peer_pub);
-            let (new_rk, new_ck) = kdf_rk(&trial.root_key, &(*dh_out.as_bytes()));
+            let (new_rk, new_ck) = kdf_rk(&trial.root_key, dh_out.as_bytes());
             trial.root_key = new_rk;
             trial.recv_chain_key = Some(new_ck);
             trial.recv_n = 0;
@@ -619,7 +619,7 @@ impl Pair {
             // 步骤 2:生成新 DH 密钥对,推导发送链
             let (new_priv, new_pub) = RatchetState::generate_dh();
             let dh_out2 = new_priv.diffie_hellman(&env_peer_pub);
-            let (new_rk2, new_ck2) = kdf_rk(&trial.root_key, &(*dh_out2.as_bytes()));
+            let (new_rk2, new_ck2) = kdf_rk(&trial.root_key, dh_out2.as_bytes());
             trial.root_key = new_rk2;
             trial.send_chain_key = Some(new_ck2);
             trial.dh_priv = new_priv;

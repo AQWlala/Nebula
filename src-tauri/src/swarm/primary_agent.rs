@@ -220,7 +220,7 @@ impl Decomposer for RuleBasedDecomposer {
     async fn decompose(&self, input: &str) -> Result<Vec<DelegatedTask>> {
         // 按分号或换行符拆分(支持中英文分号)。
         let segments: Vec<&str> = input
-            .split(|c| c == ';' || c == '；' || c == '\n')
+            .split([';', '；', '\n'])
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .collect();
@@ -344,8 +344,8 @@ impl Synthesizer for ConcatSynthesizer {
 ///
 /// ## 构造
 ///
-/// - [`PrimaryAgent::new`]: 注入三大策略。
-/// - [`PrimaryAgent::with_defaults`]: 使用无 LLM 依赖的默认实现(规则分解 +
+/// - [`PrimaryAgent::new`][]: 注入三大策略。
+/// - [`PrimaryAgent::with_defaults`][]: 使用无 LLM 依赖的默认实现(规则分解 +
 ///   拼接综合,委派器需单独注入)。
 pub struct PrimaryAgent {
     decomposer: Arc<dyn Decomposer>,

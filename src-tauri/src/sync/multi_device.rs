@@ -178,10 +178,10 @@ impl ConflictResolver {
     ///
     /// - [`ConflictResolution::LastWriteWins`]: `timestamp` 大者胜,
     ///   相等时偏向远端(让新数据流入)。
-    /// - [`ConflictResolution::SourceWins`]: 返回远端。
-    /// - [`ConflictResolution::TargetWins`]: 返回本地。
-    /// - [`ConflictResolution::Merge`]: 合并值(见 [`merge_items`])。
-    /// - [`ConflictResolution::Manual`]: 返回本地,标记需人工裁决。
+    /// - [`ConflictResolution::SourceWins`][]: 返回远端。
+    /// - [`ConflictResolution::TargetWins`][]: 返回本地。
+    /// - [`ConflictResolution::Merge`][]: 合并值(见 [`merge_items`])。
+    /// - [`ConflictResolution::Manual`][]: 返回本地,标记需人工裁决。
     pub fn apply_resolution(&self, local: &SyncItem, remote: &SyncItem) -> SyncItem {
         match self.strategy {
             ConflictResolution::LastWriteWins => {
