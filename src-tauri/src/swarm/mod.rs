@@ -21,10 +21,13 @@ pub mod event_stream;
 // T-E-S-12: 节点交互 — 拖拽/选中/连线/右键菜单。
 pub mod canvas_interaction;
 // T-E-S-14: 执行回放 — 录制 + 逐步回放 + 快进 + 跳转。
+pub mod execution_replay;
+// T-E-L-08a: Loop 运行时阶段环 — Loop 执行过程中的阶段可视化与状态追踪。
 pub mod context;
 pub mod context_pool;
 pub mod crdt_sync;
-pub mod execution_replay;
+#[cfg(feature = "master-orchestrator")]
+pub mod loop_phase_ring;
 // M3 #40-43: TaskDag + SubTask + WorkerCapability + SubTaskResultMap
 #[cfg(feature = "master-orchestrator")]
 pub mod dag;

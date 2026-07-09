@@ -32,6 +32,8 @@ pub mod action_executor;
 pub mod action_recorder;
 // T-E-C-12: Design Mode — 可视化设计界面创建自动化流程。
 pub mod design_mode;
+// T-E-C-07: Remote Operator — 远程操作器,通过远程连接控制 OS-Controller Sidecar。
+pub mod remote_operator;
 
 pub use clipboard::ClipboardService;
 // T-E-C-14: 剪贴板监听引擎 re-export。
