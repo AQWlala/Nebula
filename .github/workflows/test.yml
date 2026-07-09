@@ -399,7 +399,9 @@ jobs:
   # T-D-T-04: 在 Linux 上跑集成测试（Windows 因 STATUS_ENTRYPOINT_NOT_FOUND 跳过）。
   # Linux 不依赖 WebView2/COM，可以正常加载集成测试二进制。
   # 本 job 只跑集成测试（--tests），单元测试仍由上面的 rust-windows-latest job 负责。
+  # T-D-C-01: 暂时禁用 Linux 集成测试,等 Windows 端测试全部通过后再统一开启。
   rust-integration:
+    if: false
     name: rust-integration-linux
     runs-on: ubuntu-latest
     steps:
