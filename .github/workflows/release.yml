@@ -35,7 +35,7 @@ jobs:
           - platform: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            bundles: nsis,msi
+            bundles: nsis
 
     steps:
       - uses: actions/checkout@v7
@@ -205,7 +205,6 @@ jobs:
             -o -name '*.dmg' \
             -o -name '*.app' \
             -o -name '*.exe' \
-            -o -name '*.msi' \
             -o -name '*.deb' \
             -o -name '*.sig' \
           \) -exec cp -v {} release-assets/ \;
