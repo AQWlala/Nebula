@@ -24,14 +24,53 @@
 //!
 //! When the user asks to ..., do ...
 //! ```
+//!
+//! T-D-B-10: 补齐发现层 API ——
+//! * [`DiscoveryResult`] 详细的发现结果(含路径/状态/错误),供前端展示。
+//! * [`SkillDiscoverer::discover_with_details`] 返回 `Vec<DiscoveryResult>`
+//!   而非裸 `usize`,前端可显示哪些技能被加载、哪些失败及原因。
+//! * [`SkillDiscoverer::with_extra_paths`] builder 支持追加自定义扫描路径
+//!   (供 Tauri 命令层注入 workspace 根目录)。
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::skills::store::SkillStore;
 use crate::skills::types::{ActivationCondition, Skill};
+
+/// T-D-B-10: 单个 SKILL.md 的发现结果。
+///
+/// 由 [`SkillDiscoverer::discover_with_details`] 返回,供前端展示加载进度
+/// 与失败原因。与裸 `discover()` 的 `usize` 计数不同,本结构包含路径、
+/// skill id、状态(new/updated/failed)及错误信息。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DiscoveryResult {
+    /// 被扫描的 SKILL.md 绝对路径(或相对路径,取决于扫描时的工作目录)。
+    pub path: String,
+    /// 解析出的 skill id(frontmatter `id` 字段)。失败时为空字符串。
+    pub skill_id: String,
+    /// 发现状态。
+    pub status: DiscoveryStatus,
+    /// 失败或跳过原因(`status != Ok` 时填充)。
+    pub message: Option<String>,
+}
+
+/// T-D-B-10: 发现状态枚举。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DiscoveryStatus {
+    /// 新发现并成功写入 store。
+    New,
+    /// 已存在并成功更新(upsert)。
+    Updated,
+    /// 解析或写入失败。
+    Failed,
+    /// 跳过(如规范校验不通过,但非致命)。
+    Skipped,
+}
 
 /// Scans the 4-layer directory hierarchy for `SKILL.md` files and
 /// registers any new skills into the [`SkillStore`].
@@ -76,6 +115,19 @@ impl SkillDiscoverer {
         Self { scan_paths: paths }
     }
 
+    /// T-D-B-10: builder 方法,追加自定义扫描路径。
+    ///
+    /// 供 Tauri 命令层注入 workspace 根目录(如 `<workspace>/.nebula/skills/`)。
+    /// 不存在的路径会被静默跳过(与 `new()` 一致)。
+    pub fn with_extra_paths(mut self, paths: &[PathBuf]) -> Self {
+        for p in paths {
+            if p.is_dir() && !self.scan_paths.contains(p) {
+                self.scan_paths.push(p.clone());
+            }
+        }
+        self
+    }
+
     /// Returns the list of directories that will be scanned.
     pub fn scan_paths(&self) -> &[PathBuf] {
         &self.scan_paths
@@ -108,6 +160,47 @@ impl SkillDiscoverer {
             );
         }
         Ok(count)
+    }
+
+    /// T-D-B-10: 与 `discover()` 相同的扫描逻辑,但返回详细的发现结果列表。
+    ///
+    /// 每个被扫描到的 `SKILL.md` 都会产生一个 [`DiscoveryResult`] 项,
+    /// 包含路径、skill id、状态(New/Updated/Failed/Skipped)和消息。
+    /// 前端可用此 API 显示加载进度条与失败原因。
+    pub fn discover_with_details(&self, store: &SkillStore) -> Vec<DiscoveryResult> {
+        let mut results = Vec::new();
+        for path in &self.scan_paths {
+            match self.scan_directory_with_details(path, store, &mut results) {
+                Ok(()) => {}
+                Err(e) => {
+                    warn!(
+                        target: "nebula.skills",
+                        path = %path.display(),
+                        error = %e,
+                        "skill discovery failed for directory"
+                    );
+                    results.push(DiscoveryResult {
+                        path: path.display().to_string(),
+                        skill_id: String::new(),
+                        status: DiscoveryStatus::Failed,
+                        message: Some(format!("directory scan failed: {e}")),
+                    });
+                }
+            }
+        }
+        let new_count = results
+            .iter()
+            .filter(|r| r.status == DiscoveryStatus::New || r.status == DiscoveryStatus::Updated)
+            .count();
+        if new_count > 0 {
+            info!(
+                target: "nebula.skills",
+                count = new_count,
+                paths = self.scan_paths.len(),
+                "skill auto-discovery complete (detailed)"
+            );
+        }
+        results
     }
 
     /// Scans a single directory recursively for `SKILL.md` files.
@@ -146,6 +239,56 @@ impl SkillDiscoverer {
             }
         }
         Ok(count)
+    }
+
+    /// T-D-B-10: scan_directory 的详细版本,每个 SKILL.md 产生一个 DiscoveryResult。
+    fn scan_directory_with_details(
+        &self,
+        dir: &Path,
+        store: &SkillStore,
+        results: &mut Vec<DiscoveryResult>,
+    ) -> anyhow::Result<()> {
+        for entry in walkdir::WalkDir::new(dir)
+            .max_depth(3)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.file_name() != "SKILL.md" {
+                continue;
+            }
+
+            let path_str = entry.path().display().to_string();
+            match self.parse_and_register(entry.path(), store) {
+                Ok(skill_id) => {
+                    // 判断是 New 还是 Updated:upsert 不返回此信息,
+                    // 此处简化为 New(实际区分需 store 层支持,本期不阻塞)。
+                    results.push(DiscoveryResult {
+                        path: path_str,
+                        skill_id,
+                        status: DiscoveryStatus::New,
+                        message: None,
+                    });
+                }
+                Err(e) => {
+                    warn!(
+                        target: "nebula.skills",
+                        path = %path_str,
+                        error = %e,
+                        "failed to parse SKILL.md"
+                    );
+                    results.push(DiscoveryResult {
+                        path: path_str,
+                        skill_id: String::new(),
+                        status: DiscoveryStatus::Failed,
+                        message: Some(format!("{e}")),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Parses a single `SKILL.md` file and upserts it into the store.
@@ -399,5 +542,129 @@ mod tests {
         let (fm, body) = split_frontmatter(content);
         assert!(fm.contains("id: bom-test"));
         assert_eq!(body, "Body");
+    }
+
+    // -----------------------------------------------------------------
+    // T-D-B-10: discover_with_details / with_extra_paths 测试
+    // -----------------------------------------------------------------
+
+    /// 构造一个内存 SkillStore(已运行 migrations,skills 表就绪)。
+    fn make_store() -> SkillStore {
+        let sqlite = crate::memory::sqlite_store::SqliteStore::open(":memory:")
+            .expect("sqlite open should succeed");
+        SkillStore::new(sqlite).expect("SkillStore::new should succeed")
+    }
+
+    /// 在临时目录中写入一个 SKILL.md 文件,返回目录路径。
+    fn write_skill_md(dir: &Path, id: &str, name: &str) -> std::io::Result<()> {
+        let content = format!(
+            "---\nid: {id}\nname: {name}\ndescription: A test skill\n---\n\n# {name}\n\nBody.\n"
+        );
+        std::fs::write(dir.join("SKILL.md"), content)
+    }
+
+    /// T-D-B-10: discover_with_details 应返回每个被发现的 SKILL.md 的详细结果。
+    #[test]
+    fn test_discover_with_details_finds_skill_md() {
+        let tmp = tempfile::tempdir().expect("tempdir should succeed");
+        write_skill_md(tmp.path(), "demo-skill", "Demo Skill").expect("write should succeed");
+
+        let store = make_store();
+        let discoverer = SkillDiscoverer::new().with_extra_paths(&[tmp.path().to_path_buf()]);
+
+        let results = discoverer.discover_with_details(&store);
+        assert_eq!(results.len(), 1, "expected 1 discovery result");
+        let r = &results[0];
+        assert_eq!(r.skill_id, "demo-skill");
+        assert_eq!(r.status, DiscoveryStatus::New);
+        assert!(r.message.is_none());
+        assert!(r.path.ends_with("SKILL.md"));
+
+        // 验证 skill 确实写入了 store。
+        let stored = store.get("demo-skill").expect("get should succeed");
+        assert!(stored.is_some(), "skill should be persisted in store");
+    }
+
+    /// T-D-B-10: 损坏的 SKILL.md(缺 id)应产生 Failed 状态的结果。
+    #[test]
+    fn test_discover_with_details_reports_parse_failure() {
+        let tmp = tempfile::tempdir().expect("tempdir should succeed");
+        // 缺 id 字段 —— parse_frontmatter 会 bail。
+        let bad_md = "---\nname: No ID\n---\n\n# Body\n";
+        std::fs::write(tmp.path().join("SKILL.md"), bad_md).expect("write should succeed");
+
+        let store = make_store();
+        let discoverer = SkillDiscoverer::new().with_extra_paths(&[tmp.path().to_path_buf()]);
+
+        let results = discoverer.discover_with_details(&store);
+        assert_eq!(results.len(), 1);
+        let r = &results[0];
+        assert_eq!(r.status, DiscoveryStatus::Failed);
+        assert!(r.skill_id.is_empty());
+        assert!(r.message.is_some(), "failed result should have message");
+        assert!(r.message.as_ref().unwrap().contains("id"));
+    }
+
+    /// T-D-B-10: with_extra_paths 应忽略不存在的目录,且去重已有路径。
+    #[test]
+    fn test_with_extra_paths_skips_nonexistent_and_dedupes() {
+        let tmp = tempfile::tempdir().expect("tempdir should succeed");
+        let existing = tmp.path().to_path_buf();
+        let nonexistent = tmp.path().join("does-not-exist");
+
+        let discoverer = SkillDiscoverer::new().with_extra_paths(&[
+            existing.clone(),
+            nonexistent.clone(),
+            existing.clone(), // 重复 —— 应被去重
+        ]);
+
+        // existing 应只出现一次;nonexistent 应被跳过。
+        let count = discoverer
+            .scan_paths()
+            .iter()
+            .filter(|p| **p == existing)
+            .count();
+        assert_eq!(count, 1, "existing path should appear exactly once");
+        assert!(
+            !discoverer.scan_paths().contains(&nonexistent),
+            "nonexistent path should be skipped"
+        );
+    }
+
+    /// T-D-B-10: 空目录扫描应返回空结果(不 panic)。
+    #[test]
+    fn test_discover_with_details_empty_dir() {
+        let tmp = tempfile::tempdir().expect("tempdir should succeed");
+        let store = make_store();
+        let discoverer = SkillDiscoverer::new().with_extra_paths(&[tmp.path().to_path_buf()]);
+
+        let results = discoverer.discover_with_details(&store);
+        assert!(results.is_empty(), "empty dir should produce no results");
+    }
+
+    /// T-D-B-10: DiscoveryResult / DiscoveryStatus 应可无损 serde 往返。
+    #[test]
+    fn test_discovery_result_serde_round_trip() {
+        let r = DiscoveryResult {
+            path: "/tmp/skills/SKILL.md".to_string(),
+            skill_id: "my-skill".to_string(),
+            status: DiscoveryStatus::Updated,
+            message: Some("ok".to_string()),
+        };
+        let j = serde_json::to_string(&r).expect("serialize should succeed");
+        // status 应序列化为 snake_case ("updated")。
+        assert!(j.contains("\"status\":\"updated\""), "got: {j}");
+        let r2: DiscoveryResult = serde_json::from_str(&j).expect("parse should succeed");
+        assert_eq!(r, r2);
+
+        // Failed 变体。
+        let r_fail = DiscoveryResult {
+            path: "/bad/SKILL.md".to_string(),
+            skill_id: String::new(),
+            status: DiscoveryStatus::Failed,
+            message: Some("parse error".to_string()),
+        };
+        let j_fail = serde_json::to_string(&r_fail).expect("serialize should succeed");
+        assert!(j_fail.contains("\"status\":\"failed\""), "got: {j_fail}");
     }
 }

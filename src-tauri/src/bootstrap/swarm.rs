@@ -89,7 +89,26 @@ impl AppState {
             + "/skills_archive";
         let extr = Arc::new(SkillExtractor::new(llm.clone(), ss.clone(), adir));
         let comp = Arc::new(SkillComposer::new(ss.clone(), Some(llm.clone())));
-        let imp = Arc::new(SkillImporter::new((*ss).clone()));
+        // T-D-B-10: 若配置了 NEBULA_TEAM_SKILLS_HUB_URL,注入 TeamSkillsHubClient
+        // 使 import_from_teamskillshub 不再返回 stub 错误。
+        let imp = {
+            let importer = SkillImporter::new((*ss).clone());
+            if let Ok(base_url) = std::env::var("NEBULA_TEAM_SKILLS_HUB_URL") {
+                if !base_url.is_empty() {
+                    let hub = crate::skills::hub_client::TeamSkillsHubClient::new(&base_url);
+                    info!(
+                        target: "nebula",
+                        url = %base_url,
+                        "TeamSkillsHubClient wired into SkillImporter (T-D-B-10)"
+                    );
+                    Arc::new(importer.with_hub_client(Some(hub)))
+                } else {
+                    Arc::new(importer)
+                }
+            } else {
+                Arc::new(importer)
+            }
+        };
         let mp = Arc::new(crate::skills::SkillMarketplace::new(ss, imp));
         let _ = mp.refresh();
         crate::skills::seed_demo_skills(&skills).unwrap_or_else(|e| {

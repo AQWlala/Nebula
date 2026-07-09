@@ -485,6 +485,212 @@ pub fn role_config_for(kind: &str) -> Option<&'static AgentRoleConfig> {
     configs.get(kind)
 }
 
+// =========================================================================
+// T-D-B-19: 写作场景角色配置(WritingScenarioProfile)
+// =========================================================================
+//
+// 设计意图(v3.0 HI-11 / v3.1 HI-11):swarm/agents 的 6 个角色
+// (master/coder/writer/reviewer/researcher/planner)原本偏编程场景
+// (Coder 写 Rust / Writer 写 Markdown 文档 / Reviewer 审代码漏洞 / ...),
+// 无法直接用于小说/剧本/技术博客等长篇写作任务。
+//
+// 本模块通过 `AgentScenario::Writing` 扩展 6 个角色的场景行为,不删除
+// 原编程场景代码(向后兼容)。角色 agent 通过 `with_scenario(Writing)`
+// 切换到写作场景提示词/工具集/知识边界/TeamContext label。
+//
+// 写作场景 6 角色映射:
+//   Master    → 主编(Master Editor): 综合策划、统筹全局风格
+//   Writer    → 主笔(Lead Writer): 撰写正文,注重文采与叙事
+//   Reviewer  → 校对编辑(Copy Editor): 校对错别字、语病、逻辑漏洞
+//   Researcher → 素材收集(Researcher): 收集素材、考证事实
+//   Planner   → 大纲规划(Outline Planner): 规划故事大纲与章节结构
+//   Coder     → 排版格式化(Formatter): Markdown 排版、目录生成
+
+/// T-D-B-19: 写作场景下单个角色的配置剖面。
+///
+/// 与编程场景的 [`AgentRoleConfig`] 平行,但所有字段针对长篇写作任务
+/// (小说/剧本/技术博客)优化:
+/// - `system_prompt`: 写作场景的 Dify 风格提示词(角色定位 + 工具指引)
+/// - `tool_set`: 写作场景允许调用的工具(可能与编程场景不同)
+/// - `knowledge_scope`: 写作场景可访问的记忆层级
+/// - `context_label`: 写入 [`TeamContext`] 时用的 label(如 "prose"/"outline")
+/// - `role_name_zh`: 角色中文名(供前端展示与日志)
+#[derive(Debug, Clone)]
+pub struct WritingScenarioProfile {
+    /// 写作场景 system prompt(角色定位 + 工具指引 + 知识边界)。
+    pub system_prompt: &'static str,
+    /// 写作场景该角色允许调用的工具名。
+    pub tool_set: &'static [&'static str],
+    /// 写作场景该角色可访问的记忆层级。
+    pub knowledge_scope: &'static [MemoryLayer],
+    /// 写入 TeamContext 时使用的 label(区分编程场景的 "code"/"doc"/"review")。
+    pub context_label: &'static str,
+    /// 角色中文名(主编/主笔/校对编辑/素材收集/大纲规划/排版格式化)。
+    pub role_name_zh: &'static str,
+}
+
+/// T-D-B-19: Master(主编)写作场景提示词。
+const WRITING_MASTER_PROMPT: &str = "You are the Master Editor (主编) in the nebula writing swarm.\n\
+     Role: decompose the writing task into a DAG (outline → research → prose → copyedit → formatting),\n\
+     arbitrate style consistency across chapters, and synthesize the final manuscript.\n\
+     Tools: memory_search, tool_invoke.\n\
+     Knowledge scope: L2 (cross-session experience) and L5 (lessons learned).\n\
+     Output strict JSON TaskDag with chapters as nodes.";
+
+/// T-D-B-19: Writer(主笔)写作场景提示词。
+const WRITING_WRITER_PROMPT: &str = "You are the Lead Writer (主笔) in the nebula writing swarm.\n\
+     Role: produce prose with literary flair, narrative tension and consistent voice.\n\
+     Build on the outline and research material; maintain stylistic continuity with prior chapters.\n\
+     Tools: editor_read, editor_write, tool_invoke.\n\
+     Knowledge scope: L2 (cross-session experience) and L3 (concrete facts).\n\
+     Prefer concrete sensory detail over abstract summary.";
+
+/// T-D-B-19: Reviewer(校对编辑)写作场景提示词。
+const WRITING_REVIEWER_PROMPT: &str =
+    "You are the Copy Editor (校对编辑) in the nebula writing swarm.\n\
+     Role: proofread typos, grammar and punctuation; flag logical holes and factual errors;\n\
+     evaluate stylistic consistency with the rest of the manuscript.\n\
+     Tools: editor_read, tool_invoke (read-only — no write/shell).\n\
+     Knowledge scope: L2 (cross-session experience).\n\
+     End your response with one of: APPROVE / REVISE / REJECT.";
+
+/// T-D-B-19: Researcher(素材收集)写作场景提示词。
+const WRITING_RESEARCHER_PROMPT: &str = "You are the Researcher (素材收集) in the nebula writing swarm.\n\
+     Role: gather background material, verify facts, compile sensory detail and cultural context\n\
+     that grounds the prose in reality. Cite sources; flag uncertainty.\n\
+     Tools: memory_search, tool_invoke.\n\
+     Knowledge scope: L1 (session history), L2 (cross-session experience), L4 (distilled knowledge).";
+
+/// T-D-B-19: Planner(大纲规划)写作场景提示词。
+const WRITING_PLANNER_PROMPT: &str =
+    "You are the Outline Planner (大纲规划) in the nebula writing swarm.\n\
+     Role: structure the story arc, chapter beats, character relationships and plot turns.\n\
+     Decompose the writing task into chapter-level sub-tasks (max depth 3) and assign each\n\
+     to the most suitable role (Writer / Reviewer / Researcher / Formatter).\n\
+     Tools: memory_search, tool_invoke.\n\
+     Knowledge scope: L2 (cross-session experience) and L5 (lessons learned).";
+
+/// T-D-B-19: Coder(排版格式化)写作场景提示词。
+const WRITING_CODER_PROMPT: &str = "You are the Formatter (排版格式化) in the nebula writing swarm.\n\
+     Role: apply Markdown structure — heading hierarchy, blockquotes, footnotes, tables of contents,\n\
+     and scene-break markers. Convert prose into a publication-ready manuscript.\n\
+     Tools: editor_read, editor_write, tool_invoke.\n\
+     Knowledge scope: L2 (cross-session experience) and L3 (concrete facts).\n\
+     Always explain formatting choices in 2-3 sentences at the end.";
+
+/// T-D-B-19: Master(主编)写作场景工具集。
+const WRITING_MASTER_TOOL_SET: &[&str] = &["memory_search", "tool_invoke"];
+/// T-D-B-19: Master(主编)写作场景知识边界。
+const WRITING_MASTER_KNOWLEDGE_SCOPE: &[MemoryLayer] = &[MemoryLayer::L2, MemoryLayer::L5];
+
+/// T-D-B-19: Writer(主笔)写作场景工具集。
+const WRITING_WRITER_TOOL_SET: &[&str] = &["editor_read", "editor_write", "tool_invoke"];
+/// T-D-B-19: Writer(主笔)写作场景知识边界。
+const WRITING_WRITER_KNOWLEDGE_SCOPE: &[MemoryLayer] = &[MemoryLayer::L2, MemoryLayer::L3];
+
+/// T-D-B-19: Reviewer(校对编辑)写作场景工具集(只读,无写权限)。
+const WRITING_REVIEWER_TOOL_SET: &[&str] = &["editor_read", "tool_invoke"];
+/// T-D-B-19: Reviewer(校对编辑)写作场景知识边界。
+const WRITING_REVIEWER_KNOWLEDGE_SCOPE: &[MemoryLayer] = &[MemoryLayer::L2];
+
+/// T-D-B-19: Researcher(素材收集)写作场景工具集。
+const WRITING_RESEARCHER_TOOL_SET: &[&str] = &["memory_search", "tool_invoke"];
+/// T-D-B-19: Researcher(素材收集)写作场景知识边界。
+const WRITING_RESEARCHER_KNOWLEDGE_SCOPE: &[MemoryLayer] =
+    &[MemoryLayer::L1, MemoryLayer::L2, MemoryLayer::L4];
+
+/// T-D-B-19: Planner(大纲规划)写作场景工具集。
+const WRITING_PLANNER_TOOL_SET: &[&str] = &["memory_search", "tool_invoke"];
+/// T-D-B-19: Planner(大纲规划)写作场景知识边界。
+const WRITING_PLANNER_KNOWLEDGE_SCOPE: &[MemoryLayer] = &[MemoryLayer::L2, MemoryLayer::L5];
+
+/// T-D-B-19: Coder(排版格式化)写作场景工具集。
+const WRITING_CODER_TOOL_SET: &[&str] = &["editor_read", "editor_write", "tool_invoke"];
+/// T-D-B-19: Coder(排版格式化)写作场景知识边界。
+const WRITING_CODER_KNOWLEDGE_SCOPE: &[MemoryLayer] = &[MemoryLayer::L2, MemoryLayer::L3];
+
+/// T-D-B-19: 6 个角色(master/coder/writer/reviewer/researcher/planner)的写作场景配置。
+///
+/// 返回 `Option<&'static WritingScenarioProfile>` —— 内部用 `OnceLock` 缓存
+/// 配置表,避免每次调用重建。键名与编程场景 `default_role_configs()` 对齐
+/// (master 额外补充,编程场景无 master 配置)。
+pub fn writing_role_profile(role: &str) -> Option<&'static WritingScenarioProfile> {
+    use std::sync::OnceLock;
+    static TABLE: OnceLock<HashMap<&'static str, WritingScenarioProfile>> = OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        let mut m = HashMap::new();
+        m.insert(
+            "master",
+            WritingScenarioProfile {
+                system_prompt: WRITING_MASTER_PROMPT,
+                tool_set: WRITING_MASTER_TOOL_SET,
+                knowledge_scope: WRITING_MASTER_KNOWLEDGE_SCOPE,
+                context_label: "editorial_plan",
+                role_name_zh: "主编",
+            },
+        );
+        m.insert(
+            "coder",
+            WritingScenarioProfile {
+                system_prompt: WRITING_CODER_PROMPT,
+                tool_set: WRITING_CODER_TOOL_SET,
+                knowledge_scope: WRITING_CODER_KNOWLEDGE_SCOPE,
+                context_label: "formatting",
+                role_name_zh: "排版格式化",
+            },
+        );
+        m.insert(
+            "writer",
+            WritingScenarioProfile {
+                system_prompt: WRITING_WRITER_PROMPT,
+                tool_set: WRITING_WRITER_TOOL_SET,
+                knowledge_scope: WRITING_WRITER_KNOWLEDGE_SCOPE,
+                context_label: "prose",
+                role_name_zh: "主笔",
+            },
+        );
+        m.insert(
+            "reviewer",
+            WritingScenarioProfile {
+                system_prompt: WRITING_REVIEWER_PROMPT,
+                tool_set: WRITING_REVIEWER_TOOL_SET,
+                knowledge_scope: WRITING_REVIEWER_KNOWLEDGE_SCOPE,
+                context_label: "copyedit",
+                role_name_zh: "校对编辑",
+            },
+        );
+        m.insert(
+            "researcher",
+            WritingScenarioProfile {
+                system_prompt: WRITING_RESEARCHER_PROMPT,
+                tool_set: WRITING_RESEARCHER_TOOL_SET,
+                knowledge_scope: WRITING_RESEARCHER_KNOWLEDGE_SCOPE,
+                context_label: "material",
+                role_name_zh: "素材收集",
+            },
+        );
+        m.insert(
+            "planner",
+            WritingScenarioProfile {
+                system_prompt: WRITING_PLANNER_PROMPT,
+                tool_set: WRITING_PLANNER_TOOL_SET,
+                knowledge_scope: WRITING_PLANNER_KNOWLEDGE_SCOPE,
+                context_label: "outline",
+                role_name_zh: "大纲规划",
+            },
+        );
+        m
+    });
+    table.get(role)
+}
+
+/// T-D-B-19: 把编程场景的角色名映射到写作场景的中文名。
+///
+/// 供前端展示与日志使用。未知角色名返回 `None`。
+pub fn writing_role_name_zh(role: &str) -> Option<&'static str> {
+    writing_role_profile(role).map(|p| p.role_name_zh)
+}
+
 /// v2.2: 重新启用角色专业化 — 返回 5 个角色 agent 的标准团队配置。
 /// 供 gRPC backward compatibility 与需要显式角色分工的场景使用。
 /// 默认蜂群仍用 [`build_agent_pool`](6 个 GenericAgent)。
@@ -1073,5 +1279,233 @@ mod tests {
             !json_none.contains("tool_calls"),
             "None tool_calls must be omitted from JSON"
         );
+    }
+
+    // ---- T-D-B-19: 写作场景角色配置(WritingScenarioProfile)测试 ----
+
+    #[test]
+    fn writing_role_profile_returns_all_six_roles() {
+        // 6 个角色(master/coder/writer/reviewer/researcher/planner)都应有配置。
+        for role in &[
+            "master",
+            "coder",
+            "writer",
+            "reviewer",
+            "researcher",
+            "planner",
+        ] {
+            assert!(
+                writing_role_profile(role).is_some(),
+                "writing_role_profile should return Some for role: {}",
+                role
+            );
+        }
+    }
+
+    #[test]
+    fn writing_role_profile_returns_none_for_unknown_role() {
+        assert!(writing_role_profile("nonexistent").is_none());
+        assert!(writing_role_profile("").is_none());
+    }
+
+    #[test]
+    fn writing_role_profile_has_complete_fields() {
+        // 每个角色的 5 个字段都应非空。
+        for role in &[
+            "master",
+            "coder",
+            "writer",
+            "reviewer",
+            "researcher",
+            "planner",
+        ] {
+            let p = writing_role_profile(role).expect("profile should exist");
+            assert!(!p.system_prompt.is_empty(), "{}: empty system_prompt", role);
+            assert!(!p.tool_set.is_empty(), "{}: empty tool_set", role);
+            assert!(
+                !p.knowledge_scope.is_empty(),
+                "{}: empty knowledge_scope",
+                role
+            );
+            assert!(!p.context_label.is_empty(), "{}: empty context_label", role);
+            assert!(!p.role_name_zh.is_empty(), "{}: empty role_name_zh", role);
+        }
+    }
+
+    #[test]
+    fn writing_role_name_zh_returns_expected_chinese_names() {
+        // 6 个角色的中文名应与设计映射一致。
+        assert_eq!(writing_role_name_zh("master"), Some("主编"));
+        assert_eq!(writing_role_name_zh("coder"), Some("排版格式化"));
+        assert_eq!(writing_role_name_zh("writer"), Some("主笔"));
+        assert_eq!(writing_role_name_zh("reviewer"), Some("校对编辑"));
+        assert_eq!(writing_role_name_zh("researcher"), Some("素材收集"));
+        assert_eq!(writing_role_name_zh("planner"), Some("大纲规划"));
+        assert_eq!(writing_role_name_zh("unknown"), None);
+    }
+
+    #[test]
+    fn writing_role_profile_context_labels_are_distinct() {
+        // 6 个角色的 context_label 应互不相同(供 TeamContext 区分来源)。
+        let labels: Vec<&str> = [
+            "master",
+            "coder",
+            "writer",
+            "reviewer",
+            "researcher",
+            "planner",
+        ]
+        .iter()
+        .map(|r| writing_role_profile(r).expect("profile").context_label)
+        .collect();
+        let unique: std::collections::HashSet<&str> = labels.iter().copied().collect();
+        assert_eq!(
+            labels.len(),
+            unique.len(),
+            "context_labels should be distinct"
+        );
+    }
+
+    #[test]
+    fn writing_role_profile_reviewer_has_no_write_tools() {
+        // 校对编辑(写作场景的 reviewer)应保持只读,无 editor_write/shell。
+        let p = writing_role_profile("reviewer").expect("reviewer profile");
+        assert!(
+            !p.tool_set.contains(&"editor_write"),
+            "copy editor must not have editor_write"
+        );
+        assert!(
+            !p.tool_set.contains(&"shell"),
+            "copy editor must not have shell"
+        );
+    }
+
+    #[test]
+    fn writing_role_profile_writer_has_write_tools() {
+        // 主笔(写作场景的 writer)应有 editor_write(需要写正文)。
+        let p = writing_role_profile("writer").expect("writer profile");
+        assert!(
+            p.tool_set.contains(&"editor_write"),
+            "lead writer should have editor_write"
+        );
+    }
+
+    #[test]
+    fn writing_role_profile_master_has_memory_search() {
+        // 主编(写作场景的 master)应有 memory_search(统筹全局需检索记忆)。
+        let p = writing_role_profile("master").expect("master profile");
+        assert!(
+            p.tool_set.contains(&"memory_search"),
+            "master editor should have memory_search"
+        );
+    }
+
+    #[test]
+    fn writing_role_profile_coder_uses_formatter_prompt() {
+        // 排版格式化(写作场景的 coder)提示词应提及 Markdown/排版。
+        let p = writing_role_profile("coder").expect("coder profile");
+        assert!(
+            p.system_prompt.to_lowercase().contains("formatter")
+                || p.system_prompt.to_lowercase().contains("markdown"),
+            "coder writing prompt should mention formatter/markdown: {}",
+            p.system_prompt
+        );
+    }
+
+    #[test]
+    fn agent_output_new_with_scenario_sets_scenario_field() {
+        // new_with_scenario 应正确设置 scenario 字段。
+        let out = AgentOutput::new_with_scenario(
+            AgentKind::Generic,
+            "writer-1",
+            "prose body",
+            AgentScenario::Writing,
+        );
+        assert_eq!(out.scenario, Some(AgentScenario::Writing));
+    }
+
+    #[test]
+    fn agent_output_scenario_backward_compat_old_json_without_field() {
+        // 旧 JSON(无 scenario 字段)反序列化时 scenario 应为 None。
+        let old_json = r#"{
+            "kind": "generic",
+            "author": "a",
+            "body": "answer",
+            "confidence": 0.5,
+            "reasoning_chain": []
+        }"#;
+        let out: AgentOutput = serde_json::from_str(old_json).expect("old JSON must deserialize");
+        assert!(
+            out.scenario.is_none(),
+            "missing scenario must default to None"
+        );
+    }
+
+    #[test]
+    fn agent_output_scenario_omitted_when_none_in_json() {
+        // scenario = None 时不出现在 JSON 中(skip_serializing_if)。
+        let out = AgentOutput::new(AgentKind::Generic, "a", "body");
+        let json = serde_json::to_string(&out).expect("serialize");
+        assert!(
+            !json.contains("scenario"),
+            "None scenario must be omitted from JSON: {json}"
+        );
+    }
+
+    #[test]
+    fn agent_output_scenario_roundtrip_with_writing() {
+        // scenario = Some(Writing) 时序列化/反序列化往返应保持一致。
+        let out =
+            AgentOutput::new(AgentKind::Generic, "a", "body").with_scenario(AgentScenario::Writing);
+        let json = serde_json::to_string(&out).expect("serialize");
+        assert!(json.contains("\"scenario\":\"writing\""), "got: {json}");
+        let de: AgentOutput = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(de.scenario, Some(AgentScenario::Writing));
+    }
+
+    #[test]
+    fn agent_scenario_as_str_uses_snake_case() {
+        // serde rename_all = "snake_case" + as_str 应一致。
+        assert_eq!(AgentScenario::Coding.as_str(), "coding");
+        assert_eq!(AgentScenario::Writing.as_str(), "writing");
+        assert_eq!(AgentScenario::Review.as_str(), "review");
+        assert_eq!(AgentScenario::Research.as_str(), "research");
+        assert_eq!(AgentScenario::Planning.as_str(), "planning");
+    }
+
+    #[test]
+    fn agent_scenario_from_str_roundtrip() {
+        // FromStr 应能解析 as_str 的输出。
+        for s in &["coding", "writing", "review", "research", "planning"] {
+            let parsed: AgentScenario = s.parse().expect("parse should succeed");
+            assert_eq!(parsed.as_str(), *s);
+        }
+        assert!("unknown".parse::<AgentScenario>().is_err());
+    }
+
+    #[test]
+    fn agent_kind_to_scenario_maps_deprecated_variants() {
+        // T-D-B-17 桥接方法:废弃变体 → 对应场景。
+        #[allow(deprecated)]
+        {
+            assert_eq!(AgentKind::Generic.to_scenario(), None);
+            assert_eq!(AgentKind::Coder.to_scenario(), Some(AgentScenario::Coding));
+            assert_eq!(
+                AgentKind::Writer.to_scenario(),
+                Some(AgentScenario::Writing)
+            );
+            assert_eq!(
+                AgentKind::Reviewer.to_scenario(),
+                Some(AgentScenario::Review)
+            );
+            assert_eq!(
+                AgentKind::Researcher.to_scenario(),
+                Some(AgentScenario::Research)
+            );
+            assert_eq!(
+                AgentKind::Planner.to_scenario(),
+                Some(AgentScenario::Planning)
+            );
+        }
     }
 }

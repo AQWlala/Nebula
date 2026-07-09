@@ -65,6 +65,11 @@ pub struct ImportResult {
 pub struct SkillImporter {
     store: SkillStore,
     client: Client,
+    /// T-D-B-10: 可选的 TeamSkillsHub 客户端。
+    ///
+    /// 注入后,`import_from_teamskillshub` 会通过它拉取 SKILL.md 并解析入库;
+    /// 未注入时保持旧行为(返回提示性错误,建议改用 `TeamSkillsHubImporter`)。
+    hub_client: Option<super::hub_client::TeamSkillsHubClient>,
 }
 
 impl SkillImporter {
@@ -76,7 +81,21 @@ impl SkillImporter {
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .unwrap_or_else(|_| Client::new()),
+            hub_client: None,
         }
+    }
+
+    /// T-D-B-10: builder 方法,注入可选的 [`TeamSkillsHubClient`]。
+    ///
+    /// 注入后,`import_from_teamskillshub` 将通过该客户端从 TeamSkillsHub
+    /// REST API 拉取技能详情(`GET /api/skills/{asset_id}`),把 `code`
+    /// 字段作为 SKILL.md 解析并写入 store —— 不再返回 stub 错误。
+    ///
+    /// 未注入时(默认),`import_from_teamskillshub` 保持旧行为:返回提示性
+    /// 错误,引导调用方使用 [`TeamSkillsHubImporter::import`]。
+    pub fn with_hub_client(mut self, hub: Option<super::hub_client::TeamSkillsHubClient>) -> Self {
+        self.hub_client = hub;
+        self
     }
 
     /// Import a skill from a raw agentskills.io-compatible URL.
@@ -166,20 +185,83 @@ impl SkillImporter {
     ///
     /// The asset is fetched from the team skills API and parsed into
     /// a nebula skill.
+    ///
+    /// T-D-B-10: 若通过 [`with_hub_client`] 注入了 [`TeamSkillsHubClient`],
+    /// 本方法将直接通过该客户端拉取 `GET /api/skills/{asset_id}`,把 `code`
+    /// 字段作为 SKILL.md 解析后写入 store —— 与
+    /// [`TeamSkillsHubImporter::import`] 行为一致(但不写 LanceDB,仅 SQLite)。
+    /// 未注入客户端时,返回提示性错误,引导调用方使用
+    /// [`TeamSkillsHubImporter::import`]。
     pub async fn import_from_teamskillshub(&self, asset_id: &str) -> ImportResult {
         let source = format!("teamskillshub:{asset_id}");
-        // T-S3-A-02: 委托给 TeamSkillsHubImporter 实现。
-        // 由于 SkillImporter 不持有 TeamSkillsHubClient,
-        // 这里保留为快捷入口,实际逻辑由 TeamSkillsHubImporter 实现。
-        ImportResult {
-            success: false,
-            skill: None,
-            source,
-            error: Some(
-                "use TeamSkillsHubImporter::import() instead — \
-                 SkillImporter does not hold a TeamSkillsHubClient"
-                    .to_string(),
-            ),
+
+        // T-D-B-10: 未注入 hub client —— 保持旧行为(stub 错误)。
+        let hub = match self.hub_client.as_ref() {
+            Some(h) => h,
+            None => {
+                return ImportResult {
+                    success: false,
+                    skill: None,
+                    source,
+                    error: Some(
+                        "use TeamSkillsHubImporter::import() instead — \
+                         SkillImporter has no TeamSkillsHubClient \
+                         (call with_hub_client(Some(client)) to enable)"
+                            .to_string(),
+                    ),
+                };
+            }
+        };
+
+        // 1) 通过 hub client 拉取技能详情。
+        let detail = match hub.get_skill(asset_id).await {
+            Ok(d) => d,
+            Err(e) => {
+                return ImportResult {
+                    success: false,
+                    skill: None,
+                    source,
+                    error: Some(format!("hub fetch failed: {e}")),
+                };
+            }
+        };
+
+        // 2) 把 detail.code 作为 SKILL.md 解析为 CreateSkillRequest。
+        let req = match Self::parse_skill_md_inner(&detail.code) {
+            Ok(r) => r,
+            Err(e) => {
+                return ImportResult {
+                    success: false,
+                    skill: None,
+                    source,
+                    error: Some(format!("parse failed: {e}")),
+                };
+            }
+        };
+
+        // 3) 构造 Skill 并写入 SQLite(复用 store_skill)。
+        match self.store_skill(req).await {
+            Ok(skill) => {
+                info!(
+                    target: "nebula.importer",
+                    id = %skill.id,
+                    name = %skill.name,
+                    source = %source,
+                    "skill imported from TeamSkillsHub via with_hub_client"
+                );
+                ImportResult {
+                    success: true,
+                    skill: Some(skill),
+                    source,
+                    error: None,
+                }
+            }
+            Err(e) => ImportResult {
+                success: false,
+                skill: None,
+                source,
+                error: Some(format!("store failed: {e}")),
+            },
         }
     }
 
@@ -399,6 +481,7 @@ mod tests {
             )
             .expect("test op should succeed"),
             client: Client::new(),
+            hub_client: None,
         };
 
         let md = r#"---
@@ -427,5 +510,73 @@ tags: [summarization, nlp, utility]
     fn test_extract_body() {
         let body = SkillImporter::extract_body("---\nname: test\n---\n\n# Title\n\nContent here");
         assert_eq!(body, "# Title\n\nContent here");
+    }
+
+    // -----------------------------------------------------------------
+    // T-D-B-10: import_from_teamskillshub / with_hub_client 测试
+    // -----------------------------------------------------------------
+
+    fn make_importer() -> SkillImporter {
+        let store = SkillStore::new(
+            crate::memory::sqlite_store::SqliteStore::open(":memory:")
+                .expect("create should succeed"),
+        )
+        .expect("SkillStore::new should succeed");
+        SkillImporter::new(store)
+    }
+
+    /// T-D-B-10: 未注入 hub client 时,import_from_teamskillshub 应返回
+    /// 提示性错误(而非 panic 或网络调用)。
+    #[tokio::test]
+    async fn test_import_from_teamskillshub_without_client_returns_error() {
+        let importer = make_importer();
+        let result = importer.import_from_teamskillshub("asset-123").await;
+        assert!(!result.success);
+        assert!(result.skill.is_none());
+        assert_eq!(result.source, "teamskillshub:asset-123");
+        let err = result.error.expect("error should be set");
+        assert!(
+            err.contains("TeamSkillsHubImporter") || err.contains("with_hub_client"),
+            "error should guide caller to use TeamSkillsHubImporter or with_hub_client, got: {err}"
+        );
+    }
+
+    /// T-D-B-10: with_hub_client(Some(client)) 应注入客户端,使后续
+    /// import_from_teamskillshub 不再返回 stub 错误(而是尝试网络调用)。
+    /// 本测试仅验证注入语义(不实际发网络请求),用 TEST-NET-3 地址避免 DNS。
+    #[tokio::test]
+    async fn test_with_hub_client_injects_client() {
+        let importer = make_importer();
+        // 注入一个指向 TEST-NET-3(RFC 5737)地址的 client —— 不会真正
+        // 发起成功的请求,但验证注入后不再返回 "no TeamSkillsHubClient" 错误。
+        let hub = super::super::hub_client::TeamSkillsHubClient::new("https://203.0.113.1");
+        let importer = importer.with_hub_client(Some(hub));
+
+        let result = importer.import_from_teamskillshub("asset-456").await;
+        // 应失败(网络不可达),但错误信息应是 "hub fetch failed" 而非
+        // "use TeamSkillsHubImporter::import() instead"。
+        assert!(!result.success);
+        let err = result.error.expect("error should be set");
+        assert!(
+            !err.contains("TeamSkillsHubImporter::import"),
+            "with_hub_client injected; should not return stub error, got: {err}"
+        );
+        assert!(
+            err.contains("hub fetch failed"),
+            "expected hub fetch failed error, got: {err}"
+        );
+    }
+
+    /// T-D-B-10: with_hub_client(None) 应等价于未注入(返回 stub 错误)。
+    #[tokio::test]
+    async fn test_with_hub_client_none_equals_default() {
+        let importer = make_importer().with_hub_client(None);
+        let result = importer.import_from_teamskillshub("asset-789").await;
+        assert!(!result.success);
+        let err = result.error.expect("error should be set");
+        assert!(
+            err.contains("TeamSkillsHubImporter") || err.contains("with_hub_client"),
+            "with_hub_client(None) should return stub error, got: {err}"
+        );
     }
 }

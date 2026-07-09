@@ -49,6 +49,8 @@ pub use exec_approval::{
 pub use exporter::SkillExporter;
 pub use extractor::{ExtractionReport, SkillExtractor};
 pub use hub_client::{HubSkillDetail, HubSkillSummary, TeamSkillsHubClient, TeamSkillsHubImporter};
+// T-D-B-10: 发现层补齐 —— SkillDiscoverer(4 层扫描)+ DiscoveryResult(详细发现结果)。
+pub use discover::{DiscoveryResult, DiscoveryStatus, SkillDiscoverer};
 pub use importer::{ImportResult, SkillImporter, SkillSource};
 pub use marketplace::{
     MarketplaceQuery, MarketplaceResponse, MarketplaceStats, PublishManifest, SearchHit,
@@ -73,4 +75,9 @@ pub use types::{
 // `crate::skills::capability::Capability` 访问以避免命名冲突。
 pub use capability::CapabilityRegistry;
 pub use executor::{LocalExecutor, McpExecutor, RemoteExecutor, SkillExecutor};
-pub use protocol::{SkillManifest, SkillRequest, SkillResponse, SkillTransport};
+// T-D-B-10: 规范层补齐 —— SkillEligibility(4 维资格)+ SkillSpecValidator(规范校验器)+
+// SkillSpecReport(校验报告)。
+pub use protocol::{
+    SkillEligibility, SkillManifest, SkillRequest, SkillResponse, SkillSpecReport,
+    SkillSpecValidator, SkillTransport,
+};

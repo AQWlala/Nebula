@@ -23,7 +23,7 @@ use crate::memory::types::MemoryLayer;
 use crate::shadow_workspace::engine::ShadowWorkspaceEngine;
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput, AgentScenario};
+use super::{writing_role_profile, Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Reviewer 可用工具集(只读,无写权限)。
 const REVIEWER_TOOL_SET: [&str; 2] = ["editor_read", "tool_invoke"];
@@ -144,6 +144,8 @@ pub struct ReviewerAgent {
     /// 由 `with_shadow_workspace()` 注入;Checker 在独立 worktree 中执行,
     /// 避免污染主仓库。未注入时降级为无 worktree 模式。
     shadow_engine: Option<Arc<ShadowWorkspaceEngine>>,
+    /// T-D-B-19: 场景标签(None = 编程场景,Some(Writing) = 写作场景)。
+    scenario: Option<AgentScenario>,
 }
 
 // T-D-B-17: run_independent 引用废弃的 AgentKind::Reviewer,显式放行废弃警告。
@@ -154,6 +156,62 @@ impl ReviewerAgent {
             llm,
             maker_model: None,
             shadow_engine: None,
+            scenario: None,
+        }
+    }
+
+    /// T-D-B-19: Builder — 注入场景标签,切换到对应场景行为。
+    ///
+    /// - `AgentScenario::Writing` → 校对编辑(写作场景)
+    /// - 其他值或未调用 → Reviewer(编程场景,向后兼容)
+    pub fn with_scenario(mut self, scenario: AgentScenario) -> Self {
+        self.scenario = Some(scenario);
+        self
+    }
+
+    /// T-D-B-19: 当前场景标签(主要用于测试与诊断)。
+    pub fn current_scenario(&self) -> Option<AgentScenario> {
+        self.scenario
+    }
+
+    /// T-D-B-19: 当前场景下的 system prompt。
+    /// Writing 场景返回写作提示词(校对编辑),其他返回编程提示词(代码审查)。
+    fn effective_system_prompt(&self) -> &str {
+        match self.scenario {
+            Some(AgentScenario::Writing) => writing_role_profile("reviewer")
+                .map(|p| p.system_prompt)
+                .unwrap_or(REVIEWER_SYSTEM_PROMPT),
+            _ => REVIEWER_SYSTEM_PROMPT,
+        }
+    }
+
+    /// T-D-B-19: 当前场景下的 tool_set。
+    fn effective_tool_set(&self) -> &[&str] {
+        match self.scenario {
+            Some(AgentScenario::Writing) => writing_role_profile("reviewer")
+                .map(|p| p.tool_set)
+                .unwrap_or(&REVIEWER_TOOL_SET),
+            _ => &REVIEWER_TOOL_SET,
+        }
+    }
+
+    /// T-D-B-19: 当前场景下的 knowledge_scope。
+    fn effective_knowledge_scope(&self) -> &[MemoryLayer] {
+        match self.scenario {
+            Some(AgentScenario::Writing) => writing_role_profile("reviewer")
+                .map(|p| p.knowledge_scope)
+                .unwrap_or(&REVIEWER_KNOWLEDGE_SCOPE),
+            _ => &REVIEWER_KNOWLEDGE_SCOPE,
+        }
+    }
+
+    /// T-D-B-19: 当前场景下写入 TeamContext 的 label。
+    fn effective_context_label(&self) -> &str {
+        match self.scenario {
+            Some(AgentScenario::Writing) => writing_role_profile("reviewer")
+                .map(|p| p.context_label)
+                .unwrap_or("review"),
+            _ => "review",
         }
     }
 
@@ -432,21 +490,24 @@ impl Agent for ReviewerAgent {
         "Reviewer"
     }
     fn system_prompt(&self) -> &str {
-        REVIEWER_SYSTEM_PROMPT
+        // T-D-B-19: 根据场景返回对应提示词。
+        self.effective_system_prompt()
     }
     fn description(&self) -> &str {
-        "Reviews the team's work and emits an APPROVE / REVISE / REJECT verdict."
+        "Reviews the team's work (coding) or proofreads the manuscript (writing) and emits an APPROVE / REVISE / REJECT verdict."
     }
     fn tool_set(&self) -> &[&str] {
-        &REVIEWER_TOOL_SET
+        // T-D-B-19: 根据场景返回对应工具集。
+        self.effective_tool_set()
     }
     fn knowledge_scope(&self) -> &[MemoryLayer] {
-        &REVIEWER_KNOWLEDGE_SCOPE
+        // T-D-B-19: 根据场景返回对应知识边界。
+        self.effective_knowledge_scope()
     }
 
     async fn run(&self, _task: &str, ctx: &TeamContext) -> Result<AgentOutput> {
         let msgs = vec![
-            ChatMessage::system(self.system_prompt()),
+            ChatMessage::system(self.effective_system_prompt()),
             ChatMessage::user(format!(
                 "Review the most recent work in this team context:\n{}",
                 ctx.render()
@@ -454,7 +515,8 @@ impl Agent for ReviewerAgent {
         ];
         let resp = self.llm.chat(msgs).await?;
         let body = resp.message.content;
-        ctx.push_str(self.name(), "review", &body);
+        // T-D-B-19: 根据场景选择 TeamContext label(写作场景用 "copyedit")。
+        ctx.push_str(self.name(), self.effective_context_label(), &body);
         let verdict = if body.contains("APPROVE") {
             0.9
         } else if body.contains("REVISE") {
@@ -464,9 +526,14 @@ impl Agent for ReviewerAgent {
         };
         info!(target: "nebula.swarm", agent = %self.name(), verdict, "reviewer finished");
         // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        // T-D-B-19: 写作场景下打 Writing 标签,其他打 Review。
+        let scenario_tag = match self.scenario {
+            Some(AgentScenario::Writing) => AgentScenario::Writing,
+            _ => AgentScenario::Review,
+        };
         Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body)
             .with_confidence(verdict)
-            .with_scenario(AgentScenario::Review))
+            .with_scenario(scenario_tag))
     }
 }
 
@@ -1053,5 +1120,73 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ---- T-D-B-19: 写作场景(校对编辑)测试 ----
+
+    #[test]
+    fn reviewer_default_scenario_is_none() {
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()));
+        assert!(agent.current_scenario().is_none());
+    }
+
+    #[test]
+    fn reviewer_with_writing_scenario_switches_system_prompt() {
+        // Writing 场景 → system_prompt 应切换到校对编辑提示词(含 Copy Editor)。
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_scenario(AgentScenario::Writing);
+        assert_eq!(agent.current_scenario(), Some(AgentScenario::Writing));
+        let prompt = agent.system_prompt();
+        assert!(
+            prompt.to_lowercase().contains("copy editor"),
+            "writing scenario prompt should mention Copy Editor: {prompt}"
+        );
+        // 编程场景的代码审查提示不应出现在写作提示词中。
+        assert!(
+            !prompt.contains("critically evaluate the latest work"),
+            "writing prompt should not mention code review: {prompt}"
+        );
+    }
+
+    #[test]
+    fn reviewer_with_writing_scenario_keeps_readonly_tools() {
+        // 校对编辑应保持只读(无 editor_write/shell),与编程场景一致。
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_scenario(AgentScenario::Writing);
+        assert!(!agent.tool_set().contains(&"shell"));
+        assert!(!agent.tool_set().contains(&"editor_write"));
+        assert!(agent.tool_set().contains(&"editor_read"));
+    }
+
+    #[test]
+    fn reviewer_with_writing_scenario_knowledge_scope_is_l2() {
+        // 校对编辑知识边界为 L2(与编程场景一致,只读审查无需深层记忆)。
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_scenario(AgentScenario::Writing);
+        assert_eq!(agent.knowledge_scope(), &[MemoryLayer::L2]);
+    }
+
+    #[test]
+    fn reviewer_with_scenario_and_maker_model_chains() {
+        // with_scenario 与 with_maker_model 应可链式组合。
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_scenario(AgentScenario::Writing)
+            .with_maker_model(ModelDescriptor::new("ollama", "test-model"));
+        assert_eq!(agent.current_scenario(), Some(AgentScenario::Writing));
+        assert!(agent.maker_model.is_some());
+        // 链式组合后同质检测仍应工作。
+        assert!(agent.detect_model_homogeneity().is_some());
+    }
+
+    #[test]
+    fn reviewer_with_coding_scenario_keeps_coding_behavior() {
+        // Coding 场景应保持编程场景行为(代码审查)。
+        let agent = ReviewerAgent::new(Arc::new(LlmGateway::new_test()))
+            .with_scenario(AgentScenario::Coding);
+        let prompt = agent.system_prompt();
+        assert!(
+            prompt.contains("Reviewer"),
+            "Coding scenario should keep reviewer prompt: {prompt}"
+        );
     }
 }

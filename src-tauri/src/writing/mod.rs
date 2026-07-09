@@ -1,4 +1,4 @@
-﻿//! v0.5: Writing mode backend.
+//! v0.5: Writing mode backend.
 //!
 //! Owns the persistence of long-form writing artifacts produced by the
 //! front-end `WritingMode.tsx`.  The engine is intentionally thin:
@@ -14,6 +14,7 @@
 //! The export formats (Markdown and HTML) are both pure data
 //! transforms — no network calls, no LLM involvement.
 
+pub mod scenarios;
 pub mod templates;
 
 use std::sync::Arc;
@@ -25,7 +26,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 use uuid::Uuid;
 
-pub use templates::{TemplatePlaceholder, WritingTemplate};
+pub use templates::{
+    TemplatePlaceholder, WritingScenarioCategory, WritingStyleParams, WritingTemplate,
+};
 
 use crate::memory::sponge::SpongeEngine;
 use crate::memory::sqlite_store::SqliteStore;
@@ -43,6 +46,25 @@ pub struct Document {
     pub created_at: i64,
     pub updated_at: i64,
     pub metadata: Option<serde_json::Value>,
+}
+
+/// T-D-B-18: 场景模板渲染产物。由 [`WritingEngine::apply_scenario_template`]
+/// 返回,携带填好占位符的 body 与 LLM 提示词,供写作场景注入 agent。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderedScenarioTemplate {
+    /// 渲染后的标题(优先取 `title`/`chapter` 占位符,否则回退模板 label)。
+    pub title: String,
+    /// 渲染后的 Markdown body。
+    pub body: String,
+    /// 渲染后的 LLM 提示词;模板未携带 `prompt_template` 时为空字符串。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prompt: String,
+    /// 期望输出格式(`markdown` / `plain_text` / `structured`);通用模板为空。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub output_format: String,
+    /// 风格参数;通用模板为空默认值。
+    #[serde(default, skip_serializing_if = "WritingStyleParams::is_empty")]
+    pub style_params: WritingStyleParams,
 }
 
 /// A rendered export artifact returned to the front-end.
@@ -104,6 +126,32 @@ impl WritingEngine {
         templates::find(id)
     }
 
+    /// T-D-B-18: 按场景类别筛选模板。
+    ///
+    /// `General` 返回 v0.5 的 6 个通用模板,`SelfMedia` 返回 14 个自媒体场景,
+    /// `Novel` 返回 14 个长篇小说场景。供前端模板选择器分组展示。
+    pub fn list_templates_by_category(
+        &self,
+        category: WritingScenarioCategory,
+    ) -> Vec<WritingTemplate> {
+        templates::library()
+            .into_iter()
+            .filter(|t| t.category == category)
+            .collect()
+    }
+
+    /// T-D-B-18: 返回与 `AgentScenario::Writing` 对应的全部 28 个场景模板
+    /// (自媒体 + 长篇小说),不含 v0.5 通用模板。供 swarm 层按写作场景注入模板。
+    pub fn writing_scenario_templates(&self) -> Vec<WritingTemplate> {
+        scenarios::scenario_library()
+    }
+
+    /// T-D-B-18: 返回写作场景的 28 个稳定模板 ID,与
+    /// `AgentScenario::Writing` 桥接(顺序:14 自媒体 + 14 长篇小说)。
+    pub fn writing_scenario_template_ids(&self) -> Vec<&'static str> {
+        scenarios::writing_scenario_template_ids()
+    }
+
     /// Applies the given placeholder values to a template body and
     /// returns the rendered string.  Unknown placeholders are left
     /// untouched so the user can see what's missing.
@@ -124,6 +172,34 @@ impl WritingEngine {
             .cloned()
             .unwrap_or_else(|| tpl.label.clone());
         Ok((title, body))
+    }
+
+    /// T-D-B-18: 渲染场景模板的 body 与 prompt_template。
+    ///
+    /// 与 [`apply_template`] 不同,本方法额外返回填好占位符的 LLM 提示词
+    /// (`prompt`),供 `AgentScenario::Writing` 场景下送入 Writer agent。
+    /// 若模板未携带 `prompt_template`,`prompt` 为空字符串。
+    pub fn apply_scenario_template(
+        &self,
+        template_id: &str,
+        values: &std::collections::HashMap<String, String>,
+    ) -> Result<RenderedScenarioTemplate> {
+        let tpl = templates::find(template_id)
+            .ok_or_else(|| anyhow!("unknown template: {template_id}"))?;
+        let title = values
+            .get("title")
+            .cloned()
+            .or_else(|| values.get("chapter").cloned())
+            .unwrap_or_else(|| tpl.label.clone());
+        let body = render_placeholders(&tpl.body, values);
+        let prompt = render_placeholders(&tpl.prompt_template, values);
+        Ok(RenderedScenarioTemplate {
+            title,
+            body,
+            prompt,
+            output_format: tpl.output_format.clone(),
+            style_params: tpl.style_params.clone(),
+        })
     }
 
     /// Creates a new document, optionally from a template.  If
@@ -379,6 +455,18 @@ impl WritingEngine {
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
+
+/// T-D-B-18: 把 `{{placeholder}}` 替换为 `values` 中的对应值。
+/// 未提供的占位符原样保留,便于用户看到缺失项。供 `apply_template` /
+/// `apply_scenario_template` 共用。
+fn render_placeholders(src: &str, values: &std::collections::HashMap<String, String>) -> String {
+    let mut out = src.to_string();
+    for (k, v) in values {
+        let token = format!("{{{{{k}}}}}");
+        out = out.replace(&token, v);
+    }
+    out
+}
 
 /// Mirrors a document body to an L3 Semantic memory.  Best-effort:
 /// errors bubble up but callers should log-and-continue.
@@ -648,5 +736,113 @@ mod tests {
         assert!(html.contains("Test &amp; &lt;Demo&gt;"));
         assert!(html.contains("<h1>Hello</h1>"));
         assert!(html.contains("<p>This is a test.</p>"));
+    }
+
+    // ---- T-D-B-18: 场景模板引擎层测试 ----
+
+    /// 用临时 SqliteStore 构造一个 WritingEngine(列表/渲染方法不触库,但需实例)。
+    fn scenario_engine() -> WritingEngine {
+        let tmp = std::env::temp_dir().join(format!(
+            "nebula-writing-tdb18-{}.sqlite",
+            uuid::Uuid::new_v4()
+        ));
+        let sqlite = std::sync::Arc::new(
+            crate::memory::sqlite_store::SqliteStore::open(&tmp)
+                .expect("open test sqlite store for writing scenario tests"),
+        );
+        WritingEngine::new(sqlite, None)
+    }
+
+    #[test]
+    fn list_templates_by_category_splits_correctly() {
+        let eng = scenario_engine();
+        assert_eq!(
+            eng.list_templates_by_category(WritingScenarioCategory::General)
+                .len(),
+            6,
+            "General should have 6 v0.5 templates"
+        );
+        assert_eq!(
+            eng.list_templates_by_category(WritingScenarioCategory::SelfMedia)
+                .len(),
+            14,
+            "SelfMedia should have 14 templates"
+        );
+        assert_eq!(
+            eng.list_templates_by_category(WritingScenarioCategory::Novel)
+                .len(),
+            14,
+            "Novel should have 14 templates"
+        );
+    }
+
+    #[test]
+    fn writing_scenario_templates_returns_twenty_eight() {
+        let eng = scenario_engine();
+        let tpls = eng.writing_scenario_templates();
+        assert_eq!(tpls.len(), 28);
+        assert_eq!(eng.writing_scenario_template_ids().len(), 28);
+        // 全部场景模板都不是 General
+        assert!(tpls
+            .iter()
+            .all(|t| t.category != WritingScenarioCategory::General));
+    }
+
+    #[test]
+    fn apply_scenario_template_renders_body_and_prompt() {
+        let eng = scenario_engine();
+        let mut values = std::collections::HashMap::new();
+        values.insert("title".into(), "我的小红书爆款".into());
+        values.insert("hook".into(), "姐妹们冲".into());
+        values.insert("points".into(), "- 点1\n- 点2".into());
+        values.insert("cta".into(), "点赞收藏".into());
+        values.insert("tags".into(), "#好物".into());
+
+        let rendered = eng
+            .apply_scenario_template("xiaohongshu-note", &values)
+            .expect("render xiaohongshu-note");
+        assert_eq!(rendered.title, "我的小红书爆款");
+        assert!(rendered.body.contains("我的小红书爆款"));
+        assert!(rendered.body.contains("姐妹们冲"));
+        assert!(rendered.body.contains("#好物"));
+        // 全部占位符已提供,应无残留 token
+        assert!(!rendered.body.contains("{{"));
+        // prompt 已渲染且不含占位符
+        assert!(
+            !rendered.prompt.is_empty(),
+            "scenario template must have prompt"
+        );
+        assert!(rendered.prompt.contains("我的小红书爆款"));
+        assert!(!rendered.prompt.contains("{{"));
+        assert_eq!(rendered.output_format, "markdown");
+        assert!(!rendered.style_params.is_empty());
+    }
+
+    #[test]
+    fn apply_scenario_template_unknown_id_errors() {
+        let eng = scenario_engine();
+        let values = std::collections::HashMap::new();
+        assert!(eng
+            .apply_scenario_template("no-such-template", &values)
+            .is_err());
+    }
+
+    #[test]
+    fn apply_scenario_template_general_has_no_prompt() {
+        // 通用模板无 prompt_template → prompt 为空,但 body 仍可渲染
+        let eng = scenario_engine();
+        let mut values = std::collections::HashMap::new();
+        values.insert("title".into(), "T".into());
+        values.insert("summary".into(), "S".into());
+        values.insert("background".into(), "B".into());
+        values.insert("approach".into(), "A".into());
+        values.insert("code".into(), "C".into());
+        values.insert("results".into(), "R".into());
+        values.insert("takeaways".into(), "TA".into());
+        let rendered = eng
+            .apply_scenario_template("tech-blog", &values)
+            .expect("render tech-blog");
+        assert!(rendered.prompt.is_empty(), "general template has no prompt");
+        assert!(rendered.body.contains("# T"));
     }
 }

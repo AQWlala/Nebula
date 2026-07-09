@@ -9,8 +9,89 @@
 //! The v0.5 set covers the most common content shapes the swarm
 //! agents are expected to produce; expanding the library in v1.0 is a
 //! pure-data exercise and does not require Rust changes.
+//!
+//! T-D-B-18 (v3.1): 在 v0.5 的 6 个通用模板基础上补齐 28 个场景化模板
+//! (14 自媒体 + 14 长篇小说),见 [`crate::writing::scenarios`]。每个场景模板
+//! 额外携带 `prompt_template`(LLM 提示词)/`output_format`(输出格式)/
+//! `style_params`(风格参数),用于驱动 AgentScenario::Writing 场景下的生成。
 
 use serde::{Deserialize, Serialize};
+
+/// 写作场景类别。T-D-B-18: 区分 v0.5 通用模板与 28 个场景化模板。
+///
+/// `General` 为默认值(向后兼容 v0.5 序列化数据);`SelfMedia` / `Novel`
+/// 标记 28 个新场景模板,与 `AgentScenario::Writing` 对应。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WritingScenarioCategory {
+    /// 通用模板(v0.5 自带 6 个:技术博客/营销/学术/邮件/会议/小说章节)。
+    General,
+    /// 自媒体场景(14 个)。
+    SelfMedia,
+    /// 长篇小说场景(14 个)。
+    Novel,
+}
+
+impl Default for WritingScenarioCategory {
+    fn default() -> Self {
+        Self::General
+    }
+}
+
+impl WritingScenarioCategory {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::General => "general",
+            Self::SelfMedia => "self_media",
+            Self::Novel => "novel",
+        }
+    }
+
+    /// 从字符串解析类别(接受 serde 名 / 中文别名),未知值回退到 `General`。
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "general" | "通用" => Self::General,
+            "self_media" | "selfmedia" | "自媒体" => Self::SelfMedia,
+            "novel" | "长篇小说" | "小说" => Self::Novel,
+            _ => Self::General,
+        }
+    }
+}
+
+/// 写作风格参数。T-D-B-18: 28 场景模板的差异化风格控制。
+///
+/// 所有字段均可选,不同场景按需填充;`extras` 容纳场景特有参数
+/// (如小说的「世界观」、自媒体的「互动钩子」)。整体实现 `Default`,
+/// 通用模板使用空默认值。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WritingStyleParams {
+    /// 语气(如:活泼 / 严肃 / 幽默 / 专业 / 热血)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tone: Option<String>,
+    /// 篇幅(如:短 / 中 / 长,或「800-1200 字」)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length: Option<String>,
+    /// 目标读者(如:Z 世代 / 都市白领 / 网文读者)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audience: Option<String>,
+    /// 视角(第一人称 / 第三人称 / 上帝视角)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perspective: Option<String>,
+    /// 场景特有参数,键名稳定以便前端读取。
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub extras: std::collections::BTreeMap<String, String>,
+}
+
+impl WritingStyleParams {
+    /// 全部字段为空时返回 `true`(通用模板的默认值)。
+    pub fn is_empty(&self) -> bool {
+        self.tone.is_none()
+            && self.length.is_none()
+            && self.audience.is_none()
+            && self.perspective.is_none()
+            && self.extras.is_empty()
+    }
+}
 
 /// One template entry as returned to the front-end.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -28,6 +109,21 @@ pub struct WritingTemplate {
     /// Placeholders surfaced in the UI for fast filling.  Order is the
     /// insertion order in the editor.
     pub placeholders: Vec<TemplatePlaceholder>,
+    /// T-D-B-18: 场景类别(默认 `General`,向后兼容 v0.5 数据)。
+    #[serde(default)]
+    pub category: WritingScenarioCategory,
+    /// T-D-B-18: LLM 提示词模板。占位符语法与 `body` 一致(`{{name}}`),
+    /// 由引擎填充后送入 LLM;通用模板为空字符串。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prompt_template: String,
+    /// T-D-B-18: 输出格式(`markdown` / `plain_text` / `structured`);
+    /// 通用模板为空字符串。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub output_format: String,
+    /// T-D-B-18: 风格参数(语气 / 篇幅 / 读者 / 视角 / 额外);
+    /// 通用模板为空默认值。
+    #[serde(default, skip_serializing_if = "WritingStyleParams::is_empty")]
+    pub style_params: WritingStyleParams,
 }
 
 /// One `{{placeholder}}` slot in a template body.
@@ -46,16 +142,21 @@ pub fn find(id: &str) -> Option<WritingTemplate> {
     library().into_iter().find(|t| t.id == id)
 }
 
-/// Return the entire v0.5 template library.
+/// Return the entire template library (6 通用 + 28 场景 = 34 个)。
+///
+/// T-D-B-18: 在 v0.5 的 6 个通用模板后追加 28 个场景化模板
+/// (见 [`crate::writing::scenarios::scenario_library`])。
 pub fn library() -> Vec<WritingTemplate> {
-    vec![
+    let mut all = vec![
         tech_blog(),
         marketing_copy(),
         academic_paper(),
         business_email(),
         meeting_notes(),
         novel_chapter(),
-    ]
+    ];
+    all.extend(crate::writing::scenarios::scenario_library());
+    all
 }
 
 // ---------------------------------------------------------------------
@@ -132,6 +233,10 @@ fn tech_blog() -> WritingTemplate {
 {{takeaways}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -192,6 +297,10 @@ fn marketing_copy() -> WritingTemplate {
 {{cta}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -270,6 +379,10 @@ fn academic_paper() -> WritingTemplate {
 {{conclusion}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -327,6 +440,10 @@ fn business_email() -> WritingTemplate {
 {{signoff}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -386,6 +503,10 @@ fn meeting_notes() -> WritingTemplate {
 {{actions}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -440,6 +561,10 @@ fn novel_chapter() -> WritingTemplate {
 {{hook}}
 "#
         .into(),
+        category: WritingScenarioCategory::General,
+        prompt_template: String::new(),
+        output_format: String::new(),
+        style_params: WritingStyleParams::default(),
     }
 }
 
@@ -448,9 +573,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn library_returns_six_templates() {
+    fn library_returns_six_general_plus_twenty_eight_scenarios() {
         let lib = library();
-        assert_eq!(lib.len(), 6);
+        // T-D-B-18: 6 通用 + 28 场景 = 34
+        assert_eq!(lib.len(), 34);
+        // v0.5 通用模板仍在
         let ids: Vec<&str> = lib.iter().map(|t| t.id.as_str()).collect();
         assert!(ids.contains(&"tech-blog"));
         assert!(ids.contains(&"marketing-copy"));
@@ -458,6 +585,11 @@ mod tests {
         assert!(ids.contains(&"business-email"));
         assert!(ids.contains(&"meeting-notes"));
         assert!(ids.contains(&"novel-chapter"));
+        // 通用模板归类正确
+        assert_eq!(
+            find("tech-blog").unwrap().category,
+            WritingScenarioCategory::General
+        );
     }
 
     #[test]
@@ -493,6 +625,88 @@ mod tests {
                     token
                 );
             }
+        }
+    }
+
+    #[test]
+    fn scenario_templates_carry_prompt_and_style() {
+        // T-D-B-18: 28 场景模板必须携带 prompt_template + output_format + style_params
+        let scenarios = crate::writing::scenarios::scenario_library();
+        assert_eq!(
+            scenarios.len(),
+            28,
+            "expected exactly 28 scenario templates"
+        );
+        for t in &scenarios {
+            assert_ne!(
+                t.category,
+                WritingScenarioCategory::General,
+                "scenario template {} must not be General",
+                t.id
+            );
+            assert!(
+                !t.prompt_template.is_empty(),
+                "scenario template {} missing prompt_template",
+                t.id
+            );
+            assert!(
+                !t.output_format.is_empty(),
+                "scenario template {} missing output_format",
+                t.id
+            );
+            assert!(
+                !t.style_params.is_empty(),
+                "scenario template {} missing style_params",
+                t.id
+            );
+        }
+    }
+
+    #[test]
+    fn scenario_template_ids_match_known_set() {
+        // T-D-B-18: 与 AgentScenario::Writing 桥接的 28 个稳定 ID。
+        let ids = crate::writing::scenarios::writing_scenario_template_ids();
+        assert_eq!(ids.len(), 28);
+        let lib_ids: std::collections::HashSet<String> =
+            library().into_iter().map(|t| t.id).collect();
+        for id in &ids {
+            assert!(lib_ids.contains(*id), "scenario id {id} not in library()");
+        }
+    }
+
+    #[test]
+    fn category_parse_roundtrip() {
+        assert_eq!(
+            WritingScenarioCategory::parse("self_media"),
+            WritingScenarioCategory::SelfMedia
+        );
+        assert_eq!(
+            WritingScenarioCategory::parse("自媒体"),
+            WritingScenarioCategory::SelfMedia
+        );
+        assert_eq!(
+            WritingScenarioCategory::parse("novel"),
+            WritingScenarioCategory::Novel
+        );
+        assert_eq!(
+            WritingScenarioCategory::parse("general"),
+            WritingScenarioCategory::General
+        );
+        assert_eq!(
+            WritingScenarioCategory::parse("unknown"),
+            WritingScenarioCategory::General
+        );
+        for cat in [
+            WritingScenarioCategory::General,
+            WritingScenarioCategory::SelfMedia,
+            WritingScenarioCategory::Novel,
+        ] {
+            assert_eq!(
+                WritingScenarioCategory::parse(cat.as_str()),
+                cat,
+                "roundtrip failed for {:?}",
+                cat
+            );
         }
     }
 }
