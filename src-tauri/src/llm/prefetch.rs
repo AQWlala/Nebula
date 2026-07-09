@@ -644,7 +644,11 @@ mod tests {
         let db_path = temp_db_path();
         let lance_path = temp_lance_path();
         let sqlite = Arc::new(SqliteStore::open(&db_path).expect("create should succeed"));
-        let lance = Arc::new(LanceStore::open(&lance_path, dim).await.expect("create should succeed"));
+        let lance = Arc::new(
+            LanceStore::open(&lance_path, dim)
+                .await
+                .expect("create should succeed"),
+        );
         let embedder = Arc::new(Embedder::new(
             OllamaClient::new("http://127.0.0.1:1"),
             "test-model",
@@ -747,7 +751,11 @@ mod tests {
             None,
             1000,
         );
-        engine.sqlite.insert(&m).await.expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m)
+            .await
+            .expect("insert should succeed");
 
         // 正常路径检索:应返回 1 行
         let rows = engine.search_by_path_substring("/tmp/foo/bar.txt").await;
@@ -803,9 +811,21 @@ mod tests {
             None,
             1002,
         );
-        engine.sqlite.insert(&m1).await.expect("insert should succeed");
-        engine.sqlite.insert(&m2).await.expect("insert should succeed");
-        engine.sqlite.insert(&m3).await.expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m1)
+            .await
+            .expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m2)
+            .await
+            .expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m3)
+            .await
+            .expect("insert should succeed");
 
         let hits = engine.search_by_bm25("main.rs").await;
         let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
@@ -845,12 +865,36 @@ mod tests {
         let m_user = make_chat_memory("vec-user", "用户问题", "chat.user", None, 1000);
         let m_asst = make_chat_memory("vec-asst", "助手回答", "chat.assistant", None, 1001);
         let m_other = make_other_memory("vec-other", "系统记忆", "system");
-        engine.sqlite.insert(&m_user).await.expect("insert should succeed");
-        engine.sqlite.insert(&m_asst).await.expect("insert should succeed");
-        engine.sqlite.insert(&m_other).await.expect("insert should succeed");
-        engine.lance.upsert("vec-user", &vec).await.expect("task should complete");
-        engine.lance.upsert("vec-asst", &vec).await.expect("task should complete");
-        engine.lance.upsert("vec-other", &vec).await.expect("task should complete");
+        engine
+            .sqlite
+            .insert(&m_user)
+            .await
+            .expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m_asst)
+            .await
+            .expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m_other)
+            .await
+            .expect("insert should succeed");
+        engine
+            .lance
+            .upsert("vec-user", &vec)
+            .await
+            .expect("task should complete");
+        engine
+            .lance
+            .upsert("vec-asst", &vec)
+            .await
+            .expect("task should complete");
+        engine
+            .lance
+            .upsert("vec-other", &vec)
+            .await
+            .expect("task should complete");
 
         // 向量检索:应返回 2 条(chat.user + chat.assistant),过滤掉 system
         let ids = engine.search_by_vector(file_name).await;
@@ -1074,7 +1118,11 @@ mod tests {
 
         // 即使数据库有历史,disabled 时也应返回 0
         let m = make_chat_memory("u1", "问题 /tmp/foo.txt", "chat.user", None, 1000);
-        engine.sqlite.insert(&m).await.expect("insert should succeed");
+        engine
+            .sqlite
+            .insert(&m)
+            .await
+            .expect("insert should succeed");
 
         let stats = engine.prefetch("/tmp/foo.txt").await;
 

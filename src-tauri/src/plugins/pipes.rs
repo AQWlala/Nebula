@@ -51,14 +51,18 @@ mod tests {
     #[test]
     fn prepends_context_to_prompt() {
         let pipe = ContextInjectionPipe::new("You are a helpful assistant.");
-        let out = pipe.transform(PipeInput::new("What is 2+2?")).expect("create should succeed");
+        let out = pipe
+            .transform(PipeInput::new("What is 2+2?"))
+            .expect("create should succeed");
         assert_eq!(out.prompt, "You are a helpful assistant.\n\nWhat is 2+2?");
     }
 
     #[test]
     fn empty_context_passes_through() {
         let pipe = ContextInjectionPipe::new("");
-        let out = pipe.transform(PipeInput::new("hello")).expect("create should succeed");
+        let out = pipe
+            .transform(PipeInput::new("hello"))
+            .expect("create should succeed");
         assert_eq!(out.prompt, "hello");
     }
 

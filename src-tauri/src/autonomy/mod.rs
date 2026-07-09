@@ -521,7 +521,8 @@ mod tests {
 
     #[test]
     fn serde_wire_format_is_uppercase_l_prefix() {
-        let l2_json = serde_json::to_string(&AutonomyLevel::L2Chat).expect("serialize should succeed");
+        let l2_json =
+            serde_json::to_string(&AutonomyLevel::L2Chat).expect("serialize should succeed");
         assert_eq!(l2_json, "\"L2\"");
         let parsed: AutonomyLevel = serde_json::from_str("\"L4\"").expect("parse should succeed");
         assert_eq!(parsed, AutonomyLevel::L4Swarm);

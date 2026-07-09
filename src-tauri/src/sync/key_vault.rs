@@ -166,8 +166,14 @@ mod tests {
     async fn store_and_retrieve_round_trip() {
         let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        vault.store("test-key", "secret-value").await.expect("update should succeed");
-        let retrieved = vault.retrieve("test-key").await.expect("task should complete");
+        vault
+            .store("test-key", "secret-value")
+            .await
+            .expect("update should succeed");
+        let retrieved = vault
+            .retrieve("test-key")
+            .await
+            .expect("task should complete");
         assert_eq!(retrieved, Some("secret-value".to_string()));
     }
 
@@ -175,7 +181,10 @@ mod tests {
     async fn retrieve_missing_returns_none() {
         let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        let result = vault.retrieve("nonexistent").await.expect("task should complete");
+        let result = vault
+            .retrieve("nonexistent")
+            .await
+            .expect("task should complete");
         assert_eq!(result, None);
     }
 
@@ -183,9 +192,18 @@ mod tests {
     async fn delete_removes_key() {
         let dir = tempfile::tempdir().expect("test op should succeed");
         let vault = KeyVault::new(dir.path());
-        vault.store("to-delete", "value").await.expect("update should succeed");
-        vault.delete("to-delete").await.expect("delete should succeed");
-        let result = vault.retrieve("to-delete").await.expect("delete should succeed");
+        vault
+            .store("to-delete", "value")
+            .await
+            .expect("update should succeed");
+        vault
+            .delete("to-delete")
+            .await
+            .expect("delete should succeed");
+        let result = vault
+            .retrieve("to-delete")
+            .await
+            .expect("delete should succeed");
         assert_eq!(result, None);
     }
 }

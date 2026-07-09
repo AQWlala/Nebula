@@ -187,7 +187,8 @@ mod tests {
     fn reasoning_strategy_linear_default() {
         // ReasoningStrategy 使用 #[serde(tag = "kind")] 内部标签,
         // Linear 序列化为 {"kind":"linear"}(而非裸字符串 "linear")。
-        let s: ReasoningStrategy = serde_json::from_str(r#"{"kind":"linear"}"#).expect("parse should succeed");
+        let s: ReasoningStrategy =
+            serde_json::from_str(r#"{"kind":"linear"}"#).expect("parse should succeed");
         assert!(matches!(s, ReasoningStrategy::Linear));
     }
 

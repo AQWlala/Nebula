@@ -437,7 +437,8 @@ mod tests {
     fn list_tree_skips_node_modules() {
         let dir = tempfile::tempdir().expect("test op should succeed");
         fs::create_dir(dir.path().join("src")).expect("create should succeed");
-        fs::write(dir.path().join("src").join("main.rs"), "fn main(){}").expect("update should succeed");
+        fs::write(dir.path().join("src").join("main.rs"), "fn main(){}")
+            .expect("update should succeed");
         fs::create_dir(dir.path().join("node_modules")).expect("create should succeed");
         fs::write(
             dir.path().join("node_modules").join("pkg.js"),

@@ -337,10 +337,16 @@ mod tests {
         let (req, _notify) = tracker.request("skill-3", "exec rm");
         assert!(tracker.deny(&req.id));
         assert!(!tracker.is_approved(&req.id));
-        assert_eq!(tracker.status(&req.id).expect("assertion value"), ExecApprovalStatus::Denied);
+        assert_eq!(
+            tracker.status(&req.id).expect("assertion value"),
+            ExecApprovalStatus::Denied
+        );
         thread::sleep(Duration::from_millis(1100));
         assert!(!tracker.check_timeout_fail_closed(&req.id));
-        assert_eq!(tracker.status(&req.id).expect("assertion value"), ExecApprovalStatus::Denied);
+        assert_eq!(
+            tracker.status(&req.id).expect("assertion value"),
+            ExecApprovalStatus::Denied
+        );
     }
 
     /// T-E-S-20: `mark_timeout_fail_closed` 直接将 Pending 标记为

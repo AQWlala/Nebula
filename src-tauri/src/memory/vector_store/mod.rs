@@ -189,9 +189,12 @@ mod tests {
     /// serde 序列化为 lowercase,与 EmbedderKind 风格对齐。
     #[test]
     fn backend_serde_lowercase() {
-        let lance = serde_json::to_string(&VectorStoreBackend::Lance).expect("update should succeed");
-        let qdrant = serde_json::to_string(&VectorStoreBackend::Qdrant).expect("update should succeed");
-        let chroma = serde_json::to_string(&VectorStoreBackend::Chroma).expect("update should succeed");
+        let lance =
+            serde_json::to_string(&VectorStoreBackend::Lance).expect("update should succeed");
+        let qdrant =
+            serde_json::to_string(&VectorStoreBackend::Qdrant).expect("update should succeed");
+        let chroma =
+            serde_json::to_string(&VectorStoreBackend::Chroma).expect("update should succeed");
         assert_eq!(lance, "\"lance\"");
         assert_eq!(qdrant, "\"qdrant\"");
         assert_eq!(chroma, "\"chroma\"");
@@ -200,9 +203,12 @@ mod tests {
     /// serde 反序列化接受 lowercase。
     #[test]
     fn backend_serde_deserialize_lowercase() {
-        let lance: VectorStoreBackend = serde_json::from_str("\"lance\"").expect("update should succeed");
-        let qdrant: VectorStoreBackend = serde_json::from_str("\"qdrant\"").expect("update should succeed");
-        let chroma: VectorStoreBackend = serde_json::from_str("\"chroma\"").expect("update should succeed");
+        let lance: VectorStoreBackend =
+            serde_json::from_str("\"lance\"").expect("update should succeed");
+        let qdrant: VectorStoreBackend =
+            serde_json::from_str("\"qdrant\"").expect("update should succeed");
+        let chroma: VectorStoreBackend =
+            serde_json::from_str("\"chroma\"").expect("update should succeed");
         assert_eq!(lance, VectorStoreBackend::Lance);
         assert_eq!(qdrant, VectorStoreBackend::Qdrant);
         assert_eq!(chroma, VectorStoreBackend::Chroma);
@@ -221,9 +227,14 @@ mod tests {
     async fn factory_lance_default() {
         let path =
             std::env::temp_dir().join(format!("nebula_vs_factory_lance_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().expect("create should succeed"), 4, None)
-            .await
-            .expect("Lance backend should build without feature flag");
+        let store = create_vector_store(
+            VectorStoreBackend::Lance,
+            path.to_str().expect("create should succeed"),
+            4,
+            None,
+        )
+        .await
+        .expect("Lance backend should build without feature flag");
         assert_eq!(store.dim(), 4);
         assert_eq!(store.path(), path.to_str().expect("update should succeed"));
         assert_eq!(store.len().await, 0);
@@ -279,9 +290,14 @@ mod tests {
     #[tokio::test]
     async fn batch_upsert_default_impl_equivalent_to_loop() {
         let path = std::env::temp_dir().join(format!("nebula_vs_batch_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().expect("create should succeed"), 4, None)
-            .await
-            .expect("test op should succeed");
+        let store = create_vector_store(
+            VectorStoreBackend::Lance,
+            path.to_str().expect("create should succeed"),
+            4,
+            None,
+        )
+        .await
+        .expect("test op should succeed");
         let ids = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         let vecs = vec![
             vec![1.0, 0.0, 0.0, 0.0],
@@ -298,9 +314,14 @@ mod tests {
     async fn batch_upsert_length_mismatch_errors() {
         let path =
             std::env::temp_dir().join(format!("nebula_vs_batch_mismatch_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().expect("create should succeed"), 4, None)
-            .await
-            .expect("test op should succeed");
+        let store = create_vector_store(
+            VectorStoreBackend::Lance,
+            path.to_str().expect("create should succeed"),
+            4,
+            None,
+        )
+        .await
+        .expect("test op should succeed");
         let ids = vec!["a".to_string(), "b".to_string()];
         let vecs = vec![vec![1.0, 0.0, 0.0, 0.0]];
         let err = store.batch_upsert(&ids, &vecs).await;
@@ -314,9 +335,14 @@ mod tests {
     #[tokio::test]
     async fn search_with_filter_default_errors() {
         let path = std::env::temp_dir().join(format!("nebula_vs_filter_{}", uuid::Uuid::new_v4()));
-        let store = create_vector_store(VectorStoreBackend::Lance, path.to_str().expect("create should succeed"), 4, None)
-            .await
-            .expect("test op should succeed");
+        let store = create_vector_store(
+            VectorStoreBackend::Lance,
+            path.to_str().expect("create should succeed"),
+            4,
+            None,
+        )
+        .await
+        .expect("test op should succeed");
         let err = store
             .search_with_filter(&[1.0, 0.0, 0.0, 0.0], 1, "id = 'a'")
             .await;

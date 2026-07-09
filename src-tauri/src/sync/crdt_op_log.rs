@@ -319,12 +319,16 @@ mod tests {
     fn record_and_fetch_round_trip() {
         let log = make_log();
 
-        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        let op_id = log
+            .record_op(&make_version("m1", 1, 100))
+            .expect("test op should succeed");
         assert!(!op_id.is_empty());
 
         // 第二条 op,created_at 更晚(用稍后的调用时刻)。
         std::thread::sleep(std::time::Duration::from_millis(10));
-        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
+        let _op_id2 = log
+            .record_op(&make_version("m2", 1, 200))
+            .expect("test op should succeed");
 
         let pending = log.fetch_pending_ops(10).expect("get should succeed");
         assert_eq!(pending.len(), 2);
@@ -344,8 +348,12 @@ mod tests {
     #[test]
     fn mark_consumed_hides_from_pending() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
-        let _op_id2 = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
+        let op_id = log
+            .record_op(&make_version("m1", 1, 100))
+            .expect("test op should succeed");
+        let _op_id2 = log
+            .record_op(&make_version("m2", 1, 200))
+            .expect("test op should succeed");
 
         // 标记第一条已消费。
         log.mark_consumed(&op_id).expect("test op should succeed");
@@ -363,7 +371,9 @@ mod tests {
     #[test]
     fn mark_failed_hides_from_pending() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        let op_id = log
+            .record_op(&make_version("m1", 1, 100))
+            .expect("test op should succeed");
 
         log.mark_failed(&op_id).expect("test op should succeed");
 
@@ -379,9 +389,15 @@ mod tests {
     #[test]
     fn stats_counts_all_states() {
         let log = make_log();
-        let a = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
-        let b = log.record_op(&make_version("m2", 1, 200)).expect("test op should succeed");
-        let _c = log.record_op(&make_version("m3", 1, 300)).expect("test op should succeed");
+        let a = log
+            .record_op(&make_version("m1", 1, 100))
+            .expect("test op should succeed");
+        let b = log
+            .record_op(&make_version("m2", 1, 200))
+            .expect("test op should succeed");
+        let _c = log
+            .record_op(&make_version("m3", 1, 300))
+            .expect("test op should succeed");
 
         log.mark_consumed(&a).expect("test op should succeed");
         log.mark_failed(&b).expect("test op should succeed");
@@ -397,7 +413,9 @@ mod tests {
     #[test]
     fn prune_removes_old_consumed() {
         let log = make_log();
-        let op_id = log.record_op(&make_version("m1", 1, 100)).expect("test op should succeed");
+        let op_id = log
+            .record_op(&make_version("m1", 1, 100))
+            .expect("test op should succeed");
         log.mark_consumed(&op_id).expect("test op should succeed");
 
         // 手动把 consumed_at 改到 30 天前,模拟过期数据。
@@ -412,7 +430,9 @@ mod tests {
         }
 
         // 清理 7 天前的已消费 op。
-        let deleted = log.prune_consumed_older_than(7).expect("delete should succeed");
+        let deleted = log
+            .prune_consumed_older_than(7)
+            .expect("delete should succeed");
         assert_eq!(deleted, 1);
 
         // 统计应不再含此条。

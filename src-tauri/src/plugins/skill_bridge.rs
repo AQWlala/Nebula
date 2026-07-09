@@ -128,10 +128,16 @@ mod tests {
         let engine = Arc::new(SkillEngine::new(sqlite, llm()));
         let bridge = SkillEngineBridge::new(engine);
 
-        let list = bridge.list_skills(None, None, 10).await.expect("task should complete");
+        let list = bridge
+            .list_skills(None, None, 10)
+            .await
+            .expect("task should complete");
         assert!(list.is_empty(), "fresh engine should have no skills");
 
-        let found = bridge.search_skills("anything", 10).await.expect("query should succeed");
+        let found = bridge
+            .search_skills("anything", 10)
+            .await
+            .expect("query should succeed");
         assert!(found.is_empty());
 
         cleanup(&p);

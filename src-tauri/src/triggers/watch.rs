@@ -925,7 +925,8 @@ END:VEVENT";
             "\"memory_usage\""
         );
         assert_eq!(
-            serde_json::to_string(&SystemMetric::DiskFreePercent).expect("serialize should succeed"),
+            serde_json::to_string(&SystemMetric::DiskFreePercent)
+                .expect("serialize should succeed"),
             "\"disk_free_percent\""
         );
     }
@@ -937,9 +938,18 @@ END:VEVENT";
             let back: CmpOp = serde_json::from_str(&s).expect("parse should succeed");
             assert_eq!(op, back);
         }
-        assert_eq!(serde_json::to_string(&CmpOp::Gt).expect("serialize should succeed"), "\"gt\"");
-        assert_eq!(serde_json::to_string(&CmpOp::Lt).expect("serialize should succeed"), "\"lt\"");
-        assert_eq!(serde_json::to_string(&CmpOp::Eq).expect("serialize should succeed"), "\"eq\"");
+        assert_eq!(
+            serde_json::to_string(&CmpOp::Gt).expect("serialize should succeed"),
+            "\"gt\""
+        );
+        assert_eq!(
+            serde_json::to_string(&CmpOp::Lt).expect("serialize should succeed"),
+            "\"lt\""
+        );
+        assert_eq!(
+            serde_json::to_string(&CmpOp::Eq).expect("serialize should succeed"),
+            "\"eq\""
+        );
     }
 
     // ---- SystemProbe compare(纯函数,mock 值)----

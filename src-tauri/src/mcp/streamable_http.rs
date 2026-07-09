@@ -467,8 +467,13 @@ mod tests {
     where
         F: Fn(&str) -> (u16, Vec<(String, String)>, String) + Send + Sync + 'static,
     {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("task should complete");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("task should complete");
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         let handler = Arc::new(handler);
         tokio::spawn(async move {
             loop {
@@ -537,7 +542,8 @@ mod tests {
             )
         })
         .await;
-        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).expect("create should succeed");
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true)
+            .expect("create should succeed");
         let req = JsonRpcRequest::new("tools/list", 1);
         let resp = transport
             .post_request(&req)
@@ -563,7 +569,8 @@ mod tests {
             )
         })
         .await;
-        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).expect("create should succeed");
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true)
+            .expect("create should succeed");
         let req = JsonRpcRequest::new("tools/list", 42);
         let resp = transport
             .post_request(&req)
@@ -594,7 +601,8 @@ mod tests {
         })
         .await;
         // new(不发送 initialize)
-        let mut transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).expect("create should succeed");
+        let mut transport = StreamableHttpTransport::new(url, HashMap::new(), None, true)
+            .expect("create should succeed");
         // 首次 send_initialize 失败(500)
         let first = transport.send_initialize().await;
         assert!(first.is_err(), "first initialize should fail with 500");
@@ -631,7 +639,8 @@ mod tests {
             )
         })
         .await;
-        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true).expect("create should succeed");
+        let transport = StreamableHttpTransport::new(url, HashMap::new(), None, true)
+            .expect("create should succeed");
         // 第一次请求:响应带 Mcp-Session-Id → session_id 被回填。
         let req1 = JsonRpcRequest::new("initialize", 1);
         let _ = transport

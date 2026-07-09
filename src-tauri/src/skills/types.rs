@@ -213,8 +213,14 @@ mod tests {
     /// T-E-S-37: TagMatch 序列化为 lowercase,默认值为 `Any`。
     #[test]
     fn tag_match_serializes_lowercase_and_defaults_to_any() {
-        assert_eq!(serde_json::to_string(&TagMatch::Any).expect("serialize should succeed"), "\"any\"");
-        assert_eq!(serde_json::to_string(&TagMatch::All).expect("serialize should succeed"), "\"all\"");
+        assert_eq!(
+            serde_json::to_string(&TagMatch::Any).expect("serialize should succeed"),
+            "\"any\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TagMatch::All).expect("serialize should succeed"),
+            "\"all\""
+        );
         // 默认 = Any
         assert_eq!(TagMatch::default(), TagMatch::Any);
         // 反序列化大小写敏感:lowercase 输入应能还原。
@@ -229,7 +235,8 @@ mod tests {
     #[test]
     fn list_skills_request_backwards_compatible_with_old_payload() {
         let req: ListSkillsRequest =
-            serde_json::from_str(r#"{"language":"rust","tag":"math","limit":10}"#).expect("parse should succeed");
+            serde_json::from_str(r#"{"language":"rust","tag":"math","limit":10}"#)
+                .expect("parse should succeed");
         assert_eq!(req.language.as_deref(), Some("rust"));
         assert_eq!(req.tag.as_deref(), Some("math"));
         assert_eq!(req.limit, 10);

@@ -455,7 +455,10 @@ mod tests {
     #[test]
     fn task_status_round_trip() {
         for s in [TaskStatus::Todo, TaskStatus::Doing, TaskStatus::Done] {
-            assert_eq!(TaskStatus::from_str(s.as_str()).expect("parse should succeed"), s);
+            assert_eq!(
+                TaskStatus::from_str(s.as_str()).expect("parse should succeed"),
+                s
+            );
         }
         assert!(TaskStatus::from_str("nope").is_err());
     }

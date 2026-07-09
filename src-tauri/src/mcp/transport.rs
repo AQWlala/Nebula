@@ -287,8 +287,8 @@ mod tests {
 
     #[test]
     fn stdio_transport_from_config() {
-        let t =
-            McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None).expect("test op should succeed");
+        let t = McpTransport::from_config(&McpTransportType::Stdio, Some("npx"), None, None)
+            .expect("test op should succeed");
         match t {
             McpTransport::Stdio { command } => assert_eq!(command, "npx"),
             _ => panic!("expected Stdio"),

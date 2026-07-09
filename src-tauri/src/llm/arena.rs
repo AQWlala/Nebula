@@ -442,7 +442,9 @@ mod tests {
     async fn test_elo_update_winner_a() {
         let lb = Arc::new(ArenaLeaderboard::new());
         // 双方初始 1200(未注册时 fallback 到 ELO_INIT)。
-        lb.update_elo("model_a", "model_b", "a").await.expect("update should succeed");
+        lb.update_elo("model_a", "model_b", "a")
+            .await
+            .expect("update should succeed");
         let board = lb.leaderboard().await;
         let elo_a = board.iter().find(|(m, _)| m == "model_a").map(|(_, e)| *e);
         let elo_b = board.iter().find(|(m, _)| m == "model_b").map(|(_, e)| *e);
@@ -477,7 +479,9 @@ mod tests {
     async fn test_elo_update_tie() {
         let lb = Arc::new(ArenaLeaderboard::new());
         // 双方初始 1200,expected_a=0.5,sa=0.5 → delta=0(平局对等分选手无变化)。
-        lb.update_elo("model_x", "model_y", "tie").await.expect("update should succeed");
+        lb.update_elo("model_x", "model_y", "tie")
+            .await
+            .expect("update should succeed");
         let board = lb.leaderboard().await;
         let elo_x = board
             .iter()
@@ -617,7 +621,9 @@ mod tests {
         );
 
         // 人工投票 winner=a。
-        lb.vote(&match_id, "a".to_string()).await.expect("serialize should succeed");
+        lb.vote(&match_id, "a".to_string())
+            .await
+            .expect("serialize should succeed");
         assert_eq!(
             winner_of(&store, &match_id).as_deref(),
             Some("a"),

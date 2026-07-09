@@ -315,7 +315,9 @@ mod tests {
                 })
                 .expect("test op should succeed");
         }
-        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).expect("test op should succeed");
+        let recent = ledger
+            .by_source(OutcomeSource::Swarm, "coder", 5)
+            .expect("test op should succeed");
         assert!(mutator.should_rollback(&recent, 1.0));
     }
 
@@ -345,7 +347,9 @@ mod tests {
                 })
                 .expect("test op should succeed");
         }
-        let recent = ledger.by_source(OutcomeSource::Swarm, "coder", 5).expect("test op should succeed");
+        let recent = ledger
+            .by_source(OutcomeSource::Swarm, "coder", 5)
+            .expect("test op should succeed");
         // baseline = 0.95 → 0% drop
         assert!(!mutator.should_rollback(&recent, 0.95));
     }

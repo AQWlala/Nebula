@@ -89,7 +89,10 @@ mod tests {
     #[tokio::test]
     async fn notify_uses_defaults_when_params_missing() {
         let action = NotifyAction::new();
-        let out = action.invoke(serde_json::json!({})).await.expect("task should complete");
+        let out = action
+            .invoke(serde_json::json!({}))
+            .await
+            .expect("task should complete");
         assert!(out.success);
     }
 

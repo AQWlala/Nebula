@@ -514,7 +514,9 @@ mod tests {
     #[tokio::test]
     async fn open_creates_table() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         // Table should exist; len() may be 0 or 1 depending on init.
         let _ = s.len().await;
         let _ = std::fs::remove_dir_all(path);
@@ -523,11 +525,22 @@ mod tests {
     #[tokio::test]
     async fn upsert_and_search_round_trip() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
-        s.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        s.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.expect("task should complete");
-        s.upsert("c", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        let r = s.search(&[1.0, 0.0, 0.0, 0.0], 3).await.expect("query should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
+        s.upsert("a", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        s.upsert("b", &[0.0, 1.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        s.upsert("c", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        let r = s
+            .search(&[1.0, 0.0, 0.0, 0.0], 3)
+            .await
+            .expect("query should succeed");
         assert_eq!(r.len(), 3, "expected 3 hits, got {r:?}");
         // a and c are identical to the query; either may come first.
         let top: std::collections::HashSet<_> =
@@ -539,7 +552,9 @@ mod tests {
     #[tokio::test]
     async fn dim_mismatch_errors() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         assert!(s.upsert("x", &[1.0, 0.0]).await.is_err());
         let _ = std::fs::remove_dir_all(path);
     }
@@ -547,8 +562,12 @@ mod tests {
     #[tokio::test]
     async fn delete_removes_entry() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 2).await.expect("create should succeed");
-        s.upsert("a", &[1.0, 0.0]).await.expect("task should complete");
+        let s = LanceStore::open(&path, 2)
+            .await
+            .expect("create should succeed");
+        s.upsert("a", &[1.0, 0.0])
+            .await
+            .expect("task should complete");
         assert!(s.delete("a").await.expect("delete should succeed"));
         // After delete the mirror should not contain a.
         let g = s.fallback.lock();
@@ -580,18 +599,31 @@ mod tests_minimal {
     #[tokio::test]
     async fn open_creates_in_memory_store() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         assert_eq!(s.len().await, 0);
     }
 
     #[tokio::test]
     async fn upsert_and_search_fallback() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
-        s.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        s.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.expect("task should complete");
-        s.upsert("c", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        let r = s.search(&[1.0, 0.0, 0.0, 0.0], 3).await.expect("query should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
+        s.upsert("a", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        s.upsert("b", &[0.0, 1.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        s.upsert("c", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        let r = s
+            .search(&[1.0, 0.0, 0.0, 0.0], 3)
+            .await
+            .expect("query should succeed");
         assert_eq!(r.len(), 3);
         let top: std::collections::HashSet<_> =
             r.iter().take(2).map(|(id, _)| id.clone()).collect();
@@ -601,15 +633,21 @@ mod tests_minimal {
     #[tokio::test]
     async fn dim_mismatch_errors() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let s = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         assert!(s.upsert("x", &[1.0, 0.0]).await.is_err());
     }
 
     #[tokio::test]
     async fn delete_removes_entry() {
         let path = temp_lance_path();
-        let s = LanceStore::open(&path, 2).await.expect("create should succeed");
-        s.upsert("a", &[1.0, 0.0]).await.expect("task should complete");
+        let s = LanceStore::open(&path, 2)
+            .await
+            .expect("create should succeed");
+        s.upsert("a", &[1.0, 0.0])
+            .await
+            .expect("task should complete");
         assert!(s.delete("a").await.expect("delete should succeed"));
         let g = s.fallback.lock();
         assert!(!g.iter().any(|(k, _)| k == "a"));

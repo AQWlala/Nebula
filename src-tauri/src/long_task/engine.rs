@@ -1124,7 +1124,10 @@ mod tests {
         assert_eq!(steps[1].seq, 2);
 
         // get_task 也能取回
-        let fetched = engine.get_task(&task.id).expect("get_task").expect("get should succeed");
+        let fetched = engine
+            .get_task(&task.id)
+            .expect("get_task")
+            .expect("get should succeed");
         assert_eq!(fetched.goal, "test goal");
 
         cleanup(tmp);
@@ -1227,7 +1230,10 @@ mod tests {
         // 等待一下让 runner 执行
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         // 应该已经失败(workspace 不存在)
-        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
+        let after = engine
+            .get_task(&task.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert!(
             after.status == LongTaskStatus::Failed || after.status == LongTaskStatus::Running,
             "expected failed or running, got {}",
@@ -1360,8 +1366,14 @@ mod tests {
             .create_task("g".into(), vec![step], None, None)
             .expect("test op should succeed");
         assert!(engine.delete_task(&task.id).expect("delete"));
-        assert!(engine.get_task(&task.id).expect("get should succeed").is_none());
-        assert!(engine.get_steps(&task.id).expect("get should succeed").is_empty());
+        assert!(engine
+            .get_task(&task.id)
+            .expect("get should succeed")
+            .is_none());
+        assert!(engine
+            .get_steps(&task.id)
+            .expect("get should succeed")
+            .is_empty());
         cleanup(tmp);
     }
 
@@ -1388,7 +1400,10 @@ mod tests {
         }
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 1, "should reset 1 running task");
-        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
+        let after = engine
+            .get_task(&task.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after.status, LongTaskStatus::Paused);
         cleanup(tmp);
     }
@@ -1407,7 +1422,10 @@ mod tests {
         // pending → 应保持不变
         let n = engine.bootstrap().expect("bootstrap");
         assert_eq!(n, 0);
-        let after = engine.get_task(&task.id).expect("get should succeed").expect("get should succeed");
+        let after = engine
+            .get_task(&task.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after.status, LongTaskStatus::Pending);
         cleanup(tmp);
     }
@@ -1576,7 +1594,11 @@ mod tests {
         assert!(nested.exists(), "nested STATE.md should be created");
 
         // 清理整个嵌套目录
-        let parent = nested.ancestors().nth(3).expect("test op should succeed").to_path_buf();
+        let parent = nested
+            .ancestors()
+            .nth(3)
+            .expect("test op should succeed")
+            .to_path_buf();
         let _ = fs::remove_dir_all(&parent);
         cleanup(tmp);
     }
@@ -1660,11 +1682,20 @@ mod tests {
         assert!(!paused.contains(&t3.id), "t3 should not be paused");
 
         // 验证状态:t1, t2 → Paused,t3 仍为 Completed
-        let after1 = engine.get_task(&t1.id).expect("get should succeed").expect("get should succeed");
+        let after1 = engine
+            .get_task(&t1.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after1.status, LongTaskStatus::Paused);
-        let after2 = engine.get_task(&t2.id).expect("get should succeed").expect("get should succeed");
+        let after2 = engine
+            .get_task(&t2.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after2.status, LongTaskStatus::Paused);
-        let after3 = engine.get_task(&t3.id).expect("get should succeed").expect("get should succeed");
+        let after3 = engine
+            .get_task(&t3.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after3.status, LongTaskStatus::Completed);
 
         cleanup(tmp);
@@ -1694,7 +1725,10 @@ mod tests {
         assert_eq!(paused[0], t1.id, "only t1 should be in paused list");
 
         // t2 状态应保持 Paused(不变)
-        let after2 = engine.get_task(&t2.id).expect("get should succeed").expect("get should succeed");
+        let after2 = engine
+            .get_task(&t2.id)
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(after2.status, LongTaskStatus::Paused);
 
         cleanup(tmp);

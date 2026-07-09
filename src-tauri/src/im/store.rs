@@ -417,7 +417,10 @@ mod tests {
         assert!(ids.contains(&"id-2"));
 
         // 验证反序列化字段正确。
-        let got1 = harness.get("id-1").expect("get should succeed").expect("get should succeed");
+        let got1 = harness
+            .get("id-1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got1.platform, ImPlatform::Feishu);
         assert_eq!(
             got1.kind,
@@ -453,15 +456,37 @@ mod tests {
             true,
         );
         harness.insert(&b).expect("insert should succeed");
-        assert!(harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
+        assert!(
+            harness
+                .get("id-x")
+                .expect("get should succeed")
+                .expect("get should succeed")
+                .enabled
+        );
 
         // 禁用。
-        harness.set_enabled("id-x", false).expect("update should succeed");
-        assert!(!harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
+        harness
+            .set_enabled("id-x", false)
+            .expect("update should succeed");
+        assert!(
+            !harness
+                .get("id-x")
+                .expect("get should succeed")
+                .expect("get should succeed")
+                .enabled
+        );
 
         // 重新启用。
-        harness.set_enabled("id-x", true).expect("update should succeed");
-        assert!(harness.get("id-x").expect("get should succeed").expect("get should succeed").enabled);
+        harness
+            .set_enabled("id-x", true)
+            .expect("update should succeed");
+        assert!(
+            harness
+                .get("id-x")
+                .expect("get should succeed")
+                .expect("get should succeed")
+                .enabled
+        );
 
         // 不存在的 id 返回 Err。
         assert!(harness.set_enabled("nope", true).is_err());
@@ -502,11 +527,27 @@ mod tests {
         let (harness, paths) = temp_store();
         let b = sample_binding("t1", ImPlatform::Feishu, "https://y.example.com", true);
         harness.insert(&b).expect("insert should succeed");
-        assert_eq!(harness.get("t1").expect("get should succeed").expect("get should succeed").last_used_at, None);
+        assert_eq!(
+            harness
+                .get("t1")
+                .expect("get should succeed")
+                .expect("get should succeed")
+                .last_used_at,
+            None
+        );
 
         let ts = 1710000000000i64;
-        harness.touch_last_used("t1", ts).expect("test op should succeed");
-        assert_eq!(harness.get("t1").expect("get should succeed").expect("get should succeed").last_used_at, Some(ts));
+        harness
+            .touch_last_used("t1", ts)
+            .expect("test op should succeed");
+        assert_eq!(
+            harness
+                .get("t1")
+                .expect("get should succeed")
+                .expect("get should succeed")
+                .last_used_at,
+            Some(ts)
+        );
 
         cleanup(paths);
     }

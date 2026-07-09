@@ -566,14 +566,21 @@ paths:
         assert!(names.contains(&"getUser"));
         assert!(names.contains(&"createUser"));
 
-        let get_user = defs.iter().find(|d| d.name == "getUser").expect("query should succeed");
+        let get_user = defs
+            .iter()
+            .find(|d| d.name == "getUser")
+            .expect("query should succeed");
         assert_eq!(get_user.method, "get");
         assert_eq!(get_user.path, "/users/{userId}");
         assert_eq!(get_user.description, "Get a user by ID");
         // parameters schema 应包含 userId
-        let props = get_user.parameters["properties"].as_object().expect("get should succeed");
+        let props = get_user.parameters["properties"]
+            .as_object()
+            .expect("get should succeed");
         assert!(props.contains_key("userId"));
-        let required = get_user.parameters["required"].as_array().expect("get should succeed");
+        let required = get_user.parameters["required"]
+            .as_array()
+            .expect("get should succeed");
         assert!(required.iter().any(|r| r == "userId"));
     }
 
@@ -626,7 +633,10 @@ paths:
         response_body: String,
     ) -> (String, std::thread::JoinHandle<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         let url = format!("http://127.0.0.1:{}", port);
         let handle = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("test op should succeed");
@@ -650,7 +660,10 @@ paths:
     /// 避免单次 read 只读到部分缓冲区导致 echo 缺失鉴权 header。
     fn start_echo_server() -> (String, std::thread::JoinHandle<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         let url = format!("http://127.0.0.1:{}", port);
         let handle = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("test op should succeed");
@@ -782,7 +795,10 @@ paths:
         let spec = sample_spec_json("https://api.example.com");
         let server = Arc::new(OpenApiToolServer::from_spec(&spec).expect("create should succeed"));
         let defs = server.list_tool_definitions();
-        let def = defs.into_iter().find(|d| d.name == "getUser").expect("query should succeed");
+        let def = defs
+            .into_iter()
+            .find(|d| d.name == "getUser")
+            .expect("query should succeed");
         let adapter = OpenApiToolAdapter::new(server, def);
 
         assert_eq!(adapter.name(), "getUser");

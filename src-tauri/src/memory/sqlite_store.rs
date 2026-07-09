@@ -1491,7 +1491,11 @@ mod tests {
         let store = SqliteStore::open(&path).expect("create should succeed");
         let m = sample();
         store.insert(&m).await.expect("insert should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.id, m.id);
         assert_eq!(got.layer, MemoryLayer::L3);
         assert!((got.importance - 0.42).abs() < 1e-6);
@@ -1505,7 +1509,10 @@ mod tests {
         let mut m = sample();
         m.pinned = true;
         store.insert(&m).await.expect("insert should succeed");
-        let cands = store.candidates_for_compression(0, 1.0, 100).await.expect("update should succeed");
+        let cands = store
+            .candidates_for_compression(0, 1.0, 100)
+            .await
+            .expect("update should succeed");
         assert!(
             cands.is_empty(),
             "pinned memories must never be compression candidates"
@@ -1546,12 +1553,18 @@ mod tests {
         );
 
         // agent_a 域查询:仅返回 1 条
-        let agent_a_only = store.list_recent_in_domain("agent_a", 100).await.expect("update should succeed");
+        let agent_a_only = store
+            .list_recent_in_domain("agent_a", 100)
+            .await
+            .expect("update should succeed");
         assert_eq!(agent_a_only.len(), 1);
         assert_eq!(agent_a_only[0].id, "agent_a-1");
 
         // shared 域查询:仅返回 1 条
-        let shared_only = store.list_recent_in_domain("shared", 100).await.expect("update should succeed");
+        let shared_only = store
+            .list_recent_in_domain("shared", 100)
+            .await
+            .expect("update should succeed");
         assert_eq!(shared_only.len(), 1);
         assert_eq!(shared_only[0].id, "shared-1");
 
@@ -1599,7 +1612,10 @@ mod tests {
             .update_compressed_from("absorbed", "summary-a")
             .await
             .expect("test op should succeed");
-        let cands = store.candidates_for_compression(0, 1.0, 100).await.expect("update should succeed");
+        let cands = store
+            .candidates_for_compression(0, 1.0, 100)
+            .await
+            .expect("update should succeed");
         assert_eq!(cands.len(), 1);
         assert_eq!(cands[0].id, "fresh");
         let _ = std::fs::remove_file(path);
@@ -1615,7 +1631,10 @@ mod tests {
         b.layer = MemoryLayer::L3;
         store.insert(&a).await.expect("insert should succeed");
         store.insert(&b).await.expect("insert should succeed");
-        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.expect("update should succeed");
+        let l2 = store
+            .list_by_layer(MemoryLayer::L2, 10)
+            .await
+            .expect("update should succeed");
         assert_eq!(l2.len(), 1);
         assert_eq!(l2[0].id, a.id);
         let _ = std::fs::remove_file(path);
@@ -1681,7 +1700,10 @@ mod tests {
             .update_compressed_from("dead-l2", "summary-l2")
             .await
             .expect("test op should succeed");
-        let l2 = store.list_by_layer(MemoryLayer::L2, 10).await.expect("update should succeed");
+        let l2 = store
+            .list_by_layer(MemoryLayer::L2, 10)
+            .await
+            .expect("update should succeed");
         assert_eq!(l2.len(), 1);
         assert_eq!(l2[0].id, "alive-l2");
         let _ = std::fs::remove_file(path);
@@ -1748,7 +1770,11 @@ mod tests {
         // 插入 + 读取往返。
         let m = sample();
         store.insert(&m).await.expect("insert should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.id, m.id);
         assert_eq!(got.layer, MemoryLayer::L3);
         assert!((got.importance - 0.42).abs() < 1e-6);
@@ -1757,7 +1783,11 @@ mod tests {
         drop(store);
         // 重新打开(用正确 key)验证持久化。
         let store2 = SqliteStore::open_encrypted(&path, &key).expect("reopen encrypted");
-        let got2 = store2.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got2 = store2
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got2.id, m.id, "data must persist across reopens");
         drop(store2);
         let _ = std::fs::remove_file(path);
@@ -1773,7 +1803,10 @@ mod tests {
         let store = SqliteStore::open(&path).expect("create should succeed");
 
         // 初始查询返回 None。
-        let got = store.query_semantic_cache_entry("sem:abc").await.expect("query should succeed");
+        let got = store
+            .query_semantic_cache_entry("sem:abc")
+            .await
+            .expect("query should succeed");
         assert!(got.is_none(), "expected None for missing entry");
 
         // 插入后再查,返回 Some(response)。
@@ -1834,7 +1867,10 @@ mod tests {
             .await
             .expect("test op should succeed");
 
-        let rows = store.list_recent_semantic_cache_entries(10).await.expect("update should succeed");
+        let rows = store
+            .list_recent_semantic_cache_entries(10)
+            .await
+            .expect("update should succeed");
         assert_eq!(rows.len(), 3, "should have 3 entries");
         // 最新插入的应排第一。
         assert_eq!(rows[0].0, "sem:new", "newest must come first");
@@ -1854,7 +1890,10 @@ mod tests {
                 .await
                 .expect("test op should succeed");
         }
-        let rows = store.list_recent_semantic_cache_entries(3).await.expect("update should succeed");
+        let rows = store
+            .list_recent_semantic_cache_entries(3)
+            .await
+            .expect("update should succeed");
         assert_eq!(rows.len(), 3, "limit=3 must clamp to 3 rows");
         let _ = std::fs::remove_file(path);
     }
@@ -1869,7 +1908,11 @@ mod tests {
         let mut m = sample();
         m.ingest_cost = Some(0.0072);
         store.insert(&m).await.expect("insert should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert!(
             (got.ingest_cost.expect("test op should succeed") - 0.0072).abs() < 1e-9,
             "ingest_cost round-trip failed"
@@ -1885,7 +1928,11 @@ mod tests {
         let m = sample();
         // sample() 默认 ingest_cost = None
         store.insert(&m).await.expect("insert should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert!(got.ingest_cost.is_none(), "ingest_cost should remain None");
         let _ = std::fs::remove_file(path);
     }
@@ -1899,7 +1946,11 @@ mod tests {
         let mut m = sample();
         m.ingest_cost = Some(0.0);
         store.insert(&m).await.expect("insert should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.ingest_cost, Some(0.0));
         let _ = std::fs::remove_file(path);
     }
@@ -1915,7 +1966,11 @@ mod tests {
         // 更新为新的成本值
         m.ingest_cost = Some(0.005);
         store.update(&m).await.expect("update should succeed");
-        let got = store.get(&m.id).await.expect("get should succeed").expect("get should succeed");
+        let got = store
+            .get(&m.id)
+            .await
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert!(
             (got.ingest_cost.expect("test op should succeed") - 0.005).abs() < 1e-9,
             "update_guarded should update ingest_cost"

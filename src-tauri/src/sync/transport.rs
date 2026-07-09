@@ -189,7 +189,8 @@ mod tests {
         let dir = tempfile::tempdir().expect("test op should succeed");
         let transport = LocalTransport::new(dir.path()).expect("create should succeed");
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let pair =
+            Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
 
         let id = send_sealed(&transport, &pair, b"hello").expect("send should succeed");
         let msgs = recv_all_unsealed(&transport, &pair).expect("recv should succeed");
@@ -225,7 +226,8 @@ mod tests {
         let dir = tempfile::tempdir().expect("test op should succeed");
         let transport = LocalTransport::new(dir.path()).expect("create should succeed");
         let local = E2eeIdentity::generate();
-        let pair = Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
+        let pair =
+            Pair::new(local.clone(), &local.public_key_b64()).expect("create should succeed");
         let id = send_sealed(&transport, &pair, b"t").expect("send should succeed");
         let msgs = transport.recv().expect("recv should succeed");
         assert_eq!(msgs.len(), 1);

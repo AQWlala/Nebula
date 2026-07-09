@@ -276,7 +276,10 @@ mod tests {
                 .expect("responder recv timed out — request never arrived")
                 .expect("responder channel closed");
             assert_eq!(msg.msg_type, BusMessageType::Request);
-            bus_for_task.reply(&msg, "pong".to_string()).await.expect("serialize should succeed");
+            bus_for_task
+                .reply(&msg, "pong".to_string())
+                .await
+                .expect("serialize should succeed");
         });
 
         let response = bus_clone

@@ -473,11 +473,13 @@ mod tests {
             "\"bidirectional\""
         );
         assert_eq!(
-            serde_json::to_string(&SyncDirection::NebulaToObsidian).expect("serialize should succeed"),
+            serde_json::to_string(&SyncDirection::NebulaToObsidian)
+                .expect("serialize should succeed"),
             "\"nebula_to_obsidian\""
         );
         assert_eq!(
-            serde_json::to_string(&SyncDirection::ObsidianToNebula).expect("serialize should succeed"),
+            serde_json::to_string(&SyncDirection::ObsidianToNebula)
+                .expect("serialize should succeed"),
             "\"obsidian_to_nebula\""
         );
     }
@@ -517,7 +519,9 @@ mod tests {
             .expect("test op should succeed");
 
         assert!(path.exists());
-        let content = tokio::fs::read_to_string(&path).await.expect("get should succeed");
+        let content = tokio::fs::read_to_string(&path)
+            .await
+            .expect("get should succeed");
         assert!(content.starts_with("---\n"));
         assert!(content.contains("title: \"Test\""));
         assert!(content.contains("# Test"));
@@ -542,7 +546,9 @@ mod tests {
         tokio::fs::write(vault.join("notes/a.md"), "# A")
             .await
             .expect("test op should succeed");
-        tokio::fs::write(vault.join("b.md"), "# B").await.expect("update should succeed");
+        tokio::fs::write(vault.join("b.md"), "# B")
+            .await
+            .expect("update should succeed");
         // 应被跳过
         tokio::fs::write(vault.join("Nebula/c.md"), "# C")
             .await
@@ -552,7 +558,9 @@ mod tests {
             .expect("test op should succeed");
 
         let config = ObsidianSyncConfig::new(vault.to_path_buf());
-        let files = ObsidianVaultSync::scan_vault(&config).await.expect("task should complete");
+        let files = ObsidianVaultSync::scan_vault(&config)
+            .await
+            .expect("task should complete");
 
         assert!(files.contains(&"b.md".to_string()));
         assert!(files.contains(&"notes/a.md".to_string()));

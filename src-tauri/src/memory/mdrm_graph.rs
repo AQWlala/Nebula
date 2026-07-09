@@ -509,7 +509,10 @@ mod tests {
             .collect();
 
         for m in &memories {
-            store.insert_guarded_spawn(m).await.expect("insert should succeed");
+            store
+                .insert_guarded_spawn(m)
+                .await
+                .expect("insert should succeed");
         }
         // A --causes--> B
         store
@@ -822,7 +825,10 @@ mod tests {
             "isolated",
             SourceKind::UserInput,
         );
-        store.insert_guarded_spawn(&m).await.expect("insert should succeed");
+        store
+            .insert_guarded_spawn(&m)
+            .await
+            .expect("insert should succeed");
 
         let engine = MdrmEngine::new(store);
         let snap = engine.get_full_graph(&m.id, &MdrmConfig::default()).await;
@@ -927,8 +933,14 @@ mod tests {
             "cycle-b",
             SourceKind::UserInput,
         );
-        store.insert_guarded_spawn(&a).await.expect("insert should succeed");
-        store.insert_guarded_spawn(&b).await.expect("insert should succeed");
+        store
+            .insert_guarded_spawn(&a)
+            .await
+            .expect("insert should succeed");
+        store
+            .insert_guarded_spawn(&b)
+            .await
+            .expect("insert should succeed");
         store
             .add_relation(&MemoryRelation::new(
                 a.id.clone(),
@@ -964,7 +976,11 @@ mod tests {
         let engine = MdrmEngine::new(store);
 
         let snap = engine.trace_causal(&ids[0], &MdrmConfig::default()).await;
-        let root = snap.nodes.iter().find(|n| n.id == ids[0]).expect("query should succeed");
+        let root = snap
+            .nodes
+            .iter()
+            .find(|n| n.id == ids[0])
+            .expect("query should succeed");
         assert_eq!(root.depth, 0);
         assert_eq!(root.role, GraphNodeRole::Root);
         // 元数据应已填充

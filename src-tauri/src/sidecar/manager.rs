@@ -880,7 +880,9 @@ mod tests {
         assert!(result.is_ok(), "in-process mode should be healthy");
         // last_health_check 不应被更新(in-process 模式跳过 gRPC 调用)
         let runtimes = manager.inner.runtimes.lock();
-        let rt = runtimes.get(&SidecarKind::Memory).expect("get should succeed");
+        let rt = runtimes
+            .get(&SidecarKind::Memory)
+            .expect("get should succeed");
         assert!(rt.last_health_check.is_none());
         assert_eq!(rt.health_check_failures, 0);
     }
@@ -973,7 +975,9 @@ mod tests {
         // in-process 模式不更新 last_health_check(无真实 ping),
         // 但也不应递增 failures
         let runtimes = manager.inner.runtimes.lock();
-        let rt = runtimes.get(&SidecarKind::Memory).expect("get should succeed");
+        let rt = runtimes
+            .get(&SidecarKind::Memory)
+            .expect("get should succeed");
         assert_eq!(
             rt.health_check_failures, 2,
             "failures unchanged in in-process mode"

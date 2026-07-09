@@ -183,7 +183,8 @@ mod tests {
     #[test]
     fn create_webhook_binding_request_deserializes() {
         let json = r#"{"platform":"feishu","url":"https://x.example.com","display_name":"g"}"#;
-        let req: CreateWebhookBindingRequest = serde_json::from_str(json).expect("create should succeed");
+        let req: CreateWebhookBindingRequest =
+            serde_json::from_str(json).expect("create should succeed");
         assert_eq!(req.platform, "feishu");
         assert_eq!(req.url, "https://x.example.com");
         assert_eq!(req.display_name, "g");
@@ -192,7 +193,8 @@ mod tests {
     #[test]
     fn create_webhook_binding_request_default_display_name() {
         let json = r#"{"platform":"wecom","url":"https://y.example.com"}"#;
-        let req: CreateWebhookBindingRequest = serde_json::from_str(json).expect("create should succeed");
+        let req: CreateWebhookBindingRequest =
+            serde_json::from_str(json).expect("create should succeed");
         assert_eq!(req.display_name, "");
     }
 }

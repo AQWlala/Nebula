@@ -502,7 +502,8 @@ mod tests {
     }
 
     fn write_file(path: &Path, content: &str) {
-        std::fs::create_dir_all(path.parent().expect("create should succeed")).expect("create should succeed");
+        std::fs::create_dir_all(path.parent().expect("create should succeed"))
+            .expect("create should succeed");
         std::fs::write(path, content).expect("update should succeed");
     }
 
@@ -784,7 +785,10 @@ mod tests {
         write_file(&file, original);
 
         let (_storage, backend) = create_copy_backend(tmp.path());
-        let id = backend.create(&working_dir, &[file.clone()]).await.expect("create should succeed");
+        let id = backend
+            .create(&working_dir, &[file.clone()])
+            .await
+            .expect("create should succeed");
 
         write_file(&file, "overwritten content");
         backend
@@ -807,7 +811,10 @@ mod tests {
         write_file(&file, original);
 
         let (storage, backend) = create_copy_backend(tmp.path());
-        let id = backend.create(&working_dir, &[file.clone()]).await.expect("create should succeed");
+        let id = backend
+            .create(&working_dir, &[file.clone()])
+            .await
+            .expect("create should succeed");
 
         // 验证 backend 中保存了相对路径结构
         let backend_path = format!("{}/sub/nested/deep.txt", id);

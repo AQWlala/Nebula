@@ -770,7 +770,9 @@ mod tests {
         // 等待 connect_all 超时或完成
         tokio::time::sleep(Duration::from_millis(500)).await;
 
-        let status = registry.status("test-mock").expect("test op should succeed");
+        let status = registry
+            .status("test-mock")
+            .expect("test op should succeed");
         assert!(
             matches!(status, McpServerStatus::Crashed { .. })
                 || matches!(status, McpServerStatus::Running)
@@ -780,8 +782,13 @@ mod tests {
         );
 
         // stop
-        registry.stop("test-mock").await.expect("task should complete");
-        let status = registry.status("test-mock").expect("test op should succeed");
+        registry
+            .stop("test-mock")
+            .await
+            .expect("task should complete");
+        let status = registry
+            .status("test-mock")
+            .expect("test op should succeed");
         assert_eq!(status, McpServerStatus::Stopped);
     }
 
@@ -886,7 +893,9 @@ mod tests {
         // supervisor tick 应置 Disabled(而非 restart)
         registry.supervisor_tick("rate-limit").await;
 
-        let status = registry.status("rate-limit").expect("test op should succeed");
+        let status = registry
+            .status("rate-limit")
+            .expect("test op should succeed");
         assert_eq!(status, McpServerStatus::Disabled);
     }
 
@@ -942,7 +951,9 @@ mod tests {
         // supervisor_tick 应将 Running + health_check 失败 → Crashed
         registry.supervisor_tick("health-test").await;
 
-        let status = registry.status("health-test").expect("test op should succeed");
+        let status = registry
+            .status("health-test")
+            .expect("test op should succeed");
         assert!(
             matches!(status, McpServerStatus::Crashed { .. }),
             "expected Crashed after health check failure, got {:?}",
@@ -960,7 +971,8 @@ mod tests {
         let registry = McpServerRegistry::new(manager, temp_dir.path().to_path_buf());
 
         let log_path = registry.log_path_for("log-test");
-        std::fs::create_dir_all(log_path.parent().expect("create should succeed")).expect("create should succeed");
+        std::fs::create_dir_all(log_path.parent().expect("create should succeed"))
+            .expect("create should succeed");
 
         // 写入 5 行
         for i in 1..=5 {
@@ -968,14 +980,20 @@ mod tests {
         }
 
         // 读最后 3 行
-        let tail = registry.logs("log-test", 3).await.expect("task should complete");
+        let tail = registry
+            .logs("log-test", 3)
+            .await
+            .expect("task should complete");
         assert_eq!(tail.len(), 3);
         assert!(tail[0].contains("line 3"));
         assert!(tail[1].contains("line 4"));
         assert!(tail[2].contains("line 5"));
 
         // tail 大于文件行数 → 返回全部
-        let all = registry.logs("log-test", 100).await.expect("task should complete");
+        let all = registry
+            .logs("log-test", 100)
+            .await
+            .expect("task should complete");
         assert_eq!(all.len(), 5);
     }
 

@@ -211,7 +211,10 @@ mod tests {
         };
         let resp = executor.execute(req).await.expect("task should complete");
         assert!(resp.error.is_some(), "unknown skill should set error");
-        assert!(resp.error.expect("assertion value").contains("unknown local skill"));
+        assert!(resp
+            .error
+            .expect("assertion value")
+            .contains("unknown local skill"));
     }
 
     #[tokio::test]

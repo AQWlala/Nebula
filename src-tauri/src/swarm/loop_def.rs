@@ -404,9 +404,18 @@ budget_minutes: 10
 
     #[test]
     fn autonomy_case_insensitive() {
-        assert_eq!(AutonomyLevel::from_str("l1").expect("parse should succeed"), AutonomyLevel::L1);
-        assert_eq!(AutonomyLevel::from_str("L4").expect("parse should succeed"), AutonomyLevel::L4);
-        assert_eq!(AutonomyLevel::from_str(" l5 ").expect("parse should succeed"), AutonomyLevel::L5);
+        assert_eq!(
+            AutonomyLevel::from_str("l1").expect("parse should succeed"),
+            AutonomyLevel::L1
+        );
+        assert_eq!(
+            AutonomyLevel::from_str("L4").expect("parse should succeed"),
+            AutonomyLevel::L4
+        );
+        assert_eq!(
+            AutonomyLevel::from_str(" l5 ").expect("parse should succeed"),
+            AutonomyLevel::L5
+        );
     }
 
     #[test]

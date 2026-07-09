@@ -422,7 +422,10 @@ mod tests {
         let chain = FilterChain::new();
         chain.register(Arc::new(AllowAll));
         let req = FilterRequest::new("hi");
-        let out = chain.apply_request(req).await.expect("task should complete");
+        let out = chain
+            .apply_request(req)
+            .await
+            .expect("task should complete");
         assert_eq!(out.prompt, "hi");
     }
 
@@ -431,7 +434,10 @@ mod tests {
         let chain = FilterChain::new();
         chain.register(Arc::new(PrefixModifier));
         let req = FilterRequest::new("hi");
-        let out = chain.apply_request(req).await.expect("task should complete");
+        let out = chain
+            .apply_request(req)
+            .await
+            .expect("task should complete");
         assert_eq!(out.prompt, "[mod] hi");
     }
 
@@ -506,7 +512,9 @@ mod tests {
         let tools = Arc::new(ToolRegistry::new());
         let chain = PipeChain::new(tools);
         chain.register(Arc::new(UppercasePipe));
-        let out = chain.run_pipe(PipeInput::new("hello")).expect("create should succeed");
+        let out = chain
+            .run_pipe(PipeInput::new("hello"))
+            .expect("create should succeed");
         assert_eq!(out.prompt, "HELLO");
     }
 

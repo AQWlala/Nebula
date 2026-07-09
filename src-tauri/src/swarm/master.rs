@@ -1273,7 +1273,12 @@ mod tests {
         for evt in events {
             let envelope = MasterEventEnvelope::wrap_master_event(evt);
             assert!(!envelope.event_type.is_empty());
-            assert!(envelope.event_type.chars().next().expect("assertion value").is_uppercase());
+            assert!(envelope
+                .event_type
+                .chars()
+                .next()
+                .expect("assertion value")
+                .is_uppercase());
         }
     }
 

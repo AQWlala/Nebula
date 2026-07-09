@@ -82,7 +82,9 @@ fn injection_scan_blocks_critical_in_soul_content() {
 
     // structure 能解析
     let structure = parse_soul_md(injected).expect("parse should succeed");
-    let content = structure.immutable_content().expect("test op should succeed");
+    let content = structure
+        .immutable_content()
+        .expect("test op should succeed");
 
     // 注入扫描应命中 Critical
     let scan = full_injection_scan(content);

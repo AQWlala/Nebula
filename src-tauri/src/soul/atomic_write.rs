@@ -190,8 +190,14 @@ mod tests {
         // 第二次写入
         atomic_write(&path, "updated").expect("update should succeed");
 
-        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "updated");
-        assert_eq!(fs::read_to_string(&backup_path(&path)).expect("get should succeed"), "original");
+        assert_eq!(
+            fs::read_to_string(&path).expect("get should succeed"),
+            "updated"
+        );
+        assert_eq!(
+            fs::read_to_string(&backup_path(&path)).expect("get should succeed"),
+            "original"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -205,7 +211,10 @@ mod tests {
 
         atomic_write(&path, "nested content").expect("update should succeed");
         assert!(path.exists());
-        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "nested content");
+        assert_eq!(
+            fs::read_to_string(&path).expect("get should succeed"),
+            "nested content"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -219,10 +228,16 @@ mod tests {
 
         atomic_write(&path, "original").expect("update should succeed");
         atomic_write(&path, "updated").expect("update should succeed");
-        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "updated");
+        assert_eq!(
+            fs::read_to_string(&path).expect("get should succeed"),
+            "updated"
+        );
 
         restore_from_backup(&path).expect("update should succeed");
-        assert_eq!(fs::read_to_string(&path).expect("get should succeed"), "original");
+        assert_eq!(
+            fs::read_to_string(&path).expect("get should succeed"),
+            "original"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

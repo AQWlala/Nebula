@@ -420,7 +420,12 @@ mod tests {
             field_changes: vec![make_field_change("content", json!("remote-new"))],
         };
         assert!(sync.merge_remote(remote, "agent-1"));
-        let stored = sync.versions.read().get("shared-1").cloned().expect("get should succeed");
+        let stored = sync
+            .versions
+            .read()
+            .get("shared-1")
+            .cloned()
+            .expect("get should succeed");
         assert_eq!(stored.device_id, "dev-b");
         assert_eq!(stored.timestamp, 200);
     }

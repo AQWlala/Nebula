@@ -96,11 +96,20 @@ mod tests {
     #[tokio::test]
     async fn trait_upsert_search_round_trip() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
-        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        vs.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.expect("task should complete");
-        let hits = vs.search(&[1.0, 0.0, 0.0, 0.0], 2).await.expect("query should succeed");
+        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        vs.upsert("b", &[0.0, 1.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        let hits = vs
+            .search(&[1.0, 0.0, 0.0, 0.0], 2)
+            .await
+            .expect("query should succeed");
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].0, "a");
         let _ = std::fs::remove_dir_all(path);
@@ -110,12 +119,19 @@ mod tests {
     #[tokio::test]
     async fn trait_delete_removes_entry() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
-        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
+        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
         let removed = vs.delete("a").await.expect("delete should succeed");
         assert!(removed, "delete should report removed=true");
-        let hits = vs.search(&[1.0, 0.0, 0.0, 0.0], 5).await.expect("query should succeed");
+        let hits = vs
+            .search(&[1.0, 0.0, 0.0, 0.0], 5)
+            .await
+            .expect("query should succeed");
         assert!(!hits.iter().any(|(id, _)| id == "a"));
         let _ = std::fs::remove_dir_all(path);
     }
@@ -124,11 +140,17 @@ mod tests {
     #[tokio::test]
     async fn trait_len_tracks_upsert_and_delete() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
         assert_eq!(vs.len().await, 0);
-        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await.expect("task should complete");
-        vs.upsert("b", &[0.0, 1.0, 0.0, 0.0]).await.expect("task should complete");
+        vs.upsert("a", &[1.0, 0.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
+        vs.upsert("b", &[0.0, 1.0, 0.0, 0.0])
+            .await
+            .expect("task should complete");
         assert_eq!(vs.len().await, 2);
         vs.delete("a").await.expect("delete should succeed");
         assert_eq!(vs.len().await, 1);
@@ -141,7 +163,9 @@ mod tests {
     #[tokio::test]
     async fn trait_path_and_dim_accessible() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 8).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 8)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
         assert_eq!(vs.dim(), 8);
         assert_eq!(vs.path(), path.to_str().expect("assertion value"));
@@ -154,7 +178,9 @@ mod tests {
     #[tokio::test]
     async fn trait_batch_upsert_equivalent_to_loop() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
         let ids = vec!["x".to_string(), "y".to_string(), "z".to_string()];
         let vecs = vec![
@@ -162,7 +188,9 @@ mod tests {
             vec![0.0, 1.0, 0.0, 0.0],
             vec![0.0, 0.0, 1.0, 0.0],
         ];
-        vs.batch_upsert(&ids, &vecs).await.expect("task should complete");
+        vs.batch_upsert(&ids, &vecs)
+            .await
+            .expect("task should complete");
         assert_eq!(vs.len().await, 3);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -173,7 +201,9 @@ mod tests {
     #[tokio::test]
     async fn trait_search_with_filter_inherits_default_err() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
         let err = vs.search_with_filter(&[1.0; 4], 1, "id = 'a'").await;
         assert!(err.is_err());
@@ -186,7 +216,9 @@ mod tests {
     #[tokio::test]
     async fn trait_health_check_lance_passes() {
         let path = temp_lance_path();
-        let store = LanceStore::open(&path, 4).await.expect("create should succeed");
+        let store = LanceStore::open(&path, 4)
+            .await
+            .expect("create should succeed");
         let vs: Arc<dyn VectorStore> = Arc::new(store);
         let res = vs.health_check().await;
         assert!(res.is_ok(), "health_check should pass for open LanceStore");

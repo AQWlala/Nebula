@@ -711,7 +711,9 @@ mod tests {
         let mock = vec![mock_response(1, tools_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
         let rt = tokio::runtime::Runtime::new().expect("create should succeed");
-        let tools = rt.block_on(client.discover_tools()).expect("lock should succeed");
+        let tools = rt
+            .block_on(client.discover_tools())
+            .expect("lock should succeed");
         assert_eq!(tools.len(), 3);
         assert_eq!(tools[0].name, "fs_read");
         assert_eq!(tools[0].description, "Read a file");
@@ -748,7 +750,9 @@ mod tests {
         let mock = vec![mock_response(1, tools_result)];
         let mut client = McpClient::new_for_test(cfg, mock);
         let rt = tokio::runtime::Runtime::new().expect("create should succeed");
-        let tools = rt.block_on(client.discover_tools()).expect("lock should succeed");
+        let tools = rt
+            .block_on(client.discover_tools())
+            .expect("lock should succeed");
         // 仅保留以 "fs_" 开头的工具
         assert_eq!(tools.len(), 2);
         assert_eq!(tools[0].name, "fs_read");
@@ -907,7 +911,9 @@ mod tests {
             .into_iter()
             .map(|(srv, tools)| (srv, tools.iter().map(|t| t.name().to_string()).collect()))
             .collect();
-        let s1 = names_by_server.get("test-stdio").expect("get should succeed");
+        let s1 = names_by_server
+            .get("test-stdio")
+            .expect("get should succeed");
         assert!(s1.contains(&"t1".to_string()));
         assert!(s1.contains(&"t2".to_string()));
         assert!(s1.contains(&"t3".to_string()));

@@ -684,7 +684,8 @@ mod tests {
         let p = Provenance::new("agent_output", Some("writer"), "payload");
         let json = serde_json::to_value(&p).expect("test op should succeed");
         // roundtrip
-        let back: Provenance = serde_json::from_value(json.clone()).expect("test op should succeed");
+        let back: Provenance =
+            serde_json::from_value(json.clone()).expect("test op should succeed");
         assert_eq!(back.source, p.source);
         assert_eq!(back.tool, p.tool);
         assert_eq!(back.content_hash, p.content_hash);
@@ -696,7 +697,8 @@ mod tests {
         let p_none = Provenance::new("system", None, "x");
         let json_none = serde_json::to_value(&p_none).expect("test op should succeed");
         assert!(json_none.get("tool").is_none());
-        let back_none: Provenance = serde_json::from_value(json_none).expect("test op should succeed");
+        let back_none: Provenance =
+            serde_json::from_value(json_none).expect("test op should succeed");
         assert!(back_none.tool.is_none());
     }
 

@@ -374,10 +374,7 @@ impl AppState {
                 mo
             } else {
                 // 运行时开关关闭时仍构造占位 Arc，避免 Option 化整个字段
-                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
-                    swarm.clone(),
-                    None,
-                ));
+                let mo = Arc::new(crate::swarm::MasterOrchestrator::new(swarm.clone(), None));
                 warn!(target: "nebula", "MasterOrchestrator disabled at runtime (T-D-C-08); commands will reject");
                 mo
             }

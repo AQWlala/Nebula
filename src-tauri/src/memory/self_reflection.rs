@@ -581,7 +581,8 @@ mod tests {
             n
         ));
         let store = Arc::new(SqliteStore::open(&p).expect("create should succeed"));
-        crate::memory::migration::run_bundled_migrations(&store.raw_connection().lock()).expect("update should succeed");
+        crate::memory::migration::run_bundled_migrations(&store.raw_connection().lock())
+            .expect("update should succeed");
         (p, store)
     }
 
@@ -649,9 +650,13 @@ mod tests {
         let (p, store) = temp_db();
         let engine = make_engine(store);
         let r = dummy_reflection(ReflectionKind::ValueAlignment, "test title");
-        engine.persist_reflection(&r).expect("engine op should succeed");
+        engine
+            .persist_reflection(&r)
+            .expect("engine op should succeed");
 
-        let rows = engine.list_recent_self_reflections(10).expect("engine op should succeed");
+        let rows = engine
+            .list_recent_self_reflections(10)
+            .expect("engine op should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1, "value_alignment");
         assert_eq!(rows[0].2, "test title");
@@ -676,7 +681,9 @@ mod tests {
             .persist_reflection(&dummy_reflection(ReflectionKind::OutcomeReview, "second"))
             .expect("test op should succeed");
 
-        let rows = engine.list_recent_self_reflections(10).expect("engine op should succeed");
+        let rows = engine
+            .list_recent_self_reflections(10)
+            .expect("engine op should succeed");
         assert_eq!(rows.len(), 2);
         // 最新插入的在最前面
         assert_eq!(rows[0].2, "second");
@@ -690,7 +697,9 @@ mod tests {
         let (p, store) = temp_db();
         let engine = make_engine(store);
         let r = dummy_reflection(ReflectionKind::SelfImprovement, "json test");
-        engine.persist_reflection(&r).expect("engine op should succeed");
+        engine
+            .persist_reflection(&r)
+            .expect("engine op should succeed");
 
         let conn = engine.sqlite.raw_connection();
         let conn = conn.lock();
@@ -718,9 +727,13 @@ mod tests {
         let engine = make_engine(store);
         for i in 0..5 {
             let r = dummy_reflection(ReflectionKind::SelfImprovement, &format!("r{i}"));
-            engine.persist_reflection(&r).expect("engine op should succeed");
+            engine
+                .persist_reflection(&r)
+                .expect("engine op should succeed");
         }
-        let rows = engine.list_recent_self_reflections(2).expect("engine op should succeed");
+        let rows = engine
+            .list_recent_self_reflections(2)
+            .expect("engine op should succeed");
         assert_eq!(rows.len(), 2);
         cleanup(&p);
     }

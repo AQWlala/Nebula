@@ -607,9 +607,13 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let _ = engine.create("task A".into(), None).expect("create should succeed");
+        let _ = engine
+            .create("task A".into(), None)
+            .expect("create should succeed");
         std::thread::sleep(std::time::Duration::from_millis(10));
-        let _ = engine.create("task B".into(), None).expect("create should succeed");
+        let _ = engine
+            .create("task B".into(), None)
+            .expect("create should succeed");
 
         let list = engine.list();
         assert_eq!(list.len(), 2);
@@ -625,9 +629,12 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("edit file".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("edit file".into(), None)
+            .expect("create should succeed");
         // 在 worktree 中修改文件
-        std::fs::write(Path::new(&ws.path).join("README.md"), "# changed\n").expect("get should succeed");
+        std::fs::write(Path::new(&ws.path).join("README.md"), "# changed\n")
+            .expect("get should succeed");
         // diff 应包含 "changed"
         let diff = engine.diff(&ws.id).expect("diff");
         assert!(diff.contains("changed"), "diff should show changes: {diff}");
@@ -641,7 +648,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("run command".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("run command".into(), None)
+            .expect("create should succeed");
         // 在 worktree 中执行 pwd(Windows 用 cd)
         let (program, args) = if cfg!(windows) {
             ("cmd", vec!["/C".to_string(), "cd".to_string()])
@@ -666,7 +675,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("recorded task".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("recorded task".into(), None)
+            .expect("create should succeed");
         // 执行两条命令
         let (program, args) = if cfg!(windows) {
             (
@@ -676,13 +687,17 @@ mod tests {
         } else {
             ("echo", vec!["hello".to_string()])
         };
-        let _ = engine.run_command(&ws.id, program, &args).expect("engine op should succeed");
+        let _ = engine
+            .run_command(&ws.id, program, &args)
+            .expect("engine op should succeed");
         let (program2, args2) = if cfg!(windows) {
             ("cmd", vec!["/C".to_string(), "cd".to_string()])
         } else {
             ("pwd", vec![])
         };
-        let _ = engine.run_command(&ws.id, program2, &args2).expect("engine op should succeed");
+        let _ = engine
+            .run_command(&ws.id, program2, &args2)
+            .expect("engine op should succeed");
 
         // 录屏应包含 2 条 Command 记录,seq 连续
         let ops = engine.get_recording(&ws.id);
@@ -727,7 +742,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("merge + replay".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("merge + replay".into(), None)
+            .expect("create should succeed");
         // 记录一条备注 + 执行一条命令
         engine
             .record_operation(
@@ -747,7 +764,9 @@ mod tests {
         } else {
             ("echo", vec!["done".to_string()])
         };
-        let _ = engine.run_command(&ws.id, program, &args).expect("engine op should succeed");
+        let _ = engine
+            .run_command(&ws.id, program, &args)
+            .expect("engine op should succeed");
 
         // 合并(会清除 workspace 索引,但录屏保留)
         engine.complete(&ws.id).expect("engine op should succeed");
@@ -768,7 +787,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("clear me".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("clear me".into(), None)
+            .expect("create should succeed");
         engine
             .record_operation(
                 &ws.id,
@@ -792,11 +813,15 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("add feature".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("add feature".into(), None)
+            .expect("create should succeed");
         // 在 worktree 中添加新文件 + commit
-        std::fs::write(Path::new(&ws.path).join("feature.txt"), "new feature\n").expect("create should succeed");
+        std::fs::write(Path::new(&ws.path).join("feature.txt"), "new feature\n")
+            .expect("create should succeed");
         run_git(Path::new(&ws.path), &["add", "-A"]).expect("create should succeed");
-        run_git(Path::new(&ws.path), &["commit", "-m", "add feature"]).expect("create should succeed");
+        run_git(Path::new(&ws.path), &["commit", "-m", "add feature"])
+            .expect("create should succeed");
 
         // 标记完成 + 合并
         engine.complete(&ws.id).expect("engine op should succeed");
@@ -824,9 +849,12 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("discard me".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("discard me".into(), None)
+            .expect("create should succeed");
         // 在 worktree 中修改(不 commit)
-        std::fs::write(Path::new(&ws.path).join("junk.txt"), "junk\n").expect("create should succeed");
+        std::fs::write(Path::new(&ws.path).join("junk.txt"), "junk\n")
+            .expect("create should succeed");
 
         let aborted = engine.abort(&ws.id).expect("abort");
         assert_eq!(aborted.status, ShadowStatus::Aborted);
@@ -858,7 +886,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("finish me".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("finish me".into(), None)
+            .expect("create should succeed");
         let completed = engine.complete(&ws.id).expect("complete");
         assert_eq!(completed.status, ShadowStatus::Completed);
         assert!(completed.finished_at.is_some());
@@ -872,7 +902,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("will fail".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("will fail".into(), None)
+            .expect("create should succeed");
         let failed = engine
             .fail(&ws.id, "compilation error".into())
             .expect("fail");
@@ -888,7 +920,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("merge twice".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("merge twice".into(), None)
+            .expect("create should succeed");
         engine.complete(&ws.id).expect("engine op should succeed");
         engine.merge(&ws.id).expect("engine op should succeed");
 
@@ -904,7 +938,9 @@ mod tests {
         let engine = ShadowWorkspaceEngine::with_default();
         engine.set_repo_root(repo.clone());
 
-        let ws = engine.create("abort twice".into(), None).expect("create should succeed");
+        let ws = engine
+            .create("abort twice".into(), None)
+            .expect("create should succeed");
         engine.abort(&ws.id).expect("engine op should succeed");
 
         let err = engine.abort(&ws.id).unwrap_err();

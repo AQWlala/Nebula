@@ -405,7 +405,10 @@ mod tests {
         rt.block_on(async {
             // 直接用 insert_guarded_spawn（绕过 sponge 以隔离测试）
             for m in [&a, &b, &c] {
-                store.insert_guarded_spawn(m).await.expect("insert should succeed");
+                store
+                    .insert_guarded_spawn(m)
+                    .await
+                    .expect("insert should succeed");
             }
             // M7b #90 分类 A: add_relation 是 async fn,必须在 async 上下文中
             // .await 才会执行。原实现 `let _ = store.add_relation(&rel_ab);`
@@ -413,8 +416,14 @@ mod tests {
             // / find_effects / explain 都找不到链条。
             let rel_ab = MemoryRelation::new(a.id.clone(), b.id.clone(), RelationKind::Causes);
             let rel_bc = MemoryRelation::new(b.id.clone(), c.id.clone(), RelationKind::Causes);
-            store.add_relation(&rel_ab).await.expect("update should succeed");
-            store.add_relation(&rel_bc).await.expect("update should succeed");
+            store
+                .add_relation(&rel_ab)
+                .await
+                .expect("update should succeed");
+            store
+                .add_relation(&rel_bc)
+                .await
+                .expect("update should succeed");
         });
 
         (a.id, b.id, c.id)

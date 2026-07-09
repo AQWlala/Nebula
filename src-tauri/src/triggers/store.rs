@@ -326,8 +326,12 @@ mod tests {
         let (store, path) = temp_store();
 
         // 插入。
-        store.insert(&sample_row("t1")).expect("insert should succeed");
-        store.insert(&sample_row("t2")).expect("insert should succeed");
+        store
+            .insert(&sample_row("t1"))
+            .expect("insert should succeed");
+        store
+            .insert(&sample_row("t2"))
+            .expect("insert should succeed");
 
         // list。
         let all = store.list().expect("update should succeed");
@@ -339,7 +343,9 @@ mod tests {
         assert_eq!(got.fire_count, 0);
 
         // set_enabled。
-        store.set_enabled("t1", false).expect("update should succeed");
+        store
+            .set_enabled("t1", false)
+            .expect("update should succeed");
         let got = store.get("t1").expect("get should succeed");
         assert_eq!(got.enabled, 0);
 
@@ -368,7 +374,9 @@ mod tests {
     #[test]
     fn test_trigger_store_record_fire_multiple() {
         let (store, path) = temp_store();
-        store.insert(&sample_row("t1")).expect("insert should succeed");
+        store
+            .insert(&sample_row("t1"))
+            .expect("insert should succeed");
         for i in 0..3 {
             store
                 .record_fire("t1", 1700000000_000 + i, 1, None, None)
@@ -386,8 +394,12 @@ mod tests {
     #[test]
     fn test_trigger_store_failed_fire_logs_error() {
         let (store, path) = temp_store();
-        store.insert(&sample_row("t1")).expect("insert should succeed");
-        store.record_fire("t1", 1, 0, Some("boom"), None).expect("update should succeed");
+        store
+            .insert(&sample_row("t1"))
+            .expect("insert should succeed");
+        store
+            .record_fire("t1", 1, 0, Some("boom"), None)
+            .expect("update should succeed");
         let logs = store.list_fire_log("t1").expect("update should succeed");
         assert_eq!(logs.len(), 1);
         assert!(!logs[0].success);
@@ -400,13 +412,19 @@ mod tests {
         let (store, path) = temp_store();
 
         // 初始无状态。
-        assert!(store.get_watch_state("w1").expect("get should succeed").is_none());
+        assert!(store
+            .get_watch_state("w1")
+            .expect("get should succeed")
+            .is_none());
 
         // 写入 url_hash + fire_at。
         store
             .set_watch_state("w1", Some("hash_v1"), None, Some(1700000000_000))
             .expect("test op should succeed");
-        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
+        let row = store
+            .get_watch_state("w1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(row.trigger_id, "w1");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v1"));
         assert_eq!(row.last_value, None);
@@ -416,7 +434,10 @@ mod tests {
         store
             .set_watch_state("w1", None, Some("evt_uid_1"), None)
             .expect("test op should succeed");
-        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
+        let row = store
+            .get_watch_state("w1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v1")); // 保留
         assert_eq!(row.last_value.as_deref(), Some("evt_uid_1")); // 新值
         assert_eq!(row.last_fire_at, Some(1700000000_000)); // 保留
@@ -425,13 +446,21 @@ mod tests {
         store
             .set_watch_state("w1", Some("hash_v2"), None, None)
             .expect("test op should succeed");
-        let row = store.get_watch_state("w1").expect("get should succeed").expect("get should succeed");
+        let row = store
+            .get_watch_state("w1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(row.last_url_hash.as_deref(), Some("hash_v2"));
         assert_eq!(row.last_value.as_deref(), Some("evt_uid_1")); // 保留
 
         // 删除。
-        store.delete_watch_state("w1").expect("update should succeed");
-        assert!(store.get_watch_state("w1").expect("get should succeed").is_none());
+        store
+            .delete_watch_state("w1")
+            .expect("update should succeed");
+        assert!(store
+            .get_watch_state("w1")
+            .expect("get should succeed")
+            .is_none());
 
         cleanup(&path);
     }

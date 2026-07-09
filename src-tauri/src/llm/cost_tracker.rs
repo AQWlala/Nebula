@@ -1808,9 +1808,13 @@ mod tests {
             // 1 月 → 去年 12 月
             chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15)
+                .expect("test op should succeed")
         };
-        r_last_month.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
+        r_last_month.timestamp = last_month_date
+            .and_hms_opt(12, 0, 0)
+            .expect("test op should succeed")
+            .and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last_month);
@@ -2026,9 +2030,13 @@ mod tests {
         let last_month_date = if now.month() == 1 {
             chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15)
+                .expect("test op should succeed")
         };
-        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
+        r_last.timestamp = last_month_date
+            .and_hms_opt(12, 0, 0)
+            .expect("test op should succeed")
+            .and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last);
@@ -2445,9 +2453,13 @@ mod tests {
         let last_month_date = if now.month() == 1 {
             chrono::NaiveDate::from_ymd_opt(now.year() - 1, 12, 15).expect("test op should succeed")
         } else {
-            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15).expect("test op should succeed")
+            chrono::NaiveDate::from_ymd_opt(now.year(), now.month() - 1, 15)
+                .expect("test op should succeed")
         };
-        r_last.timestamp = last_month_date.and_hms_opt(12, 0, 0).expect("test op should succeed").and_utc();
+        r_last.timestamp = last_month_date
+            .and_hms_opt(12, 0, 0)
+            .expect("test op should succeed")
+            .and_utc();
         {
             let mut guard = tracker.records.lock();
             guard.push(r_last);

@@ -184,7 +184,8 @@ mod tests {
     async fn chroma_upsert_returns_err_stub() {
         #[cfg(feature = "chroma")]
         {
-            let store = ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
+            let store =
+                ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.upsert("a", &[1.0, 0.0, 0.0, 0.0]).await;
             assert!(err.is_err(), "P2 MVP stub upsert must Err");
@@ -197,7 +198,8 @@ mod tests {
     async fn chroma_search_returns_err_stub() {
         #[cfg(feature = "chroma")]
         {
-            let store = ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
+            let store =
+                ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.search(&[1.0, 0.0, 0.0, 0.0], 1).await;
             assert!(err.is_err(), "P2 MVP stub search must Err");
@@ -209,7 +211,8 @@ mod tests {
     async fn chroma_delete_returns_err_stub() {
         #[cfg(feature = "chroma")]
         {
-            let store = ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
+            let store =
+                ChromaDbStore::new("http://127.0.0.1:8000", 4).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             let err = vs.delete("a").await;
             assert!(err.is_err(), "P2 MVP stub delete must Err");
@@ -221,7 +224,8 @@ mod tests {
     fn chroma_dim_and_path_static() {
         #[cfg(feature = "chroma")]
         {
-            let store = ChromaDbStore::new("http://127.0.0.1:8000/", 8).expect("create should succeed");
+            let store =
+                ChromaDbStore::new("http://127.0.0.1:8000/", 8).expect("create should succeed");
             let vs: Arc<dyn VectorStore> = Arc::new(store);
             assert_eq!(vs.dim(), 8);
             assert_eq!(vs.path(), "http://127.0.0.1:8000");

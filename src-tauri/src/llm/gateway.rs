@@ -2272,8 +2272,12 @@ mod tests {
     impl MockSseServer {
         /// `sse_body` 是 mock server 对任意 POST 请求返回的固定响应体。
         fn start(sse_body: &'static str) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             std::thread::spawn(move || {
                 for _ in 0..4 {
@@ -2413,7 +2417,10 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
 
         // Mock Ollama server:收到 POST /api/chat 时返回固定响应。
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         let base_url = format!("http://127.0.0.1:{port}");
         // 记录收到的请求体,供主线程断言。
         let captured_request: Arc<std::sync::Mutex<String>> =
@@ -2480,7 +2487,10 @@ event: message_stop\ndata: {\"type\":\"message_stop\"}\n";
             "describe_image should return ChatResponse.message.content"
         );
         // 验证请求体包含 images 字段(多模态 wire format)。
-        let captured = captured_request.lock().expect("lock should succeed").clone();
+        let captured = captured_request
+            .lock()
+            .expect("lock should succeed")
+            .clone();
         assert_eq!(
             counter.load(Ordering::SeqCst),
             1,

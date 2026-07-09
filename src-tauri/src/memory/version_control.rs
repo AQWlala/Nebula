@@ -489,9 +489,13 @@ mod tests {
     #[test]
     fn create_and_checkout_branch() {
         let vc = setup();
-        vc.create_branch("experiment").expect("create should succeed");
+        vc.create_branch("experiment")
+            .expect("create should succeed");
         vc.checkout("experiment").expect("test op should succeed");
-        let active = vc.get_active_branch().expect("get should succeed").expect("get should succeed");
+        let active = vc
+            .get_active_branch()
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(active.name, "experiment");
     }
 
@@ -532,7 +536,10 @@ mod tests {
                 "test commit",
             )
             .expect("test op should succeed");
-        let active = vc.get_active_branch().expect("get should succeed").expect("get should succeed");
+        let active = vc
+            .get_active_branch()
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(active.head_commit_id, Some(cid));
     }
 
@@ -581,7 +588,9 @@ mod tests {
         // M7b #90 分类 A: commit 和 revert 同秒会导致 log ORDER BY 不稳定。
         // sleep(1100ms) 确保 revert 的时间戳严格大于 c1。
         std::thread::sleep(std::time::Duration::from_millis(1100));
-        let revert_id = vc.revert(&c1, "user", "mistake").expect("test op should succeed");
+        let revert_id = vc
+            .revert(&c1, "user", "mistake")
+            .expect("test op should succeed");
 
         let logs = vc.log(10).expect("test op should succeed");
         assert_eq!(logs.len(), 2);
