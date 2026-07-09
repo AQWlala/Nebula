@@ -83,6 +83,9 @@ fn safe_filename(name: &str) -> Result<String, CommandError> {
                 || ('\u{4e00}'..='\u{9fff}').contains(c)
         })
         .collect();
+    // Strip leading/trailing dots so that strings like "///\\..." (which
+    // survive as "..." after filtering) are rejected.
+    let sanitized = sanitized.trim_matches('.');
     if sanitized.is_empty() {
         return Err(CommandError::validation(
             "workflow_save: name contains no valid characters",

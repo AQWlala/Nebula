@@ -256,7 +256,7 @@ impl MocGenerator {
         // 3. 为每个聚类生成标题（LLM 可选）
         let mut titled_clusters: Vec<Cluster> = Vec::with_capacity(clusters.len());
         for mut c in clusters {
-            if let Some(llm) = &self.llm {
+            if self.llm.is_some() {
                 match self.generate_title(&c).await {
                     Ok(t) => c.suggested_title = t,
                     Err(e) => {
@@ -864,7 +864,11 @@ mod tests {
             response: "LLM标题".to_string(),
             count: std::sync::atomic::AtomicUsize::new(0),
         });
-        let gen = MocGenerator::new(MocGeneratorConfig::default()).with_llm(llm.clone());
+        let cfg = MocGeneratorConfig {
+            max_depth: 1,
+            ..Default::default()
+        };
+        let gen = MocGenerator::new(cfg).with_llm(llm.clone());
         let items = vec![
             make_item("1", "Tauri 端口", &["tauri"]),
             make_item("2", "Tauri 权限", &["tauri"]),

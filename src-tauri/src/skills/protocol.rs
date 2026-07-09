@@ -42,7 +42,9 @@ pub struct SkillManifest {
     pub description: String,
     /// 声明式能力标签(如 `["file:read", "network"]`)。与
     /// [`super::capability::Capability`] 的 `id` 对应,用于能力反向映射。
+    #[serde(default)]
     pub capabilities: Vec<String>,
+    #[serde(default)]
     pub transport: SkillTransport,
     /// T-D-B-10: 作者声明(如 `"Nebula Project"`)。对应 SKILL.md frontmatter `author`。
     #[serde(default)]

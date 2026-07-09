@@ -283,7 +283,7 @@ impl SkillDiscoverer {
                         path: path_str,
                         skill_id: String::new(),
                         status: DiscoveryStatus::Failed,
-                        message: Some(format!("{e}")),
+                        message: Some(format!("{e:#}")),
                     });
                 }
             }
