@@ -26,6 +26,9 @@ use tokio::time::interval;
 use tracing::{info, warn};
 
 use super::honcho::HonchoEngine;
+// T-D-B-11: EvolutionEngine 注入,使 12:00 自检任务能实际触发 4 Phase 进化。
+#[cfg(feature = "evolution-engine")]
+use super::engine::{EvolutionEngine, EvolutionError};
 
 /// Cron 任务定义。
 ///
@@ -202,6 +205,14 @@ impl CronTask {
 pub struct CronScheduler {
     tasks: Arc<Mutex<Vec<CronTask>>>,
     honcho: Option<Arc<HonchoEngine>>,
+    /// T-D-B-11: EvolutionEngine 引用(可选)。注入后,12:00 自检任务会
+    /// 实际触发 4 Phase 进化管线;未注入时仅记 warning 跳过。
+    #[cfg(feature = "evolution-engine")]
+    evolution_engine: Option<Arc<EvolutionEngine>>,
+    /// T-D-B-11: 进化运行时的 master_id(用于记忆 domain 隔离,
+    /// 写入 `evolution:<master_id>` 域)。默认与 user_id 相同,
+    /// 可通过 `with_master_id()` 覆盖。
+    master_id: String,
     /// 用户 ID(用于 Honcho nudge)。
     user_id: String,
     /// 检查间隔(秒,默认 60)。
@@ -220,6 +231,9 @@ impl CronScheduler {
         Self {
             tasks: Arc::new(Mutex::new(CronTask::default_schedule())),
             honcho,
+            #[cfg(feature = "evolution-engine")]
+            evolution_engine: None,
+            master_id: user_id.clone(),
             user_id,
             check_interval_secs: 60,
             running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -231,6 +245,26 @@ impl CronScheduler {
     /// 自定义检查间隔(主要用于测试)。
     pub fn with_check_interval(mut self, secs: u64) -> Self {
         self.check_interval_secs = secs;
+        self
+    }
+
+    /// T-D-B-11: 注入 EvolutionEngine,使 12:00 自检任务能实际触发 4 Phase 进化。
+    ///
+    /// 传 `None` 可移除已注入的引擎(自检任务回退到仅记 warning 跳过)。
+    /// 未调用此方法时,`evolution_engine` 默认为 `None`(向后兼容)。
+    #[cfg(feature = "evolution-engine")]
+    pub fn with_evolution_engine(mut self, engine: Option<Arc<EvolutionEngine>>) -> Self {
+        self.evolution_engine = engine;
+        self
+    }
+
+    /// T-D-B-11: 设置进化运行时的 master_id(用于记忆 domain 隔离)。
+    ///
+    /// 默认 `master_id = user_id`。不同 master 的进化结果写入各自的
+    /// domain(`evolution:<master_id>`),与 `shared` / `worker:*` 域隔离,
+    /// 互不干扰(参考 EvolutionEngine 三层共存设计)。
+    pub fn with_master_id(mut self, master_id: String) -> Self {
+        self.master_id = master_id;
         self
     }
 
@@ -424,14 +458,88 @@ impl CronScheduler {
 
     /// 12:00 自检:EvolutionEngine 4阶段运行。
     ///
-    /// 委托给 EvolutionEngine::run()。
+    /// T-D-B-11: 实际调用 `EvolutionEngine::run(&master_id)` 触发 4 Phase 进化管线
+    /// (Extract → Compile → Reflect → Soul),闭合"评估→变异→选择"自进化回路。
+    ///
+    /// 行为分支(尽力而为,失败不破坏调度循环):
+    /// - `evolution-engine` feature off: 仅记 info 日志并返回 Ok(功能未编译)
+    /// - 引擎未注入(`with_evolution_engine` 未调用): 记 warning 并返回 Ok(配置不完整,非错误)
+    /// - 引擎已注入但运行时禁用(`is_enabled() == false`): 记 info 并返回 Ok(用户未启用,正常跳过)
+    /// - 引擎已注入且启用: 调用 `run()`,成功记 info,失败记 warning 并返回 Err
+    ///
+    /// `master_id` 用于记忆 domain 隔离(`evolution:<master_id>`),与 shared/worker 域隔离。
     async fn execute_evolution_self_check(&self) -> Result<()> {
         info!(
             target: "nebula.cron",
-            "evolution-self-check: 4-phase evolution run (delegated to EvolutionEngine)"
+            master_id = %self.master_id,
+            "evolution-self-check: 4-phase evolution run"
         );
-        // TODO: 当 AppState 注入 EvolutionEngine 后,通过 state.swarm.evolution_engine.run() 触发。
-        // 目前只记录日志,实际的引擎调用通过 evolution_run Tauri 命令手动触发。
+
+        #[cfg(feature = "evolution-engine")]
+        {
+            if let Some(engine) = &self.evolution_engine {
+                // 运行时双层 gate:config.enabled && evolution_enabled()
+                if !engine.is_enabled() {
+                    info!(
+                        target: "nebula.cron",
+                        master_id = %self.master_id,
+                        "evolution-self-check: engine disabled at runtime; skipping"
+                    );
+                    return Ok(());
+                }
+
+                info!(
+                    target: "nebula.cron",
+                    master_id = %self.master_id,
+                    "evolution-self-check: triggering EvolutionEngine::run()"
+                );
+
+                match engine.run(&self.master_id).await {
+                    Ok(result) => {
+                        info!(
+                            target: "nebula.cron",
+                            master_id = %self.master_id,
+                            degraded = result.degraded,
+                            warnings = result.warnings.len(),
+                            phases = result.phases.len(),
+                            "evolution-self-check: 4-phase run completed"
+                        );
+                    }
+                    Err(EvolutionError::Disabled) => {
+                        // 运行时开关在 is_enabled() 检查后被关闭(竞态)— 视为跳过
+                        info!(
+                            target: "nebula.cron",
+                            master_id = %self.master_id,
+                            "evolution-self-check: engine disabled (race); skipping"
+                        );
+                    }
+                    Err(e) => {
+                        warn!(
+                            target: "nebula.cron",
+                            master_id = %self.master_id,
+                            error = %e,
+                            "evolution-self-check: 4-phase run failed"
+                        );
+                        return Err(anyhow::anyhow!(e));
+                    }
+                }
+            } else {
+                warn!(
+                    target: "nebula.cron",
+                    "evolution-self-check: EvolutionEngine not injected; skipping \
+                     (wire via CronScheduler::with_evolution_engine)"
+                );
+            }
+        }
+
+        #[cfg(not(feature = "evolution-engine"))]
+        {
+            info!(
+                target: "nebula.cron",
+                "evolution-self-check: evolution-engine feature off; skipping"
+            );
+        }
+
         Ok(())
     }
 
@@ -934,5 +1042,79 @@ mod tests {
                 t.name
             );
         }
+    }
+
+    // ---- T-D-B-11: EvolutionEngine 断路修复(12:00 自检实际触发 4 Phase)----
+
+    #[test]
+    fn master_id_defaults_to_user_id() {
+        // T-D-B-11: master_id 默认 = user_id(向后兼容)。
+        let scheduler = CronScheduler::new(None, "user-42".to_string());
+        assert_eq!(scheduler.master_id, "user-42");
+    }
+
+    #[test]
+    fn with_master_id_overrides_default() {
+        // T-D-B-11: with_master_id 覆盖默认值,用于 domain 隔离。
+        let scheduler = CronScheduler::new(None, "user-42".to_string())
+            .with_master_id("agent_alpha".to_string());
+        assert_eq!(scheduler.master_id, "agent_alpha");
+        // user_id 不受影响
+        assert_eq!(scheduler.user_id, "user-42");
+    }
+
+    #[tokio::test]
+    async fn execute_evolution_self_check_ok_without_engine() {
+        // T-D-B-11: 引擎未注入时,自检任务应优雅跳过(返回 Ok,记 warning)。
+        // 此测试在 self-evolution(无 evolution-engine)和 evolution-engine
+        // 两种 feature 配置下均应通过。
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        let result = scheduler.execute_evolution_self_check().await;
+        assert!(result.is_ok(), "should skip gracefully without engine");
+    }
+
+    #[tokio::test]
+    async fn execute_task_evolution_self_check_dispatches_ok() {
+        // T-D-B-11: 通过 execute_task 分发到 evolution-self-check,
+        // 验证任务名路由 + 无引擎时优雅跳过。
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        let result = scheduler.execute_task("evolution-self-check").await;
+        assert!(
+            result.is_ok(),
+            "execute_task should dispatch and skip gracefully"
+        );
+    }
+
+    #[cfg(feature = "evolution-engine")]
+    #[test]
+    fn with_evolution_engine_builder_accepts_none() {
+        // T-D-B-11: with_evolution_engine(None) 应正确设置字段为 None。
+        let scheduler = CronScheduler::new(None, "user1".to_string()).with_evolution_engine(None);
+        assert!(
+            scheduler.evolution_engine.is_none(),
+            "evolution_engine should be None after with_evolution_engine(None)"
+        );
+    }
+
+    #[cfg(feature = "evolution-engine")]
+    #[test]
+    fn evolution_engine_defaults_none_in_new() {
+        // T-D-B-11: CronScheduler::new 默认不注入引擎(向后兼容)。
+        let scheduler = CronScheduler::new(None, "user1".to_string());
+        assert!(scheduler.evolution_engine.is_none());
+    }
+
+    #[cfg(feature = "evolution-engine")]
+    #[tokio::test]
+    async fn execute_evolution_self_check_skips_when_engine_disabled() {
+        // T-D-B-11: 引擎已注入但运行时禁用(config.enabled=false 或全局开关 off)
+        // 时,自检应记 info 并返回 Ok(正常跳过,非错误)。
+        //
+        // 这里无法构造完整 EvolutionEngine(需 dispatcher/sqlite/sponge/log),
+        // 但可通过 None 分支验证"未注入 → 跳过"路径。
+        // 完整端到端测试(注入真实引擎)见 engine/tests.rs + M5/M7a LLM 集成阶段。
+        let scheduler = CronScheduler::new(None, "user1".to_string()).with_evolution_engine(None);
+        let result = scheduler.execute_evolution_self_check().await;
+        assert!(result.is_ok(), "should skip gracefully when engine is None");
     }
 }

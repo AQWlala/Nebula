@@ -74,6 +74,9 @@ pub mod inline_completion;
 // T-E-S-59: 统一收件箱命令 — feature-gated behind `channels`。
 #[cfg(feature = "channels")]
 pub mod inbox;
+// T-D-B-13: 系统服务注册命令。
+pub mod daemon;
+pub use daemon::*;
 // T-E-A-07: Credits Dashboard 命令。
 pub mod credits;
 // T-E-A-08: 费用报告命令。

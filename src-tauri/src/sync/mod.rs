@@ -23,7 +23,7 @@ pub use crdt_op_log::{CrdtOpLog, CrdtOpLogEntry, CrdtOpStats};
 pub use device_manager::{DeviceManager, DeviceRevokeResult, PairedDevice};
 pub use e2ee::{
     encrypt_for_peer, E2eeIdentity, E2eePublicIdentity, EncryptedEnvelope, Pair, SessionKey,
-    ENVELOPE_VERSION,
+    ENVELOPE_VERSION, ENVELOPE_VERSION_V1, ENVELOPE_VERSION_V2,
 };
 pub use key_vault::KeyVault;
 pub use pairing::{

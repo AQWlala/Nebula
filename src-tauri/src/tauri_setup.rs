@@ -663,6 +663,10 @@ pub fn run() {
             crate::long_task::commands::long_task_delete,
             #[cfg(feature = "openapi")]
             crate::commands::openapi_register_tools,
+            // T-D-B-13: 系统服务注册命令
+            crate::commands::daemon_status,
+            crate::commands::daemon_install,
+            crate::commands::daemon_uninstall,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

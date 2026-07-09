@@ -18,7 +18,11 @@
 //! * [`protocol`] — sidecar 启动协议 / 握手 / 配置传递
 
 pub mod ipc;
+/// T-D-B-14: LLM Gateway sidecar 服务处理器。
+pub mod llm_service;
 pub mod manager;
+/// T-D-B-14: Memory sidecar 服务处理器。
+pub mod memory_service;
 /// T-S6-A-01a: OS-Controller sidecar 服务处理器。
 pub mod os_controller_service;
 pub mod protocol;
@@ -26,12 +30,17 @@ pub mod protocol;
 pub mod reflection_service;
 /// T-S4-B-01: Skill sidecar 服务处理器。
 pub mod skill_service;
+/// T-D-B-14: Swarm Coordinator sidecar 服务处理器。
+pub mod swarm_service;
 
+pub use llm_service::LlmServiceHandler;
 pub use manager::{SidecarKind, SidecarManager, SidecarStatus};
+pub use memory_service::MemoryServiceHandler;
 pub use os_controller_service::OsControllerServiceHandler;
 pub use protocol::SidecarConfig;
 pub use reflection_service::ReflectionServiceHandler;
 pub use skill_service::SkillServiceHandler;
+pub use swarm_service::SwarmServiceHandler;
 
 use std::path::PathBuf;
 

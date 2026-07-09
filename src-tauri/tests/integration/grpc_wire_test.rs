@@ -1,9 +1,8 @@
 //! P1-A regression tests for the tonic gRPC wire layer.
 //!
-//! The default build path uses `tonic_server::start_tonic_server`
-//! (real `tonic::transport::Server` with prost-generated types).
-//! The JSON shim in `server.rs` is only used when the `json-framing`
-//! feature is explicitly enabled.
+//! T-D-B-08: 手写 JSON framing shim（`server.rs` + `proto.rs`）已移除，
+//! `tonic_server::start_tonic_server`（真实 `tonic::transport::Server`
+//! + prost 生成类型）是唯一的 gRPC wire 实现。
 //!
 //! These tests guard two things:
 //!
@@ -12,10 +11,13 @@
 //!      HTTP/2 server.
 //!   2. The full set of 23 RPC method bodies is present. The
 //!      `service_implements_all_rpcs` test is a compile-time
-//!      + runtime check: it imports the `NebulaService` trait
-//!      and references every method name in a manifest, so
-//!      deleting any one of them is a compile error and counting
-//!      them at runtime catches accidental duplication / renames.
+//!      + runtime check: it imports the 5 prost-generated
+//!      `*_server` traits and references every method name in
+//!      a manifest, so deleting any one of them is a compile
+//!      error and counting them at runtime catches accidental
+//!      duplication / renames.
+
+#![cfg(feature = "grpc")]
 
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -29,12 +31,11 @@ use tokio::io::AsyncReadExt as _;
 /// `service_implements_all_rpcs` test for the method-by-method
 /// reference.)
 ///
-/// The `NebulaService` trait in `src/grpc/server.rs` has 23
-/// method bodies: 8 Memory + 4 Swarm + 3 Reflect + 3 LLM +
-/// 5 Skills. The design doc §13 rounds to "22 RPCs" because
-/// `stream_events` is a server-streaming RPC; the README
-/// echoes "22" for historical reasons. We use the **actual
-/// trait count (23)** here so the manifest cannot drift.
+/// 5 个 prost 生成的 `*_server` trait（位于 `tonic_server::generated`）
+/// 共有 23 个 method body：8 Memory + 4 Swarm + 3 Reflect + 3 LLM +
+/// 5 Skills。设计文档 §13 取整为 "22 RPCs"（`stream_events` 是
+/// server-streaming RPC），README 因历史原因也写作 "22"。这里用
+/// **实际 trait 方法数（23）**，确保 manifest 不会漂移。
 const EXPECTED_RPC_METHODS: usize = 23;
 
 /// Starts a gRPC server on an ephemeral port, returns its address
@@ -49,7 +50,8 @@ async fn start_test_server() -> SocketAddr {
 
     // Throwaway AppState in a tempdir. The test never reaches
     // any of the heavy subsystems (ollama, lance, llm) because
-    // the wire shim closes the connection before dispatch.
+    // the tonic server only accepts an HTTP/2 preface before
+    // the test closes the TCP socket.
     let tmp = TempDir::new().expect("tempdir");
     let db = tmp.path().join("grpc_p0_12.db");
     let lance = tmp.path().join("lance");
@@ -103,10 +105,9 @@ async fn server_binds_and_accepts_tcp_connection() {
         .expect("server start timed out (30s)");
     eprintln!("[grpc_wire_test] server bound to {addr}");
 
-    // Open a plain TCP connection. We don't send a gRPC preface
-    // (the wire shim is a stub anyway); we just want to confirm
-    // the accept loop fires and the server's `handle_connection`
-    // logs + closes.
+    // Open a plain TCP connection. We don't send a gRPC preface;
+    // we just want to confirm the accept loop fires and the
+    // tonic server logs + closes the connection.
     //
     // Retry loop: on Ubuntu CI the accept_loop task may not be
     // scheduled immediately after `start_server` returns (the
@@ -157,7 +158,7 @@ async fn server_binds_and_accepts_tcp_connection() {
         }
     };
 
-    // The server uses hyper's HTTP/2 serve_connection.  Per RFC 7540
+    // The tonic server uses hyper's HTTP/2 serve_connection.  Per RFC 7540
     // §3.4, the server sends its connection preface (a SETTINGS
     // frame) immediately after the TCP connection is established.
     // So we may read some bytes (the SETTINGS frame), get EOF, or
@@ -174,16 +175,25 @@ async fn server_binds_and_accepts_tcp_connection() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn service_implements_all_rpcs() {
-    // The trait methods are referenced through a thin
-    // `NebulaService` trait import so any deletion or rename
-    // of an RPC is a compile error (the import line itself
-    // breaks if the trait is renamed or removed; the `impl`
-    // block in `src/grpc/server.rs` stops compiling if any
-    // method is renamed or its signature changes). The runtime
-    // list below is a belt-and-braces assertion that the count
-    // never drifts.
-    use nebula_lib::grpc::proto as p;
-    use nebula_lib::grpc::server::NebulaServiceImpl;
+    // T-D-B-08: 引用 5 个 prost 生成的 `*_server` trait，任何 RPC 的
+    // 删除或重命名都会导致编译错误（import 行本身在 trait 被重命名/移除
+    // 时断裂；`src/grpc/tonic_server.rs` 中的 impl 块在方法被重命名或
+    // 签名变化时停止编译）。下方的运行时列表是双重保险，确保计数不漂移。
+    use nebula_lib::grpc::tonic_server::generated as p;
+    use nebula_lib::grpc::tonic_server::TonicServiceImpl;
+
+    // 编译时 trait bound 检查：确保 TonicServiceImpl 实现全部 5 个
+    // prost 生成的 server trait。删除任一 impl 块都会让对应行编译失败。
+    fn _assert_impls_memory<T: p::memory_service_server::MemoryService>() {}
+    fn _assert_impls_swarm<T: p::swarm_service_server::SwarmService>() {}
+    fn _assert_impls_reflect<T: p::reflect_service_server::ReflectService>() {}
+    fn _assert_impls_llm<T: p::llm_service_server::LlmService>() {}
+    fn _assert_impls_skill<T: p::skill_service_server::SkillService>() {}
+    _assert_impls_memory::<TonicServiceImpl>();
+    _assert_impls_swarm::<TonicServiceImpl>();
+    _assert_impls_reflect::<TonicServiceImpl>();
+    _assert_impls_llm::<TonicServiceImpl>();
+    _assert_impls_skill::<TonicServiceImpl>();
 
     // RPC manifest. Anything past this list would be a
     // v0.4 addition and must bump EXPECTED_RPC_METHODS explicitly.
@@ -235,9 +245,8 @@ async fn service_implements_all_rpcs() {
     );
 
     // Cross-check the wire-side path conventions used by
-    // grpcurl. We don't actually dial gRPC (the shim is a stub),
-    // but we keep this list next to the trait so the two never
-    // drift apart.
+    // grpcurl. We don't actually dial gRPC here, but we keep
+    // this list next to the trait so the two never drift apart.
     //
     // 8 (Memory) + 4 (Swarm) + 3 (Reflect) + 3 (LLM) +
     // 5 (Skill: Create, Use, Rate, List, Search) = 23 wire paths.
@@ -280,11 +289,11 @@ async fn service_implements_all_rpcs() {
     );
 
     // Make sure the proto types referenced by the trait are
-    // still defined. If `proto.rs` loses a type, the trait
-    // import above stops compiling, but we add a runtime
-    // reference to be doubly sure.
+    // still defined. If the generated proto module loses a type,
+    // the trait import above stops compiling, but we add a
+    // runtime reference to be doubly sure.
     let _ = std::any::type_name::<p::Memory>();
     let _ = std::any::type_name::<p::StoreMemoryRequest>();
     // The impl type can be named (verifies it's exported).
-    let _ = std::mem::size_of::<NebulaServiceImpl>();
+    let _ = std::mem::size_of::<TonicServiceImpl>();
 }
