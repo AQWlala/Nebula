@@ -17,6 +17,8 @@ pub mod key_vault;
 pub mod pairing;
 pub mod relay_client;
 pub mod transport;
+// T-E-C-19: 多端协同 — 设备发现/会话同步/冲突解决。
+pub mod multi_device;
 
 pub use crdt::{CrdtEngine, CrdtMergeResult, CrdtVersion, FieldChange};
 pub use crdt_op_log::{CrdtOpLog, CrdtOpLogEntry, CrdtOpStats};

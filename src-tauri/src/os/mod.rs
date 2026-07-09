@@ -22,6 +22,8 @@ pub mod shell;
 pub mod shortcut;
 // v1.7: 系统托盘（需要 AppHandle，所以放在 os 模块下而非 lib.rs）。
 pub mod tray;
+// T-E-C-03: UiAutomator 抽象层 — trait-based UI 自动化抽象。
+pub mod uiautomator;
 
 pub use clipboard::ClipboardService;
 // T-E-C-14: 剪贴板监听引擎 re-export。

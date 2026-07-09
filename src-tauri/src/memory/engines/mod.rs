@@ -17,6 +17,8 @@ pub mod reflect;
 pub mod self_reflection;
 pub mod sponge;
 pub mod summarizer;
+// T-E-B-15: AI 自动整理 MOC（Map of Content）层次结构。
+pub mod moc;
 
 // T-D-B-04: Re-export parent items so child files can use `super::X`
 // to reference memory-level modules after the directory restructure.

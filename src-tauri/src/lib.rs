@@ -102,6 +102,10 @@ pub mod oauth;
 // T-E-C-06: Hybrid Browser Agent — API + VLM 双模式浏览器自动化。
 // API 模式(reqwest + regex)完整实现;VLM 模式(vision feature + Ollama)框架化。
 pub mod browser;
+// T-E-D-05: 主动建议引擎 — 监控用户活动模式,基于时间/频率/上下文主动建议操作。
+pub mod proactive;
+// T-E-L-04: Connectors — pull-only 数据连接器(GitHub MCP 等)。
+pub mod connectors;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with

@@ -29,6 +29,8 @@ pub mod outcome;
 pub mod outcome_collectors;
 pub mod prompt_mutator;
 pub mod skill_evolver;
+// T-E-AE-04: 基因级进化引擎 — 行为模式编码为基因,通过变异/交叉/选择自进化。
+pub mod gene_mutator;
 
 // M4: EvolutionEngine — 4 Phase 进化管线（cfg-gated by evolution-engine feature,
 // which implies self-evolution）。

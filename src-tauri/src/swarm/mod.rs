@@ -36,8 +36,23 @@ pub mod loop_budget;
 // T-E-L-07: Loop 审计日志 — 记录每次 execute_loop 调用的关键节点。
 #[cfg(feature = "master-orchestrator")]
 pub mod loop_audit_log;
+// T-E-L-08b: Loop 设计节点 — 从自然语言描述生成 LOOP.md。
+#[cfg(feature = "master-orchestrator")]
+pub mod loop_design;
 pub mod negotiator;
 pub mod orchestrator;
+// T-E-S-06: Organization Orchestration — 多组织编排。
+pub mod organization;
+// T-E-D-04: 8 人格原型系统 — 与 AgentKind/AgentScenario 正交,描述思维方式与沟通偏好。
+pub mod personality;
+// T-E-AE-02: 场景化角色配置 (social_media / novel)。
+pub mod scenario_profiles;
+// T-E-AE-05: AgentBus 消息总线 + DelegatedTask 委派协议。
+// 注意:本模块的 AgentBus/BusMessage/DelegatedTask 与 bus::/primary_agent:: 同名类型
+// 有意区分,不在顶层 re-export,通过 swarm::agent_bus::X 全限定路径访问。
+pub mod agent_bus;
+// T-E-AE-06: 写作场景子智能体重定义(6 写作角色)。
+pub mod writing_roles;
 // T-E-AE-01: PrimaryAgent — 主智能体(decompose/delegate/synthesize)。
 // 无 feature gate:不依赖 master-orchestrator 重型组件,仅依赖始终可用的 AgentScenario。
 pub mod primary_agent;
@@ -76,6 +91,23 @@ pub use tot::{
 pub use primary_agent::{
     ConcatSynthesizer, Decomposer, DelegatedResult, DelegatedTask, Delegator, PrimaryAgent,
     PrimaryAgentBus, PrimaryReport, RuleBasedDecomposer, ScenarioDelegator, Synthesizer,
+};
+// T-E-D-04: 8 人格原型系统公开类型。
+pub use personality::{
+    CognitiveStyle, CommunicationStyle, DecisionBias, Personality, PersonalityId,
+    PersonalityRegistry,
+};
+// T-E-AE-02: 场景化角色配置类型。
+pub use scenario_profiles::{ProfileBuilder, ScenarioProfile, ScenarioProfileLibrary};
+// T-E-AE-06: 写作场景子智能体重定义类型。
+pub use writing_roles::{
+    PipelineResult, PipelineStage, WritingPipeline, WritingRole, WritingRoleId, WritingRoleRegistry,
+};
+// T-E-S-06: 多组织编排类型。
+pub use organization::{
+    Conflict, ConflictType, OrgMember, OrgOrchestrator, OrgRole, OrgStatus, OrgStrategy, OrgTask,
+    Organization, OrganizationRegistry, Resolution, ResolutionType, TaskPriority, TaskResult,
+    TaskStatus,
 };
 
 // M3 #40-43: TaskDag 相关类型
