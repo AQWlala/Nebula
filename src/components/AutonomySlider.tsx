@@ -1,4 +1,4 @@
-﻿/**
+/**
  * T-E-S-50: 自主度滑块 L0-L5。
  *
  * 6 档水平滑块,与 ModeSwitcher(任务领域 writing/work/code)正交:
@@ -21,7 +21,7 @@ import {
   type AutonomyLevel,
   type AutonomyLevelInfo,
 } from '../lib/autonomy';
-import { currentLocale, t } from '../i18n';
+import { t } from '../i18n';
 import { nebulaStore } from '../stores/nebulaStore';
 
 /** 全局当前自主度等级 signal(供其他组件订阅,主 agent 集成时使用)。 */
@@ -29,6 +29,35 @@ export const currentAutonomyLevel = signal<AutonomyLevel>(DEFAULT_AUTONOMY_LEVEL
 
 const NEON_GREEN = '#39d98a';
 const STYLE_ID = 'autonomy-slider-styles';
+
+/**
+ * T-D-F-04: 自主度等级 label/desc 的 i18n key 映射。
+ *
+ * 用 `as const` 推导字面量联合类型,这些字面量都是 en-US.json 的实际
+ * key,因此可直接传给 `t(key: keyof Dict)` 而无需 `as keyof Dict` 断言
+ * (编译期类型安全,缺 key 会在 `t()` 调用处报错)。
+ *
+ * 保留 `AUTONOMY_LEVEL_INFOS` 里的 `label`/`label_zh`/`description`/
+ * `description_zh` 字段以兼容后端 wire 格式 (`autonomy_list_levels`
+ * 返回结构),仅渲染层改走 i18n。
+ */
+const AUTONOMY_LABEL_KEYS = {
+  L0: 'autonomy.level.l0.label',
+  L1: 'autonomy.level.l1.label',
+  L2: 'autonomy.level.l2.label',
+  L3: 'autonomy.level.l3.label',
+  L4: 'autonomy.level.l4.label',
+  L5: 'autonomy.level.l5.label',
+} as const;
+
+const AUTONOMY_DESC_KEYS = {
+  L0: 'autonomy.level.l0.desc',
+  L1: 'autonomy.level.l1.desc',
+  L2: 'autonomy.level.l2.desc',
+  L3: 'autonomy.level.l3.desc',
+  L4: 'autonomy.level.l4.desc',
+  L5: 'autonomy.level.l5.desc',
+} as const;
 
 /** 注入组件样式一次(幂等)。 */
 function injectStyles(): void {
@@ -177,10 +206,8 @@ export function AutonomySlider() {
     };
   }, []);
 
-  // 读取 locale signal 以在语言切换时重渲染。
-  const _localeTick = currentLocale.value;
-  void _localeTick;
-  const zh = currentLocale.value === 'zh-CN';
+  // T-D-F-04: 语言切换重渲染由 `t()` 内部读取 `currentLocale.value` 触发,
+  // 无需手动订阅 locale signal。
 
   const infos: AutonomyLevelInfo[] = AUTONOMY_LEVEL_INFOS;
   const currentIndex = Math.max(
@@ -217,9 +244,9 @@ export function AutonomySlider() {
         <span class="autonomy-slider__title">{t('autonomySlider.title')}</span>
         <span
           class="autonomy-slider__current"
-          title={current ? (zh ? current.description_zh : current.description) : ''}
+          title={current ? t(AUTONOMY_DESC_KEYS[current.level]) : ''}
         >
-          {current ? `${current.level} · ${zh ? current.label_zh : current.label}` : '—'}
+          {current ? `${current.level} · ${t(AUTONOMY_LABEL_KEYS[current.level])}` : '—'}
         </span>
       </div>
       <input
@@ -242,18 +269,18 @@ export function AutonomySlider() {
               type="button"
               class={`autonomy-slider__tick ${active ? 'active' : ''}`}
               onClick={() => apply(info.level)}
-              title={zh ? info.description_zh : info.description}
+              title={t(AUTONOMY_DESC_KEYS[info.level])}
               aria-pressed={active}
-              aria-label={`${info.level} ${zh ? info.label_zh : info.label}`}
+              aria-label={`${info.level} ${t(AUTONOMY_LABEL_KEYS[info.level])}`}
             >
               <span class="autonomy-slider__tick-level">{info.level}</span>
-              <span class="autonomy-slider__tick-label">{zh ? info.label_zh : info.label}</span>
+              <span class="autonomy-slider__tick-label">{t(AUTONOMY_LABEL_KEYS[info.level])}</span>
             </button>
           );
         })}
       </div>
       <div class="autonomy-slider__desc">
-        {current ? (zh ? current.description_zh : current.description) : ''}
+        {current ? t(AUTONOMY_DESC_KEYS[current.level]) : ''}
       </div>
     </div>
   );
