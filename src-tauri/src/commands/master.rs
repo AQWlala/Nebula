@@ -15,12 +15,17 @@
 //! - `loop_budget_status()` — 查询当月 Loop 预算状态(T-E-L-06)。
 //! - `loop_budget_reset()` — 重置月度预算累计告警标记(T-E-L-06)。
 //! - `loop_budget_pause_all()` — 暂停所有运行中 Loop(T-E-L-06)。
+//! - `loop_audit_query(filter)` — 查询 Loop 审计日志(T-E-L-07)。
+//! - `loop_audit_count(filter)` — 统计 Loop 审计日志条数(T-E-L-07)。
 //!
 //! `master_confirm*` 命令始终可用(autonomy 模块无 feature gate)。
 //! `loop_*` 命令由 `master-orchestrator` feature 门控。
 
 use tauri::State;
 use tracing::instrument;
+
+#[cfg(feature = "master-orchestrator")]
+use std::sync::Arc;
 
 #[cfg(feature = "master-orchestrator")]
 use crate::autonomy; // for autonomy::get_level() / autonomy::CONFIRMATION_TIMEOUT_MS
@@ -278,6 +283,13 @@ pub async fn loop_run(
     let reviewer = ReviewerAgent::new(state.llm.llm.clone()).with_maker_model(
         ModelDescriptor::new(state.llm.llm.provider(), state.llm.llm.default_model()),
     );
+    // T-E-L-07: 构造 LoopAuditLogger(从 SqliteStore 复用连接,schema 幂等应用)。
+    // 每次调用重新构造开销极低(execute_batch CREATE TABLE IF NOT EXISTS 为 no-op),
+    // 避免修改 AppState 结构。主控后续可将 logger 提升为 SwarmSubsystem 字段。
+    let audit_logger = Arc::new(
+        crate::swarm::LoopAuditLogger::from_sqlite_store(&state.memory.sqlite)
+            .map_err(|e| CommandError::swarm("loop_run", &e))?,
+    );
     let report = master
         .execute_loop(
             &loop_def,
@@ -287,6 +299,7 @@ pub async fn loop_run(
             state.infra.config.loop_monthly_budget_usd,
             state.infra.config.loop_monthly_budget_tokens,
             Some(&reviewer),
+            Some(&audit_logger),
         )
         .await
         .map_err(|e| CommandError::swarm("loop_run", &e))?;
@@ -599,6 +612,71 @@ pub async fn loop_budget_pause_all(
             )
         })?;
     Ok(paused)
+}
+
+// ── T-E-L-07: Loop 审计日志查询命令 ──
+
+/// T-E-L-07: 查询 Loop 审计日志。
+///
+/// 按 `filter` 维度(run_id / loop_name / status / phase / 时间范围)过滤,
+/// 返回按 `started_at DESC` 排序的审计记录列表(默认上限 100 条)。
+///
+/// 审计日志由 `execute_loop` 在 ValuesLayer / Budget / Homogeneity /
+/// TaskCreation / TaskStart / LoopStarted 等关键节点异步写入。
+///
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(skip(state, filter), fields(otel.kind = "loop_audit_query"))]
+pub async fn loop_audit_query(
+    state: State<'_, AppState>,
+    filter: crate::swarm::LoopAuditQuery,
+) -> Result<Vec<crate::swarm::LoopAuditEntry>, CommandError> {
+    ensure_master_orchestrator_enabled("loop_audit_query")?;
+    let logger = Arc::new(
+        crate::swarm::LoopAuditLogger::from_sqlite_store(&state.memory.sqlite)
+            .map_err(|e| CommandError::swarm("loop_audit_query", &e))?,
+    );
+    let results = tokio::task::spawn_blocking(move || logger.query(&filter))
+        .await
+        .map_err(|e| {
+            CommandError::internal(
+                "loop_audit_query",
+                &anyhow::anyhow!("query task panicked: {e}"),
+            )
+        })?
+        .map_err(|e| CommandError::swarm("loop_audit_query", &e))?;
+    Ok(results)
+}
+
+/// T-E-L-07: 统计 Loop 审计日志条数。
+///
+/// 与 `loop_audit_query` 使用相同的 filter,但返回匹配记录总数(不分页)。
+/// 适用于前端显示 "共 N 条审计记录"。
+///
+/// 仅在 `master-orchestrator` feature 启用时编译。
+#[cfg(feature = "master-orchestrator")]
+#[tauri::command]
+#[instrument(skip(state, filter), fields(otel.kind = "loop_audit_count"))]
+pub async fn loop_audit_count(
+    state: State<'_, AppState>,
+    filter: crate::swarm::LoopAuditQuery,
+) -> Result<i64, CommandError> {
+    ensure_master_orchestrator_enabled("loop_audit_count")?;
+    let logger = Arc::new(
+        crate::swarm::LoopAuditLogger::from_sqlite_store(&state.memory.sqlite)
+            .map_err(|e| CommandError::swarm("loop_audit_count", &e))?,
+    );
+    let count = tokio::task::spawn_blocking(move || logger.count(&filter))
+        .await
+        .map_err(|e| {
+            CommandError::internal(
+                "loop_audit_count",
+                &anyhow::anyhow!("count task panicked: {e}"),
+            )
+        })?
+        .map_err(|e| CommandError::swarm("loop_audit_count", &e))?;
+    Ok(count)
 }
 
 /// T-E-L-06: 构造 [`LoopBudgetStatus`] 快照(纯函数,便于单测)。

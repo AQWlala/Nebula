@@ -94,6 +94,14 @@ pub mod wiki;
 // T-E-C-08: Shadow Workspace — Agent 隔离执行环境(git worktree + 临时分支)。
 pub mod long_task;
 pub mod shadow_workspace;
+// T-E-C-15: 语音交互引擎(STT + TTS + 唤醒词 + 音频捕获抽象)。
+pub mod voice;
+// T-E-C-18: OAuth 集成层（5 服务）— GitHub/Google/Microsoft/Slack/Notion。
+// PKCE + 本地回调服务器 + AES-256-GCM 加密 SQLite token 存储。
+pub mod oauth;
+// T-E-C-06: Hybrid Browser Agent — API + VLM 双模式浏览器自动化。
+// API 模式(reqwest + regex)完整实现;VLM 模式(vision feature + Ollama)框架化。
+pub mod browser;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with

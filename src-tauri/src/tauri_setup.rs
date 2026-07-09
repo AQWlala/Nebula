@@ -667,6 +667,17 @@ pub fn run() {
             crate::commands::daemon_status,
             crate::commands::daemon_install,
             crate::commands::daemon_uninstall,
+            // T-E-S-10: WorkflowCanvas 命令
+            crate::commands::workflow_save,
+            crate::commands::workflow_load,
+            crate::commands::workflow_list,
+            crate::commands::workflow_delete,
+            crate::commands::workflow_execute,
+            // T-E-L-07: Loop 审计日志命令(master-orchestrator feature)
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::master::loop_audit_query,
+            #[cfg(feature = "master-orchestrator")]
+            crate::commands::master::loop_audit_count,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

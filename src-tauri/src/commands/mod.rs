@@ -77,6 +77,9 @@ pub mod inbox;
 // T-D-B-13: 系统服务注册命令。
 pub mod daemon;
 pub use daemon::*;
+// T-E-S-10: WorkflowCanvas 命令。
+pub mod workflow;
+pub use workflow::*;
 // T-E-A-07: Credits Dashboard 命令。
 pub mod credits;
 // T-E-A-08: 费用报告命令。

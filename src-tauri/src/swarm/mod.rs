@@ -33,8 +33,14 @@ pub mod loop_def;
 // T-E-L-06: Loop 预算配置解析层（loop-budget.md YAML frontmatter + Markdown 表格）。
 #[cfg(feature = "master-orchestrator")]
 pub mod loop_budget;
+// T-E-L-07: Loop 审计日志 — 记录每次 execute_loop 调用的关键节点。
+#[cfg(feature = "master-orchestrator")]
+pub mod loop_audit_log;
 pub mod negotiator;
 pub mod orchestrator;
+// T-E-AE-01: PrimaryAgent — 主智能体(decompose/delegate/synthesize)。
+// 无 feature gate:不依赖 master-orchestrator 重型组件,仅依赖始终可用的 AgentScenario。
+pub mod primary_agent;
 pub mod tool_loop;
 pub mod tool_types;
 pub mod tot;
@@ -66,6 +72,11 @@ pub use tot::{
     build_thought_agent_configs, default_tree_of_thoughts, ReasoningStrategy, ThoughtAgentConfig,
     ThoughtStrategy,
 };
+// T-E-AE-01: PrimaryAgent 三大能力(decompose/delegate/synthesize)。
+pub use primary_agent::{
+    ConcatSynthesizer, Decomposer, DelegatedResult, DelegatedTask, Delegator, PrimaryAgent,
+    PrimaryAgentBus, PrimaryReport, RuleBasedDecomposer, ScenarioDelegator, Synthesizer,
+};
 
 // M3 #40-43: TaskDag 相关类型
 #[cfg(feature = "master-orchestrator")]
@@ -84,6 +95,9 @@ pub use loop_def::{AutonomyLevel, LoopDef};
 // T-E-L-06: Loop 预算配置相关类型（loop-budget.md 解析）。
 #[cfg(feature = "master-orchestrator")]
 pub use loop_budget::{LoopBudgetConfig, LoopBudgetEntry};
+// T-E-L-07: Loop 审计日志相关类型。
+#[cfg(feature = "master-orchestrator")]
+pub use loop_audit_log::{LoopAuditEntry, LoopAuditLogger, LoopAuditPhase, LoopAuditQuery};
 
 // T-D-C-08: master-orchestrator 运行时开关 (AtomicBool 模式,对齐 soul-system / evolution-engine)。
 // 默认关闭,启动时通过环境变量 MASTER_ORCHESTRATOR_ENABLED=1 开启,或通过 Tauri 命令运行时切换。

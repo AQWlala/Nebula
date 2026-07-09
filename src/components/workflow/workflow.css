@@ -1,0 +1,520 @@
+/**
+ * T-E-S-10: WorkflowCanvas 样式。
+ *
+ * 自包含样式,不修改全局 global.css(避免并发冲突)。
+ * 使用 Nebula 设计 Token(--bg-*, --text-*, --border 等)保持主题一致。
+ */
+
+.wf-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* ---- 工具栏 ---- */
+.wf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.wf-toolbar-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+
+.wf-doc-name {
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-toolbar-spacer {
+  flex: 1;
+}
+
+.wf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.wf-btn:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.wf-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wf-btn-run {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.wf-btn-run:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.35);
+}
+
+.wf-btn-stop {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.wf-btn-stop:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.35);
+}
+
+.wf-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #ef4444;
+  margin-top: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.wf-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.wf-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+.wf-status-idle {
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+}
+
+.wf-status-running {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.wf-status-success {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.wf-status-failed {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.wf-stat {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* ---- 加载菜单 ---- */
+.wf-load-menu {
+  position: absolute;
+  top: 50px;
+  right: 16px;
+  z-index: 50;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.wf-load-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.wf-btn-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.wf-btn-close:hover {
+  color: var(--text-primary);
+}
+
+.wf-load-list {
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+}
+
+.wf-load-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.wf-load-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.wf-load-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---- 主体三栏布局 ---- */
+.wf-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---- 节点面板 ---- */
+.wf-palette {
+  width: 160px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-palette-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.wf-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wf-palette-item:hover {
+  background: var(--border);
+  border-color: var(--accent-neon);
+}
+
+.wf-palette-icon {
+  font-size: 16px;
+}
+
+.wf-palette-hint {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding-top: 8px;
+}
+
+/* ---- 画布 ---- */
+.wf-canvas {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  background:
+    linear-gradient(var(--bg-primary), var(--bg-primary)),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 23px,
+      rgba(30, 58, 95, 0.15) 23px,
+      rgba(30, 58, 95, 0.15) 24px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 23px,
+      rgba(30, 58, 95, 0.15) 23px,
+      rgba(30, 58, 95, 0.15) 24px
+    );
+  background-blend-mode: normal, normal, normal;
+}
+
+.wf-canvas-inner {
+  position: relative;
+}
+
+.wf-edge-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.wf-edge-layer g {
+  pointer-events: auto;
+}
+
+/* ---- 节点 ---- */
+.wf-node {
+  position: absolute;
+  border: 2px solid;
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  cursor: move;
+  user-select: none;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s;
+}
+
+.wf-node:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.wf-node-selected {
+  box-shadow: 0 0 0 2px var(--accent-neon), var(--shadow-md);
+}
+
+.wf-node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.wf-node-icon {
+  font-size: 14px;
+}
+
+.wf-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.wf-node-type {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---- 端口 ---- */
+.wf-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 2px solid var(--text-secondary);
+  cursor: crosshair;
+  z-index: 2;
+}
+
+.wf-port:hover {
+  border-color: var(--accent-neon);
+  background: var(--accent-neon);
+}
+
+.wf-port-in {
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.wf-port-out {
+  right: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.wf-port-true {
+  top: 30%;
+}
+
+.wf-port-false {
+  top: 70%;
+}
+
+.wf-port-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-primary);
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* ---- 属性面板 ---- */
+.wf-panel {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-panel-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.wf-panel-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px 4px;
+}
+
+.wf-prop-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wf-field-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wf-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.wf-input:focus {
+  border-color: var(--accent-neon);
+}
+
+.wf-textarea {
+  resize: vertical;
+  min-height: 48px;
+  font-family: var(--font-mono);
+}
+
+.wf-field-readonly {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  flex-wrap: wrap;
+}
+
+.wf-arrow {
+  color: var(--text-muted);
+}
+
+.wf-port-tag {
+  padding: 1px 6px;
+  background: var(--accent-neon);
+  color: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ---- 运行结果 ---- */
+.wf-run-result {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.wf-run-result-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.wf-run-result-body {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}

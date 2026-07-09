@@ -29,6 +29,8 @@ use super::honcho::HonchoEngine;
 // T-D-B-11: EvolutionEngine 注入,使 12:00 自检任务能实际触发 4 Phase 进化。
 #[cfg(feature = "evolution-engine")]
 use super::engine::{EvolutionEngine, EvolutionError};
+// T-E-S-63: TimerEngine 事件广播钩子 — cron 任务执行前广播 TimerEvent(Cron)。
+use super::timer_engine::TimerEvent;
 
 /// Cron 任务定义。
 ///
@@ -224,6 +226,13 @@ pub struct CronScheduler {
     aggregate_tokens_used: Arc<std::sync::atomic::AtomicU64>,
     /// T-E-L-02: 聚合执行时间-秒(所有任务合计,AtomicU64 内存累加)。
     aggregate_seconds_used: Arc<std::sync::atomic::AtomicU64>,
+    /// T-E-S-63: TimerEngine 事件广播钩子(可选)。
+    ///
+    /// 设置后,`execute_task()` 在执行每个 cron 任务前广播
+    /// `TimerEvent::cron(task_name)`,使 TimerEngine 的订阅者
+    /// (Proactive Engine / MOC)能感知 cron 任务触发时机。
+    /// 用 `Mutex` 包裹以支持 `set_event_sender()` 在 start 后注入。
+    event_sender: Arc<Mutex<Option<tokio::sync::broadcast::Sender<TimerEvent>>>>,
 }
 
 impl CronScheduler {
@@ -239,6 +248,7 @@ impl CronScheduler {
             running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             aggregate_tokens_used: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             aggregate_seconds_used: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            event_sender: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -266,6 +276,18 @@ impl CronScheduler {
     pub fn with_master_id(mut self, master_id: String) -> Self {
         self.master_id = master_id;
         self
+    }
+
+    /// T-E-S-63: 注入 TimerEngine 事件广播通道。
+    ///
+    /// 设置后,`execute_task()` 在执行每个 cron 任务前广播
+    /// `TimerEvent::cron(task_name)`。传 `None` 可移除已注入的 sender。
+    ///
+    /// 通常由 `TimerEngine::start()` 调用(`cron.set_event_sender(Some(tx))`),
+    /// 使 TimerEngine 的订阅者(Proactive Engine / MOC)能感知 cron 任务触发。
+    /// 未调用此方法时,`event_sender` 默认为 `None`(向后兼容,不广播事件)。
+    pub fn set_event_sender(&self, sender: Option<tokio::sync::broadcast::Sender<TimerEvent>>) {
+        *self.event_sender.lock() = sender;
     }
 
     /// 返回当前任务表的快照。
@@ -431,6 +453,19 @@ impl CronScheduler {
     /// 执行单个任务。
     async fn execute_task(&self, name: &str) -> Result<()> {
         info!(target: "nebula.cron", task = %name, "executing cron task");
+
+        // T-E-S-63: 任务执行前广播 TimerEvent(Cron),使 TimerEngine 订阅者
+        // (Proactive Engine / MOC)能感知 cron 任务触发时机。
+        // sender 为 None 时(未注入)跳过广播,保持向后兼容。
+        {
+            let sender_guard = self.event_sender.lock();
+            if let Some(sender) = sender_guard.as_ref() {
+                let event = TimerEvent::cron(name);
+                // 非阻塞 send:无订阅者或 lag 时丢弃(返回 Err,此处忽略)。
+                let _ = sender.send(event);
+            }
+        }
+
         match name {
             "memory-merge" => self.execute_memory_merge().await,
             "evolution-self-check" => self.execute_evolution_self_check().await,
@@ -698,7 +733,7 @@ mod tests {
         let yesterday = Utc::now()
             .with_hour(12)
             .expect("test op should succeed")
-            .checked_sub_days(chrono::Duration::days(1))
+            .checked_sub_days(chrono::Days::new(1))
             .expect("test op should succeed");
         let task = CronTask {
             name: "test".to_string(),

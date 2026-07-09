@@ -36,6 +36,8 @@ use crate::memory::values::Verdict;
 // T-D-B-19: AgentScenario 用于 MasterOrchestrator 场景感知(decompose/synthesize)。
 use super::agents::{AgentScenario, HomogeneityPolicy, ModelDescriptor, ReviewerAgent};
 use crate::autonomy::AutonomyLevel as GlobalAutonomyLevel;
+// T-E-L-07: Loop 审计日志记录器(可选注入,execute_loop 关键节点写入)。
+use super::loop_audit_log::{LoopAuditEntry, LoopAuditLogger, LoopAuditPhase, LoopAuditQuery};
 
 use super::dag::{FailureStrategy, SubTask, SubTaskResult, SubTaskResultMap, TaskDag};
 use super::events::EventEnvelope;
@@ -779,8 +781,13 @@ impl MasterOrchestrator {
     /// **不持有 LongTaskEngine / CostTracker / ReviewerAgent**（避免循环依赖），
     /// 通过参数传入。`cost_tracker` / `reviewer` 为 `None` 时跳过对应检查
     /// （向后兼容旧调用方）。**ValuesLayer 内部访问**：`self.swarm.values_layer()`。
+    ///
+    /// **T-E-L-07 审计日志**：`audit_logger` 为 `None` 时跳过审计写入（向后兼容
+    /// 旧测试）；为 `Some` 时在 ValuesLayer / Budget / Homogeneity / TaskCreation /
+    /// TaskStart / LoopStarted 等关键节点通过 `spawn_record` 异步写入
+    /// （fire-and-forget，不阻塞主流程）。
     #[instrument(
-        skip(self, long_task_engine, cost_tracker, reviewer),
+        skip(self, long_task_engine, cost_tracker, reviewer, audit_logger),
         fields(loop_name = %loop_def.name)
     )]
     pub async fn execute_loop(
@@ -800,7 +807,26 @@ impl MasterOrchestrator {
         // T-E-L-06: 同质检测的 ReviewerAgent 引用。None 时跳过同质检测
         // （L4 不降级，autonomy_downgraded 为 None）。
         reviewer: Option<&ReviewerAgent>,
+        // T-E-L-07: Loop 审计日志记录器。None 时跳过审计写入（向后兼容）。
+        // 调用方应持有 `Arc<LoopAuditLogger>` 并传入 `&arc` 引用。
+        audit_logger: Option<&Arc<LoopAuditLogger>>,
     ) -> Result<LoopRunReport> {
+        // T-E-L-07: 为本次 execute_loop 调用生成唯一 run_id，所有阶段审计记录共享。
+        let run_id = Uuid::new_v4().to_string();
+        let autonomy_label = loop_def.autonomy.as_str(); // "L0".."L5"
+        let action_desc_for_audit = loop_def.action.join("; ");
+
+        // T-E-L-07: 内部辅助闭包 — fire-and-forget 写入一条审计记录。
+        // audit_logger 为 None 时为 no-op，确保向后兼容旧调用方。
+        let record_audit = |phase: LoopAuditPhase, status: &str| {
+            if let Some(logger) = audit_logger {
+                let entry = LoopAuditEntry::new(&run_id, &loop_def.name, phase, status)
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_autonomy_level(autonomy_label);
+                logger.spawn_record(entry);
+            }
+        };
+
         // ---- 1. ValuesLayer 门禁 ----
         let action_desc = loop_def.action.join("; ");
         let verdict = self
@@ -816,6 +842,21 @@ impl MasterOrchestrator {
                     reason = %reason,
                     "loop denied by values layer"
                 );
+                // T-E-L-07: 记录 values_check(deny) + loop_denied 两条审计。
+                record_audit(LoopAuditPhase::ValuesCheck, "deny");
+                if let Some(logger) = audit_logger {
+                    let entry = LoopAuditEntry::new(
+                        &run_id,
+                        &loop_def.name,
+                        LoopAuditPhase::LoopDenied,
+                        "denied",
+                    )
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_autonomy_level(autonomy_label)
+                    .with_values_verdict("deny")
+                    .with_error(&reason);
+                    logger.spawn_record(entry);
+                }
                 return Ok(LoopRunReport {
                     task_id: None,
                     loop_name: loop_def.name.clone(),
@@ -833,6 +874,21 @@ impl MasterOrchestrator {
                     loop_name = %loop_def.name,
                     "loop requires confirmation"
                 );
+                // T-E-L-07: 记录 values_check(confirm) + loop_needs_confirmation。
+                record_audit(LoopAuditPhase::ValuesCheck, "confirm");
+                if let Some(logger) = audit_logger {
+                    let entry = LoopAuditEntry::new(
+                        &run_id,
+                        &loop_def.name,
+                        LoopAuditPhase::LoopNeedsConfirmation,
+                        "needs_confirmation",
+                    )
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_autonomy_level(autonomy_label)
+                    .with_values_verdict("confirm")
+                    .with_error(&prompt);
+                    logger.spawn_record(entry);
+                }
                 return Ok(LoopRunReport {
                     task_id: None,
                     loop_name: loop_def.name.clone(),
@@ -850,6 +906,21 @@ impl MasterOrchestrator {
                     loop_name = %loop_def.name,
                     "loop requires plan"
                 );
+                // T-E-L-07: 记录 values_check(plan) + loop_needs_confirmation。
+                record_audit(LoopAuditPhase::ValuesCheck, "plan");
+                if let Some(logger) = audit_logger {
+                    let entry = LoopAuditEntry::new(
+                        &run_id,
+                        &loop_def.name,
+                        LoopAuditPhase::LoopNeedsConfirmation,
+                        "needs_confirmation",
+                    )
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_autonomy_level(autonomy_label)
+                    .with_values_verdict("plan")
+                    .with_error(&prompt);
+                    logger.spawn_record(entry);
+                }
                 return Ok(LoopRunReport {
                     task_id: None,
                     loop_name: loop_def.name.clone(),
@@ -860,7 +931,10 @@ impl MasterOrchestrator {
                     autonomy_downgraded: None,
                 });
             }
-            Verdict::Allow => {} // 继续
+            Verdict::Allow => {
+                // T-E-L-07: 记录 values_check(allow)。
+                record_audit(LoopAuditPhase::ValuesCheck, "allow");
+            } // 继续
         }
 
         // ---- 2. T-E-L-06: 预算门禁 ----
@@ -877,6 +951,22 @@ impl MasterOrchestrator {
                         reason = %reason,
                         "loop rejected: monthly budget exceeded"
                     );
+                    // T-E-L-07: 记录 budget_check(exceeded) + loop_failed。
+                    record_audit(LoopAuditPhase::BudgetCheck, "exceeded");
+                    if let Some(logger) = audit_logger {
+                        let entry = LoopAuditEntry::new(
+                            &run_id,
+                            &loop_def.name,
+                            LoopAuditPhase::LoopFailed,
+                            "failed",
+                        )
+                        .with_input_summary(&action_desc_for_audit)
+                        .with_autonomy_level(autonomy_label)
+                        .with_budget_status("exceeded")
+                        .with_values_verdict("allow")
+                        .with_error(&reason);
+                        logger.spawn_record(entry);
+                    }
                     return Err(anyhow!(reason));
                 }
             };
@@ -887,6 +977,8 @@ impl MasterOrchestrator {
                 "loop budget at 80%% warning threshold, proceeding"
             );
         }
+        // T-E-L-07: 记录 budget_check(ok 或 warning_80)。
+        record_audit(LoopAuditPhase::BudgetCheck, &budget_status);
 
         // ---- 3. T-E-L-06: 同质检测 ----
         // 仅当 loop_def.autonomy == L4 时调用 enforce_homogeneity_policy。
@@ -910,20 +1002,46 @@ impl MasterOrchestrator {
                             reason = %warning.reason,
                             "L4 loop downgraded to L2 (model homogeneity)"
                         );
-                        Some(format!(
-                            "L{}→L{}",
-                            original_level.as_u8(),
-                            downgraded_to.as_u8()
-                        ))
+                        let downgrade_str =
+                            format!("L{}→L{}", original_level.as_u8(), downgraded_to.as_u8());
+                        // T-E-L-07: 记录 homogeneity_check(downgraded)。
+                        if let Some(logger) = audit_logger {
+                            let entry = LoopAuditEntry::new(
+                                &run_id,
+                                &loop_def.name,
+                                LoopAuditPhase::HomogeneityCheck,
+                                "downgraded",
+                            )
+                            .with_input_summary(&action_desc_for_audit)
+                            .with_autonomy_level(autonomy_label)
+                            .with_budget_status(&budget_status)
+                            .with_values_verdict("allow")
+                            .with_autonomy_downgraded(&downgrade_str)
+                            .with_metadata("reason", &warning.reason);
+                            logger.spawn_record(entry);
+                        }
+                        Some(downgrade_str)
                     }
-                    HomogeneityPolicy::NoHomogeneity { .. } => None,
+                    HomogeneityPolicy::NoHomogeneity { .. } => {
+                        // T-E-L-07: 记录 homogeneity_check(ok)。
+                        record_audit(LoopAuditPhase::HomogeneityCheck, "ok");
+                        None
+                    }
                     // L4 不应返回 NotCheckerMode，防御性 None。
-                    HomogeneityPolicy::NotCheckerMode { .. } => None,
+                    HomogeneityPolicy::NotCheckerMode { .. } => {
+                        // T-E-L-07: 记录 homogeneity_check(skipped)。
+                        record_audit(LoopAuditPhase::HomogeneityCheck, "skipped");
+                        None
+                    }
                 }
             } else {
+                // T-E-L-07: 无 reviewer → homogeneity_check(skipped)。
+                record_audit(LoopAuditPhase::HomogeneityCheck, "skipped");
                 None
             }
         } else {
+            // T-E-L-07: 非 L4 → homogeneity_check(skipped)。
+            record_audit(LoopAuditPhase::HomogeneityCheck, "skipped");
             None
         };
 
@@ -939,17 +1057,83 @@ impl MasterOrchestrator {
             .collect();
 
         // ---- 5. 创建 + 启动 LongTask ----
-        let task = long_task_engine.create_task(
+        let task = match long_task_engine.create_task(
             loop_def.intent.clone(),
             steps,
             workspace_id,
             None, // plan_id — T-E-L-03 PlanEngine 集成后填充
-        )?;
+        ) {
+            Ok(t) => {
+                // T-E-L-07: 记录 task_creation(ok)。
+                if let Some(logger) = audit_logger {
+                    let entry = LoopAuditEntry::new(
+                        &run_id,
+                        &loop_def.name,
+                        LoopAuditPhase::TaskCreation,
+                        "ok",
+                    )
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_task_id(&t.id)
+                    .with_autonomy_level(autonomy_label)
+                    .with_budget_status(&budget_status)
+                    .with_values_verdict("allow");
+                    if let Some(d) = &autonomy_downgraded {
+                        let e = entry.with_autonomy_downgraded(d);
+                        logger.spawn_record(e);
+                    } else {
+                        logger.spawn_record(entry);
+                    }
+                }
+                t
+            }
+            Err(e) => {
+                // T-E-L-07: 记录 task_creation(error) + loop_failed。
+                let err_msg = format!("{e}");
+                record_audit(LoopAuditPhase::TaskCreation, "error");
+                if let Some(logger) = audit_logger {
+                    let entry = LoopAuditEntry::new(
+                        &run_id,
+                        &loop_def.name,
+                        LoopAuditPhase::LoopFailed,
+                        "failed",
+                    )
+                    .with_input_summary(&action_desc_for_audit)
+                    .with_autonomy_level(autonomy_label)
+                    .with_budget_status(&budget_status)
+                    .with_values_verdict("allow")
+                    .with_error(&err_msg);
+                    logger.spawn_record(entry);
+                }
+                return Err(e);
+            }
+        };
 
         // start() 会 spawn 后台 runner 异步执行步骤。
         // runner 执行 "loop-action" 程序会失败（非真实命令），但不影响 execute_loop 返回。
         // 实际 Loop 执行逻辑由 T-E-L-02/03 完善。
-        long_task_engine.start(&task.id)?;
+        if let Err(e) = long_task_engine.start(&task.id) {
+            // T-E-L-07: 记录 task_start(error) + loop_failed。
+            let err_msg = format!("{e}");
+            record_audit(LoopAuditPhase::TaskStart, "error");
+            if let Some(logger) = audit_logger {
+                let entry = LoopAuditEntry::new(
+                    &run_id,
+                    &loop_def.name,
+                    LoopAuditPhase::LoopFailed,
+                    "failed",
+                )
+                .with_input_summary(&action_desc_for_audit)
+                .with_task_id(&task.id)
+                .with_autonomy_level(autonomy_label)
+                .with_budget_status(&budget_status)
+                .with_values_verdict("allow")
+                .with_error(&err_msg);
+                logger.spawn_record(entry);
+            }
+            return Err(e);
+        }
+        // T-E-L-07: 记录 task_start(ok)。
+        record_audit(LoopAuditPhase::TaskStart, "ok");
 
         info!(
             target: "nebula.master.loop",
@@ -959,6 +1143,28 @@ impl MasterOrchestrator {
             autonomy_downgraded = ?autonomy_downgraded,
             "loop started"
         );
+
+        // T-E-L-07: 记录 loop_started(started) — 最后一条审计,标识本次调用成功返回。
+        if let Some(logger) = audit_logger {
+            let entry = LoopAuditEntry::new(
+                &run_id,
+                &loop_def.name,
+                LoopAuditPhase::LoopStarted,
+                "started",
+            )
+            .with_input_summary(&action_desc_for_audit)
+            .with_task_id(&task.id)
+            .with_autonomy_level(autonomy_label)
+            .with_budget_status(&budget_status)
+            .with_values_verdict("allow")
+            .with_output_summary(&format!("Loop '{}' started", loop_def.name));
+            if let Some(d) = &autonomy_downgraded {
+                let e = entry.with_autonomy_downgraded(d);
+                logger.spawn_record(e);
+            } else {
+                logger.spawn_record(entry);
+            }
+        }
 
         // ---- 6. 返回报告 ----
         Ok(LoopRunReport {
@@ -1478,7 +1684,7 @@ mod tests {
             vec!["读取 README.md", "总结要点"],
         );
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None, None)
             .await
             .expect("execute_loop should succeed on safe action");
         assert_eq!(report.status, "started");
@@ -1509,7 +1715,7 @@ mod tests {
             vec!["处理身份证号 11010119900307888X"],
         );
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None, None)
             .await
             .expect("execute_loop should not error on deny");
         assert_eq!(report.status, "denied");
@@ -1529,7 +1735,7 @@ mod tests {
         // 注意：不能用"批量删除...文件"——宪法规则 `批量删除.*文件` 会直接 Deny。
         let loop_def = make_loop_def("bulk-update", "批量更新配置", vec!["批量更新所有配置"]);
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None, None)
             .await
             .expect("execute_loop should not error on plan");
         assert_eq!(report.status, "needs_confirmation");
@@ -1751,6 +1957,7 @@ mod tests {
                 None,
                 Some(500_000),
                 None,
+                None,
             )
             .await;
         assert!(result.is_err(), "monthly budget exceeded should return Err");
@@ -1779,9 +1986,10 @@ mod tests {
                 None,
                 Some(1_000_000),
                 None,
+                None,
             )
             .await
-            .expect("80% threshold should proceed");
+            .expect("80% warning should proceed");
         assert_eq!(report.status, "started");
         assert_eq!(report.budget_status.as_deref(), Some("warning_80"));
         // 等待后台 runner 结束
@@ -1806,6 +2014,7 @@ mod tests {
                 Some(50.0),
                 Some(5_000_000),
                 None,
+                None,
             )
             .await
             .expect("under-limit should proceed");
@@ -1828,7 +2037,16 @@ mod tests {
         );
         let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("ollama", "m")));
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                Some(&reviewer),
+                None,
+            )
             .await
             .expect("execute_loop should not error on L4 homogeneity");
         assert_eq!(report.status, "started");
@@ -1854,7 +2072,16 @@ mod tests {
         );
         let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("deepseek", "deepseek-chat")));
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                Some(&reviewer),
+                None,
+            )
             .await
             .expect("execute_loop should succeed on L4 without homogeneity");
         assert_eq!(report.status, "started");
@@ -1878,7 +2105,7 @@ mod tests {
             crate::swarm::loop_def::AutonomyLevel::L4,
         );
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, None)
+            .execute_loop(&loop_def, &engine, None, None, None, None, None, None)
             .await
             .expect("execute_loop should succeed without reviewer");
         assert_eq!(report.status, "started");
@@ -1903,7 +2130,16 @@ mod tests {
         );
         let reviewer = make_reviewer(gw, None);
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                Some(&reviewer),
+                None,
+            )
             .await
             .expect("execute_loop should succeed without maker_model");
         assert_eq!(report.status, "started");
@@ -1928,7 +2164,16 @@ mod tests {
         );
         let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("ollama", "m")));
         let report = master
-            .execute_loop(&loop_def, &engine, None, None, None, None, Some(&reviewer))
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                Some(&reviewer),
+                None,
+            )
             .await
             .expect("execute_loop should succeed for L2");
         assert_eq!(report.status, "started");
@@ -2044,6 +2289,336 @@ mod tests {
             de.autonomy_downgraded.is_none(),
             "missing autonomy_downgraded → None"
         );
+    }
+
+    // ---- T-E-L-07: execute_loop 审计日志集成测试 ----
+
+    /// 构造测试用 LoopAuditLogger + 临时 SQLite 路径。
+    fn make_audit_logger() -> (Arc<LoopAuditLogger>, std::path::PathBuf) {
+        let tmp = std::env::temp_dir().join(format!("nebula-loop-audit-{}", Uuid::new_v4()));
+        let _ = std::fs::remove_file(&tmp);
+        let store =
+            crate::memory::sqlite_store::SqliteStore::open(&tmp).expect("open audit sqlite");
+        let logger =
+            Arc::new(LoopAuditLogger::from_sqlite_store(&store).expect("init audit logger"));
+        (logger, tmp)
+    }
+
+    /// 等待审计日志写入完成(spawn_record 为 fire-and-forget,需轮询)。
+    ///
+    /// 在 `timeout_ms` 内每 10ms 查询一次,直到记录数 >= `expected_min_count`。
+    /// 超时后返回当前已有的记录(测试断言会自然失败)。
+    async fn wait_for_audit_entries(
+        logger: &LoopAuditLogger,
+        expected_min_count: usize,
+        timeout_ms: u64,
+    ) -> Vec<LoopAuditEntry> {
+        let mut elapsed = 0u64;
+        let interval = 10u64;
+        loop {
+            let entries = logger
+                .query(&LoopAuditQuery::new().with_limit(1000))
+                .expect("query should succeed");
+            if entries.len() >= expected_min_count {
+                return entries;
+            }
+            if elapsed >= timeout_ms {
+                return entries;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+            elapsed += interval;
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_loop_with_audit_records_allow_path() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let (audit_logger, audit_tmp) = make_audit_logger();
+        let loop_def = make_loop_def(
+            "audit-allow",
+            "读取并总结文档",
+            vec!["读取 README.md", "总结要点"],
+        );
+        let report = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(&audit_logger),
+            )
+            .await
+            .expect("execute_loop should succeed");
+        assert_eq!(report.status, "started");
+
+        // 允许路径应记录 6 条审计:values_check + budget_check + homogeneity_check + task_creation + task_start + loop_started
+        let entries = wait_for_audit_entries(&audit_logger, 6, 2000).await;
+        assert!(
+            entries.len() >= 6,
+            "allow path should record at least 6 audit entries, got {}: {:?}",
+            entries.len(),
+            entries.iter().map(|e| e.phase.as_str()).collect::<Vec<_>>()
+        );
+
+        // 验证阶段集合
+        let phases: Vec<&str> = entries.iter().map(|e| e.phase.as_str()).collect();
+        assert!(phases.contains(&"values_check"), "should have values_check");
+        assert!(phases.contains(&"budget_check"), "should have budget_check");
+        assert!(
+            phases.contains(&"homogeneity_check"),
+            "should have homogeneity_check"
+        );
+        assert!(
+            phases.contains(&"task_creation"),
+            "should have task_creation"
+        );
+        assert!(phases.contains(&"task_start"), "should have task_start");
+        assert!(phases.contains(&"loop_started"), "should have loop_started");
+
+        // 验证所有 entry 共享同一个 run_id
+        let run_ids: std::collections::HashSet<&str> =
+            entries.iter().map(|e| e.run_id.as_str()).collect();
+        assert_eq!(run_ids.len(), 1, "all entries should share one run_id");
+
+        // 验证 loop_started 记录的 task_id 与 report.task_id 一致
+        let loop_started = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::LoopStarted)
+            .expect("should have loop_started entry");
+        assert_eq!(
+            loop_started.task_id.as_ref().expect("task_id"),
+            report.task_id.as_ref().expect("report task_id"),
+            "loop_started task_id should match report"
+        );
+        // 验证 loop_started 的 autonomy_level = "L2"(默认 make_loop_def 用 L2)
+        assert_eq!(loop_started.autonomy_level.as_deref(), Some("L2"));
+        // 验证 loop_started 的 values_verdict = "allow"
+        assert_eq!(loop_started.values_verdict.as_deref(), Some("allow"));
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&audit_tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_with_audit_records_deny_path() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let (audit_logger, audit_tmp) = make_audit_logger();
+        // 身份证号触发 PrivacyGuard::Block → Verdict::Deny
+        let loop_def = make_loop_def(
+            "audit-deny",
+            "处理用户信息",
+            vec!["处理身份证号 11010119900307888X"],
+        );
+        let report = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(&audit_logger),
+            )
+            .await
+            .expect("execute_loop should not error on deny");
+        assert_eq!(report.status, "denied");
+
+        // Deny 路径应记录 2 条审计:values_check(deny) + loop_denied
+        let entries = wait_for_audit_entries(&audit_logger, 2, 2000).await;
+        assert_eq!(
+            entries.len(),
+            2,
+            "deny path should record exactly 2 audit entries, got {}: {:?}",
+            entries.len(),
+            entries.iter().map(|e| e.phase.as_str()).collect::<Vec<_>>()
+        );
+
+        // 验证阶段
+        let phases: Vec<&str> = entries.iter().map(|e| e.phase.as_str()).collect();
+        assert!(phases.contains(&"values_check"), "should have values_check");
+        assert!(phases.contains(&"loop_denied"), "should have loop_denied");
+
+        // 验证 values_check 记录的 status = "deny"
+        let values_check = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::ValuesCheck)
+            .expect("should have values_check entry");
+        assert_eq!(values_check.status, "deny");
+
+        // 验证 loop_denied 记录的 values_verdict = "deny"
+        let loop_denied = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::LoopDenied)
+            .expect("should have loop_denied entry");
+        assert_eq!(loop_denied.values_verdict.as_deref(), Some("deny"));
+        // loop_denied 不应有 task_id(短路返回,未创建 LongTask)
+        assert!(
+            loop_denied.task_id.is_none(),
+            "loop_denied should have no task_id"
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&audit_tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_with_audit_records_budget_exceeded() {
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let (audit_logger, audit_tmp) = make_audit_logger();
+        let loop_def = make_loop_def("audit-budget", "测试预算超限", vec!["读取文件"]);
+        // 1M tokens / limit=500K → exceeded
+        let tracker = make_tracker_with_loop_cost(
+            crate::llm::cost_tracker::CostSource::Cron,
+            1,
+            1_000_000,
+            0,
+        )
+        .await;
+        let result = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                Some(&tracker),
+                None,
+                Some(500_000),
+                None,
+                Some(&audit_logger),
+            )
+            .await;
+        assert!(result.is_err(), "budget exceeded should return Err");
+
+        // 预算超限路径应记录 3 条审计:values_check(allow) + budget_check(exceeded) + loop_failed
+        let entries = wait_for_audit_entries(&audit_logger, 3, 2000).await;
+        assert_eq!(
+            entries.len(),
+            3,
+            "budget exceeded should record exactly 3 audit entries, got {}: {:?}",
+            entries.len(),
+            entries.iter().map(|e| e.phase.as_str()).collect::<Vec<_>>()
+        );
+
+        // 验证阶段
+        let phases: Vec<&str> = entries.iter().map(|e| e.phase.as_str()).collect();
+        assert!(
+            phases.contains(&"values_check"),
+            "should have values_check(allow)"
+        );
+        assert!(
+            phases.contains(&"budget_check"),
+            "should have budget_check(exceeded)"
+        );
+        assert!(phases.contains(&"loop_failed"), "should have loop_failed");
+
+        // 验证 budget_check 记录的 status = "exceeded"
+        let budget_check = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::BudgetCheck)
+            .expect("should have budget_check entry");
+        assert_eq!(budget_check.status, "exceeded");
+        assert_eq!(budget_check.budget_status.as_deref(), Some("exceeded"));
+
+        // 验证 loop_failed 记录的 error_message 非空
+        let loop_failed = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::LoopFailed)
+            .expect("should have loop_failed entry");
+        assert!(
+            loop_failed.error_message.is_some(),
+            "loop_failed should have error_message"
+        );
+        // loop_failed 不应有 task_id(未创建 LongTask)
+        assert!(
+            loop_failed.task_id.is_none(),
+            "loop_failed should have no task_id"
+        );
+
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&audit_tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_with_audit_records_l4_homogeneity_downgrade() {
+        let (master, engine, gw, tmp) = make_master_and_engine();
+        let (audit_logger, audit_tmp) = make_audit_logger();
+        // L4 + Maker 与 Checker 用同一模型 → 触发降级
+        let loop_def = make_loop_def_with_autonomy(
+            "audit-l4-downgrade",
+            "L4 同质检测",
+            vec!["执行蜂群任务"],
+            crate::swarm::loop_def::AutonomyLevel::L4,
+        );
+        let reviewer = make_reviewer(gw, Some(ModelDescriptor::new("ollama", "m")));
+        let report = master
+            .execute_loop(
+                &loop_def,
+                &engine,
+                None,
+                None,
+                None,
+                None,
+                Some(&reviewer),
+                Some(&audit_logger),
+            )
+            .await
+            .expect("execute_loop should succeed");
+        assert_eq!(report.status, "started");
+        assert_eq!(report.autonomy_downgraded.as_deref(), Some("L4→L2"));
+
+        // L4 降级路径应记录 6 条审计:values_check + budget_check + homogeneity_check(downgraded) + task_creation + task_start + loop_started
+        let entries = wait_for_audit_entries(&audit_logger, 6, 2000).await;
+        assert!(
+            entries.len() >= 6,
+            "L4 downgrade should record at least 6 entries, got {}",
+            entries.len()
+        );
+
+        // 验证 homogeneity_check 记录的 status = "downgraded"
+        let homogeneity = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::HomogeneityCheck)
+            .expect("should have homogeneity_check entry");
+        assert_eq!(homogeneity.status, "downgraded");
+        assert_eq!(
+            homogeneity.autonomy_downgraded.as_deref(),
+            Some("L4→L2"),
+            "homogeneity_check should record downgrade"
+        );
+
+        // 验证 loop_started 记录也携带 autonomy_downgraded 标记
+        let loop_started = entries
+            .iter()
+            .find(|e| e.phase == LoopAuditPhase::LoopStarted)
+            .expect("should have loop_started entry");
+        assert_eq!(
+            loop_started.autonomy_downgraded.as_deref(),
+            Some("L4→L2"),
+            "loop_started should carry downgrade marker"
+        );
+        assert_eq!(loop_started.autonomy_level.as_deref(), Some("L4"));
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&audit_tmp);
+    }
+
+    #[tokio::test]
+    async fn execute_loop_without_audit_logger_backward_compat() {
+        // audit_logger = None 时不 panic,不写入审计(向后兼容)
+        let (master, engine, _gw, tmp) = make_master_and_engine();
+        let loop_def = make_loop_def("no-audit", "无审计", vec!["读取文件"]);
+        let report = master
+            .execute_loop(&loop_def, &engine, None, None, None, None, None, None)
+            .await
+            .expect("execute_loop should succeed without audit_logger");
+        assert_eq!(report.status, "started");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _ = std::fs::remove_file(&tmp);
     }
 
     // ---- T-D-B-19: MasterOrchestrator 写作场景测试 ----
