@@ -181,7 +181,7 @@ impl TeamContextPool {
         let now = chrono::Utc::now().timestamp();
         let mut map = self.entries.write();
         let mut removed = 0;
-        for (_topic, vec) in map.iter_mut() {
+        for vec in map.values_mut() {
             let before = vec.len();
             vec.retain(|e| now - e.last_accessed < self.gc_ttl_secs);
             removed += before - vec.len();

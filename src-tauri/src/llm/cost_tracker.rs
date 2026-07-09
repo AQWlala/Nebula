@@ -540,8 +540,8 @@ impl CostTracker {
             .and_then(|mut s| s.execute([]).map(|_| true))
             .unwrap_or(false);
         let rows: Vec<CostRecord> = if has_work_type_col {
-            // M5 #72: 用 match 替代 ? 避免 ControlFlow 临时值借用 stmt。
-            // 见 lessons learned: stmt does not live long enough。
+            // M5 #72: 用 ? + block 替代直接 ? 避免 ControlFlow 临时值借用 stmt。
+            // block 作用域保证 stmt 借用安全。
             let mut stmt = g.prepare(
                 "SELECT model, input_tokens, output_tokens, cost_usd, timestamp, \
                     provider, task, agent, source, trigger_id, work_type \
@@ -567,9 +567,10 @@ impl CostTracker {
                     work_type: r.get(10)?,
                 })
             });
-            match rows {
-                Ok(iter) => iter.collect::<rusqlite::Result<Vec<_>>>()?,
-                Err(e) => return Err(e.into()),
+            // clippy::question_mark: 用 ? + block 替代 match(等效,block 作用域保证 stmt 借用安全)
+            {
+                let iter = rows?;
+                iter.collect::<rusqlite::Result<Vec<_>>>()?
             }
         } else {
             tracing::warn!(
@@ -602,9 +603,10 @@ impl CostTracker {
                     work_type: None,
                 })
             });
-            match rows {
-                Ok(iter) => iter.collect::<rusqlite::Result<Vec<_>>>()?,
-                Err(e) => return Err(e.into()),
+            // clippy::question_mark: 用 ? + block 替代 match(等效,block 作用域保证 stmt 借用安全)
+            {
+                let iter = rows?;
+                iter.collect::<rusqlite::Result<Vec<_>>>()?
             }
         };
         let n = rows.len();
