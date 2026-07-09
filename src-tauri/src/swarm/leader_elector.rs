@@ -278,7 +278,7 @@ mod tests {
         elector.set_capability("low", 0.01);
 
         let mut high_count = 0;
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             if elector.elect(&["high".to_string(), "low".to_string()]) == Some("high".to_string()) {
                 high_count += 1;
             }
@@ -287,8 +287,8 @@ mod tests {
         // P(high)=1.0/1.505≈66.4%。原阈值 >900 假设绝对垄断,不符合加权随机语义。
         // 改为 >600(留 6.4% 余量),验证 high 确实更常被选中。
         assert!(
-            high_count > 600,
-            "high was only elected {high_count}/1000 times"
+            high_count > 6400,
+            "high was only elected {high_count}/10000 times (expected ~6644)"
         );
     }
 
@@ -302,7 +302,7 @@ mod tests {
         elector.update_load("B", 0.0);
 
         let mut b_count = 0;
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             if elector.elect(&["A".to_string(), "B".to_string()]) == Some("B".to_string()) {
                 b_count += 1;
             }
@@ -310,6 +310,9 @@ mod tests {
         // M7b #90 分类 A: score(A)=0.7, score(B)=0.9, P(B)=0.9/1.6≈56.25%。
         // 原阈值 >600 假设 load 因子占主导,实际 capability 权重(0.5)更大。
         // 改为 >520(留 4.25% 余量),验证 B 确实因负载低更常被选中。
-        assert!(b_count > 520, "B was only elected {b_count}/1000 times");
+        assert!(
+            b_count > 5300,
+            "B was only elected {b_count}/10000 times (expected ~5625)"
+        );
     }
 }
