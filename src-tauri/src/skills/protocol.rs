@@ -37,8 +37,11 @@ use serde::{Deserialize, Serialize};
 /// 内化技能已使用的字段(`docs/skills/loop-engineering/SKILL.md`)。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SkillManifest {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub version: String,
+    #[serde(default)]
     pub description: String,
     /// 声明式能力标签(如 `["file:read", "network"]`)。与
     /// [`super::capability::Capability`] 的 `id` 对应,用于能力反向映射。
