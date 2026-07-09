@@ -618,7 +618,10 @@ mod tests {
             ..Default::default()
         };
         // 2026-07-08 是周三 → 匹配
-        let now = Utc.with_ymd_and_hms(2026, 7, 8, 9, 0, 0).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 8, 9, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(task.should_run(now));
     }
 
@@ -634,7 +637,10 @@ mod tests {
             ..Default::default()
         };
         // 10:00 不匹配
-        let now = Utc.with_ymd_and_hms(2026, 7, 8, 10, 0, 0).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 8, 10, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(!task.should_run(now));
     }
 
@@ -650,7 +656,10 @@ mod tests {
             ..Default::default()
         };
         // 2026-07-11 是周六 → 不匹配
-        let now = Utc.with_ymd_and_hms(2026, 7, 11, 9, 0, 0).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 11, 9, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(!task.should_run(now));
     }
 
@@ -662,12 +671,19 @@ mod tests {
             name: "test".to_string(),
             hour: 0,
             enabled: true,
-            last_run: Some(Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).single().expect("test op should succeed")),
+            last_run: Some(
+                Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0)
+                    .single()
+                    .expect("test op should succeed"),
+            ),
             cron_expr: Some("*/15 * * * *".to_string()),
             ..Default::default()
         };
         // 12:15 — 距上次 15 分钟 > 60 秒 → 应该执行
-        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 15, 0).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 8, 12, 15, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(task.should_run(now));
     }
 
@@ -675,7 +691,10 @@ mod tests {
     fn cron_expr_blocks_within_60s() {
         use chrono::TimeZone;
         // "*/15 * * * *" — 每 15 分钟
-        let last = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).single().expect("test op should succeed");
+        let last = Utc
+            .with_ymd_and_hms(2026, 7, 8, 12, 0, 0)
+            .single()
+            .expect("test op should succeed");
         let task = CronTask {
             name: "test".to_string(),
             hour: 0,
@@ -685,7 +704,10 @@ mod tests {
             ..Default::default()
         };
         // 12:00:30 — 距上次 30 秒 < 60 秒 → 不应执行
-        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 30).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 8, 12, 0, 30)
+            .single()
+            .expect("test op should succeed");
         assert!(!task.should_run(now));
     }
 
@@ -701,10 +723,16 @@ mod tests {
             ..Default::default()
         };
         // 无效表达式 → 回退到 hour=12 → 12:00 匹配
-        let now = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).single().expect("test op should succeed");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 8, 12, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(task.should_run(now));
         // 13:00 不匹配
-        let now2 = Utc.with_ymd_and_hms(2026, 7, 8, 13, 0, 0).single().expect("test op should succeed");
+        let now2 = Utc
+            .with_ymd_and_hms(2026, 7, 8, 13, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(!task.should_run(now2));
     }
 
@@ -713,13 +741,22 @@ mod tests {
         use chrono::TimeZone;
         let tasks = CronTask::default_schedule();
         // memory-merge: "0 3 * * *" → 03:00 匹配
-        let now_3 = Utc.with_ymd_and_hms(2026, 7, 8, 3, 0, 0).single().expect("test op should succeed");
+        let now_3 = Utc
+            .with_ymd_and_hms(2026, 7, 8, 3, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(tasks[0].should_run(now_3));
         // evolution-self-check: "0 12 * * *" → 12:00 匹配
-        let now_12 = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).single().expect("test op should succeed");
+        let now_12 = Utc
+            .with_ymd_and_hms(2026, 7, 8, 12, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(tasks[1].should_run(now_12));
         // evening-review: "0 21 * * *" → 21:00 匹配
-        let now_21 = Utc.with_ymd_and_hms(2026, 7, 8, 21, 0, 0).single().expect("test op should succeed");
+        let now_21 = Utc
+            .with_ymd_and_hms(2026, 7, 8, 21, 0, 0)
+            .single()
+            .expect("test op should succeed");
         assert!(tasks[2].should_run(now_21));
     }
 
@@ -842,7 +879,10 @@ mod tests {
 
         // 验证任务级预算也更新了
         let tasks = scheduler.list_tasks();
-        let memory_merge = tasks.iter().find(|t| t.name == "memory-merge").expect("query should succeed");
+        let memory_merge = tasks
+            .iter()
+            .find(|t| t.name == "memory-merge")
+            .expect("query should succeed");
         assert_eq!(memory_merge.budget_tokens_used, 500);
     }
 

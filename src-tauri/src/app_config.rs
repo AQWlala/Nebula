@@ -577,10 +577,7 @@ mod tests {
         cleanup_env();
         std::env::set_var("DEEPSEEK_API_KEY", "sk-test-key-123");
         let config = AppConfig::from_env();
-        assert_eq!(
-            config.deepseek_api_key.as_deref(),
-            Some("sk-test-key-123")
-        );
+        assert_eq!(config.deepseek_api_key.as_deref(), Some("sk-test-key-123"));
         std::env::remove_var("DEEPSEEK_API_KEY");
     }
 }
