@@ -755,6 +755,11 @@ impl NovelWorkflow {
         // 但我们丢弃了返回值。下面重构这段逻辑。
         //
         // --- 重构:重新从初稿开始(确定性模拟,重新生成成本可忽略) ---
+        // 重置 chapters_completed,避免重复计数(初稿已计过一次)
+        {
+            let mut p = self.progress.write().expect("progress lock poisoned");
+            p.chapters_completed = 0;
+        }
         let polished: Vec<ChapterDraft> = if request.max_revisions > 0 {
             // 重新生成初稿(确定性模拟,结果一致)并润色
             let re_drafts = self.step_parallel_draft(&outline, &chapter_ids).await?;
