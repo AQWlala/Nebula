@@ -504,3 +504,17 @@ jobs:
           name: web-coverage
           path: coverage/
           if-no-files-found: ignore
+      # T-D-T-03: E2E 测试接入 CI (Playwright)
+      - name: Build web bundle for E2E
+        run: npm run build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
