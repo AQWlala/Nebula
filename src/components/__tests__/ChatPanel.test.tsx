@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0.1 (P0#07): ChatPanel timeout + Ollama banner tests.
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
@@ -55,7 +55,7 @@ describe('ChatPanel (P0#07)', () => {
     });
 
     const { getByPlaceholderText, getByText } = render(<ChatPanel />);
-    const input = getByPlaceholderText('输入消息...') as HTMLInputElement;
+    const input = getByPlaceholderText(/Type a message\.\.\.|输入消息\.\.\./) as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'hi' } });
     // T-S1-B-01b: "发送"按钮现在触发流式 sendStream()，超时测试
     // 需要点击非流式 fallback 按钮"↩"来测试 send() 的 8s 超时逻辑。
@@ -98,9 +98,9 @@ describe('ChatPanel (P0#07)', () => {
       });
 
     const { getByPlaceholderText, getByText, container } = render(<ChatPanel />);
-    const input = getByPlaceholderText('输入消息...') as HTMLInputElement;
+    const input = getByPlaceholderText(/Type a message\.\.\.|输入消息\.\.\./) as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'hi' } });
-    fireEvent.click(getByText('发送'));
+    fireEvent.click(getByText(/^Send$|^发送$/));
 
     // 等待 Promise 微任务队列刷新
     await new Promise((r) => setTimeout(r, 50));

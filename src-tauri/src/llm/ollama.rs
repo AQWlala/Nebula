@@ -264,6 +264,7 @@ impl OllamaClient {
         let http = Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
+            // T-D-B-07: 字面量保证有效 — timeout 配置不会导致 build 失败,保留 expect
             .expect("reqwest client should build");
         Self {
             base_url,
@@ -292,6 +293,7 @@ impl OllamaClient {
         let http = Client::builder()
             .timeout(timeout)
             .build()
+            // T-D-B-07: 字面量保证有效 — timeout 配置不会导致 build 失败,保留 expect
             .expect("reqwest client should build");
         Self {
             base_url,
@@ -432,7 +434,10 @@ impl OllamaClient {
         }
         // Unreachable: the loop returns on every iteration's branches.
         // The compiler can't prove it, so provide a fallback.
-        Err(last_err.expect("retry loop must have produced an error"))
+        // T-D-B-07: 原为 last_err.expect(...),改为 unwrap_or_else 避免 panic
+        Err(last_err.unwrap_or_else(|| {
+            anyhow!("ollama chat_with_retry exhausted without returning a result")
+        }))
     }
 
     /// M5 #74: 流式 chat 完成（NDJSON）。
@@ -838,8 +843,12 @@ mod tests {
         /// `ps_body` 是 /api/ps 的固定响应;对 /api/generate 返回最小成功响应。
         /// `generate_count` 在每次收到 POST /api/generate 时自增。
         fn start(ps_body: &'static str) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             let generate_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let gen_counter = generate_count.clone();
@@ -897,7 +906,10 @@ mod tests {
         let ps_body = r#"{"models":[{"name":"qwen2.5:3b"},{"name":"test-model"}]}"#;
         let server = MockOllamaServer::start(ps_body);
         let client = OllamaClient::new(server.base_url.clone());
-        client.warmup_model("test-model").await.expect("task should complete");
+        client
+            .warmup_model("test-model")
+            .await
+            .expect("task should complete");
         // 不应触发 /api/generate。
         assert_eq!(server.generate_calls(), 0);
     }
@@ -909,7 +921,10 @@ mod tests {
         let ps_body = r#"{"models":[]}"#;
         let server = MockOllamaServer::start(ps_body);
         let client = OllamaClient::new(server.base_url.clone());
-        client.warmup_model("test-model").await.expect("task should complete");
+        client
+            .warmup_model("test-model")
+            .await
+            .expect("task should complete");
         // 应触发一次 /api/generate。
         assert_eq!(server.generate_calls(), 1);
     }
@@ -1003,8 +1018,12 @@ mod tests {
         /// POST /api/chat. On 200, returns a minimal valid
         /// `ChatResponse` body so `chat()` can deserialize.
         fn start(always_status: u16) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
@@ -1058,8 +1077,12 @@ mod tests {
         /// M3 #49: 启动一个 mock 服务器,每个请求处理前 sleep `delay`。
         /// 用于测试 Semaphore 限流:串行 vs 并行执行时间可区分。
         fn start_with_delay(always_status: u16, delay: Duration) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             let chat_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let cc = chat_count.clone();
@@ -1119,7 +1142,10 @@ mod tests {
         // Bind a port, then immediately release it, so the port is
         // unbound and TCP connect gets RST ("connection refused").
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         drop(listener);
         let base_url = format!("http://127.0.0.1:{port}");
 
@@ -1298,8 +1324,12 @@ mod tests {
         /// `lines` 是 NDJSON 每行的内容(已序列化 JSON 字符串)。
         /// 服务器将所有行合并为一个 chunk 返回(模拟流式但单次发送)。
         fn start(lines: Vec<String>) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
@@ -1328,8 +1358,12 @@ mod tests {
 
         /// 启动一个返回 HTTP 错误的 mock 服务器(用于测试错误流)。
         fn start_with_error(status: u16) -> Self {
-            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-            let port = listener.local_addr().expect("test op should succeed").port();
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
+            let port = listener
+                .local_addr()
+                .expect("test op should succeed")
+                .port();
             let base_url = format!("http://127.0.0.1:{port}");
             listener.set_nonblocking(false).expect("set blocking ok");
             std::thread::spawn(move || {
@@ -1426,7 +1460,10 @@ mod tests {
 
         // Bind a port, then immediately release it.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("test op should succeed");
-        let port = listener.local_addr().expect("test op should succeed").port();
+        let port = listener
+            .local_addr()
+            .expect("test op should succeed")
+            .port();
         drop(listener);
         let base_url = format!("http://127.0.0.1:{port}");
 

@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor } from '@testing-library/preact';
 import type { LongTask, LongTaskStep } from '../../lib/tauri';
+import { setLocale } from '../../i18n';
 
 beforeAll(() => {
   if (typeof globalThis.ResizeObserver === 'undefined') {
@@ -80,6 +81,7 @@ function makeStep(overrides: Partial<LongTaskStep> = {}): LongTaskStep {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setLocale('en-US');
 });
 
 afterEach(() => {
@@ -105,8 +107,8 @@ describe('LongTaskPanel', () => {
     await findByTestId('long-task-item-bbb22222');
     expect(getByText('任务 A')).toBeTruthy();
     expect(getByText('任务 B')).toBeTruthy();
-    expect(getByText('执行中')).toBeTruthy();
-    expect(getByText('已完成')).toBeTruthy();
+    expect(getByText('Running')).toBeTruthy();
+    expect(getByText('Completed')).toBeTruthy();
     // 进度条宽度
     const progressA = await findByTestId('long-task-progress-aaa11111');
     expect((progressA as HTMLElement).style.width).toBe('50%');
@@ -187,7 +189,7 @@ describe('LongTaskPanel', () => {
     const { LongTaskPanel } = await import('../LongTaskPanel');
     const { findByTestId } = render(<LongTaskPanel />);
     const btn = await findByTestId('long-task-start-btn-pau00001');
-    expect(btn.textContent).toContain('恢复');
+    expect(btn.textContent).toContain('Resume');
   });
 
   it('clicking_start_calls_longTaskStart', async () => {

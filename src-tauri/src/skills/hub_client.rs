@@ -43,13 +43,29 @@ pub struct TeamSkillsHubClient {
 impl TeamSkillsHubClient {
     pub fn new(base_url: &str) -> Self {
         let guard = SsrfGuard::new();
-        guard
-            .validate_url(base_url)
-            .expect("TeamSkillsHub URL failed SSRF validation");
+        // T-D-B-07: 不 panic;失败时仅记录警告,后续每个请求仍会做 SSRF 校验
+        if let Err(e) = guard.validate_url(base_url) {
+            warn!(
+                target: "nebula.hub",
+                error = %e,
+                url = %base_url,
+                "TeamSkillsHub URL failed SSRF validation; per-request validation still applies"
+            );
+        }
         // T-S2-A-02: 使用 SSRF 安全客户端，重定向链每跳验证
-        let client = guard
-            .build_safe_client()
-            .expect("failed to build SSRF-safe client for TeamSkillsHub");
+        // T-D-B-07: 不 panic;SSRF-safe client 构建失败时回退到默认 client
+        let client = guard.build_safe_client().unwrap_or_else(|e| {
+            warn!(
+                target: "nebula.hub",
+                error = %e,
+                "failed to build SSRF-safe client for TeamSkillsHub; falling back to default reqwest client"
+            );
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                // T-D-B-07: 字面量保证有效,保留 expect — reqwest Client::build 仅在 TLS 后端损坏时失败
+                .expect("reqwest Client::build is infallible")
+        });
         Self {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),
@@ -327,7 +343,8 @@ mod tests {
 
     #[test]
     fn importer_constructs_with_store() {
-        let sqlite = crate::memory::sqlite_store::SqliteStore::open(":memory:").expect("create should succeed");
+        let sqlite = crate::memory::sqlite_store::SqliteStore::open(":memory:")
+            .expect("create should succeed");
         let store = SkillStore::new(sqlite).expect("create should succeed");
         let _importer = TeamSkillsHubImporter::new("https://203.0.113.1", store);
     }

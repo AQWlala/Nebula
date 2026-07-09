@@ -89,7 +89,15 @@ impl OpenAICompatClient {
                 Client::builder()
                     .timeout(Duration::from_secs(120))
                     .build()
-                    .expect("reqwest client should build")
+                    .unwrap_or_else(|e| {
+                        tracing::error!(
+                            target: "nebula.ssrf",
+                            error = %e,
+                            "failed to build fallback reqwest client; using default"
+                        );
+                        // T-D-B-07: Client::new is infallible from API perspective
+                        Client::new()
+                    })
             });
         Self {
             base_url: base_url.into(),

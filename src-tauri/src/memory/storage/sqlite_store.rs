@@ -81,7 +81,7 @@ impl SqliteStore {
         conn.pragma_update(None, "mmap_size", 268_435_456_i64)?;
 
         // Apply the bundled migration. We embed the SQL at compile time.
-        const SCHEMA: &str = include_str!("../../migrations/001_initial.sql");
+        const SCHEMA: &str = include_str!("../../../migrations/001_initial.sql");
         conn.execute_batch(SCHEMA)
             .context("applying initial migration")?;
 
@@ -165,7 +165,7 @@ impl SqliteStore {
         conn.pragma_update(None, "mmap_size", 268_435_456_i64)?;
 
         // 5. 运行 migrations(001_initial.sql + run_bundled_migrations)。
-        const SCHEMA: &str = include_str!("../../migrations/001_initial.sql");
+        const SCHEMA: &str = include_str!("../../../migrations/001_initial.sql");
         conn.execute_batch(SCHEMA)
             .context("applying initial migration")?;
         super::migration::run_bundled_migrations(&conn).context("applying pending migrations")?;

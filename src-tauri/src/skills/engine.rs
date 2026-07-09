@@ -279,8 +279,12 @@ impl SkillEngine {
     /// store — it constructs a fresh [`SkillStore`] that re-uses the
     /// underlying connection.
     pub fn new(sqlite: Arc<SqliteStore>, llm: Arc<LlmGateway>) -> Self {
-        let store = SkillStore::new((*sqlite).clone())
-            .expect("SkillStore::new must succeed when migrations have been run");
+        let store = SkillStore::new((*sqlite).clone()).unwrap_or_else(|e| {
+            // T-D-B-07: SkillStore::new 仅在 skills 表不存在时失败(migrations 未运行)。
+            // 降级为 from_sqlite_unchecked(跳过表检查),后续查询会返回错误而非 panic。
+            error!("SkillStore::new failed: {e}; constructing without table check");
+            SkillStore::from_sqlite_unchecked((*sqlite).clone())
+        });
         Self {
             store,
             llm,
@@ -1672,7 +1676,10 @@ mod tests {
             input: serde_json::json!({"msg": "facade"}),
             timeout_ms: 1000,
         };
-        let resp = eng.execute_skill_request(req).await.expect("task should complete");
+        let resp = eng
+            .execute_skill_request(req)
+            .await
+            .expect("task should complete");
         assert!(resp.error.is_none(), "echo via facade should succeed");
         assert_eq!(resp.output, serde_json::json!({"msg": "facade"}));
 

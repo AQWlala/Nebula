@@ -24,6 +24,7 @@ import {
   type StepStatus,
 } from '../lib/tauri';
 import { toast } from './Toast';
+import { t, type Dict } from '../i18n';
 
 const STATUS_COLORS: Record<LongTaskStatus, string> = {
   pending: '#9CA3AF',
@@ -34,13 +35,13 @@ const STATUS_COLORS: Record<LongTaskStatus, string> = {
   cancelled: '#6B7280',
 };
 
-const STATUS_LABELS: Record<LongTaskStatus, string> = {
-  pending: '待启动',
-  running: '执行中',
-  paused: '已暂停',
-  completed: '已完成',
-  failed: '失败',
-  cancelled: '已取消',
+const STATUS_LABELS: Record<LongTaskStatus, keyof Dict> = {
+  pending: 'longTask.status.pending',
+  running: 'longTask.status.running',
+  paused: 'longTask.status.paused',
+  completed: 'longTask.status.completed',
+  failed: 'longTask.status.failed',
+  cancelled: 'longTask.status.cancelled',
 };
 
 const STEP_STATUS_COLORS: Record<StepStatus, string> = {
@@ -51,12 +52,12 @@ const STEP_STATUS_COLORS: Record<StepStatus, string> = {
   skipped: '#9CA3AF',
 };
 
-const STEP_STATUS_LABELS: Record<StepStatus, string> = {
-  pending: '待执行',
-  running: '执行中',
-  done: '完成',
-  failed: '失败',
-  skipped: '跳过',
+const STEP_STATUS_LABELS: Record<StepStatus, keyof Dict> = {
+  pending: 'longTask.stepStatus.pending',
+  running: 'longTask.stepStatus.running',
+  done: 'longTask.stepStatus.done',
+  failed: 'longTask.stepStatus.failed',
+  skipped: 'longTask.stepStatus.skipped',
 };
 
 interface StepDraft {
@@ -121,7 +122,7 @@ export function LongTaskPanel() {
 
   const handleRemoveStep = (idx: number) => {
     if (steps.length === 1) {
-      toast.warning('至少需要一个步骤');
+      toast.warning(t('longTask.toast.needStep'));
       return;
     }
     setSteps(steps.filter((_, i) => i !== idx));
@@ -133,7 +134,7 @@ export function LongTaskPanel() {
 
   const handleCreate = async () => {
     if (!goal.trim()) {
-      toast.warning('请输入任务目标');
+      toast.warning(t('longTask.toast.goalRequired'));
       return;
     }
     // 解析步骤
@@ -145,7 +146,7 @@ export function LongTaskPanel() {
         args: s.args.trim() ? s.args.split(/\s+/).filter(Boolean) : [],
       }));
     if (stepInputs.length === 0) {
-      toast.warning('至少需要一个有效步骤(需填写程序名)');
+      toast.warning(t('longTask.toast.needValidStep'));
       return;
     }
     setCreating(true);
@@ -156,14 +157,14 @@ export function LongTaskPanel() {
         workspaceId.trim() || null,
         planId.trim() || null
       );
-      toast.success(`已创建长任务: ${task.id.slice(0, 8)}`);
+      toast.success(t('longTask.toast.created', { id: task.id.slice(0, 8) }));
       setGoal('');
       setWorkspaceId('');
       setPlanId('');
       setSteps([makeStepDraft()]);
       await refresh();
     } catch (e) {
-      toast.error('创建失败', String(e));
+      toast.error(t('longTask.toast.createFailed'), String(e));
     } finally {
       setCreating(false);
     }
@@ -194,20 +195,20 @@ export function LongTaskPanel() {
   const handleStart = async (id: string) => {
     try {
       await nebulaAPI.longTaskStart(id);
-      toast.success('已启动');
+      toast.success(t('longTask.toast.started'));
       await refresh();
     } catch (e) {
-      toast.error('启动失败', String(e));
+      toast.error(t('longTask.toast.startFailed'), String(e));
     }
   };
 
   const handlePause = async (id: string) => {
     try {
       await nebulaAPI.longTaskPause(id);
-      toast.success('已暂停');
+      toast.success(t('longTask.toast.paused'));
       await refresh();
     } catch (e) {
-      toast.error('暂停失败', String(e));
+      toast.error(t('longTask.toast.pauseFailed'), String(e));
     }
   };
 
@@ -215,10 +216,10 @@ export function LongTaskPanel() {
   const _handleResume = async (id: string) => {
     try {
       await nebulaAPI.longTaskResume(id);
-      toast.success('已恢复');
+      toast.success(t('longTask.toast.resumed'));
       await refresh();
     } catch (e) {
-      toast.error('恢复失败', String(e));
+      toast.error(t('longTask.toast.resumeFailed'), String(e));
     }
   };
   void _handleResume;
@@ -229,15 +230,18 @@ export function LongTaskPanel() {
     try {
       if (kind === 'cancel') {
         await nebulaAPI.longTaskCancel(id);
-        toast.success('已取消');
+        toast.success(t('longTask.toast.cancelled'));
       } else {
         await nebulaAPI.longTaskDelete(id);
-        toast.success('已删除');
+        toast.success(t('longTask.toast.deleted'));
         setExpandedTask(null);
       }
       await refresh();
     } catch (e) {
-      toast.error(kind === 'cancel' ? '取消失败' : '删除失败', String(e));
+      toast.error(
+        kind === 'cancel' ? t('longTask.toast.cancelFailed') : t('longTask.toast.deleteFailed'),
+        String(e)
+      );
     } finally {
       setConfirmAction(null);
     }
@@ -250,14 +254,14 @@ export function LongTaskPanel() {
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">⏳ 长任务</h2>
+        <h2 className="text-sm font-semibold text-gray-300">{t('longTask.title')}</h2>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-gray-500">加载中…</span>}
-          <span className="text-xs text-gray-500">{tasks.length} 个任务</span>
+          {loading && <span className="text-xs text-gray-500">{t('longTask.loading')}</span>}
+          <span className="text-xs text-gray-500">{t('longTask.taskCount', { n: tasks.length })}</span>
           <button
             onClick={refresh}
             className="text-xs text-gray-400 hover:text-white transition-colors"
-            title="刷新"
+            title={t('longTask.refresh')}
           >
             ↻
           </button>
@@ -268,7 +272,7 @@ export function LongTaskPanel() {
       <div className="px-4 py-2 border-b border-gray-800 space-y-2">
         <input
           type="text"
-          placeholder="任务目标,如:重构 memory 模块并迁移所有测试..."
+          placeholder={t('longTask.goalPlaceholder')}
           value={goal}
           onInput={(e) => setGoal((e.target as HTMLInputElement).value)}
           className="w-full px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
@@ -303,7 +307,7 @@ export function LongTaskPanel() {
               <span className="text-xs text-gray-500 w-6">#{idx + 1}</span>
               <input
                 type="text"
-                placeholder="步骤描述"
+                placeholder={t('longTask.stepDescPlaceholder')}
                 value={step.description}
                 onInput={(e) =>
                   handleStepChange(idx, 'description', (e.target as HTMLInputElement).value)
@@ -313,7 +317,7 @@ export function LongTaskPanel() {
               />
               <input
                 type="text"
-                placeholder="程序(cargo/npm/git...)"
+                placeholder={t('longTask.programPlaceholder')}
                 value={step.program}
                 onInput={(e) =>
                   handleStepChange(idx, 'program', (e.target as HTMLInputElement).value)
@@ -323,7 +327,7 @@ export function LongTaskPanel() {
               />
               <input
                 type="text"
-                placeholder="参数(空格分隔)"
+                placeholder={t('longTask.argsPlaceholder')}
                 value={step.args}
                 onInput={(e) => handleStepChange(idx, 'args', (e.target as HTMLInputElement).value)}
                 className="w-40 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
@@ -332,7 +336,7 @@ export function LongTaskPanel() {
               <button
                 onClick={() => handleRemoveStep(idx)}
                 className="px-2 py-1 text-xs text-red-400 hover:text-red-300"
-                title="移除步骤"
+                title={t('longTask.removeStep')}
                 data-testid={`long-task-step-remove-${idx}`}
               >
                 ✕
@@ -344,7 +348,7 @@ export function LongTaskPanel() {
             className="text-xs text-blue-400 hover:text-blue-300"
             data-testid="long-task-add-step-btn"
           >
-            + 添加步骤
+            {t('longTask.addStep')}
           </button>
         </div>
         <button
@@ -353,7 +357,7 @@ export function LongTaskPanel() {
           className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-white transition-colors"
           data-testid="long-task-create-btn"
         >
-          {creating ? '创建中…' : '创建任务'}
+          {creating ? t('longTask.creating') : t('longTask.create')}
         </button>
       </div>
 
@@ -361,7 +365,7 @@ export function LongTaskPanel() {
       <div className="flex-1 overflow-y-auto">
         {tasks.length === 0 && !loading && (
           <div className="text-center text-gray-500 py-12" data-testid="long-task-empty">
-            暂无长任务
+            {t('longTask.empty')}
           </div>
         )}
         {tasks.map((task) => (
@@ -383,7 +387,7 @@ export function LongTaskPanel() {
                     style={{ color: STATUS_COLORS[task.status] }}
                     data-testid={`long-task-status-${task.id}`}
                   >
-                    {STATUS_LABELS[task.status]}
+                    {t(STATUS_LABELS[task.status])}
                   </span>
                   <span className="text-xs text-gray-600">·</span>
                   <span className="text-xs text-gray-500 font-mono">{task.id.slice(0, 8)}</span>
@@ -410,9 +414,13 @@ export function LongTaskPanel() {
                 </div>
                 {/* 元信息 */}
                 <div className="mt-1 flex items-center gap-3 text-xs text-gray-600">
-                  <span>创建: {formatTime(task.created_at)}</span>
-                  {task.started_at && <span>开始: {formatTime(task.started_at)}</span>}
-                  {task.finished_at && <span>完成: {formatTime(task.finished_at)}</span>}
+                  <span>{t('longTask.createdAt', { time: formatTime(task.created_at) })}</span>
+                  {task.started_at && (
+                    <span>{t('longTask.startedAt', { time: formatTime(task.started_at) })}</span>
+                  )}
+                  {task.finished_at && (
+                    <span>{t('longTask.finishedAt', { time: formatTime(task.finished_at) })}</span>
+                  )}
                   {task.workspace_id && (
                     <span className="text-blue-500/70">ws: {task.workspace_id.slice(0, 8)}</span>
                   )}
@@ -439,7 +447,7 @@ export function LongTaskPanel() {
                   className="px-2 py-0.5 text-xs bg-green-600 hover:bg-green-700 rounded text-white"
                   data-testid={`long-task-start-btn-${task.id}`}
                 >
-                  {task.status === 'paused' ? '▶ 恢复' : '▶ 启动'}
+                  {task.status === 'paused' ? t('longTask.resume') : t('longTask.start')}
                 </button>
               )}
               {task.status === 'running' && (
@@ -448,7 +456,7 @@ export function LongTaskPanel() {
                   className="px-2 py-0.5 text-xs bg-yellow-600 hover:bg-yellow-700 rounded text-white"
                   data-testid={`long-task-pause-btn-${task.id}`}
                 >
-                  ⏸ 暂停
+                  {t('longTask.pause')}
                 </button>
               )}
               {!['completed', 'cancelled'].includes(task.status) && (
@@ -457,7 +465,7 @@ export function LongTaskPanel() {
                   className="px-2 py-0.5 text-xs bg-orange-600 hover:bg-orange-700 rounded text-white"
                   data-testid={`long-task-cancel-btn-${task.id}`}
                 >
-                  ✕ 取消
+                  {t('longTask.cancel')}
                 </button>
               )}
               <button
@@ -465,14 +473,14 @@ export function LongTaskPanel() {
                 className="px-2 py-0.5 text-xs bg-red-900 hover:bg-red-800 rounded text-white"
                 data-testid={`long-task-delete-btn-${task.id}`}
               >
-                🗑 删除
+                {t('longTask.delete')}
               </button>
               <button
                 onClick={() => handleExpand(task.id)}
                 className="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white"
                 data-testid={`long-task-expand-btn-${task.id}`}
               >
-                {expandedTask === task.id ? '▲ 收起' : '▼ 步骤'}
+                {expandedTask === task.id ? t('longTask.collapse') : t('longTask.steps')}
               </button>
             </div>
 
@@ -482,13 +490,13 @@ export function LongTaskPanel() {
                 className="mt-3 pl-4 border-l border-gray-800"
                 data-testid={`long-task-steps-view-${task.id}`}
               >
-                {stepsLoading && <div className="text-xs text-gray-500">加载步骤…</div>}
+                {stepsLoading && <div className="text-xs text-gray-500">{t('longTask.loadingSteps')}</div>}
                 {!stepsLoading && stepsData.length === 0 && (
                   <div
                     className="text-xs text-gray-600"
                     data-testid={`long-task-steps-empty-${task.id}`}
                   >
-                    无步骤数据
+                    {t('longTask.noStepData')}
                   </div>
                 )}
                 {stepsData.map((step) => (
@@ -508,7 +516,7 @@ export function LongTaskPanel() {
                         className="text-xs font-medium"
                         style={{ color: STEP_STATUS_COLORS[step.status] }}
                       >
-                        {STEP_STATUS_LABELS[step.status]}
+                        {t(STEP_STATUS_LABELS[step.status])}
                       </span>
                       <code className="text-xs text-gray-300">
                         {step.program} {step.args.join(' ')}
@@ -528,7 +536,7 @@ export function LongTaskPanel() {
                           <div className="text-gray-600">exit: {step.exit_code}</div>
                         )}
                         {!step.output && !step.error && step.exit_code === null && (
-                          <div className="text-gray-600">(无输出)</div>
+                          <div className="text-gray-600">{t('longTask.noOutput')}</div>
                         )}
                       </div>
                     )}
@@ -549,8 +557,8 @@ export function LongTaskPanel() {
           <div className="bg-gray-900 border border-gray-700 rounded p-4 max-w-sm">
             <div className="text-sm text-white mb-3">
               {confirmAction.kind === 'cancel'
-                ? '确定取消此任务?剩余步骤将被跳过。'
-                : '确定删除此任务?此操作不可逆。'}
+                ? t('longTask.confirmCancel')
+                : t('longTask.confirmDelete')}
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -558,14 +566,14 @@ export function LongTaskPanel() {
                 className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white"
                 data-testid="long-task-confirm-cancel"
               >
-                取消
+                {t('longTask.dialogCancel')}
               </button>
               <button
                 onClick={handleConfirmAction}
                 className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 rounded text-white"
                 data-testid="long-task-confirm-ok"
               >
-                确认
+                {t('longTask.dialogConfirm')}
               </button>
             </div>
           </div>

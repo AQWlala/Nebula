@@ -25,7 +25,14 @@ fn main() {
     let config = nebula_lib::AppConfig::from_env();
     tracing::info!(target: "nebula", db_path = ?config.db_path, "loaded configuration");
 
-    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    // T-D-B-07: 运行时创建失败时记录日志并退出,而非 panic
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            tracing::error!(target: "nebula", error = %e, "failed to create tokio runtime");
+            std::process::exit(1);
+        }
+    };
     rt.block_on(async {
         let state = match nebula_lib::AppState::bootstrap_headless(config).await {
             Ok(s) => s,

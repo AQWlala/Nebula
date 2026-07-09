@@ -268,7 +268,7 @@ mod tests {
     /// 不依赖 SqliteStore(避免拉起完整 migration runner)。
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().expect("open in-memory sqlite");
-        conn.execute_batch(include_str!("../../migrations/024_chat_annotations.sql"))
+        conn.execute_batch(include_str!("../../../migrations/024_chat_annotations.sql"))
             .expect("apply 024 migration");
         conn
     }

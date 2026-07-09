@@ -34,7 +34,9 @@ impl SensitiveDetector {
     pub fn new(name: &'static str, pattern: &str, replacement: &'static str) -> Self {
         Self {
             name,
-            pattern: Regex::new(pattern).expect("valid regex in detectors"),
+            pattern: Regex::new(pattern)
+                // T-D-B-07: 字面量保证有效,所有调用方传入字面量正则,保留 expect
+                .expect("valid regex in detectors"),
             replacement,
         }
     }
@@ -52,11 +54,19 @@ impl SensitiveDetector {
 
 /// 预编译的中国身份证正则（18位，最后一位可能是X）
 #[allow(dead_code)]
-static CHINA_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d{17}[\dXx]\b").expect("valid regex"));
+static CHINA_ID_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b\d{17}[\dXx]\b")
+        // T-D-B-07: 字面量保证有效,保留 expect
+        .expect("valid regex")
+});
 
 /// 预编译的中国手机号正则（11位，以1开头）
 #[allow(dead_code)]
-static CHINA_PHONE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b1[3-9]\d{9}\b").expect("valid regex"));
+static CHINA_PHONE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b1[3-9]\d{9}\b")
+        // T-D-B-07: 字面量保证有效,保留 expect
+        .expect("valid regex")
+});
 
 /// 检测器注册表 — 扫描内容对所有注册模式进行检测。
 #[derive(Debug, Clone)]

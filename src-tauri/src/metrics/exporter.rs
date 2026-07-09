@@ -12,6 +12,7 @@
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -68,134 +69,146 @@ pub struct MetricsRegistry {
 }
 
 impl MetricsRegistry {
-    pub fn new() -> Self {
+    /// Fallible constructor — propagates `prometheus` crate errors via
+    /// `anyhow::Result`. Used by [`start`] so that registry build
+    /// failures are logged and the exporter is disabled gracefully
+    /// instead of panicking the whole process.
+    pub fn try_new() -> anyhow::Result<Self> {
         let registry = prometheus::Registry::new();
 
         let embedding_cache_hits = IntCounter::new(
             "nebula_embedding_cache_hits_total",
             "Embedder cache hits since process start",
         )
-        .expect("must succeed");
+        .context("create nebula_embedding_cache_hits_total")?;
         let embedding_cache_misses = IntCounter::new(
             "nebula_embedding_cache_misses_total",
             "Embedder cache misses since process start",
         )
-        .expect("must succeed");
+        .context("create nebula_embedding_cache_misses_total")?;
         let memory_stores_total =
-            IntCounter::new("nebula_memory_stores_total", "Total memory_store calls").expect("metric 'nebula_memory_stores_total' must be valid");
+            IntCounter::new("nebula_memory_stores_total", "Total memory_store calls")
+                .context("create nebula_memory_stores_total")?;
         let memory_searches_total =
-            IntCounter::new("nebula_memory_searches_total", "Total memory_search calls").expect("metric 'nebula_memory_searches_total' must be valid");
+            IntCounter::new("nebula_memory_searches_total", "Total memory_search calls")
+                .context("create nebula_memory_searches_total")?;
         let blackhole_compressions_total = IntCounter::new(
             "nebula_blackhole_compressions_total",
             "Rows compressed by the black-hole engine",
         )
-        .expect("must succeed");
+        .context("create nebula_blackhole_compressions_total")?;
         let reflections_generated_total = IntCounter::new(
             "nebula_reflections_generated_total",
             "L5 reflections produced",
         )
-        .expect("must succeed");
+        .context("create nebula_reflections_generated_total")?;
         let swarm_executions_total =
-            IntCounter::new("nebula_swarm_executions_total", "swarm_execute invocations").expect("metric 'nebula_swarm_executions_total' must be valid");
-        let chat_total = IntCounter::new("nebula_chat_total", "chat invocations").expect("metric 'nebula_chat_total' must be valid");
+            IntCounter::new("nebula_swarm_executions_total", "swarm_execute invocations")
+                .context("create nebula_swarm_executions_total")?;
+        let chat_total = IntCounter::new("nebula_chat_total", "chat invocations")
+            .context("create nebula_chat_total")?;
         let memory_search_latency_us = IntCounter::new(
             "nebula_memory_search_latency_us_total",
             "Cumulative memory_search latency in microseconds",
         )
-        .expect("must succeed");
+        .context("create nebula_memory_search_latency_us_total")?;
         let memory_search_latency_count = IntCounter::new(
             "nebula_memory_search_latency_count",
             "Number of memory_search latency samples",
         )
-        .expect("must succeed");
+        .context("create nebula_memory_search_latency_count")?;
         let llm_chat_latency_us = IntCounter::new(
             "nebula_llm_chat_latency_us_total",
             "Cumulative chat latency in microseconds",
         )
-        .expect("must succeed");
+        .context("create nebula_llm_chat_latency_us_total")?;
         let llm_chat_latency_count = IntCounter::new(
             "nebula_llm_chat_latency_count",
             "Number of chat latency samples",
         )
-        .expect("must succeed");
+        .context("create nebula_llm_chat_latency_count")?;
         let embedding_cache_hit_ratio = IntGauge::new(
             "nebula_embedding_cache_hit_ratio",
             "Embedder cache hit ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .expect("must succeed");
+        .context("create nebula_embedding_cache_hit_ratio")?;
         // T-S1-B-03: 11 个新 IntCounter + 3 个新 IntGauge。
         let token_prompt_total = IntCounter::new(
             "nebula_token_prompt_total",
             "Cumulative LLM prompt tokens (from provider usage field)",
         )
-        .expect("must succeed");
+        .context("create nebula_token_prompt_total")?;
         let token_completion_total = IntCounter::new(
             "nebula_token_completion_total",
             "Cumulative LLM completion tokens (from provider usage field)",
         )
-        .expect("must succeed");
-        let l0_hits = IntCounter::new("nebula_l0_hits_total", "L0 hot cache hits").expect("metric 'nebula_l0_hits_total' must be valid");
-        let l0_misses = IntCounter::new("nebula_l0_misses_total", "L0 hot cache misses").expect("metric 'nebula_l0_misses_total' must be valid");
+        .context("create nebula_token_completion_total")?;
+        let l0_hits = IntCounter::new("nebula_l0_hits_total", "L0 hot cache hits")
+            .context("create nebula_l0_hits_total")?;
+        let l0_misses = IntCounter::new("nebula_l0_misses_total", "L0 hot cache misses")
+            .context("create nebula_l0_misses_total")?;
         let l4_allow_total =
-            IntCounter::new("nebula_l4_allow_total", "L4 values layer Allow verdicts").expect("metric 'nebula_l4_allow_total' must be valid");
+            IntCounter::new("nebula_l4_allow_total", "L4 values layer Allow verdicts")
+                .context("create nebula_l4_allow_total")?;
         let l4_confirm_total = IntCounter::new(
             "nebula_l4_confirm_total",
             "L4 values layer Confirm verdicts (needs user approval)",
         )
-        .expect("must succeed");
+        .context("create nebula_l4_confirm_total")?;
         let l4_plan_total = IntCounter::new(
             "nebula_l4_plan_total",
             "L4 values layer Plan verdicts (needs Plan mode)",
         )
-        .expect("must succeed");
+        .context("create nebula_l4_plan_total")?;
         let l4_deny_total = IntCounter::new(
             "nebula_l4_deny_total",
             "L4 values layer Deny verdicts (blocked)",
         )
-        .expect("must succeed");
-        let acl_allow_total =
-            IntCounter::new("nebula_acl_allow_total", "ACL allow verdicts").expect("metric 'nebula_acl_allow_total' must be valid");
-        let acl_deny_total = IntCounter::new("nebula_acl_deny_total", "ACL deny verdicts").expect("metric 'nebula_acl_deny_total' must be valid");
+        .context("create nebula_l4_deny_total")?;
+        let acl_allow_total = IntCounter::new("nebula_acl_allow_total", "ACL allow verdicts")
+            .context("create nebula_acl_allow_total")?;
+        let acl_deny_total = IntCounter::new("nebula_acl_deny_total", "ACL deny verdicts")
+            .context("create nebula_acl_deny_total")?;
         let reflections_skipped_total = IntCounter::new(
             "nebula_reflections_skipped_total",
             "Reflection passes skipped by RoundGuard (cooldown window saturated)",
         )
-        .expect("must succeed");
+        .context("create nebula_reflections_skipped_total")?;
         let l0_hit_ratio = IntGauge::new(
             "nebula_l0_hit_ratio",
             "L0 hot cache hit ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .expect("must succeed");
+        .context("create nebula_l0_hit_ratio")?;
         let l4_block_ratio = IntGauge::new(
             "nebula_l4_block_ratio",
             "L4 block ratio = (Confirm+Plan+Deny)/total, scaled by 10000",
         )
-        .expect("must succeed");
+        .context("create nebula_l4_block_ratio")?;
         let acl_deny_ratio = IntGauge::new(
             "nebula_acl_deny_ratio",
             "ACL deny ratio in [0,1] (scaled by 10000 for integer storage)",
         )
-        .expect("must succeed");
+        .context("create nebula_acl_deny_ratio")?;
         let process_rss_bytes = IntGauge::new(
             "nebula_process_rss_bytes",
             "Process resident set size in bytes",
         )
-        .expect("must succeed");
+        .context("create nebula_process_rss_bytes")?;
         let process_virtual_bytes = IntGauge::new(
             "nebula_process_virtual_bytes",
             "Process virtual memory size in bytes",
         )
-        .expect("must succeed");
+        .context("create nebula_process_virtual_bytes")?;
         let process_cpu_pct = IntGauge::new(
             "nebula_process_cpu_pct",
             "Process CPU usage percent (scaled by 100 for integer storage)",
         )
-        .expect("must succeed");
+        .context("create nebula_process_cpu_pct")?;
         let over_rss_budget = IntGauge::new(
             "nebula_over_rss_budget",
             "1 when RSS is over the 500MB budget, 0 otherwise",
         )
-        .expect("must succeed");
+        .context("create nebula_over_rss_budget")?;
 
         let mf = &registry;
         let _ = mf.register(Box::new(embedding_cache_hits.clone()));
@@ -231,7 +244,7 @@ impl MetricsRegistry {
         let _ = mf.register(Box::new(process_cpu_pct.clone()));
         let _ = mf.register(Box::new(over_rss_budget.clone()));
 
-        Self {
+        Ok(Self {
             embedding_cache_hits,
             embedding_cache_misses,
             memory_stores_total,
@@ -264,7 +277,24 @@ impl MetricsRegistry {
             process_cpu_pct,
             over_rss_budget,
             registry,
-        }
+        })
+    }
+
+    /// Convenience constructor preserving the historical `Self`-returning
+    /// signature for `Default` and test call sites.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `try_new()` fails. This is safe because all metric
+    /// names passed to `IntCounter::new` / `IntGauge::new` are
+    /// hardcoded string literals that are guaranteed to be valid
+    /// Prometheus identifiers — the only way this can fail is a bug
+    /// in the `prometheus` crate itself.
+    pub fn new() -> Self {
+        // T-D-B-07: 保留 expect —— 所有 metric 名均为硬编码字面量，
+        // 由 `try_new` 内的 `IntCounter::new` / `IntGauge::new` 校验，
+        // 仅当 `prometheus` crate 自身有 bug 时才会失败（详见上方 # Panics 文档）。
+        Self::try_new().expect("metric names are hardcoded literals guaranteed valid")
     }
 }
 
@@ -410,7 +440,17 @@ async fn fallback() -> StatusCode {
 /// Returns a `JoinHandle` that the caller may drop to stop the
 /// server, or leak to let it run for the process lifetime.
 pub fn start(bind_addr: String, perf: PerfMonitor) -> JoinHandle<()> {
-    let reg = Arc::new(MetricsRegistry::new());
+    let reg = match MetricsRegistry::try_new() {
+        Ok(r) => Arc::new(r),
+        Err(e) => {
+            error!(
+                target: "nebula.metrics",
+                error = ?e,
+                "failed to build metrics registry; exporter disabled"
+            );
+            return tokio::spawn(async {});
+        }
+    };
     let state = AppState { reg, perf };
 
     tokio::spawn(async move {

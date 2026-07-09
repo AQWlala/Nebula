@@ -297,6 +297,7 @@ fn is_url(s: &str) -> bool {
 
 /// Email 检测:简单正则 `[^@\s]+@[^@\s]+\.[^@\s]+`。
 fn is_email(s: &str) -> bool {
+    // T-D-B-07: 字面量保证有效,保留 expect
     let re = regex::Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").expect("valid regex");
     re.is_match(s)
 }
@@ -309,6 +310,7 @@ fn is_ip(s: &str) -> bool {
     }
     // IPv6:含至少一个 ':' 且每段为十六进制。
     if s.contains(':') && s.len() <= 39 {
+        // T-D-B-07: 字面量保证有效,保留 expect
         let re = regex::Regex::new(r"^[0-9a-fA-F:]+$").expect("valid regex");
         if re.is_match(s) && s.split(':').count() >= 2 {
             return true;

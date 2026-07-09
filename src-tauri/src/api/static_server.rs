@@ -130,8 +130,7 @@ impl WebStaticServer {
             .status(200)
             .header("content-type", mime)
             .header("cache-control", cache_control_for(path))
-            .body(body)
-            .expect("must succeed");
+            .body(body)?;
         Ok(resp)
     }
 
@@ -142,7 +141,7 @@ impl WebStaticServer {
             .status(status)
             .header("content-type", "text/plain; charset=utf-8")
             .body(body)
-            .expect("must succeed")
+            .unwrap_or_else(|_| hyper::Response::new(Full::new(Bytes::new()).boxed()))
     }
 }
 
@@ -231,7 +230,10 @@ mod tests {
     async fn disabled_server_returns_none() {
         let server = WebStaticServer::new(PathBuf::from("/nonexistent/dist"));
         assert!(!server.is_enabled());
-        let result = server.try_serve("GET", "/").await.expect("get should succeed");
+        let result = server
+            .try_serve("GET", "/")
+            .await
+            .expect("get should succeed");
         assert!(result.is_none());
     }
 
@@ -243,7 +245,10 @@ mod tests {
         let _ = tokio::fs::create_dir_all(&temp).await;
         let _ = tokio::fs::write(temp.join("index.html"), "<html></html>").await;
         let server = WebStaticServer::new(temp);
-        let result = server.try_serve("GET", "/api/health").await.expect("get should succeed");
+        let result = server
+            .try_serve("GET", "/api/health")
+            .await
+            .expect("get should succeed");
         assert!(result.is_none(), "API paths should not be intercepted");
     }
 }

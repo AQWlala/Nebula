@@ -112,10 +112,16 @@ impl GistPublisher {
 
 impl Default for GistPublisher {
     fn default() -> Self {
-        // build_safe_client 在 SsrfGuard::new() 下不可能失败(reqwest
-        // builder 仅在 redirect policy 自定义闭包内 panic 才会出错,
-        // 我们的闭包不 panic)。expect 是安全的。
-        Self::new().expect("GistPublisher::new must succeed with default SsrfGuard")
+        // T-D-B-07: build_safe_client 在 SsrfGuard::new() 下不可能失败(reqwest
+        // builder 仅在 redirect policy 自定义闭包内 panic 才会出错,我们的闭包不
+        // panic)。若极端情况下仍失败,降级为默认 reqwest::Client::new()(reqwest
+        // 0.12 的 Client::new 返回 Client 而非 Result)。
+        Self::new().unwrap_or_else(|e| {
+            tracing::warn!("GistPublisher::new failed: {e}; falling back to default client");
+            Self {
+                client: reqwest::Client::new(),
+            }
+        })
     }
 }
 
@@ -437,7 +443,10 @@ mod tests {
         let manifest = sample_manifest();
         let skill_md = skill_to_skill_md(&sample_skill()).expect("test op should succeed");
 
-        let result = publisher.publish(&skill_md, &manifest, None).await.expect("send should succeed");
+        let result = publisher
+            .publish(&skill_md, &manifest, None)
+            .await
+            .expect("send should succeed");
         assert_eq!(result.target, "file");
         assert!(result.url.is_none());
 
@@ -465,7 +474,10 @@ mod tests {
             .as_str()
             .expect("test op should succeed")
             .contains("text-summarizer"));
-        assert!(body["description"].as_str().expect("assertion value").contains("0.1.0"));
+        assert!(body["description"]
+            .as_str()
+            .expect("assertion value")
+            .contains("0.1.0"));
         assert_eq!(body["files"]["SKILL.md"]["content"], skill_md);
     }
 
@@ -477,7 +489,10 @@ mod tests {
         assert!(obj.contains_key("description"));
         assert!(obj.contains_key("public"));
         assert!(obj.contains_key("files"));
-        assert!(obj["files"].as_object().expect("assertion value").contains_key("SKILL.md"));
+        assert!(obj["files"]
+            .as_object()
+            .expect("assertion value")
+            .contains_key("SKILL.md"));
     }
 
     #[test]

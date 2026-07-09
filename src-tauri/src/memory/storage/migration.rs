@@ -323,7 +323,9 @@ fn split_sql(sql: &str) -> Vec<String> {
             ('-', None) if chars.peek() == Some(&'-') => {
                 flush_word(&mut word_buf, &mut begin_depth);
                 buf.push('-');
-                buf.push(chars.next().expect("peeked '-' must exist")); // push second '-'
+                if let Some(c) = chars.next() {
+                    buf.push(c); // push second '-'
+                }
                 for nc in chars.by_ref() {
                     buf.push(nc);
                     if nc == '\n' {
@@ -339,7 +341,9 @@ fn split_sql(sql: &str) -> Vec<String> {
                 while let Some(nc) = chars.next() {
                     buf.push(nc);
                     if nc == '*' && chars.peek() == Some(&'/') {
-                        buf.push(chars.next().expect("peeked '/' must exist"));
+                        if let Some(c) = chars.next() {
+                            buf.push(c);
+                        }
                         break;
                     }
                 }
@@ -436,131 +440,139 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             1,
             "initial",
-            include_str!("../../migrations/001_initial.sql"),
+            include_str!("../../../migrations/001_initial.sql"),
         ),
         (
             2,
             "reflections",
-            include_str!("../../migrations/002_reflections.sql"),
+            include_str!("../../../migrations/002_reflections.sql"),
         ),
-        (3, "skills", include_str!("../../migrations/003_skills.sql")),
-        (4, "v05", include_str!("../../migrations/004_v05.sql")),
-        (5, "v10", include_str!("../../migrations/005_v10.sql")),
+        (
+            3,
+            "skills",
+            include_str!("../../../migrations/003_skills.sql"),
+        ),
+        (4, "v05", include_str!("../../../migrations/004_v05.sql")),
+        (5, "v10", include_str!("../../../migrations/005_v10.sql")),
         (
             6,
             "documents_fk",
-            include_str!("../../migrations/006_documents_fk.sql"),
+            include_str!("../../../migrations/006_documents_fk.sql"),
         ),
         (
             7,
             "sensitive_mask",
-            include_str!("../../migrations/007_sensitive_mask.sql"),
+            include_str!("../../../migrations/007_sensitive_mask.sql"),
         ),
         (
             8,
             "evolution",
-            include_str!("../../migrations/008_evolution.sql"),
+            include_str!("../../../migrations/008_evolution.sql"),
         ),
         (
             9,
             "skill_archive",
-            include_str!("../../migrations/009_skill_archive.sql"),
+            include_str!("../../../migrations/009_skill_archive.sql"),
         ),
-        (10, "fts5", include_str!("../../migrations/010_fts5.sql")),
+        (10, "fts5", include_str!("../../../migrations/010_fts5.sql")),
         (
             11,
             "relation_evidence",
-            include_str!("../../migrations/011_relation_evidence.sql"),
+            include_str!("../../../migrations/011_relation_evidence.sql"),
         ),
         (
             12,
             "skill_audit_log",
-            include_str!("../../migrations/012_skill_audit_log.sql"),
+            include_str!("../../../migrations/012_skill_audit_log.sql"),
         ),
         (
             13,
             "memory_acl",
-            include_str!("../../migrations/013_memory_acl.sql"),
+            include_str!("../../../migrations/013_memory_acl.sql"),
         ),
         (
             14,
             "memories_archived",
-            include_str!("../../migrations/014_memories_archived.sql"),
+            include_str!("../../../migrations/014_memories_archived.sql"),
         ),
         (
             15,
             "skill_meta_extensions",
-            include_str!("../../migrations/015_skill_meta_extensions.sql"),
+            include_str!("../../../migrations/015_skill_meta_extensions.sql"),
         ),
         (
             16,
             "memory_versions",
-            include_str!("../../migrations/016_memory_versions.sql"),
+            include_str!("../../../migrations/016_memory_versions.sql"),
         ),
         (
             17,
             "document_exports",
-            include_str!("../../migrations/017_document_exports.sql"),
+            include_str!("../../../migrations/017_document_exports.sql"),
         ),
         (
             18,
             "fix_skill_ratings_pk",
-            include_str!("../../migrations/018_fix_skill_ratings_pk.sql"),
+            include_str!("../../../migrations/018_fix_skill_ratings_pk.sql"),
         ),
         // v1.6: Git 风格记忆版本控制 — 分支管理。
         (
             19,
             "memory_branches",
-            include_str!("../../migrations/019_memory_branches.sql"),
+            include_str!("../../../migrations/019_memory_branches.sql"),
         ),
         // T-S1-A-06: self_reflections 表 — L5 真反思持久化。
         (
             20,
             "self_reflections",
-            include_str!("../../migrations/020_self_reflections.sql"),
+            include_str!("../../../migrations/020_self_reflections.sql"),
         ),
         // T-S3-A-01: agentskills.io SkillMeta 补全 — trust_level/permissions/capabilities
         (
             21,
             "skill_trust_meta",
-            include_str!("../../migrations/021_skill_trust_meta.sql"),
+            include_str!("../../../migrations/021_skill_trust_meta.sql"),
         ),
         // T-S6-B-03: CRDT op 日志表 — 跨设备 CRDT op 传播落盘。
         (
             22,
             "crdt_op_log",
-            include_str!("../../migrations/022_crdt_op_log.sql"),
+            include_str!("../../../migrations/022_crdt_op_log.sql"),
         ),
         // T-E-S-28: 对话消息标注(good/bad)+ Dify 风格数据集导出。
         // UNIQUE(turn_id) 保证 upsert 幂等,created_at DESC 索引支撑 stats 聚合。
         (
             24,
             "chat_annotations",
-            include_str!("../../migrations/024_chat_annotations.sql"),
+            include_str!("../../../migrations/024_chat_annotations.sql"),
         ),
         // T-E-S-54: 事件触发器 — 文件/消息/Webhook 三种触发器持久化。
         // triggers + trigger_fire_log 两张表,idx_triggers_kind/enabled 索引。
         (
             25,
             "triggers",
-            include_str!("../../migrations/025_triggers.sql"),
+            include_str!("../../../migrations/025_triggers.sql"),
         ),
         // T-E-S-55: 条件监控 Watch — watch_state 表(Web hash / System 值 / Calendar UID)。
-        (26, "watch", include_str!("../../migrations/026_watch.sql")),
+        (
+            26,
+            "watch",
+            include_str!("../../../migrations/026_watch.sql"),
+        ),
         // T-E-A-12: Automation Credits — cost_records 表新增 source / trigger_id 列。
         // source 默认 'chat'(CostSource::Chat),trigger_id 可空。前向兼容预留
         // 持久化层(T-E-A-13),当前 CostTracker 仍为内存态。
         (
             27,
             "cost_source",
-            include_str!("../../migrations/027_cost_source.sql"),
+            include_str!("../../../migrations/027_cost_source.sql"),
         ),
         // T-E-C-17: IM 扫码绑定 — im_bindings 表(Feishu/WeCom/DingTalk webhook)。
         // Phase 1 Webhook 优先,Phase 2 OAuthUser 复用本表(由 kind 字段区分)。
         (
             28,
             "im_bindings",
-            include_str!("../../migrations/028_im_bindings.sql"),
+            include_str!("../../../migrations/028_im_bindings.sql"),
         ),
         // T-E-B-01: LLM Wiki 编译引擎 — wiki_notes 表 + FTS5 全文索引。
         // 每次对话后 AI "编译" 结构化 Markdown 笔记,UNIQUE(turn_id) 幂等,
@@ -568,7 +580,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             29,
             "wiki_notes",
-            include_str!("../../migrations/029_wiki_notes.sql"),
+            include_str!("../../../migrations/029_wiki_notes.sql"),
         ),
         // T-E-A-09: 记忆吸收成本(USD)— memories 表新增 ingest_cost REAL 列。
         // 默认 NULL(Option<f64>::None),Some(0.0) 表示已追踪但为零。
@@ -576,7 +588,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             30,
             "ingest_cost",
-            include_str!("../../migrations/030_ingest_cost.sql"),
+            include_str!("../../../migrations/030_ingest_cost.sql"),
         ),
         // T-E-D-01: 冷启动 < 3s 工程 — SemanticCache 响应正文持久化。
         // 重启后 prewarm_from_store 读取最近 256 条重建 entries map;
@@ -584,7 +596,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             31,
             "semantic_cache_entries",
-            include_str!("../../migrations/031_semantic_cache_entries.sql"),
+            include_str!("../../../migrations/031_semantic_cache_entries.sql"),
         ),
         // T-E-B-06: Wiki index.md + log.md 自动维护 — wiki_notes 表新增 importance 列。
         // 默认 0.5(对齐 memories.importance);regenerate_index 按其降序稳定排序。
@@ -592,7 +604,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             32,
             "wiki_notes_importance",
-            include_str!("../../migrations/032_wiki_notes_importance.sql"),
+            include_str!("../../../migrations/032_wiki_notes_importance.sql"),
         ),
         // T-E-B-05: 双向链接 [[]] 语法 — wiki_note_links 关联表(source_id / target_id)。
         // ON DELETE CASCADE 确保删除笔记时自动清除关联行;
@@ -600,12 +612,16 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             33,
             "wiki_note_links",
-            include_str!("../../migrations/033_wiki_note_links.sql"),
+            include_str!("../../../migrations/033_wiki_note_links.sql"),
         ),
         // T-E-A-14: Arena A/B 测试 — arena_matches + model_elo_scores 表。
         // arena_matches 存单场对战记录(prompt/model_a/model_b/winner/auto_score),
         // model_elo_scores 累积 ELO(K=32, 初始 1200)。持久化模式参考 027_cost_source。
-        (34, "arena", include_str!("../../migrations/034_arena.sql")),
+        (
+            34,
+            "arena",
+            include_str!("../../../migrations/034_arena.sql"),
+        ),
         // M2a 任务 #29: Memory.domain 字段（P0-9 修复）。
         // 为 memories 表添加 domain 列，用于按"域"隔离记忆。
         // 默认 'shared'（向后兼容旧记忆）；idx_memories_domain 加速 WHERE domain = ? 查询。
@@ -613,7 +629,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             35,
             "domain_column",
-            include_str!("../../migrations/035_domain_column.sql"),
+            include_str!("../../../migrations/035_domain_column.sql"),
         ),
         // M5 #72 / M7b #96: CostTracker 按 WorkType 分域统计 — cost_records 表新增 work_type 列。
         // work_type 取值:chat / swarm_worker / swarm_synthesize / master_task /
@@ -623,7 +639,7 @@ pub fn bundled_migrations() -> &'static [(u32, &'static str, &'static str)] {
         (
             36,
             "cost_work_type",
-            include_str!("../../migrations/036_cost_work_type.sql"),
+            include_str!("../../../migrations/036_cost_work_type.sql"),
         ),
     ]
 }
@@ -823,7 +839,8 @@ mod tests {
     #[test]
     fn bootstrap_v0_1_noop_when_already_set() {
         let (path, conn) = temp_db();
-        conn.pragma_update(None, "user_version", 5i64).expect("update should succeed");
+        conn.pragma_update(None, "user_version", 5i64)
+            .expect("update should succeed");
         bootstrap_v0_1_baseline(&conn).expect("test op should succeed");
         assert_eq!(current_version(&conn).expect("assertion value"), 5);
         cleanup_file(&path);
@@ -930,7 +947,8 @@ mod tests {
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
         .expect("test op should succeed");
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);")
+            .expect("create should succeed");
 
         let applied = run_migrations(&conn, &dir).expect("test op should succeed");
         assert_eq!(applied.len(), 2);
@@ -953,13 +971,15 @@ mod tests {
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
         .expect("test op should succeed");
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);")
+            .expect("create should succeed");
 
         // Simulate 001 already having been applied: create the table
         // manually and stamp user_version = 1.
         conn.execute_batch("CREATE TABLE t1 (id INTEGER PRIMARY KEY);")
             .expect("test op should succeed");
-        conn.pragma_update(None, "user_version", 1i64).expect("update should succeed");
+        conn.pragma_update(None, "user_version", 1i64)
+            .expect("update should succeed");
         let applied = run_migrations(&conn, &dir).expect("test op should succeed");
         assert_eq!(applied.len(), 1);
         assert_eq!(applied[0].version, 2);
@@ -977,7 +997,8 @@ mod tests {
             "CREATE TABLE t1 (id INTEGER PRIMARY KEY);",
         )
         .expect("test op should succeed");
-        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);").expect("create should succeed");
+        std::fs::write(dir.join("002_second.sql"), "CREATE INDEX i1 ON t1(id);")
+            .expect("create should succeed");
 
         let status = migration_status(&conn, &dir).expect("test op should succeed");
         assert_eq!(status.applied.len(), 2);
@@ -1043,7 +1064,8 @@ mod tests {
             "CREATE TABLE e2ee_keys (id INTEGER PRIMARY KEY);",
         )
         .expect("test op should succeed");
-        std::fs::write(dir.join("005_v10.sql"), "DROP TABLE IF EXISTS e2ee_keys;").expect("update should succeed");
+        std::fs::write(dir.join("005_v10.sql"), "DROP TABLE IF EXISTS e2ee_keys;")
+            .expect("update should succeed");
         run_migrations(&conn, &dir).expect("test op should succeed");
         let after: i64 = conn
             .query_row(
@@ -1114,7 +1136,8 @@ mod tests {
         assert_eq!(current_version(&conn).expect("assertion value"), 2);
 
         // 重置 user_version 到 1(模拟 002 未完成 user_version bump)
-        conn.pragma_update(None, "user_version", 1).expect("update should succeed");
+        conn.pragma_update(None, "user_version", 1)
+            .expect("update should succeed");
 
         // 重新运行迁移:002 会尝试 ALTER TABLE ADD COLUMN x,但列已存在,
         // 应报 "duplicate column name",is_idempotent_error 兜底静默忽略。

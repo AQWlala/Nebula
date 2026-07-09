@@ -420,7 +420,10 @@ impl<'a> Lexer<'a> {
 /// Example:
 /// ```
 /// use nebula_lib::memory::query_dsl::parse_str;
-/// let ast = parse_str("FROM L3 WHERE kind=fact AND importance>0.7").expect("must succeed");
+/// # fn main() -> Result<(), String> {
+/// let ast = parse_str("FROM L3 WHERE kind=fact AND importance>0.7")?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn parse_str(input: &str) -> Result<QueryAst, String> {
     let tokens = Lexer::new(input).tokenize()?;
@@ -852,7 +855,9 @@ mod tests {
 
     #[test]
     fn test_lexer_basic() {
-        let tokens = Lexer::new("FROM L3 WHERE kind=fact").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("FROM L3 WHERE kind=fact")
+            .tokenize()
+            .expect("create should succeed");
         // FROM, L3, WHERE, kind, =, fact, Eof → 7 tokens.
         assert_eq!(tokens.len(), 7);
         assert!(matches!(tokens[0], Token::From));
@@ -861,11 +866,15 @@ mod tests {
 
     #[test]
     fn test_lexer_keywords_case_insensitive() {
-        let tokens = Lexer::new("from L3 where kind=fact").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("from L3 where kind=fact")
+            .tokenize()
+            .expect("create should succeed");
         assert!(matches!(tokens[0], Token::From));
         assert!(matches!(tokens[2], Token::Where));
 
-        let tokens = Lexer::new("FROM L3 WHERE KIND=FACT").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("FROM L3 WHERE KIND=FACT")
+            .tokenize()
+            .expect("create should succeed");
         assert!(matches!(tokens[0], Token::From));
         assert!(matches!(tokens[2], Token::Where));
     }
@@ -889,7 +898,9 @@ mod tests {
 
     #[test]
     fn test_lexer_string_literal() {
-        let tokens = Lexer::new("'hello world'").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("'hello world'")
+            .tokenize()
+            .expect("create should succeed");
         match &tokens[0] {
             Token::String(s) => assert_eq!(s, "hello world"),
             other => panic!("expected String, got {other:?}"),
@@ -899,7 +910,9 @@ mod tests {
     #[test]
     fn test_lexer_string_escape() {
         // SQL-style: '' inside a string is a literal apostrophe.
-        let tokens = Lexer::new("'it''s'").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("'it''s'")
+            .tokenize()
+            .expect("create should succeed");
         match &tokens[0] {
             Token::String(s) => assert_eq!(s, "it's"),
             other => panic!("expected String, got {other:?}"),
@@ -908,7 +921,9 @@ mod tests {
 
     #[test]
     fn test_lexer_number() {
-        let tokens = Lexer::new("0.7 42 1e5").tokenize().expect("create should succeed");
+        let tokens = Lexer::new("0.7 42 1e5")
+            .tokenize()
+            .expect("create should succeed");
         match &tokens[0] {
             Token::Number(n) => assert!((n - 0.7).abs() < 1e-9),
             other => panic!("expected Number, got {other:?}"),
@@ -966,7 +981,8 @@ mod tests {
 
     #[test]
     fn test_parser_in_clause() {
-        let ast = Parser::parse_str("FROM L3 WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
+        let ast =
+            Parser::parse_str("FROM L3 WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::In(Field::Layer, values) => {
@@ -978,7 +994,8 @@ mod tests {
 
     #[test]
     fn test_parser_in_clause_with_strings() {
-        let ast = Parser::parse_str("FROM * WHERE kind IN ('fact', 'event')").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM * WHERE kind IN ('fact', 'event')")
+            .expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::In(Field::Kind, values) => {
@@ -991,7 +1008,8 @@ mod tests {
     #[test]
     fn test_parser_not_and_or_precedence() {
         // NOT a AND b OR c  ==  ((NOT a) AND b) OR c
-        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact")
+            .expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Or(left, right) => {
@@ -1010,8 +1028,8 @@ mod tests {
     #[test]
     fn test_parser_parens_override_precedence() {
         // a OR (b AND c) — the AND must be grouped inside the OR's right.
-        let ast =
-            Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM * WHERE kind=fact OR (kind=event AND importance>0.5)")
+            .expect("parse should succeed");
         let expr = ast.where_clause.expect("where clause");
         match expr {
             Expr::Or(_, right) => {
@@ -1023,7 +1041,8 @@ mod tests {
 
     #[test]
     fn test_parser_order_limit() {
-        let ast = Parser::parse_str("FROM L3 ORDER BY created_at ASC LIMIT 50").expect("create should succeed");
+        let ast = Parser::parse_str("FROM L3 ORDER BY created_at ASC LIMIT 50")
+            .expect("create should succeed");
         let order = ast.order.expect("order clause");
         assert_eq!(order.field, Field::CreatedAt);
         assert_eq!(order.direction, OrderDir::Asc);
@@ -1084,7 +1103,8 @@ mod tests {
 
     #[test]
     fn test_translate_sql_generation() {
-        let ast = Parser::parse_str("FROM L3 WHERE kind=fact AND importance>0.7").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM L3 WHERE kind=fact AND importance>0.7")
+            .expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.starts_with("SELECT "));
         assert!(sql.contains("FROM memories"));
@@ -1138,7 +1158,8 @@ mod tests {
             ("meta", "metacognitive"),
         ];
         for (alias, expected) in cases {
-            let ast = Parser::parse_str(&format!("FROM * WHERE kind={alias}")).expect("parse should succeed");
+            let ast = Parser::parse_str(&format!("FROM * WHERE kind={alias}"))
+                .expect("parse should succeed");
             let (_, params) = translate(&ast);
             // params: [kind_value, limit]
             assert_eq!(
@@ -1168,7 +1189,8 @@ mod tests {
 
     #[test]
     fn test_translate_explicit_order_and_limit() {
-        let ast = Parser::parse_str("FROM * ORDER BY importance ASC LIMIT 10").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM * ORDER BY importance ASC LIMIT 10")
+            .expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("ORDER BY importance ASC"));
         assert!(sql.contains("LIMIT ?"));
@@ -1199,7 +1221,8 @@ mod tests {
 
     #[test]
     fn test_translate_in_clause_params() {
-        let ast = Parser::parse_str("FROM * WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
+        let ast =
+            Parser::parse_str("FROM * WHERE layer IN (L3, L4, L5)").expect("parse should succeed");
         let (sql, params) = translate(&ast);
         assert!(sql.contains("IN (?, ?, ?)"));
         // params: [L3, L4, L5, limit]
@@ -1217,7 +1240,8 @@ mod tests {
         assert!(sql.contains("last_access IS NULL"));
 
         // != NULL → IS NOT NULL
-        let ast = Parser::parse_str("FROM * WHERE last_access!=NULL").expect("parse should succeed");
+        let ast =
+            Parser::parse_str("FROM * WHERE last_access!=NULL").expect("parse should succeed");
         let (sql, _) = translate(&ast);
         assert!(sql.contains("last_access IS NOT NULL"));
 
@@ -1229,7 +1253,8 @@ mod tests {
 
     #[test]
     fn test_translate_not_and_or_sql() {
-        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact").expect("parse should succeed");
+        let ast = Parser::parse_str("FROM * WHERE NOT pinned AND archived OR kind=fact")
+            .expect("parse should succeed");
         let (sql, _) = translate(&ast);
         // NOT pinned → NOT (pinned = ?)
         assert!(sql.contains("NOT"));
@@ -1248,7 +1273,8 @@ mod tests {
 
     #[test]
     fn test_sql_injection_prevention_value_is_parametrised() {
-        let ast = Parser::parse_str("FROM L3 WHERE content='; DROP TABLE memories--'").expect("delete should succeed");
+        let ast = Parser::parse_str("FROM L3 WHERE content='; DROP TABLE memories--'")
+            .expect("delete should succeed");
         let (sql, params) = translate(&ast);
         // The dangerous text must NOT appear in the SQL string.
         assert!(!sql.contains("DROP TABLE"));

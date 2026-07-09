@@ -797,10 +797,11 @@ fn strip_fences(raw: &str) -> String {
     // Also strip a `JSON:` / `json:` label prefix the model may use.
     let lower = after_opening.to_ascii_lowercase();
     if lower.starts_with("json:") || lower.starts_with("json：") {
+        // T-D-B-07: starts_with guard guarantees ':' or '：' exists; unwrap_or(0) never triggers
         after_opening[after_opening
             .find(':')
             .or_else(|| after_opening.find('：'))
-            .expect("must succeed")
+            .unwrap_or(0)
             + 1..]
             .trim_start()
             .to_string()
@@ -1167,12 +1168,16 @@ mod tests {
 
         let engine = ReflectionEngine::new(store.clone(), None, ReflectConfig::default());
         let rt = tokio::runtime::Runtime::new().expect("create should succeed");
-        let r1 = rt.block_on(engine.reflect_now()).expect("lock should succeed");
+        let r1 = rt
+            .block_on(engine.reflect_now())
+            .expect("lock should succeed");
         assert_eq!(r1.len(), 1);
         assert_ne!(r1[0].trigger_kind, "dedup_replay");
 
         // Second call within the same day should hit the dedup path.
-        let r2 = rt.block_on(engine.reflect_now()).expect("lock should succeed");
+        let r2 = rt
+            .block_on(engine.reflect_now())
+            .expect("lock should succeed");
         assert_eq!(r2.len(), 1);
         assert_eq!(r2[0].id, r1[0].id, "id should be reused");
         assert_eq!(r2[0].trigger_kind, "dedup_replay");

@@ -161,7 +161,7 @@ impl PairingState {
         // Derive session key from static keys (ECDH)
         let peer_public_key = x25519_dalek::PublicKey::from(
             TryInto::<[u8; 32]>::try_into(peer_static_pubkey)
-                .expect("length checked above (32 bytes)"),
+                .map_err(|_| anyhow!("internal: pubkey length mismatch after 32-byte check"))?,
         );
         let session = self.local_identity.derive_session_key(&peer_public_key);
 
@@ -223,7 +223,7 @@ impl PairingState {
         // 派生会话密钥
         let peer_public_key = x25519_dalek::PublicKey::from(
             TryInto::<[u8; 32]>::try_into(peer_static_bytes)
-                .expect("length checked above (32 bytes)"),
+                .map_err(|_| anyhow!("internal: pubkey length mismatch after 32-byte check"))?,
         );
         let session = self.local_identity.derive_session_key(&peer_public_key);
 
@@ -298,13 +298,19 @@ mod tests {
         let mut bob_state = PairingState::new();
 
         // Alice 生成 Offer
-        let offer = alice_state.generate_offer().expect("test op should succeed");
+        let offer = alice_state
+            .generate_offer()
+            .expect("test op should succeed");
 
         // Bob 处理 Offer，生成 Answer
-        let answer = bob_state.process_offer(&offer).expect("test op should succeed");
+        let answer = bob_state
+            .process_offer(&offer)
+            .expect("test op should succeed");
 
         // Alice 处理 Answer
-        alice_state.process_answer(&answer).expect("test op should succeed");
+        alice_state
+            .process_answer(&answer)
+            .expect("test op should succeed");
 
         // Alice (initiator) reaches Paired after processing answer.
         // Bob (responder) stays at AnswerGenerated until initiator

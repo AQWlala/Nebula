@@ -122,7 +122,8 @@ impl L0Cache {
         session_token_budget: usize,
         session_entry_limit: usize,
     ) -> Self {
-        let cap = NonZeroUsize::new(hot_cap.max(1)).expect("hot_cap must be non-zero");
+        // T-D-B-07: hot_cap.max(1) 保证 >=1,unwrap_or(NonZeroUsize::MIN) 永不触发
+        let cap = NonZeroUsize::new(hot_cap.max(1)).unwrap_or(NonZeroUsize::MIN);
         Self {
             hot: Mutex::new(LruCache::new(cap)),
             session: Mutex::new(SessionWindow::new(

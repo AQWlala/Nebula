@@ -440,11 +440,20 @@ impl SwarmOrchestrator {
             Verdict::Allow => PreCheckResult::Allow,
             Verdict::Deny { reason } => PreCheckResult::Deny(reason.clone()),
             Verdict::Confirm { .. } | Verdict::Plan { .. } => {
-                let gate = self
+                // T-D-B-07: create_gate 理论上返回 Some,失败时降级为 Deny 而非 panic
+                match self
                     .plan_engine
                     .create_gate(&verdict, &task.description, kind)
-                    .expect("create_gate returns Some for Confirm/Plan verdicts");
-                PreCheckResult::Gate(gate)
+                {
+                    Some(gate) => PreCheckResult::Gate(gate),
+                    None => {
+                        warn!(
+                            target: "nebula.swarm",
+                            "create_gate returned None for Confirm/Plan verdict; denying task"
+                        );
+                        PreCheckResult::Deny("gate creation failed".to_string())
+                    }
+                }
             }
         }
     }

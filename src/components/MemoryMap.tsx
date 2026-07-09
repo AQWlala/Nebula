@@ -77,13 +77,8 @@ const ALL_DIMS: RelationDimension[] = [
   'similarity',
 ];
 
-const DIM_LABELS: Record<RelationDimension, string> = {
-  causal: '因果',
-  temporal: '时序',
-  entity: '实体',
-  hierarchical: '层级',
-  similarity: '相似',
-};
+/** v1.0 i18n: dimension label via t() — re-renders on locale switch. */
+const dimLabel = (d: RelationDimension): string => t(`memoryMap.dim.${d}`);
 
 /** v1.0 i18n: convert const Record map to function form so labels re-render on locale switch. */
 const layerLabel = (l: Layer): string => t(`memoryMap.layer.${l}`);
@@ -728,21 +723,21 @@ export function MemoryMap() {
               onClick={() => setViewMode('layer')}
               className={`px-2 py-1 rounded transition-colors ${viewMode === 'layer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
-              同心圆
+              {t('memoryMap.viewLayer')}
             </button>
             <button
               data-testid="view-graph"
               onClick={() => setViewMode('graph')}
               className={`px-2 py-1 rounded transition-colors ${viewMode === 'graph' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
-              力导向图
+              {t('memoryMap.viewGraph')}
             </button>
           </div>
           {loading && <span className="text-xs text-gray-500">{t('memoryMap.loading')}</span>}
-          {graphLoading && <span className="text-xs text-gray-500">图谱加载中…</span>}
+          {graphLoading && <span className="text-xs text-gray-500">{t('memoryMap.graphLoading')}</span>}
           <span className="text-xs text-gray-500">
             {viewMode === 'graph' && graphSnapshot
-              ? `${graphSnapshot.nodes.length} 节点 / ${graphSnapshot.edges.length} 边`
+              ? t('memoryMap.nodeEdgeCount', { nodes: graphSnapshot.nodes.length, edges: graphSnapshot.edges.length })
               : `${nodes.length} ${t('memoryMap.memories')}`}
           </span>
           <button
@@ -758,7 +753,7 @@ export function MemoryMap() {
       {/* T-E-B-07: 维度筛选(仅 Graph View) */}
       {viewMode === 'graph' && (
         <div className="flex flex-wrap items-center gap-3 px-4 py-1.5 border-b border-gray-800 text-xs">
-          <span className="text-gray-500">维度:</span>
+          <span className="text-gray-500">{t('memoryMap.dimensionLabel')}</span>
           {ALL_DIMS.map((dim) => (
             <label
               key={dim}
@@ -775,17 +770,17 @@ export function MemoryMap() {
                 className="w-2 h-2 rounded-full inline-block"
                 style={{ backgroundColor: DIM_COLORS[dim] }}
               />
-              <span className="text-gray-300">{DIM_LABELS[dim]}</span>
+              <span className="text-gray-300">{dimLabel(dim)}</span>
             </label>
           ))}
           {graphSnapshot?.truncated && (
             <span className="text-yellow-600" data-testid="truncated-warning">
-              ⚠ 已截断(达上限)
+              {t('memoryMap.truncated')}
             </span>
           )}
           {graphSnapshot && graphSnapshot.edges.length === 0 && (
             <span className="text-gray-500" data-testid="empty-edges">
-              该记忆暂无关系边
+              {t('memoryMap.noEdges')}
             </span>
           )}
         </div>
@@ -837,7 +832,7 @@ export function MemoryMap() {
               />
               <span className="text-gray-400">
                 {hoveredGraphNode.layer} · depth {hoveredGraphNode.depth}
-                {hoveredGraphNode.id === graphSnapshot?.root_id && ' · 根节点'}
+                {hoveredGraphNode.id === graphSnapshot?.root_id && t('memoryMap.rootNode')}
               </span>
             </div>
             <div className="text-gray-200 line-clamp-3">{hoveredGraphNode.summary}</div>

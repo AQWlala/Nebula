@@ -79,10 +79,8 @@ impl WaitForGraph {
                         let mut cur = node;
                         while cur != nb {
                             cycle.push(cur.to_string());
-                            cur = parent
-                                .get(cur)
-                                .and_then(|v| *v)
-                                .expect("parent node must exist in cycle path");
+                            // T-D-B-07: 父链断裂时返回 None,避免 panic
+                            cur = parent.get(cur).and_then(|v| *v)?;
                         }
                         cycle.reverse();
                         return Some(cycle);

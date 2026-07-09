@@ -51,7 +51,8 @@ pub struct Embedder {
 impl Embedder {
     /// Creates a new embedder. `dim` is the expected vector length.
     pub fn new(client: OllamaClient, model: impl Into<String>, dim: usize) -> Self {
-        let cap = NonZeroUsize::new(CACHE_CAPACITY).unwrap_or(NonZeroUsize::new(1).expect("1 is non-zero"));
+        // T-D-B-07: NonZeroUsize::MIN == 1,等价于原 NonZeroUsize::new(1).expect(...)
+        let cap = NonZeroUsize::new(CACHE_CAPACITY).unwrap_or(NonZeroUsize::MIN);
         Self {
             client,
             model: model.into(),
@@ -265,7 +266,8 @@ mod tests {
         // Test the LRU behaviour directly without touching the network.
         use lru::LruCache;
         use std::num::NonZeroUsize;
-        let mut cache: LruCache<String, Vec<f32>> = LruCache::new(NonZeroUsize::new(2).expect("create should succeed"));
+        let mut cache: LruCache<String, Vec<f32>> =
+            LruCache::new(NonZeroUsize::new(2).expect("create should succeed"));
         cache.put("a".to_string(), vec![1.0]);
         cache.put("b".to_string(), vec![2.0]);
         // Touch "a" so it becomes most-recently used.

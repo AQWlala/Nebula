@@ -52,6 +52,16 @@ impl SkillStore {
         Ok(Self { conn })
     }
 
+    /// Construct a `SkillStore` without checking for the `skills` table.
+    /// Used as a panic-free fallback when [`new`](Self::new) fails (e.g.
+    /// migrations not yet run). Query operations will return errors
+    /// instead of panicking at construction.
+    pub(crate) fn from_sqlite_unchecked(sqlite: SqliteStore) -> Self {
+        Self {
+            conn: sqlite.raw_connection(),
+        }
+    }
+
     /// Convenience for tests: opens a fresh DB file with the v0.1 +
     /// v0.2 + v0.3 migrations applied.
     pub fn open_test<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -526,7 +536,10 @@ mod tests {
     fn insert_and_get_round_trip() {
         let (p, s) = temp_db();
         s.insert(&sample()).expect("insert should succeed");
-        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
+        let got = s
+            .get("sk-1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.name, "palindrome");
         assert_eq!(got.tags, vec!["string".to_string(), "utility".to_string()]);
         assert!(got.created_at > 0);
@@ -545,12 +558,18 @@ mod tests {
         s.insert(&b).expect("insert should succeed");
 
         // T-E-S-37: list() 签名已扩展,旧调用方需传入 tags=[] + tag_match=Any。
-        let all = s.list(None, None, &[], TagMatch::Any, 10).expect("test op should succeed");
+        let all = s
+            .list(None, None, &[], TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(all.len(), 2);
-        let rust_only = s.list(Some("rust"), None, &[], TagMatch::Any, 10).expect("test op should succeed");
+        let rust_only = s
+            .list(Some("rust"), None, &[], TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(rust_only.len(), 1);
         assert_eq!(rust_only[0].id, "sk-1");
-        let math_only = s.list(None, Some("math"), &[], TagMatch::Any, 10).expect("test op should succeed");
+        let math_only = s
+            .list(None, Some("math"), &[], TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(math_only.len(), 1);
         assert_eq!(math_only[0].id, "sk-2");
         cleanup(&p);
@@ -578,17 +597,23 @@ mod tests {
 
         // tags=[string, math] + Any:应返回 3 条(每条都至少命中一个)。
         let tags = vec!["string".to_string(), "math".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 3, "Any match should return all 3");
 
         // tags=[string, utility] + Any:应返回 2 条(sk-1 命中两个,sk-3 命中 string)。
         let tags = vec!["string".to_string(), "utility".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 2, "Any match should return sk-1 + sk-3");
 
         // tags=[nonexistent] + Any:应返回 0 条。
         let tags = vec!["nonexistent".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::Any, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert!(hits.is_empty(), "no skill should match nonexistent tag");
         cleanup(&p);
     }
@@ -612,19 +637,25 @@ mod tests {
 
         // tags=[string, math] + All:只有 sk-3 同时有两个 tag,应返回 1 条。
         let tags = vec!["string".to_string(), "math".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::All, 10)
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 1, "All match should return only sk-3");
         assert_eq!(hits[0].id, "sk-3");
 
         // tags=[string, utility] + All:只有 sk-1 同时有两个 tag,应返回 1 条。
         let tags = vec!["string".to_string(), "utility".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::All, 10)
+            .expect("test op should succeed");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "sk-1");
 
         // tags=[math, nonexistent] + All:应返回 0 条(无人同时有)。
         let tags = vec!["math".to_string(), "nonexistent".to_string()];
-        let hits = s.list(None, None, &tags, TagMatch::All, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &tags, TagMatch::All, 10)
+            .expect("test op should succeed");
         assert!(
             hits.is_empty(),
             "All match with nonexistent tag should return 0"
@@ -680,10 +711,14 @@ mod tests {
         // tag 值含单引号 + 分号 + DROP TABLE:应被 `?` 绑定为字面量 LIKE 模式,
         // 不会执行注入的 SQL。预期 0 匹配(tag 不存在)。
         let evil_tag = "'; DROP TABLE skills; --".to_string();
-        let hits = s.list(None, None, &[evil_tag], TagMatch::Any, 10).expect("test op should succeed");
+        let hits = s
+            .list(None, None, &[evil_tag], TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert!(hits.is_empty(), "evil tag should match nothing");
         // 验证 skills 表仍存在(未被 DROP)。
-        let after = s.list(None, None, &[], TagMatch::Any, 10).expect("test op should succeed");
+        let after = s
+            .list(None, None, &[], TagMatch::Any, 10)
+            .expect("test op should succeed");
         assert_eq!(after.len(), 1, "skills table must still exist");
         cleanup(&p);
     }
@@ -754,7 +789,10 @@ mod tests {
         s.insert(&sample()).expect("insert should succeed");
         s.rate("sk-1", 5.0).expect("test op should succeed");
         s.rate("sk-1", 3.0).expect("test op should succeed");
-        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
+        let got = s
+            .get("sk-1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.rating_count, 2);
         assert!((got.avg_rating - 4.0).abs() < 1e-6);
         cleanup(&p);
@@ -764,7 +802,9 @@ mod tests {
     fn text_search_matches_name_and_tags() {
         let (p, s) = temp_db();
         s.insert(&sample()).expect("insert should succeed");
-        let hits = s.text_search("palindrome", 10).expect("query should succeed");
+        let hits = s
+            .text_search("palindrome", 10)
+            .expect("query should succeed");
         assert_eq!(hits.len(), 1);
         let hits = s.text_search("string", 10).expect("query should succeed");
         assert_eq!(hits.len(), 1);
@@ -777,7 +817,10 @@ mod tests {
         s.insert(&sample()).expect("insert should succeed");
         s.bump_usage("sk-1").expect("test op should succeed");
         s.bump_usage("sk-1").expect("test op should succeed");
-        let got = s.get("sk-1").expect("get should succeed").expect("get should succeed");
+        let got = s
+            .get("sk-1")
+            .expect("get should succeed")
+            .expect("get should succeed");
         assert_eq!(got.usage_count, 2);
         cleanup(&p);
     }

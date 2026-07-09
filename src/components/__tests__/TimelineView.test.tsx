@@ -154,12 +154,12 @@ describe('TimelineView', () => {
     const item = await findByTestId('timeline-item-a');
 
     // 初始未展开:不显示元数据"访问"
-    expect(queryByText(/访问:/)).toBeFalsy();
+    expect(queryByText(/Access:|访问:/)).toBeFalsy();
 
     // 点击展开
     fireEvent.click(item);
     await waitFor(() => {
-      expect(queryByText(/访问:/)).toBeTruthy();
+      expect(queryByText(/Access:|访问:/)).toBeTruthy();
       expect(queryByText(/0\.0012/)).toBeTruthy();
     });
   });
@@ -172,9 +172,9 @@ describe('TimelineView', () => {
     ]);
     const { TimelineView } = await import('../TimelineView');
     const { findByText } = render(<TimelineView />);
-    // 统计栏应显示 "共 3 条"
+    // 统计栏应显示总数(en-US: "Total: 3" / zh-CN: "共 3 条")
     await waitFor(() => {
-      expect(findByText(/共 3 条/)).toBeTruthy();
+      expect(findByText(/Total: 3|共 3 条/)).toBeTruthy();
     });
   });
 
@@ -185,8 +185,8 @@ describe('TimelineView', () => {
     await findByTestId('timeline-empty');
     expect(mockMemoryListRecent).toHaveBeenCalledTimes(1);
 
-    // 点击刷新按钮
-    const refreshBtn = await findByTitle('刷新');
+    // 点击刷新按钮(en-US: "Refresh" / zh-CN: "刷新")
+    const refreshBtn = await findByTitle(/Refresh|刷新/);
     fireEvent.click(refreshBtn);
     await waitFor(() => {
       expect(mockMemoryListRecent).toHaveBeenCalledTimes(2);

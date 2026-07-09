@@ -307,3 +307,82 @@ impl AppState {
         Ok(acl)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::memory::sqlite_store::SqliteStore;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn create_test_store() -> Arc<SqliteStore> {
+        let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let tmp = std::env::temp_dir();
+        let db_path = tmp.join(format!("nebula-test-acl-{}-{}.db", std::process::id(), id));
+        std::fs::remove_file(&db_path).ok();
+        let store = SqliteStore::open(&db_path).expect("open test sqlite store");
+        Arc::new(store)
+    }
+
+    #[test]
+    fn test_load_acl_from_store_valid_rules() {
+        let sqlite = create_test_store();
+        // matches() 只支持 "*" 或精确匹配,不支持 "memory/*" 通配符
+        sqlite
+            .insert_acl("rule1", "user1", "*", "read", "allow")
+            .unwrap();
+        sqlite
+            .insert_acl("rule2", "user2", "memory/secret", "write", "deny")
+            .unwrap();
+
+        let acl = AppState::load_acl_from_store(&sqlite).expect("load acl");
+        assert_eq!(acl.rules().len(), 2);
+        // 验证 check 行为
+        assert!(acl.check("user1", "memory/anything", AclPermission::Read));
+        assert!(!acl.check("user2", "memory/secret", AclPermission::Write));
+    }
+
+    #[test]
+    fn test_load_acl_from_store_skips_invalid_permission() {
+        let sqlite = create_test_store();
+        sqlite
+            .insert_acl("rule1", "user1", "memory/*", "read", "allow")
+            .unwrap();
+        sqlite
+            .insert_acl("rule2", "user2", "memory/*", "unknown_perm", "allow")
+            .unwrap();
+
+        let acl = AppState::load_acl_from_store(&sqlite).expect("load acl");
+        assert_eq!(
+            acl.rules().len(),
+            1,
+            "invalid permission rule should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_load_acl_from_store_skips_invalid_effect() {
+        let sqlite = create_test_store();
+        sqlite
+            .insert_acl("rule1", "user1", "memory/*", "read", "allow")
+            .unwrap();
+        sqlite
+            .insert_acl("rule2", "user2", "memory/*", "read", "unknown_effect")
+            .unwrap();
+
+        let acl = AppState::load_acl_from_store(&sqlite).expect("load acl");
+        assert_eq!(
+            acl.rules().len(),
+            1,
+            "invalid effect rule should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_load_acl_from_store_empty() {
+        let sqlite = create_test_store();
+        let acl = AppState::load_acl_from_store(&sqlite).expect("load acl");
+        assert!(acl.rules().is_empty());
+    }
+}

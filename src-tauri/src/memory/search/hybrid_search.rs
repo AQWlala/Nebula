@@ -199,7 +199,7 @@ fn normalise_scores(hits: Vec<(String, f64)>) -> HashMap<String, f64> {
 mod tests {
     use super::*;
     // T-E-S-42: 测试中直接构造 LanceStore 作为 VectorStore trait 对象。
-    use super::super::lance_store::LanceStore;
+    use crate::memory::lance_store::LanceStore;
 
     // ---- Vector search component test ----
 

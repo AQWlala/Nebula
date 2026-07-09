@@ -51,13 +51,13 @@ export interface Message {
 function warningLabel(w: ConsistencyWarning): string {
   switch (w.kind) {
     case 'source_conflict':
-      return `来源冲突(${w.ids.length} 条)`;
+      return t('chatPanel.warning.sourceConflict', { count: w.ids.length });
     case 'single_tool_negation':
-      return `单一工具来源(${w.tool})`;
+      return t('chatPanel.warning.singleToolSource', { tool: w.tool });
     case 'empty_citation':
-      return '空引用(可能凭空生成)';
+      return t('chatPanel.warning.emptyCitation');
     default:
-      return '未知风险';
+      return t('chatPanel.warning.unknown');
   }
 }
 
@@ -138,7 +138,7 @@ function ConsistencyBadge({ report }: { report: ConsistencyReport }) {
           border: '1px solid rgba(76, 175, 80, 0.3)',
         }}
       >
-        ✓ 引用 {report.cited.length} 条记忆
+        {t('chatPanel.citedMemories', { count: report.cited.length })}
       </div>
     );
   }
@@ -158,8 +158,8 @@ function ConsistencyBadge({ report }: { report: ConsistencyReport }) {
       }}
     >
       <summary style={{ cursor: 'pointer', padding: '2px 8px', color }}>
-        ⚠ {report.warnings.map(warningLabel).join(' · ')} (风险{' '}
-        {(report.risk_score * 100).toFixed(0)}%)
+        ⚠ {report.warnings.map(warningLabel).join(' · ')}{' '}
+        {t('chatPanel.riskScore', { score: (report.risk_score * 100).toFixed(0) })}
       </summary>
       <div style={{ padding: '4px 8px', borderTop: `1px solid ${border}` }}>
         {report.warnings.map((w, idx) => (
@@ -169,7 +169,7 @@ function ConsistencyBadge({ report }: { report: ConsistencyReport }) {
         ))}
         {report.cited.length > 0 && (
           <div style={{ marginTop: '4px', color: 'var(--text-muted)' }}>
-            引用记忆 {report.cited.length} 条:
+            {t('chatPanel.citedMemoriesDetail', { count: report.cited.length })}
           </div>
         )}
         {report.cited.map((c, idx) => (
@@ -215,7 +215,7 @@ async function resolveFileTokens(text: string): Promise<string> {
       const lang = filePath.split('.').pop() || '';
       result = result.replace(fullToken, `\n\`\`\`${lang} ${filePath}\n${file.content}\n\`\`\`\n`);
     } catch (e) {
-      toast.warning(`文件读取失败`, `#${filePath}: ${String(e)}`);
+      toast.warning(t('chatPanel.fileReadFailed'), `#${filePath}: ${String(e)}`);
     }
   }
   return result;
@@ -259,9 +259,11 @@ export function ChatPanel() {
       const kindLabel = (() => {
         switch (event.kind.type) {
           case 'code':
-            return event.kind.language ? `代码(${event.kind.language})` : '代码';
+            return event.kind.language
+              ? t('chatPanel.clipboard.code', { language: event.kind.language })
+              : t('chatPanel.clipboard.codePlain');
           case 'markdowntable':
-            return 'Markdown 表格';
+            return t('chatPanel.clipboard.markdownTable');
           case 'json':
             return 'JSON';
           case 'url':
@@ -269,16 +271,19 @@ export function ChatPanel() {
           case 'tsvcsv':
             return 'TSV/CSV';
           case 'email':
-            return '邮箱';
+            return t('chatPanel.clipboard.email');
           case 'ip':
-            return 'IP 地址';
+            return t('chatPanel.clipboard.ip');
           case 'path':
-            return '路径';
+            return t('chatPanel.clipboard.path');
           default:
-            return '内容';
+            return t('chatPanel.clipboard.content');
         }
       })();
-      toast.info(`剪贴板检测到 ${kindLabel}`, event.content_preview || '已注入到输入框');
+      toast.info(
+        t('chatPanel.clipboardDetected', { kind: kindLabel }),
+        event.content_preview || t('chatPanel.injectedToInput')
+      );
       setInput(event.content_full);
     })
       .then((fn) => {
@@ -344,7 +349,7 @@ export function ChatPanel() {
       nebulaStore.currentMode.value = 'memory';
       nebulaStore.memoryView.value = 'timeline';
       setInput('');
-      toast.info('切换到记忆时间轴 · Journey');
+      toast.info(t('chatPanel.switchedToTimeline'));
       return;
     }
 
@@ -541,9 +546,9 @@ export function ChatPanel() {
       });
       // 更新本地 message 状态:高亮选中按钮。
       setMessages((prev) => prev.map((m) => (m.turnId === turnId ? { ...m, annotation } : m)));
-      toast.success(annotation === 'good' ? '已标记为好回答' : '已标记为差回答');
+      toast.success(annotation === 'good' ? t('chatPanel.markedGood') : t('chatPanel.markedBad'));
     } catch (e) {
-      toast.error('标注失败', String(e));
+      toast.error(t('chatPanel.annotationFailed'), String(e));
     }
   }
 
@@ -551,15 +556,15 @@ export function ChatPanel() {
     <div class="panel chat-panel">
       <div class="panel-header">
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span class="panel-title">💬 对话</span>
+          <span class="panel-title">{t('chatPanel.title')}</span>
           <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-            9 头蛇的 1 号蛇头：通用对话
+            {t('chatPanel.subtitle')}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
             onClick={() => setShowTemplatesDialog(true)}
-            title="工作场景模板"
+            title={t('chatPanel.templatesTitle')}
             style={{
               padding: '4px 10px',
               fontSize: '12px',
@@ -579,11 +584,11 @@ export function ChatPanel() {
               (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
             }}
           >
-            🎭 模板
+            {t('chatPanel.templates')}
           </button>
           <button
             onClick={() => setShowExportDialog(true)}
-            title="导出对话"
+            title={t('chatPanel.exportTitle')}
             style={{
               padding: '4px 10px',
               fontSize: '12px',
@@ -603,7 +608,7 @@ export function ChatPanel() {
               (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
             }}
           >
-            📤 导出
+            {t('chatPanel.exportLabel')}
           </button>
         </div>
       </div>
@@ -614,9 +619,9 @@ export function ChatPanel() {
         {messages.length === 0 && (
           <div style="text-align: center; color: var(--text-muted); padding: 40px;">
             <div style="font-size: 48px; margin-bottom: 16px;">🐍</div>
-            <div>开始一次对话吧</div>
+            <div>{t('chatPanel.emptyTitle')}</div>
             <div style="font-size: 12px; margin-top: 8px;">
-              所有消息会被自动存入 L1（消息历史）和 L2（经验）
+              {t('chatPanel.emptyHint')}
             </div>
           </div>
         )}
@@ -625,20 +630,22 @@ export function ChatPanel() {
             key={m.turnId || `${m.role}-${i}-${m.content.slice(0, 20)}`}
             class={`msg msg-${m.role}`}
           >
-            <div class="msg-role">{m.role === 'user' ? '你' : 'Nebula'}</div>
+            <div class="msg-role">{m.role === 'user' ? t('chatPanel.roleUser') : 'Nebula'}</div>
             {m.role === 'assistant' && m.reasoningChain && (
               <details
                 class="reasoning-chain"
                 style="margin-bottom:4px;font-size:12px;color:var(--text-secondary);"
               >
-                <summary style="cursor:pointer;">推理过程</summary>
+                <summary style="cursor:pointer;">{t('chatPanel.reasoning')}</summary>
                 <div style="padding:4px 8px;border-left:2px solid var(--border);margin:4px 0;">
                   {('steps' in m.reasoningChain ? m.reasoningChain.steps : m.reasoningChain).map(
                     (step, idx) => (
                       <div key={idx} style="margin-bottom:4px;">
                         <div>→ {step.inference}</div>
                         {step.evidence && (
-                          <div style="font-size:11px;opacity:0.7;">证据: {step.evidence}</div>
+                          <div style="font-size:11px;opacity:0.7;">
+                            {t('chatPanel.evidence')}{step.evidence}
+                          </div>
                         )}
                       </div>
                     )
@@ -660,7 +667,7 @@ export function ChatPanel() {
               <div style="margin-top:6px;display:flex;align-items:center;gap:6px;font-size:12px;">
                 <button
                   onClick={() => handleAnnotate(m.turnId!, 'good')}
-                  title="好回答"
+                  title={t('chatPanel.goodAnswerTitle')}
                   style={{
                     padding: '2px 8px',
                     fontSize: '13px',
@@ -676,7 +683,7 @@ export function ChatPanel() {
                 </button>
                 <button
                   onClick={() => handleAnnotate(m.turnId!, 'bad')}
-                  title="差回答(差评+评论会回流到记忆用于改进)"
+                  title={t('chatPanel.badAnswerTitle')}
                   style={{
                     padding: '2px 8px',
                     fontSize: '13px',
@@ -692,7 +699,7 @@ export function ChatPanel() {
                 </button>
                 <input
                   type="text"
-                  placeholder="评论(可选,差评评论会用于改进)"
+                  placeholder={t('chatPanel.commentPlaceholder')}
                   value={annotationComments[m.turnId] ?? ''}
                   onInput={(e) =>
                     setAnnotationComments((prev) => ({
@@ -736,7 +743,7 @@ export function ChatPanel() {
           {({ onKeyDown }) => (
             <input
               type="text"
-              placeholder="输入消息..."
+              placeholder={t('chatPanel.inputPlaceholder')}
               value={input}
               onInput={(e) => {
                 const val = (e.target as HTMLInputElement).value;
@@ -826,7 +833,7 @@ export function ChatPanel() {
                   const start = el.selectionStart ?? 0;
                   const end = el.selectionEnd ?? 0;
                   if (start === end) {
-                    toast.warning('请先选中文字');
+                    toast.warning(t('chatPanel.selectTextFirst'));
                     return;
                   }
                   const selected = input.slice(start, end);
@@ -835,7 +842,7 @@ export function ChatPanel() {
                     .then((rewritten) => {
                       setInput(input.slice(0, start) + rewritten + input.slice(end));
                     })
-                    .catch((err) => toast.error('定向编辑失败', String(err)));
+                    .catch((err) => toast.error(t('chatPanel.directedEditFailed'), String(err)));
                 }
                 if (e.key === 'Enter') sendStream();
               }}
@@ -916,13 +923,13 @@ export function ChatPanel() {
         ) : (
           <>
             <button class="btn" onClick={sendStream} disabled={loading || !input.trim()}>
-              发送
+              {t('chatPanel.send')}
             </button>
             <button
               class="btn btn-secondary"
               onClick={send}
               disabled={loading || !input.trim()}
-              title="非流式 fallback"
+              title={t('chatPanel.nonStreamingTitle')}
             >
               ↩
             </button>

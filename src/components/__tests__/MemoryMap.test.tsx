@@ -85,11 +85,6 @@ vi.mock('../../lib/tauri', async () => {
   };
 });
 
-// mock i18n 避免缺失 key 报错
-vi.mock('../../i18n', () => ({
-  t: (key: string) => key,
-}));
-
 import { MemoryMap } from '../MemoryMap';
 
 function makeMemory(id: string, layer = 'L2' as const) {
@@ -235,9 +230,9 @@ describe('MemoryMap (T-E-B-07)', () => {
 
     fireEvent.click(getByTestId('view-graph'));
     await waitFor(() => expect(mockMdrmGetGraph).toHaveBeenCalled());
-    // 头部应显示 "5 节点 / 4 边"
+    // 头部应显示节点/边计数(en-US: "5 nodes / 4 edges" / zh-CN: "5 节点 / 4 边")
     const headerText =
       container.querySelector('.flex.items-center.justify-between')?.textContent ?? '';
-    expect(headerText).toContain('5 节点 / 4 边');
+    expect(headerText).toMatch(/5 (nodes|节点) \/ 4 (edges|边)/);
   });
 });

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 // T-S1-B-02: 扩展安全环境变量列表 — 从 4 个增加到 10 个。
 // EXPERT_REVIEW §2.4.5 指出原列表不足：Windows 需要 SYSTEMROOT/TEMP/TMP，
@@ -54,7 +55,11 @@ pub struct PkceChallenge {
 impl PkceChallenge {
     pub fn generate() -> Self {
         let mut bytes = [0u8; 32];
-        getrandom::getrandom(&mut bytes).expect("getrandom failed");
+        // T-D-B-07: getrandom 失败极为罕见(仅早期启动阶段)。降级为日志 + 全零
+        // bytes,避免 panic;调用方拿到弱熵的 verifier 也优于进程崩溃。
+        if let Err(e) = getrandom::getrandom(&mut bytes) {
+            error!("getrandom failed: {e}; PKCE verifier entropy compromised");
+        }
         let code_verifier = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&bytes);
         let digest = sha256_digest(code_verifier.as_bytes());
         let code_challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&digest);

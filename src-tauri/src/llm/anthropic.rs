@@ -106,6 +106,7 @@ impl AnthropicClient {
             http: Client::builder()
                 .timeout(Duration::from_secs(120))
                 .build()
+                // T-D-B-07: 字面量保证有效 — timeout 配置不会导致 build 失败,保留 expect
                 .expect("reqwest client should build"),
             prefix_cache_enabled: true,
             min_cache_tokens: MIN_CACHE_TOKENS,
@@ -139,6 +140,7 @@ impl AnthropicClient {
             http: Client::builder()
                 .timeout(Duration::from_secs(120))
                 .build()
+                // T-D-B-07: 字面量保证有效 — timeout 配置不会导致 build 失败,保留 expect
                 .expect("reqwest client should build"),
             prefix_cache_enabled,
             min_cache_tokens,

@@ -289,7 +289,7 @@ export function App() {
                         className={`px-3 py-1 text-xs rounded ${memoryView.value === 'timeline' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
                         onClick={() => (memoryView.value = 'timeline')}
                       >
-                        时间轴
+                        {t('memoryView.timeline')}
                       </button>
                     </div>
                     {memoryView.value === 'map' && <MemoryMap />}

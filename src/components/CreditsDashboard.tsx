@@ -1,11 +1,11 @@
-﻿/** T-E-A-07: Credits Dashboard — 日/周/月趋势图 + provider/agent 分桶 + 预算预警 + 缓存命中率。 */
+/** T-E-A-07: Credits Dashboard — 日/周/月趋势图 + provider/agent 分桶 + 预算预警 + 缓存命中率。 */
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { invoke } from '@tauri-apps/api/core';
 import { Sparkline } from './charts/Sparkline';
 import { BarChart } from './charts/BarChart';
 import { toast } from './Toast';
-import { t } from '../i18n';
+import { t, type Dict } from '../i18n';
 
 interface DailyAggregate {
   date: string;
@@ -66,15 +66,15 @@ type TrendTab = 'daily' | 'weekly' | 'monthly' | 'source' | 'work_type';
  * 与后端 `WorkType::is_local_only()` 对齐:
  * Evolution / SoulCompile / Classifier 为 true(强制本地路由)。
  */
-const WORK_TYPE_META: Record<string, { label: string; localOnly: boolean; color: string }> = {
-  chat: { label: 'Chat 对话', localOnly: false, color: '#3b82f6' },
-  swarm_worker: { label: 'Swarm Worker', localOnly: false, color: '#10b981' },
-  swarm_synthesize: { label: 'Swarm 综合', localOnly: false, color: '#06b6d4' },
-  master_task: { label: 'Master 任务', localOnly: false, color: '#8b5cf6' },
-  evolution: { label: '进化引擎', localOnly: true, color: '#f59e0b' },
-  soul_compile: { label: 'Soul 编译', localOnly: true, color: '#ec4899' },
-  classifier: { label: '分类器', localOnly: true, color: '#84cc16' },
-  unknown: { label: '未知(旧记录)', localOnly: false, color: '#9ca3af' },
+const WORK_TYPE_META: Record<string, { label: keyof Dict; localOnly: boolean; color: string }> = {
+  chat: { label: 'creditsDashboard.workType.chat', localOnly: false, color: '#3b82f6' },
+  swarm_worker: { label: 'creditsDashboard.workType.swarmWorker', localOnly: false, color: '#10b981' },
+  swarm_synthesize: { label: 'creditsDashboard.workType.swarmSynthesize', localOnly: false, color: '#06b6d4' },
+  master_task: { label: 'creditsDashboard.workType.masterTask', localOnly: false, color: '#8b5cf6' },
+  evolution: { label: 'creditsDashboard.workType.evolution', localOnly: true, color: '#f59e0b' },
+  soul_compile: { label: 'creditsDashboard.workType.soulCompile', localOnly: true, color: '#ec4899' },
+  classifier: { label: 'creditsDashboard.workType.classifier', localOnly: true, color: '#84cc16' },
+  unknown: { label: 'creditsDashboard.workType.unknown', localOnly: false, color: '#9ca3af' },
 };
 
 function loadBudget(): number {
@@ -499,7 +499,7 @@ export function CreditsDashboard() {
                           opacity: meta.localOnly ? 0.55 : 1,
                         }}
                       />
-                      {meta.label}
+                      {t(meta.label)}
                     </span>
                     <span class="work-type-cost">${w.cost_usd.toFixed(4)}</span>
                     <span class="work-type-calls">

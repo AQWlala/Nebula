@@ -11,6 +11,7 @@
  */
 import { useMemo, useState } from 'preact/hooks';
 import type { UnifiedMessage } from '../../lib/tauri';
+import { t } from '../../i18n';
 
 export interface InboxViewProps {
   messages: UnifiedMessage[];
@@ -120,7 +121,7 @@ export function InboxView({ messages, onReply, onMarkRead }: InboxViewProps) {
             fontSize: '13px',
           }}
         >
-          <option value="all">全部</option>
+          <option value="all">{t('inbox.filterAll')}</option>
           <option value="telegram">Telegram</option>
           <option value="discord">Discord</option>
           <option value="web">Web</option>
@@ -132,7 +133,7 @@ export function InboxView({ messages, onReply, onMarkRead }: InboxViewProps) {
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
             <div style={{ fontSize: '36px', marginBottom: '8px' }}>📭</div>
-            <div>暂无消息</div>
+            <div>{t('inbox.empty')}</div>
           </div>
         )}
         {filtered.map((m) => {

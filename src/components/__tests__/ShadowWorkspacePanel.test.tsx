@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor } from '@testing-library/preact';
 import type { ShadowWorkspace, OperationRecord } from '../../lib/tauri';
+import { setLocale } from '../../i18n';
 
 beforeAll(() => {
   if (typeof globalThis.ResizeObserver === 'undefined') {
@@ -66,6 +67,7 @@ function makeWs(overrides: Partial<ShadowWorkspace> = {}): ShadowWorkspace {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setLocale('en-US');
 });
 
 afterEach(() => {
@@ -91,8 +93,8 @@ describe('ShadowWorkspacePanel', () => {
     await findByTestId('shadow-item-bbb22222');
     expect(getByText('运行中任务')).toBeTruthy();
     expect(getByText('已完成任务')).toBeTruthy();
-    expect(getByText('运行中')).toBeTruthy();
-    expect(getByText('已完成')).toBeTruthy();
+    expect(getByText('Running')).toBeTruthy();
+    expect(getByText('Completed')).toBeTruthy();
   });
 
   it('create_button_calls_shadowCreate_and_refreshes', async () => {
@@ -144,7 +146,7 @@ describe('ShadowWorkspacePanel', () => {
     await findByTestId('shadow-item-mrg00001');
 
     // 点击合并按钮
-    fireEvent.click(await findByText('合并'));
+    fireEvent.click(await findByText('Merge'));
 
     // 确认对话框出现
     const dialog = await findByTestId('shadow-confirm-dialog');
@@ -167,7 +169,7 @@ describe('ShadowWorkspacePanel', () => {
     const { findByText, findByTestId } = render(<ShadowWorkspacePanel />);
     await findByTestId('shadow-item-abt00001');
 
-    fireEvent.click(await findByText('丢弃'));
+    fireEvent.click(await findByText('Discard'));
     await findByTestId('shadow-confirm-dialog');
 
     const confirmBtn = await findByTestId('shadow-confirm-btn');
@@ -273,9 +275,9 @@ describe('ShadowWorkspacePanel', () => {
     await findByTestId('shadow-recording-op-ops00001-2');
     await findByTestId('shadow-recording-op-ops00001-3');
     // 步骤计数
-    expect(getByText(/操作录屏 · 3 步/)).toBeTruthy();
+    expect(getByText(/Operation recording · 3 steps/)).toBeTruthy();
     // 操作标签 + 目标渲染
-    expect(getByText('执行命令')).toBeTruthy();
+    expect(getByText('Run command')).toBeTruthy();
     expect(getByText('cargo')).toBeTruthy();
     expect(getByText('src/main.rs')).toBeTruthy();
   });

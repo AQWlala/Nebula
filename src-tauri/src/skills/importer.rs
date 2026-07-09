@@ -75,7 +75,7 @@ impl SkillImporter {
                 .user_agent("nebula/1.2 skill-importer")
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
-                .expect("reqwest client build is infallible"),
+                .unwrap_or_else(|_| Client::new()),
         }
     }
 
@@ -394,7 +394,8 @@ mod tests {
     fn test_parse_yaml_front_matter() {
         let _importer = SkillImporter {
             store: SkillStore::new(
-                crate::memory::sqlite_store::SqliteStore::open(":memory:").expect("create should succeed"),
+                crate::memory::sqlite_store::SqliteStore::open(":memory:")
+                    .expect("create should succeed"),
             )
             .expect("test op should succeed"),
             client: Client::new(),

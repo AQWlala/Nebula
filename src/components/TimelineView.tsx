@@ -138,14 +138,14 @@ export function TimelineView() {
     >
       {/* Header + 统计 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">记忆时间轴 · Journey</h2>
+        <h2 className="text-sm font-semibold text-gray-300">{t('timeline.title')}</h2>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-gray-500">加载中…</span>}
-          <span className="text-xs text-gray-500">{filtered.length} 条记忆</span>
+          {loading && <span className="text-xs text-gray-500">{t('common.loading')}</span>}
+          <span className="text-xs text-gray-500">{t('timeline.memoryCount', { count: filtered.length })}</span>
           <button
             onClick={loadMemories}
             className="text-xs text-gray-400 hover:text-white transition-colors"
-            title="刷新"
+            title={t('timeline.refreshTitle')}
           >
             ↻
           </button>
@@ -155,14 +155,14 @@ export function TimelineView() {
       {/* 统计栏 */}
       {stats && (
         <div className="flex flex-wrap items-center gap-4 px-4 py-1.5 border-b border-gray-800 text-xs text-gray-400">
-          <span>共 {stats.total} 条</span>
-          <span>跨度: {stats.span}</span>
+          <span>{t('timeline.totalCount', { count: stats.total })}</span>
+          <span>{t('timeline.span', { span: stats.span })}</span>
           <div className="flex items-center gap-1">
             {LAYER_ORDER.map((l) => {
               const count = stats.layerCounts[l] ?? 0;
               if (count === 0) return null;
               return (
-                <span key={l} className="flex items-center gap-0.5" title={`${l}: ${count} 条`}>
+                <span key={l} className="flex items-center gap-0.5" title={t('timeline.layerCountTitle', { layer: l, count })}>
                   <span
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: LAYER_COLORS[l] }}
@@ -177,7 +177,7 @@ export function TimelineView() {
 
       {/* 筛选栏 */}
       <div className="flex flex-wrap items-center gap-3 px-4 py-1.5 border-b border-gray-800 text-xs">
-        <span className="text-gray-500">层筛选:</span>
+        <span className="text-gray-500">{t('timeline.layerFilter')}</span>
         {LAYER_ORDER.map((layer) => (
           <label
             key={layer}
@@ -197,7 +197,7 @@ export function TimelineView() {
             <span className="text-gray-400">{layer}</span>
           </label>
         ))}
-        <span className="text-gray-500 ml-4">最小重要性:</span>
+        <span className="text-gray-500 ml-4">{t('timeline.minImportance')}</span>
         <input
           type="range"
           min={0}
@@ -215,7 +215,7 @@ export function TimelineView() {
       <div className="flex-1 overflow-y-auto">
         {dayGroups.length === 0 && !loading && (
           <div className="text-center text-gray-500 py-12" data-testid="timeline-empty">
-            暂无符合条件的记忆
+            {t('timeline.empty')}
           </div>
         )}
         {dayGroups.map((group) => (
@@ -223,7 +223,7 @@ export function TimelineView() {
             {/* 日期标题 */}
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur px-4 py-1.5 border-b border-gray-800 flex items-center justify-between">
               <span className="text-xs font-medium text-gray-300">{group.label}</span>
-              <span className="text-xs text-gray-600">{group.memories.length} 条</span>
+              <span className="text-xs text-gray-600">{t('timeline.dayCount', { count: group.memories.length })}</span>
             </div>
             {/* 当日记忆列表 */}
             <div className="relative pl-8 pr-4 py-2">
@@ -257,17 +257,17 @@ export function TimelineView() {
                         <span className="text-xs text-gray-600">{layerLabel(m.layer)}</span>
                         {m.compressed_from && (
                           <span className="text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300">
-                            压缩
+                            {t('timeline.compressed')}
                           </span>
                         )}
                         {m.pinned && (
                           <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/60 text-yellow-300">
-                            置顶
+                            {t('timeline.pinned')}
                           </span>
                         )}
                         {/* importance 条 */}
                         <span className="flex items-center gap-1 ml-auto">
-                          <span className="text-xs text-gray-600">重要性</span>
+                          <span className="text-xs text-gray-600">{t('timeline.importance')}</span>
                           <span className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
                             <span
                               className="block h-full bg-blue-500 rounded-full"
@@ -283,9 +283,9 @@ export function TimelineView() {
                         <div className="mt-2 pt-2 border-t border-gray-800 text-xs text-gray-400 space-y-1">
                           <div className="text-gray-300 whitespace-pre-wrap">{m.content}</div>
                           <div className="flex flex-wrap gap-3 pt-1">
-                            <span>来源: {m.source}</span>
-                            <span>类型: {m.memory_type}</span>
-                            <span>访问: {m.access_count}次</span>
+                            <span>{t('timeline.source', { source: m.source })}</span>
+                            <span>{t('timeline.type', { type: m.memory_type })}</span>
+                            <span>{t('timeline.accessCount', { count: m.access_count })}</span>
                             {m.ingest_cost != null && m.ingest_cost > 0 && (
                               <span>💰 ${m.ingest_cost.toFixed(4)}</span>
                             )}

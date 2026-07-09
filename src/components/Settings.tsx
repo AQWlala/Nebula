@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v1.0.1: Settings panel — signal-driven.
  *
  * P0#06: theme / accent / font-size now flow through
@@ -464,7 +464,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
     if (!modelsConfig) return;
     const provider = modelsConfig.providers.find((p) => p.id === providerId);
     if (!provider || provider.models.length === 0) {
-      setProviderError(t('settings.providers.errNoModels') || '该 provider 无模型');
+      setProviderError(t('settings.providers.errNoModels') );
       return;
     }
     try {
@@ -543,13 +543,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
     try {
       parsed = JSON.parse(newProviderJson) as ProviderConfig;
     } catch (e) {
-      setProviderError(t('settings.providers.errJson') || 'JSON 解析失败: ' + String(e));
+      setProviderError(t('settings.providers.errJson')  + String(e));
       return;
     }
     // 基本字段完整性检查(与后端 ProviderConfig struct 对齐)。
     if (!parsed.id || !parsed.display_name || !parsed.kind || !Array.isArray(parsed.models)) {
       setProviderError(
-        t('settings.providers.errFields') || '缺少必填字段: id/display_name/kind/models'
+        t('settings.providers.errFields') 
       );
       return;
     }
@@ -795,15 +795,15 @@ export function Settings({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label class="row">
-            <span>{t('settings.provider') || 'LLM 服务商'}</span>
+            <span>{t('settings.provider') }</span>
             <select
               value={s.llmProvider}
               onChange={(e) => update('llmProvider', e.currentTarget.value)}
             >
               <option value="deepseek">{t('settings.provider.deepseek') || 'DeepSeek'}</option>
-              <option value="ollama">{t('settings.provider.ollama') || 'Ollama (本地)'}</option>
+              <option value="ollama">{t('settings.provider.ollama') }</option>
               <option value="openai-compat">
-                {t('settings.provider.openai-compat') || 'OpenAI 兼容'}
+                {t('settings.provider.openai-compat') }
               </option>
               <option value="anthropic">
                 {t('settings.provider.anthropic') || 'Anthropic Claude'}
@@ -815,7 +815,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
         {/* T-E-S-40: OpenAI 兼容配置区 — 仅当 provider=openai-compat 时显示 */}
         {s.llmProvider === 'openai-compat' && (
           <div class="card" style="margin-top: 16px;">
-            <h3 style="margin-bottom: 8px;">{t('settings.openaiCompat') || 'OpenAI 兼容配置'}</h3>
+            <h3 style="margin-bottom: 8px;">{t('settings.openaiCompat') }</h3>
             <label class="row">
               <span>{t('settings.openaiCompatUrl') || 'Base URL'}</span>
               <input
@@ -830,7 +830,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 '如 https://openrouter.ai/api/v1 或 http://localhost:1234/v1'}
             </div>
             <label class="row">
-              <span>{t('settings.openaiCompatModel') || '默认模型'}</span>
+              <span>{t('settings.openaiCompatModel') }</span>
               <input
                 type="text"
                 value={s.openaiCompatModel}
@@ -848,7 +848,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 {openaiCompatKeyConfigured && (
                   <span class="api-key-configured" data-testid="openai-compat-key-configured">
                     {' '}
-                    ✓ {t('settings.openaiCompatKeyConfigured') || '已存储到系统钥匙串'}
+                    ✓ {t('settings.openaiCompatKeyConfigured') }
                   </span>
                 )}
               </span>
@@ -866,12 +866,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         {/* T-S5-A-01: Device Management — 已配对设备列表 + 撤销按钮 */}
         <div class="card" style="margin-top: 16px;">
-          <h3 style="margin-bottom: 8px;">{t('settings.devices') || '已配对设备'}</h3>
+          <h3 style="margin-bottom: 8px;">{t('settings.devices') }</h3>
           {deviceLoading ? (
             <Spinner label={t('common.loading')} />
           ) : devices.length === 0 ? (
             <div id="device-list" style="color: var(--text-secondary); font-size: 13px;">
-              {t('settings.devicesHint') || '设备管理需通过同步功能配置'}
+              {t('settings.devicesHint') }
             </div>
           ) : (
             <div id="device-list" style="display: flex; flex-direction: column; gap: 8px;">
@@ -938,12 +938,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         {/* v1.7: OS 集成（开机自启动） */}
         <div class="card" style="margin-top: 16px;">
-          <h3 style="margin-bottom: 8px;">{t('settings.os') || '系统集成'}</h3>
+          <h3 style="margin-bottom: 8px;">{t('settings.os') }</h3>
           <label
             class="row"
             style="display: flex; align-items: center; justify-content: space-between;"
           >
-            <span>{t('settings.autostart') || '开机自启动'}</span>
+            <span>{t('settings.autostart') }</span>
             <input
               type="checkbox"
               checked={autostartEnabled}
@@ -977,7 +977,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         {/* v1.3: DID Identity */}
         <div class="card" style="margin-top: 16px;">
-          <h3 style="margin-bottom: 8px;">{t('settings.identity') || 'DID 身份'}</h3>
+          <h3 style="margin-bottom: 8px;">{t('settings.identity') }</h3>
           <button
             class="btn"
             onClick={async () => {
@@ -996,7 +996,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
               }
             }}
           >
-            {t('settings.generateDid') || '生成 DID'}
+            {t('settings.generateDid') }
           </button>
         </div>
 
@@ -1010,7 +1010,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
               marginBottom: '4px',
             }}
           >
-            <h3 style="margin: 0;">{t('settings.providers.title') || 'LLM 提供商'}</h3>
+            <h3 style="margin: 0;">{t('settings.providers.title') }</h3>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
@@ -1036,12 +1036,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   cursor: 'pointer',
                 }}
               >
-                {t('settings.providers.reload') || '↻ 重载'}
+                {t('settings.providers.reload') }
               </button>
               <button
                 type="button"
                 onClick={() => setWorkTypeConfigOpen(true)}
-                title={t('workTypeConfig.openButtonTitle') || '查看 / 编辑 work_type_overrides'}
+                title={t('workTypeConfig.openButtonTitle') }
                 style={{
                   fontSize: '12px',
                   padding: '4px 12px',
@@ -1052,7 +1052,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   cursor: 'pointer',
                 }}
               >
-                {t('workTypeConfig.openButton') || '⚙ WorkType 配置'}
+                {t('workTypeConfig.openButton') }
               </button>
             </div>
           </div>
@@ -1095,7 +1095,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                               }}
                             >
                               {' '}
-                              ✓ {t('settings.providers.default') || '默认'}
+                              ✓ {t('settings.providers.default') }
                             </span>
                           )}
                           {p.is_builtin && (
@@ -1106,7 +1106,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                                 color: 'var(--text-secondary)',
                               }}
                             >
-                              {t('settings.providers.builtin') || '内置'}
+                              {t('settings.providers.builtin') }
                             </span>
                           )}
                         </span>
@@ -1118,7 +1118,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                           }}
                         >
                           <code>{p.id}</code> · {p.kind} · {p.models.length}{' '}
-                          {t('settings.providers.models') || '个模型'}
+                          {t('settings.providers.models') }
                           {p.base_url ? ` · ${p.base_url}` : ''}
                         </div>
                       </div>
@@ -1137,7 +1137,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                               cursor: 'pointer',
                             }}
                           >
-                            {t('settings.providers.set_default') || '设为默认'}
+                            {t('settings.providers.set_default') }
                           </button>
                         )}
                         {!p.is_builtin && (
@@ -1156,7 +1156,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                               opacity: isDefault ? 0.5 : 1,
                             }}
                           >
-                            {t('settings.providers.remove') || '删除'}
+                            {t('settings.providers.remove') }
                           </button>
                         )}
                       </div>
@@ -1181,8 +1181,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
                           spellcheck={false}
                           placeholder={
                             providerKeyConfigured[p.id]
-                              ? t('settings.providers.keyConfigured') || '已配置(输入新值覆盖)'
-                              : t('settings.providers.keyPlaceholder') || 'API Key(留空删除)'
+                              ? t('settings.providers.keyConfigured') 
+                              : t('settings.providers.keyPlaceholder') 
                           }
                           style={{
                             flex: 1,
@@ -1208,7 +1208,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                             flexShrink: 0,
                           }}
                         >
-                          {t('settings.providers.save_key') || '保存'}
+                          {t('settings.providers.save_key') }
                         </button>
                       </div>
                     )}
@@ -1268,7 +1268,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
               disabled={newProviderJson.trim().length === 0}
               style={{ marginTop: '6px', fontSize: '12px' }}
             >
-              {t('settings.providers.add') || '添加 Provider'}
+              {t('settings.providers.add') }
             </button>
             {providerError && (
               <div style={{ color: 'var(--danger, #e53935)', fontSize: '11px', marginTop: '6px' }}>
@@ -1280,9 +1280,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         {/* T-E-B-09: 文件夹监控索引 — 监控目录变更自动吸收到 L3 语义记忆。 */}
         <div class="card" style="margin-top: 16px;">
-          <h3 style="margin-bottom: 4px;">{t('settings.watch.title') || '文件夹监控'}</h3>
+          <h3 style="margin-bottom: 4px;">{t('settings.watch.title') }</h3>
           <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">
-            {t('settings.watch.hint') || '监控目录下文件变更,自动吸收到 L3 语义记忆'}
+            {t('settings.watch.hint') }
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
             <span
@@ -1292,8 +1292,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
               }}
             >
               {watchActive
-                ? t('settings.watch.active') || '监控中'
-                : t('settings.watch.inactive') || '未启用'}
+                ? t('settings.watch.active') 
+                : t('settings.watch.inactive') }
             </span>
             <button
               type="button"
@@ -1311,13 +1311,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
               }}
             >
               {watchActive
-                ? t('settings.watch.disable') || '停用监控'
-                : t('settings.watch.enable') || '启用监控'}
+                ? t('settings.watch.disable') 
+                : t('settings.watch.enable') }
             </button>
           </div>
           {s.watchPaths.length === 0 ? (
             <div style="color: var(--text-secondary); font-size: 13px;">
-              {t('settings.watch.empty') || '暂无监控目录'}
+              {t('settings.watch.empty') }
             </div>
           ) : (
             <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -1361,7 +1361,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                       flexShrink: 0,
                     }}
                   >
-                    {t('settings.watch.remove') || '移除'}
+                    {t('settings.watch.remove') }
                   </button>
                 </div>
               ))}
@@ -1373,13 +1373,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
             onClick={addWatchFolder}
             style={{ marginTop: '8px', fontSize: '12px' }}
           >
-            {t('settings.watch.add') || '添加文件夹'}
+            {t('settings.watch.add') }
           </button>
         </div>
 
         {/* T-E-S-39: AI 人格 — SOUL.md/AGENTS.md/TOOLS.md 注入到 LLM system prompt 前缀。 */}
         <div class="card" style="margin-top: 16px;">
-          <h3 style="margin-bottom: 4px;">{t('settings.persona.title') || 'AI 人格'}</h3>
+          <h3 style="margin-bottom: 4px;">{t('settings.persona.title') }</h3>
           <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">
             {t('settings.persona.hint') ||
               '从工作区根目录读取 SOUL.md/AGENTS.md/TOOLS.md,注入到 LLM system prompt 前缀'}
@@ -1421,8 +1421,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     {label}
                     <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
                       {isLoaded
-                        ? t('settings.persona.loaded') || '已加载'
-                        : t('settings.persona.missing') || '未配置'}
+                        ? t('settings.persona.loaded') 
+                        : t('settings.persona.missing') }
                     </span>
                   </span>
                   <button
@@ -1439,7 +1439,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                       flexShrink: 0,
                     }}
                   >
-                    {t('settings.persona.edit') || '编辑'}
+                    {t('settings.persona.edit') }
                   </button>
                 </div>
               );
@@ -1447,7 +1447,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
           </div>
           {persona && !persona.soul_md && !persona.agents_md && !persona.tools_md && (
             <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 8px;">
-              {t('settings.persona.allMissing') || '三个文件均未配置'}
+              {t('settings.persona.allMissing') }
             </div>
           )}
           <button
@@ -1468,7 +1468,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             {personaReloading ? (
               <Spinner size={16} showLabel={false} />
             ) : (
-              t('settings.persona.reload') || '重新加载'
+              t('settings.persona.reload') 
             )}
           </button>
           <button

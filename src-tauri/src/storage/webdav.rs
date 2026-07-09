@@ -384,8 +384,11 @@ impl StorageBackend for WebDavBackend {
         {
             let url = self.url(path);
             // PROPFIND with Depth: 0
+            let propfind = Method::from_bytes(b"PROPFIND").map_err(|e| {
+                StorageError::Unavailable(format!("invalid HTTP method PROPFIND: {e}"))
+            })?;
             let resp = self
-                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").expect("PROPFIND is valid HTTP method"), &url))
+                .with_auth(self.client.request(propfind, &url))
                 .header("Depth", "0")
                 .header(
                     "Content-Type",
@@ -469,11 +472,11 @@ impl StorageBackend for WebDavBackend {
         #[cfg(feature = "storage-webdav")]
         {
             let url = self.url(path);
+            let mkcol = Method::from_bytes(b"MKCOL").map_err(|e| {
+                StorageError::Unavailable(format!("invalid HTTP method MKCOL: {e}"))
+            })?;
             let resp = self
-                .with_auth(self.client.request(
-                    Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"),
-                    &url,
-                ))
+                .with_auth(self.client.request(mkcol, &url))
                 .send()
                 .await?;
             // 幂等:405 Method Not Allowed 通常表示 collection 已存在
@@ -486,11 +489,11 @@ impl StorageBackend for WebDavBackend {
                         let parent_path = &path[..parent];
                         self.create_dir(parent_path).await?;
                         // 重试
+                        let mkcol = Method::from_bytes(b"MKCOL").map_err(|e| {
+                            StorageError::Unavailable(format!("invalid HTTP method MKCOL: {e}"))
+                        })?;
                         let resp = self
-                            .with_auth(self.client.request(
-                                Method::from_bytes(b"MKCOL").expect("MKCOL is valid HTTP method"),
-                                &url,
-                            ))
+                            .with_auth(self.client.request(mkcol, &url))
                             .send()
                             .await?;
                         Self::check_status(resp, path).await?;
@@ -543,8 +546,11 @@ impl StorageBackend for WebDavBackend {
         {
             let url = self.url(prefix);
             // PROPFIND with Depth: 1
+            let propfind = Method::from_bytes(b"PROPFIND").map_err(|e| {
+                StorageError::Unavailable(format!("invalid HTTP method PROPFIND: {e}"))
+            })?;
             let resp = self
-                .with_auth(self.client.request(Method::from_bytes(b"PROPFIND").expect("PROPFIND is valid HTTP method"), &url))
+                .with_auth(self.client.request(propfind, &url))
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
                 .body(r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:getcontentlength/><D:getlastmodified/><D:resourcetype/><D:getetag/></D:prop></D:propfind>"#)
@@ -587,7 +593,8 @@ mod tests {
     /// 测试:URL 构造。
     #[test]
     fn url_construction() {
-        let backend = WebDavBackend::new("https://example.com/dav/", None, None).expect("create should succeed");
+        let backend = WebDavBackend::new("https://example.com/dav/", None, None)
+            .expect("create should succeed");
         assert_eq!(backend.url("foo.txt"), "https://example.com/dav/foo.txt");
         assert_eq!(backend.url("/bar/baz"), "https://example.com/dav/bar/baz");
     }

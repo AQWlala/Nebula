@@ -69,8 +69,7 @@ impl RestApiServer {
         // T-D-B-12: dist 路径由 NEBULA_WEB_DIST 环境变量控制,默认 "dist"。
         // 路径不存在时 WebStaticServer 进入 disabled 状态,try_serve 对所有
         // 请求返回 None,不影响 API 路由。
-        let dist_path = std::env::var("NEBULA_WEB_DIST")
-            .unwrap_or_else(|_| "dist".to_string());
+        let dist_path = std::env::var("NEBULA_WEB_DIST").unwrap_or_else(|_| "dist".to_string());
         let web_static = Arc::new(WebStaticServer::new(PathBuf::from(dist_path)));
         Self {
             addr,

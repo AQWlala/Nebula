@@ -184,7 +184,7 @@ export function SwarmView() {
           )}
           <button
             onClick={() => setViewMode('master')}
-            title="Master 编排模式：拆解复杂任务为 DAG 并行执行"
+            title={t('swarm.masterModeTitle')}
             style={{
               padding: '4px 10px',
               fontSize: '12px',

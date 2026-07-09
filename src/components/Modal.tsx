@@ -101,8 +101,8 @@ export function Modal({
           <button
             class="modal__close"
             onClick={onClose}
-            aria-label={t('common.close') || '关闭'}
-            title={t('common.close') || '关闭'}
+            aria-label={t('common.close')}
+            title={t('common.close')}
           >
             ×
           </button>

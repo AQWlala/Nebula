@@ -1102,7 +1102,7 @@ pub fn extract_links(markdown: &str) -> Vec<String> {
     use regex::Regex;
     use std::sync::OnceLock;
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"\[\[([a-z0-9-]+)\]\]").expect("valid regex"));
+    let re = RE.get_or_init(|| Regex::new(r"\[\[([a-z0-9-]+)\]\]").expect("valid regex")); // T-D-B-07: 字面量保证有效,保留 expect
 
     let mut seen = std::collections::HashSet::new();
     let mut links = Vec::new();
@@ -1130,7 +1130,7 @@ pub fn extract_wiki_links(body: &str) -> Vec<String> {
     use regex::Regex;
     use std::sync::OnceLock;
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"\[\[([^\]]+)\]\]").expect("valid regex"));
+    let re = RE.get_or_init(|| Regex::new(r"\[\[([^\]]+)\]\]").expect("valid regex")); // T-D-B-07: 字面量保证有效,保留 expect
     re.captures_iter(body)
         .map(|cap| cap[1].to_string())
         .collect()
@@ -1349,7 +1349,9 @@ mod tests {
     fn resolve_note_path_basic() {
         let compiler = WikiCompiler {
             llm: Arc::new(LlmGateway::new_test()),
-            storage: Arc::new(LocalBackend::new(std::env::temp_dir()).expect("create should succeed")),
+            storage: Arc::new(
+                LocalBackend::new(std::env::temp_dir()).expect("create should succeed"),
+            ),
             sqlite: Arc::new(SqliteStore::open(":memory:").expect("create should succeed")),
             config: WikiConfig::default(),
             _log_lock: tokio::sync::Mutex::new(()),
@@ -1418,10 +1420,16 @@ mod tests {
     #[tokio::test]
     async fn list_returns_notes_desc_by_created_at() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let n1 = compiler.compile_raw(Some("First"), "a").await.expect("task should complete");
+        let n1 = compiler
+            .compile_raw(Some("First"), "a")
+            .await
+            .expect("task should complete");
         // 微小延迟确保 created_at 不同。
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        let n2 = compiler.compile_raw(Some("Second"), "b").await.expect("task should complete");
+        let n2 = compiler
+            .compile_raw(Some("Second"), "b")
+            .await
+            .expect("task should complete");
 
         let list = compiler.list(10, 0).await.expect("task should complete");
         assert_eq!(list.len(), 2);
@@ -1435,7 +1443,10 @@ mod tests {
     #[tokio::test]
     async fn delete_idempotent() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let note = compiler.compile_raw(Some("待删除"), "内容").await.expect("task should complete");
+        let note = compiler
+            .compile_raw(Some("待删除"), "内容")
+            .await
+            .expect("task should complete");
 
         // 第一次删除成功。
         compiler.delete(&note.id).await.expect("delete first");
@@ -1481,13 +1492,22 @@ mod tests {
     async fn ensure_unique_slug_appends_suffix() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
         // 第一条 note slug = "test"。
-        let _n1 = compiler.compile_raw(Some("test"), "内容1").await.expect("task should complete");
+        let _n1 = compiler
+            .compile_raw(Some("test"), "内容1")
+            .await
+            .expect("task should complete");
         // 第二条相同 title,slug 应追加 -2。
-        let n2 = compiler.compile_raw(Some("test"), "内容2").await.expect("task should complete");
+        let n2 = compiler
+            .compile_raw(Some("test"), "内容2")
+            .await
+            .expect("task should complete");
         assert_eq!(n2.slug, "test-2");
 
         // 第三条相同 title,slug 应追加 -3。
-        let n3 = compiler.compile_raw(Some("test"), "内容3").await.expect("task should complete");
+        let n3 = compiler
+            .compile_raw(Some("test"), "内容3")
+            .await
+            .expect("task should complete");
         assert_eq!(n3.slug, "test-3");
 
         cleanup(paths, dir);
@@ -1496,7 +1516,10 @@ mod tests {
     #[tokio::test]
     async fn get_by_turn_id_returns_existing() {
         let (compiler, _sqlite, _storage, dir, paths) = test_harness();
-        let note = compiler.compile_raw(Some("标题"), "内容").await.expect("task should complete");
+        let note = compiler
+            .compile_raw(Some("标题"), "内容")
+            .await
+            .expect("task should complete");
         // 手动设置 turn_id。
         {
             let conn = compiler.sqlite.raw_connection();
@@ -1508,11 +1531,17 @@ mod tests {
             .expect("test op should succeed");
         }
 
-        let found = compiler.get_by_turn_id("turn-xyz").await.expect("get should succeed");
+        let found = compiler
+            .get_by_turn_id("turn-xyz")
+            .await
+            .expect("get should succeed");
         assert!(found.is_some());
         assert_eq!(found.expect("assertion value").id, note.id);
 
-        let missing = compiler.get_by_turn_id("nonexistent").await.expect("get should succeed");
+        let missing = compiler
+            .get_by_turn_id("nonexistent")
+            .await
+            .expect("get should succeed");
         assert!(missing.is_none());
 
         cleanup(paths, dir);
@@ -2284,7 +2313,10 @@ mod tests {
     #[async_trait::async_trait]
     impl MemoryRevectorizer for MockRevectorizer {
         async fn absorb_text(&self, content: &str) -> Result<()> {
-            self.calls.lock().expect("serialize should succeed").push(content.to_string());
+            self.calls
+                .lock()
+                .expect("serialize should succeed")
+                .push(content.to_string());
             Ok(())
         }
     }
@@ -2428,7 +2460,10 @@ mod tests {
     async fn test_update_note_from_user_version_recorded() {
         let (compiler, _sponge, vc, _sqlite, _storage, dir, paths) = harness_with_sync();
 
-        let note = compiler.compile_raw(Some("版本测试"), "v1").await.expect("task should complete");
+        let note = compiler
+            .compile_raw(Some("版本测试"), "v1")
+            .await
+            .expect("task should complete");
 
         compiler
             .update_note_from_user(&note.id, "v2 内容".to_string())
@@ -2503,7 +2538,8 @@ mod tests {
             .expect("test op should succeed");
 
         // 调用前文件应为初始内容。
-        let before = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
+        let before = String::from_utf8(storage.read(&note.path).await.expect("get should succeed"))
+            .expect("get should succeed");
         assert!(before.contains("原文件内容"));
 
         compiler
@@ -2512,7 +2548,8 @@ mod tests {
             .expect("update");
 
         // 验证文件已被新内容覆盖。
-        let after = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
+        let after = String::from_utf8(storage.read(&note.path).await.expect("get should succeed"))
+            .expect("get should succeed");
         assert_eq!(after, "重写后的文件内容");
         assert!(
             !after.contains("原文件内容"),
@@ -2531,7 +2568,10 @@ mod tests {
         // 直接用 test_harness(未注入 sponge / vc)。
         let (compiler, sqlite, storage, dir, paths) = test_harness();
 
-        let note = compiler.compile_raw(Some("降级测试"), "原").await.expect("task should complete");
+        let note = compiler
+            .compile_raw(Some("降级测试"), "原")
+            .await
+            .expect("task should complete");
 
         // 调用应成功,不报错。
         compiler
@@ -2553,7 +2593,8 @@ mod tests {
         assert_eq!(body, "新内容无 sponge");
 
         // 文件已重写。
-        let file = String::from_utf8(storage.read(&note.path).await.expect("get should succeed")).expect("get should succeed");
+        let file = String::from_utf8(storage.read(&note.path).await.expect("get should succeed"))
+            .expect("get should succeed");
         assert_eq!(file, "新内容无 sponge");
 
         // _log.md 也应有 Updated 事件(append_log 不依赖 sponge)。

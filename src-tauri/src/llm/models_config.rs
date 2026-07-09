@@ -505,11 +505,17 @@ impl ModelsConfig {
             );
         }
         // default_model 必须存在于 default_provider 的 models 列表里。
+        // T-D-B-07: 上面已 bail 校验存在,此处用 ok_or_else 兜底避免 panic
         let default_provider = self
             .providers
             .iter()
             .find(|p| p.id == self.default_provider)
-            .expect("checked above");
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "default_provider `{}` not found in providers list",
+                    self.default_provider
+                )
+            })?;
         if !default_provider
             .models
             .iter()
@@ -820,7 +826,11 @@ mod tests {
     fn ssrf_allows_loopback_for_ollama() {
         let mut cfg = ModelsConfig::default_builtin();
         // ollama 的 base_url 改为 loopback（应该允许）
-        let ollama = cfg.providers.iter_mut().find(|p| p.id == "ollama").expect("query should succeed");
+        let ollama = cfg
+            .providers
+            .iter_mut()
+            .find(|p| p.id == "ollama")
+            .expect("query should succeed");
         ollama.base_url = Some("http://127.0.0.1:11434".to_string());
         // 不应因 SSRF 报错（可能因其他原因报错，但不应是 SSRF）
         match cfg.validate() {
@@ -850,7 +860,10 @@ mod tests {
         let json = serde_json::to_string(&cfg).expect("serialize");
         let loaded: ModelsConfig = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(loaded.work_type_overrides.len(), 1);
-        let entry = loaded.work_type_overrides.get("evolution_extract").expect("get should succeed");
+        let entry = loaded
+            .work_type_overrides
+            .get("evolution_extract")
+            .expect("get should succeed");
         assert_eq!(entry.provider, "ollama");
         assert_eq!(entry.model, "qwen2.5:14b");
         assert_eq!(entry.temperature, Some(0.5));

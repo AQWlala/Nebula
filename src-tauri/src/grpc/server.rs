@@ -1012,7 +1012,7 @@ async fn grpc_service(
             let resp = Response::builder()
                 .status(hyper::StatusCode::BAD_REQUEST)
                 .body(vec_to_box_body(Vec::new()))
-                .expect("infallible: static response builder");
+                .unwrap_or_else(|_| Response::new(vec_to_box_body(Vec::new())));
             return Ok(resp);
         }
     };
@@ -1293,7 +1293,7 @@ async fn grpc_service(
         Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(vec_to_box_body(Vec::new()))
-            .expect("infallible: static response builder")
+            .unwrap_or_else(|_| Response::new(vec_to_box_body(Vec::new())))
     });
     Ok(resp)
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v0.5: 文件树
  *
  * 渲染后端 editor::list_tree 返回的 FileEntry 列表。
@@ -11,6 +11,7 @@
  */
 import { useMemo, useState } from 'preact/hooks';
 import { nebulaAPI, type FileEntry } from '../../lib/tauri';
+import { t } from '../../i18n';
 
 interface FileTreeProps {
   entries: FileEntry[];
@@ -84,13 +85,13 @@ export function FileTree({ entries, workspace, currentPath, onOpen, onRefresh }:
         <span title={workspace} class="ft-root">
           {workspace}
         </span>
-        <button class="ft-refresh" onClick={onRefresh} title="刷新文件树">
+        <button class="ft-refresh" onClick={onRefresh} title={t('fileTree.refreshTitle')}>
           ↻
         </button>
       </header>
       <div class="ft-body">
         {tree.length === 0 ? (
-          <p class="ft-empty">空目录</p>
+          <p class="ft-empty">{t('fileTree.empty')}</p>
         ) : (
           tree.map((n) => (
             <Node

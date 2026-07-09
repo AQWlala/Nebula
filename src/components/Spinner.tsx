@@ -16,7 +16,7 @@ export interface SpinnerProps {
 }
 
 export function Spinner({ size = 24, label, showLabel = true }: SpinnerProps) {
-  const text = label ?? (t('common.loading') || '加载中…');
+  const text = label ?? t('common.loading');
   return (
     <span class="spinner" role="status" aria-live="polite">
       <span

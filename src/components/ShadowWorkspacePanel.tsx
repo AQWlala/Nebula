@@ -23,6 +23,7 @@ import {
   type OperationRecord,
 } from '../lib/tauri';
 import { toast } from './Toast';
+import { t, type Dict } from '../i18n';
 
 const STATUS_COLORS: Record<ShadowStatus, string> = {
   creating: '#9CA3AF',
@@ -33,13 +34,13 @@ const STATUS_COLORS: Record<ShadowStatus, string> = {
   aborted: '#F59E0B',
 };
 
-const STATUS_LABELS: Record<ShadowStatus, string> = {
-  creating: '创建中',
-  running: '运行中',
-  completed: '已完成',
-  failed: '失败',
-  merged: '已合并',
-  aborted: '已丢弃',
+const STATUS_LABELS: Record<ShadowStatus, keyof Dict> = {
+  creating: 'shadowWorkspace.status.creating',
+  running: 'shadowWorkspace.status.running',
+  completed: 'shadowWorkspace.status.completed',
+  failed: 'shadowWorkspace.status.failed',
+  merged: 'shadowWorkspace.status.merged',
+  aborted: 'shadowWorkspace.status.aborted',
 };
 
 // T-E-C-09: 操作种类图标 + 标签(供录屏时间线渲染)
@@ -51,12 +52,12 @@ const OP_ICONS: Record<OperationKind, string> = {
   note: '📝',
 };
 
-const OP_LABELS: Record<OperationKind, string> = {
-  file_create: '新建文件',
-  file_write: '修改文件',
-  file_delete: '删除文件',
-  command: '执行命令',
-  note: '备注',
+const OP_LABELS: Record<OperationKind, keyof Dict> = {
+  file_create: 'shadowWorkspace.op.file_create',
+  file_write: 'shadowWorkspace.op.file_write',
+  file_delete: 'shadowWorkspace.op.file_delete',
+  command: 'shadowWorkspace.op.command',
+  note: 'shadowWorkspace.op.note',
 };
 
 function formatTime(unixSec: number): string {
@@ -116,18 +117,18 @@ export function ShadowWorkspacePanel() {
 
   const handleCreate = async () => {
     if (!taskDesc.trim()) {
-      toast.warning('请输入任务描述');
+      toast.warning(t('shadowWorkspace.toast.descRequired'));
       return;
     }
     setCreating(true);
     try {
       const ws = await nebulaAPI.shadowCreate(taskDesc.trim(), baseBranch.trim() || null);
-      toast.success(`已创建 Shadow Workspace: ${ws.id}`);
+      toast.success(t('shadowWorkspace.toast.created', { id: ws.id }));
       setTaskDesc('');
       setBaseBranch('');
       await refresh();
     } catch (e) {
-      toast.error('创建失败', String(e));
+      toast.error(t('shadowWorkspace.toast.createFailed'), String(e));
     } finally {
       setCreating(false);
     }
@@ -145,9 +146,9 @@ export function ShadowWorkspacePanel() {
     setDiffText('');
     try {
       const diff = await nebulaAPI.shadowDiff(id);
-      setDiffText(diff || '(无差异)');
+      setDiffText(diff || t('shadowWorkspace.noDiff'));
     } catch (e) {
-      setDiffText(`获取 diff 失败: ${e}`);
+      setDiffText(t('shadowWorkspace.diffFailed', { error: String(e) }));
     } finally {
       setDiffLoading(false);
     }
@@ -180,10 +181,10 @@ export function ShadowWorkspacePanel() {
   const handleComplete = async (id: string) => {
     try {
       await nebulaAPI.shadowComplete(id);
-      toast.success('已标记完成');
+      toast.success(t('shadowWorkspace.toast.markedComplete'));
       await refresh();
     } catch (e) {
-      toast.error('操作失败', String(e));
+      toast.error(t('shadowWorkspace.toast.opFailed'), String(e));
     }
   };
 
@@ -193,14 +194,19 @@ export function ShadowWorkspacePanel() {
     try {
       if (kind === 'merge') {
         await nebulaAPI.shadowMerge(id);
-        toast.success('已合并回 base 分支');
+        toast.success(t('shadowWorkspace.toast.merged'));
       } else {
         await nebulaAPI.shadowAbort(id);
-        toast.success('已丢弃');
+        toast.success(t('shadowWorkspace.toast.aborted'));
       }
       await refresh();
     } catch (e) {
-      toast.error(kind === 'merge' ? '合并失败' : '丢弃失败', String(e));
+      toast.error(
+        kind === 'merge'
+          ? t('shadowWorkspace.toast.mergeFailed')
+          : t('shadowWorkspace.toast.abortFailed'),
+        String(e)
+      );
     } finally {
       setConfirmAction(null);
     }
@@ -213,14 +219,16 @@ export function ShadowWorkspacePanel() {
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">🌑 Shadow Workspace</h2>
+        <h2 className="text-sm font-semibold text-gray-300">{t('shadowWorkspace.title')}</h2>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-gray-500">加载中…</span>}
-          <span className="text-xs text-gray-500">{workspaces.length} 个工作区</span>
+          {loading && <span className="text-xs text-gray-500">{t('shadowWorkspace.loading')}</span>}
+          <span className="text-xs text-gray-500">
+            {t('shadowWorkspace.wsCount', { n: workspaces.length })}
+          </span>
           <button
             onClick={refresh}
             className="text-xs text-gray-400 hover:text-white transition-colors"
-            title="刷新"
+            title={t('shadowWorkspace.refresh')}
           >
             ↻
           </button>
@@ -232,7 +240,7 @@ export function ShadowWorkspacePanel() {
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="任务描述,如:重构 memory 模块..."
+            placeholder={t('shadowWorkspace.descPlaceholder')}
             value={taskDesc}
             onInput={(e) => setTaskDesc((e.target as HTMLInputElement).value)}
             className="flex-1 px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
@@ -240,7 +248,7 @@ export function ShadowWorkspacePanel() {
           />
           <input
             type="text"
-            placeholder="base 分支(可选,默认当前)"
+            placeholder={t('shadowWorkspace.baseBranchPlaceholder')}
             value={baseBranch}
             onInput={(e) => setBaseBranch((e.target as HTMLInputElement).value)}
             className="w-40 px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
@@ -252,20 +260,17 @@ export function ShadowWorkspacePanel() {
             className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-white transition-colors"
             data-testid="shadow-create-btn"
           >
-            {creating ? '创建中…' : '创建'}
+            {creating ? t('shadowWorkspace.creating') : t('shadowWorkspace.create')}
           </button>
         </div>
-        <p className="text-xs text-gray-600">
-          Agent 将在独立 git worktree + 分支 <code className="text-gray-500">agent/&lt;id&gt;</code>{' '}
-          中执行,不影响当前工作区。
-        </p>
+        <p className="text-xs text-gray-600">{t('shadowWorkspace.hint')}</p>
       </div>
 
       {/* 列表 */}
       <div className="flex-1 overflow-y-auto">
         {workspaces.length === 0 && !loading && (
           <div className="text-center text-gray-500 py-12" data-testid="shadow-empty">
-            暂无 Shadow Workspace
+            {t('shadowWorkspace.empty')}
           </div>
         )}
         {workspaces.map((ws) => {
@@ -295,7 +300,7 @@ export function ShadowWorkspacePanel() {
                     color: STATUS_COLORS[ws.status],
                   }}
                 >
-                  {STATUS_LABELS[ws.status]}
+                  {t(STATUS_LABELS[ws.status])}
                 </span>
                 <span className="text-xs text-gray-600">·</span>
                 <span className="text-xs text-gray-500 font-mono">{ws.branch}</span>
@@ -310,8 +315,10 @@ export function ShadowWorkspacePanel() {
               {/* 元数据 */}
               <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-1">
                 <span>base: {ws.base_branch}</span>
-                <span>创建: {formatTime(ws.created_at)}</span>
-                {ws.finished_at && <span>完成: {formatTime(ws.finished_at)}</span>}
+                <span>{t('shadowWorkspace.createdAt', { time: formatTime(ws.created_at) })}</span>
+                {ws.finished_at && (
+                  <span>{t('shadowWorkspace.finishedAt', { time: formatTime(ws.finished_at) })}</span>
+                )}
               </div>
               {/* 操作按钮 */}
               <div className="flex flex-wrap gap-2 mt-1">
@@ -320,22 +327,22 @@ export function ShadowWorkspacePanel() {
                   className="text-xs px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
                   data-testid={`shadow-diff-btn-${ws.id}`}
                 >
-                  {isExpanded ? '隐藏 diff' : '查看 diff'}
+                  {isExpanded ? t('shadowWorkspace.hideDiff') : t('shadowWorkspace.viewDiff')}
                 </button>
                 <button
                   onClick={() => handleViewRecording(ws.id)}
                   className="text-xs px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
                   data-testid={`shadow-replay-btn-${ws.id}`}
-                  title="查看 Agent 操作录屏"
+                  title={t('shadowWorkspace.replayTitle')}
                 >
-                  {isRecExpanded ? '隐藏回放' : '▶ 回放'}
+                  {isRecExpanded ? t('shadowWorkspace.hideReplay') : t('shadowWorkspace.replay')}
                 </button>
                 {canComplete && (
                   <button
                     onClick={() => handleComplete(ws.id)}
                     className="text-xs px-2 py-0.5 bg-green-900/60 hover:bg-green-800/60 rounded text-green-300 transition-colors"
                   >
-                    标记完成
+                    {t('shadowWorkspace.markComplete')}
                   </button>
                 )}
                 {canMerge && (
@@ -343,7 +350,7 @@ export function ShadowWorkspacePanel() {
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'merge' })}
                     className="text-xs px-2 py-0.5 bg-blue-900/60 hover:bg-blue-800/60 rounded text-blue-300 transition-colors"
                   >
-                    合并
+                    {t('shadowWorkspace.merge')}
                   </button>
                 )}
                 {canAbort && (
@@ -351,7 +358,7 @@ export function ShadowWorkspacePanel() {
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'abort' })}
                     className="text-xs px-2 py-0.5 bg-red-900/60 hover:bg-red-800/60 rounded text-red-300 transition-colors"
                   >
-                    丢弃
+                    {t('shadowWorkspace.abort')}
                   </button>
                 )}
               </div>
@@ -359,7 +366,7 @@ export function ShadowWorkspacePanel() {
               {isExpanded && (
                 <div className="mt-2" data-testid={`shadow-diff-view-${ws.id}`}>
                   {diffLoading ? (
-                    <div className="text-xs text-gray-500">加载 diff…</div>
+                    <div className="text-xs text-gray-500">{t('shadowWorkspace.loadingDiff')}</div>
                   ) : (
                     <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded p-2 overflow-auto max-h-80 whitespace-pre-wrap">
                       {diffText}
@@ -371,18 +378,18 @@ export function ShadowWorkspacePanel() {
               {isRecExpanded && (
                 <div className="mt-2" data-testid={`shadow-recording-view-${ws.id}`}>
                   {recLoading ? (
-                    <div className="text-xs text-gray-500">加载录屏…</div>
+                    <div className="text-xs text-gray-500">{t('shadowWorkspace.loadingRecording')}</div>
                   ) : recOps.length === 0 ? (
                     <div
                       className="text-xs text-gray-600"
                       data-testid={`shadow-recording-empty-${ws.id}`}
                     >
-                      暂无操作记录(命令执行会自动记录,文件操作需 Agent 显式记录)
+                      {t('shadowWorkspace.recordingEmpty')}
                     </div>
                   ) : (
                     <div className="border border-gray-800 rounded">
                       <div className="text-xs text-gray-500 px-2 py-1 border-b border-gray-800 bg-gray-900/50">
-                        操作录屏 · {recOps.length} 步
+                        {t('shadowWorkspace.recordingHeader', { n: recOps.length })}
                       </div>
                       <ul className="divide-y divide-gray-800 max-h-96 overflow-y-auto">
                         {recOps.map((op) => (
@@ -398,7 +405,7 @@ export function ShadowWorkspacePanel() {
                               </span>
                               <span className="text-sm flex-shrink-0">{OP_ICONS[op.kind]}</span>
                               <span className="text-xs text-gray-400 flex-shrink-0">
-                                {OP_LABELS[op.kind]}
+                                {t(OP_LABELS[op.kind])}
                               </span>
                               {op.target && (
                                 <span className="text-xs text-gray-300 font-mono truncate flex-1">
@@ -426,13 +433,13 @@ export function ShadowWorkspacePanel() {
                               >
                                 {op.detail && (
                                   <div>
-                                    <span className="text-xs text-gray-500">详情: </span>
+                                    <span className="text-xs text-gray-500">{t('shadowWorkspace.detailLabel')}</span>
                                     <code className="text-xs text-gray-300">{op.detail}</code>
                                   </div>
                                 )}
                                 {op.message && (
                                   <div>
-                                    <span className="text-xs text-gray-500">消息: </span>
+                                    <span className="text-xs text-gray-500">{t('shadowWorkspace.messageLabel')}</span>
                                     <pre className="text-xs text-gray-400 bg-gray-900 border border-gray-800 rounded p-1 mt-0.5 overflow-auto max-h-40 whitespace-pre-wrap inline-block w-full">
                                       {op.message}
                                     </pre>
@@ -460,26 +467,30 @@ export function ShadowWorkspacePanel() {
         >
           <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 max-w-sm">
             <h3 className="text-sm font-semibold text-white mb-2">
-              {confirmAction.kind === 'merge' ? '确认合并' : '确认丢弃'}
+              {confirmAction.kind === 'merge'
+                ? t('shadowWorkspace.confirmMergeTitle')
+                : t('shadowWorkspace.confirmAbortTitle')}
             </h3>
             <p className="text-xs text-gray-400 mb-4">
               {confirmAction.kind === 'merge'
-                ? '将把 Agent 分支的修改合并回 base 分支。合并后 worktree 将被清理。'
-                : '将强制清理 worktree 并删除分支,所有未合并的修改将丢失。此操作不可逆。'}
+                ? t('shadowWorkspace.confirmMergeBody')
+                : t('shadowWorkspace.confirmAbortBody')}
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setConfirmAction(null)}
                 className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300"
               >
-                取消
+                {t('shadowWorkspace.dialogCancel')}
               </button>
               <button
                 onClick={handleConfirmAction}
                 className={`text-xs px-3 py-1 rounded text-white ${confirmAction.kind === 'merge' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
                 data-testid="shadow-confirm-btn"
               >
-                {confirmAction.kind === 'merge' ? '合并' : '丢弃'}
+                {confirmAction.kind === 'merge'
+                  ? t('shadowWorkspace.merge')
+                  : t('shadowWorkspace.abort')}
               </button>
             </div>
           </div>

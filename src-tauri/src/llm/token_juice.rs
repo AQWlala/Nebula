@@ -35,6 +35,14 @@ use crate::memory::values::privacy_guard::PrivacyGuard;
 // ---- L2 HTML->MD 预编译正则 ----
 // `regex` crate 不支持反向引用,故 header / b / strong / i / em
 // 使用分开的模式或宽松闭合标签匹配。
+//
+// [T-D-B-07 panic 清理 / 策略 #4] 安全说明:以下所有
+// `Regex::new(...).expect("valid regex")` 的模式均为编译期字面量,
+// `regex` crate 的 `Regex::new` 仅在模式语法非法时返回 Err;这些模式
+// 已在本文档内静态验证并由 `mod tests` 中的 HTML->MD / URL 测试覆盖
+// (见 `test_l2_html_to_md_*`、`test_l2_shorten_urls_*`)。若任一模式
+// 无效,属于程序员错误,必然在开发阶段暴露,不会到达生产运行时,
+// 因此在此使用 `.expect()` 不会在生产环境触发 panic。
 static RE_SCRIPT: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?is)<script.*?</script>").expect("valid regex"));
 static RE_STYLE: Lazy<Regex> =
@@ -58,6 +66,7 @@ static RE_EM: Lazy<Regex> =
 static RE_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?is)<[^>]+>").expect("valid regex"));
 
 // L2 URL 缩短:裸 http(s) URL,排除引号/尖括号/圆括号以免吞掉 markdown 链接外壳。
+// [T-D-B-07] 同上,字面量模式,`.expect()` 安全(策略 #4)。
 static RE_URL: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"https?://[^\s<>"')]+"#).expect("valid regex"));
 

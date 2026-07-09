@@ -92,7 +92,8 @@ impl SemanticCache {
         similarity_threshold: f32,
         ttl: Duration,
     ) -> Self {
-        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY).unwrap_or(NonZeroUsize::new(1).expect("1 is non-zero"));
+        // T-D-B-07: NonZeroUsize::MIN 是 const,1 非零保证有效,无需 expect
+        let cap = NonZeroUsize::new(ENTRIES_LRU_CAPACITY).unwrap_or(NonZeroUsize::MIN);
         Self {
             lance,
             embedder,
@@ -436,7 +437,11 @@ mod tests {
         Arc<Embedder>,
     ) {
         let sqlite = Arc::new(SqliteStore::open(db_path).expect("create should succeed"));
-        let lance = Arc::new(LanceStore::open(lance_path, dim).await.expect("create should succeed"));
+        let lance = Arc::new(
+            LanceStore::open(lance_path, dim)
+                .await
+                .expect("create should succeed"),
+        );
         let embedder = Arc::new(Embedder::new(
             OllamaClient::new("http://127.0.0.1:1"),
             "test-model",
@@ -588,7 +593,11 @@ mod tests {
     async fn store_skips_sqlite_when_not_configured() {
         let db_path = temp_db_path();
         let lance_path = temp_lance_path();
-        let lance = Arc::new(LanceStore::open(&lance_path, 4).await.expect("create should succeed"));
+        let lance = Arc::new(
+            LanceStore::open(&lance_path, 4)
+                .await
+                .expect("create should succeed"),
+        );
         let embedder = Arc::new(Embedder::new(
             OllamaClient::new("http://127.0.0.1:1"),
             "test-model",
@@ -604,7 +613,10 @@ mod tests {
 
         // sqlite 表中应无对应记录(因为未启用持久化)。
         let id = stable_id("no sqlite");
-        let got = sqlite.query_semantic_cache_entry(&id).await.expect("query should succeed");
+        let got = sqlite
+            .query_semantic_cache_entry(&id)
+            .await
+            .expect("query should succeed");
         assert!(
             got.is_none(),
             "sqlite must not have entry when not configured"
