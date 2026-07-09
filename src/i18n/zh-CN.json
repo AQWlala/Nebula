@@ -19,6 +19,11 @@
   "nav.settings": "设置",
   "nav.diagnostics": "诊断",
   "nav.floatingBall": "悬浮球",
+  "nav.credits": "积分",
+  "nav.shadow": "影子",
+  "nav.longtask": "长任务",
+
+  "chat.askFilePrefill": "请帮我分析这个文件:{path}",
 
   "diagnostics.title": "诊断",
   "diagnostics.openLogs": "打开日志目录",
@@ -567,6 +572,12 @@
   "exportDialog.includeTimestamps": "包含时间戳",
   "exportDialog.includeToolCalls": "包含工具调用（暂未实现）",
   "exportDialog.messageCount": "当前对话共 {count} 条消息",
+
+  "export.defaultTitle": "Nebula对话导出",
+  "export.exportTime": "导出时间",
+  "export.messageCount": "消息数",
+  "export.roleUser": "用户",
+  "export.roleAssistant": "Nebula",
 
   "templatesDialog.category.writing": "写作",
   "templatesDialog.category.coding": "编码",

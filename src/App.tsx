@@ -209,7 +209,7 @@ export function App() {
           const path = event.payload;
           if (path) {
             currentMode.value = 'chat';
-            nebulaStore.setChatPrefill(`请帮我分析这个文件:${path}`);
+            nebulaStore.setChatPrefill(t('chat.askFilePrefill', { path }));
           }
         });
         unlistens.push(u4);
@@ -382,10 +382,10 @@ function Sidebar() {
     { id: 'code', icon: '💻', label: t('nav.code') },
     { id: 'skills', icon: '🔍', label: t('nav.skills') },
     { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
-    { id: 'credits', icon: '💰', label: 'Credits' },
+    { id: 'credits', icon: '💰', label: t('nav.credits') },
     { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
-    { id: 'shadow', icon: '🌑', label: 'Shadow' },
-    { id: 'longtask', icon: '⏳', label: '长任务' },
+    { id: 'shadow', icon: '🌑', label: t('nav.shadow') },
+    { id: 'longtask', icon: '⏳', label: t('nav.longtask') },
   ];
 
   return (

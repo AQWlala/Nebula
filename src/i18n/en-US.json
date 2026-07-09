@@ -19,6 +19,11 @@
   "nav.settings": "Settings",
   "nav.diagnostics": "Diagnostics",
   "nav.floatingBall": "Floating Ball",
+  "nav.credits": "Credits",
+  "nav.shadow": "Shadow",
+  "nav.longtask": "Long Tasks",
+
+  "chat.askFilePrefill": "Please analyze this file for me: {path}",
 
   "diagnostics.title": "Diagnostics",
   "diagnostics.openLogs": "Open logs folder",
@@ -567,6 +572,12 @@
   "exportDialog.includeTimestamps": "Include timestamps",
   "exportDialog.includeToolCalls": "Include tool calls (not yet implemented)",
   "exportDialog.messageCount": "{count} messages in current chat",
+
+  "export.defaultTitle": "Nebula Chat Export",
+  "export.exportTime": "Export time",
+  "export.messageCount": "Messages",
+  "export.roleUser": "User",
+  "export.roleAssistant": "Nebula",
 
   "templatesDialog.category.writing": "Writing",
   "templatesDialog.category.coding": "Coding",

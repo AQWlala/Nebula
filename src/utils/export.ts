@@ -1,4 +1,5 @@
 import type { Message } from '../components/ChatPanel';
+import { t } from '../i18n';
 
 export interface ExportOptions {
   format: 'markdown' | 'docx' | 'pdf';
@@ -14,14 +15,14 @@ function formatTimestamp(ts: number): string {
 }
 
 export function exportToMarkdown(messages: Message[], options: ExportOptions): string {
-  const title = options.title || 'Nebula对话导出';
+  const title = options.title || t('export.defaultTitle');
   const now = new Date();
   const lines: string[] = [];
 
   lines.push(`# ${title}`);
   lines.push('');
-  lines.push(`导出时间: ${formatTimestamp(now.getTime())}`);
-  lines.push(`消息数: ${messages.length}`);
+  lines.push(`${t('export.exportTime')}: ${formatTimestamp(now.getTime())}`);
+  lines.push(`${t('export.messageCount')}: ${messages.length}`);
   lines.push('');
   lines.push('---');
   lines.push('');
@@ -67,12 +68,12 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 export function printToPdf(messages: Message[], options: ExportOptions): void {
-  const title = options.title || 'Nebula对话导出';
+  const title = options.title || t('export.defaultTitle');
   const now = new Date();
 
   const msgHtml = messages
     .map((msg) => {
-      const roleLabel = msg.role === 'user' ? '用户' : 'Nebula';
+      const roleLabel = msg.role === 'user' ? t('export.roleUser') : t('export.roleAssistant');
       const roleColor = msg.role === 'user' ? '#2196f3' : '#4caf50';
       const ts =
         options.includeTimestamps && msg.timestamp > 0
@@ -103,8 +104,8 @@ export function printToPdf(messages: Message[], options: ExportOptions): void {
     <body>
       <h1>${title}</h1>
       <div class="meta">
-        <div>导出时间: ${formatTimestamp(now.getTime())}</div>
-        <div>消息数: ${messages.length}</div>
+        <div>${t('export.exportTime')}: ${formatTimestamp(now.getTime())}</div>
+        <div>${t('export.messageCount')}: ${messages.length}</div>
       </div>
       ${msgHtml}
     </body>
