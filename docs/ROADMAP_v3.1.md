@@ -292,10 +292,10 @@ T-E-S-11/12/14/22/26/53/56/60 完成（2026-07-10），含 蜂群运行时画布
 - ✅ T-D-B-16 AppState 45+ 字段分组重构（L，v3.0 新增）
 - ✅ T-D-B-07 1805 panic 点 → 精确审计生产 74 处,清理 43 处,剩余 31 处策略#4保留（2026-07-09）
 - ✅ T-D-B-06 lib.rs 3333 行拆分（L）
-- T-D-B-02 bootstrap.rs 1113 行拆分（L，测试先行）
+- ✅ T-D-B-02 bootstrap.rs 1113 行拆分（L，5 子模块，2026-07-08）
 - ✅ T-D-F-01 tauri.ts 拆分（本次）
 - ✅ T-D-B-01 tracing_setup.rs 8 路重构（4f3d9b7）
-- T-D-B-08 gRPC wire 标准化（L，迁移到 tonic）
+- ✅ T-D-B-08 gRPC wire 标准化（L，迁移到 tonic，2026-07-09）
 - ✅ T-D-B-09 渠道路由断路修复（M）
 
 **W4 - CI 与配置**：
@@ -313,59 +313,60 @@ T-E-S-11/12/14/22/26/53/56/60 完成（2026-07-10），含 蜂群运行时画布
 - ✅ T-D-T-02 bootstrap/gateway/dispatcher/app_config 测试（L,22 个新测试全过）
 
 **前端质量重构**：
-- T-D-F-03/04/05/06 重复代码 + i18n + cancelled 反模式
+- ✅ T-D-F-03/04/05/06 重复代码 + i18n + cancelled 反模式（2026-07-09）
 
 **架构准备（为 Phase 3 铺路）**：
 - ✅ T-D-B-17 AgentKind Deprecated 清理（M,Generic + AgentScenario 场景化,2026-07-09）
-- T-D-B-18 writing/ 模块补齐 28 场景模板（L）
-- T-D-B-19 swarm/agents 角色重定义（M）
+- ✅ T-D-B-18 writing/ 模块补齐 28 场景模板（L，2026-07-09）
+- ✅ T-D-B-19 swarm/agents 角色重定义（M，2026-07-09）
 - ✅ T-D-S-02 E2EE 双棘轮升级（M，Double Ratchet DH+KDF 链棘轮，2026-07-09）
 
 **CI/CD 门禁强化**：
-- T-D-C-02/03/04/05/07 配置统一 + Prettier + tsconfig + Docker + 增量编译
-- T-D-T-03 Playwright E2E 接入 CI
+- ✅ T-D-C-02/03/04/05 配置统一 + Prettier + tsconfig + Docker（2026-07-09）
+- 🔄 T-D-C-07 增量编译（跟踪中,依赖 Rust 上游 ICE 修复）
+- ✅ T-D-T-03 Playwright E2E 接入 CI（2026-07-09）
 
-### 6.4 Phase 2：功能补齐（6-8 周，按 Wave 推进）
+### 6.4 Phase 2：功能补齐（6-8 周，按 Wave 推进）→ ✅ 全部完成
 
 **Wave 2（v2.4 知识革命收尾）**：
-- T-E-S-63 三定时机制 → T-E-B-15 AI 自动整理 MOC
+- ✅ T-E-S-63 三定时机制 → T-E-B-15 AI 自动整理 MOC
 
 **Wave 3（v2.5 形象+后台革命）**：
-- T-E-S-60 Gateway 守护进程
-- T-E-D-04 8 人格系统
-- T-E-D-05 Proactive Engine
+- ✅ T-E-S-60 Gateway 守护进程
+- ✅ T-E-D-04 8 人格系统
+- ✅ T-E-D-05 Proactive Engine
 
 **Wave 4（v2.6 可视+视觉革命）**：
-- T-E-S-10 WorkflowCanvas（XL，最大工程量）
-- T-E-S-11 蜂群运行时画布
-- T-E-S-26 Event Stream 协议化
-- T-E-C-01/05/06 OS-Controller 三件套
-- T-E-L-08a Loop 运行时阶段环
+- ✅ T-E-S-10 WorkflowCanvas（XL，最大工程量）
+- ✅ T-E-S-11 蜂群运行时画布
+- ✅ T-E-S-26 Event Stream 协议化
+- ✅ T-E-C-01/05/06 OS-Controller 三件套
+- ✅ T-E-L-08a Loop 运行时阶段环
 
 **Wave 5（v3.0 全自主革命）**：
-- T-E-S-53 Cron 定时任务引擎
-- T-E-S-58 Calendar 组件
-- T-E-C-18 OAuth 集成层 → T-E-L-04 GitHub MCP
-- T-E-C-19 多端协同
+- ✅ T-E-S-53 Cron 定时任务引擎
+- ✅ T-E-S-58 Calendar 组件
+- ✅ T-E-C-18 OAuth 集成层 → T-E-L-04 GitHub MCP
+- ✅ T-E-C-19 多端协同
 
-### 6.5 Phase 3：蜂群架构升级（4-6 周）← v3.1 新增
+### 6.5 Phase 3：蜂群架构升级（4-6 周）← v3.1 新增 → ✅ 全部完成
 
 > **目标**：将扁平蜂群升级为"2 自定义主智能体 + 6 通用子智能体"分层架构，支持场景化写作工作流。
 
 **核心架构**：
-- T-E-AE-01 PrimaryAgent 实现（decompose/delegate/synthesize）
-- T-E-AE-02 场景化角色配置（social_media / novel）
-- T-E-AE-05 主→子任务分派协议（AgentBus + DelegatedTask）
+- ✅ T-E-AE-01 PrimaryAgent 实现（decompose/delegate/synthesize）
+- ✅ T-E-AE-02 场景化角色配置（social_media / novel）
+- ✅ T-E-AE-05 主→子任务分派协议（AgentBus + DelegatedTask）
 
 **基因级进化**：
-- T-E-AE-04 GeneMutator（基于 OutcomeLedger 适应度信号，受控变异 ±2.5%）
+- ✅ T-E-AE-04 GeneMutator（基于 OutcomeLedger 适应度信号，受控变异 ±2.5%）
 
 **写作场景端到端**：
-- T-E-AE-03 自媒体写作场景（搜索→大纲→初稿→审查→润色→归档）
-- T-E-AE-03b 长篇小说写作场景（世界观+人物→章节大纲→并行初稿→一致性审查→润色）
+- ✅ T-E-AE-03 自媒体写作场景（搜索→大纲→初稿→审查→润色→归档）
+- ✅ T-E-AE-03b 长篇小说写作场景（世界观+人物→章节大纲→并行初稿→一致性审查→润色）
 
 **子智能体重定义**：
-- T-E-AE-06 6 子智能体重定义为 Search/Outline/Draft/Review/Polish/Archive
+- ✅ T-E-AE-06 6 子智能体重定义为 Search/Outline/Draft/Review/Polish/Archive
 
 ### 6.6 Phase 4：创新扩展（长期）
 
@@ -454,6 +455,7 @@ T-E-S-11/12/14/22/26/53/56/60 完成（2026-07-10），含 蜂群运行时画布
 | 2026-07-09 | T-D-S-02 E2EE 单棘轮→双棘轮(Double Ratchet)升级:DH 棘轮+KDF 链棘轮实现前向保密;v1/v2 信封向后兼容;新增 RatchetState+Mutex+trial clone 模式;15 个测试覆盖(双向对话/DH 公钥更新/消息密钥唯一性/前向保密 2 场景/v1 向后兼容/wire format/失败状态保持/版本常量);cargo check + cargo check --tests 通过 → ✅ | §4.1, §6.3 |
 | 2026-07-10 | **🎉 T-E-* 全部 131 个功能任务完成（131/131 = 100%）**。最后 19 个任务通过 3 Wave 多智能体并行完成（Wave1:11/Wave2:6/Wave3:2），涉及 OS-Controller VLM/ActionExecutor/Sidecar/Remote Operator/操作录制回放/Design Mode/蜂群运行时画布/节点交互/执行回放/AIO Sandbox/Event Stream/Cron 引擎/Automation 模板/Gateway 守护进程/WebGL 引擎/UI 性能基准/Loop 阶段环/自媒体写作/长篇小说写作。cargo check + cargo fmt + tsc --noEmit + vitest 全部通过 | §1, §2.3-2.7, §3 |
 | 2026-07-10 | **ROADMAP 全量审查修正**：①§4 标题"19✅22待"过时→修正为"40✅1🔄跟踪中"(T-D-C-07 Rust ICE 待上游修复) ②§4.1 标题"12✅1待"→"13✅全部完成" ③§4.2 标题"22个"→"26个→25✅1🔄" ④§1 AE 范围"01~03b"→"01~06+03b" ⑤§1 S 范围"01~63"→"01~64含跳号" ⑥§1 技术债务"41/0/100%"→"40/1🔄/97.6%" ⑦§3 三张表表头添加"状态"列 ⑧§0 AE 任务数"6"→"7" ⑨§2.6 L-01/02/03 补 ✅ 标记 ⑩文档日期 07-08→07-10 | §0, §1, §2.6, §3, §4, §8.5 |
+| 2026-07-10 | **§6.2-§6.5 Phase 计划 ✅ 回填**：§6.2 T-D-B-02/08 补 ✅；§6.3 T-D-F-03~06/T-D-B-18/19/T-D-C-02~05/T-D-T-03 补 ✅,T-D-C-07 标 🔄；§6.4 Phase 2 Wave 2-5 全部 T-E-* 补 ✅ + 标题加"→ ✅ 全部完成"；§6.5 Phase 3 全部 T-E-AE-* 补 ✅ + 标题加"→ ✅ 全部完成" | §6.2-§6.5, §8.5 |
 
 ---
 
