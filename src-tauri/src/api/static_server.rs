@@ -16,6 +16,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
+// T-D-B-12: `BodyExt` trait provides `.boxed()` used below to coerce
+// `Full<Bytes>` into the erased `BoxBody` return type.  This import was
+// missing (PRE-EXISTING bug masked by `rest-api` not being in CI),
+// causing `no method named 'boxed' found` when T-D-B-12 first compiled
+// the module with `--features rest-api`.
+use http_body_util::BodyExt;
 use http_body_util::Full;
 use std::convert::Infallible;
 use tracing::{info, warn};

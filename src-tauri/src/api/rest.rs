@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -8,6 +9,7 @@ use http_body_util::BodyExt;
 use serde::Deserialize;
 use tracing::info;
 
+use crate::api::static_server::WebStaticServer;
 use crate::llm::ChatMessage;
 use crate::swarm::SwarmTask;
 use crate::AppState;
@@ -55,12 +57,26 @@ struct MemorySearchRequest {
 pub struct RestApiServer {
     addr: SocketAddr,
     state: Arc<AppState>,
+    /// T-D-B-12: 前端静态文件服务器(无头模式下提供 Web UI)。
+    /// `Arc` 包装因 `WebStaticServer` 未派生 `Clone`(避免修改
+    /// `static_server.rs` —— 该文件正被 opencode 的 T-D-B-07 工作修改)。
+    web_static: Arc<WebStaticServer>,
 }
 
 #[cfg(feature = "rest-api")]
 impl RestApiServer {
     pub fn new(addr: SocketAddr, state: Arc<AppState>) -> Self {
-        Self { addr, state }
+        // T-D-B-12: dist 路径由 NEBULA_WEB_DIST 环境变量控制,默认 "dist"。
+        // 路径不存在时 WebStaticServer 进入 disabled 状态,try_serve 对所有
+        // 请求返回 None,不影响 API 路由。
+        let dist_path = std::env::var("NEBULA_WEB_DIST")
+            .unwrap_or_else(|_| "dist".to_string());
+        let web_static = Arc::new(WebStaticServer::new(PathBuf::from(dist_path)));
+        Self {
+            addr,
+            state,
+            web_static,
+        }
     }
 
     pub async fn start(self) -> Result<()> {
@@ -68,13 +84,26 @@ impl RestApiServer {
         let state = self.state;
         let addr = self.addr;
         let api_token = state.infra.config.rest_api_token.clone();
+        let web_static = self.web_static;
 
         let service = move |req: hyper::Request<hyper::body::Incoming>| {
             let state = state.clone();
             let api_token = api_token.clone();
+            let web_static = web_static.clone();
             async move {
                 let path = req.uri().path().to_string();
                 let method = req.method().clone();
+
+                // T-D-B-12: 前端静态文件服务 —— 在认证检查之前处理 GET 非 API
+                // 请求。Web UI 的 HTML/JS/CSS 是公共资源(不含敏感数据,数据均经
+                // 需认证的 API 返回),因此无需鉴权即可加载;这与任意 Web 应用
+                // 的登录页模式一致。try_serve 对 API 路径(/api/*)和非 GET 请求
+                // 返回 None,自动放行到下方 API 路由。
+                if method == "GET" {
+                    if let Ok(Some(resp)) = web_static.try_serve(method.as_str(), &path).await {
+                        return Ok::<_, Infallible>(resp);
+                    }
+                }
 
                 // T-S2-B-03a: 认证检查（在路由匹配之前）
                 if let Err((status, msg)) = crate::api::auth::check_auth(&req, &api_token) {
