@@ -724,7 +724,7 @@ impl RemoteOperator {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("HTTP 客户端未初始化"))?;
 
-        let mut request = client.post(&self.command_url()).json(cmd);
+        let mut request = client.post(self.command_url()).json(cmd);
 
         // 添加认证头
         if let Some(token) = &self.inner.config.auth_token {

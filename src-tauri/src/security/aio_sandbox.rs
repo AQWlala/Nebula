@@ -788,6 +788,11 @@ impl AioSandbox {
     ) {
         let violation = SandboxViolation::new(vtype, path_or_addr, action);
         warn!(target: "nebula.aio_sandbox", violation = %violation, "沙箱违规");
+        self.log_event(
+            "violation",
+            Some(format!("{:?}", vtype)),
+            LogSeverity::Warning,
+        );
         let mut state = self.state.lock();
         state.violations.push(violation);
     }

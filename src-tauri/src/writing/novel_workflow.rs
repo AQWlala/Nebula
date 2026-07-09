@@ -50,6 +50,7 @@ pub enum NovelGenre {
     /// 都市 — 都市背景 + 现实爽感 + 反转。
     Urban,
     /// 科幻 — 硬核设定 + 科学冲突 + 揭示。
+    #[serde(rename = "scifi")]
     SciFi,
     /// 历史 — 时代背景 + 历史冲突 + 命运转折。
     History,

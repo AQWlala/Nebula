@@ -639,7 +639,7 @@ impl NodeLayout {
         for (i, id) in node_ids.iter().enumerate() {
             let row = i / cols;
             let col = i % cols;
-            let pos = Position::new(col as f64 * spacing, row as f64 * spacing);
+            let pos = Position::new((col + 1) as f64 * spacing, (row + 1) as f64 * spacing);
             self.node_positions.insert(id.clone(), pos);
         }
     }

@@ -214,15 +214,19 @@ impl ExecutionRecording {
     /// 优先使用 `finished_at - started_at`;若尚未结束则回退到最后一帧的
     /// `elapsed_ms`;无帧时返回 `Duration::ZERO`。
     pub fn duration(&self) -> Duration {
-        if let Some(finished) = self.finished_at {
+        let time_based = if let Some(finished) = self.finished_at {
             (finished - self.started_at)
                 .to_std()
                 .unwrap_or(Duration::ZERO)
-        } else if let Some(last) = self.frames.last() {
-            Duration::from_millis(last.elapsed_ms)
         } else {
             Duration::ZERO
-        }
+        };
+        let frame_based = self
+            .frames
+            .last()
+            .map(|f| Duration::from_millis(f.elapsed_ms))
+            .unwrap_or(Duration::ZERO);
+        std::cmp::max(time_based, frame_based)
     }
 
     /// 返回帧数。
