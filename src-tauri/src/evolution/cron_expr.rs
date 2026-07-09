@@ -225,8 +225,11 @@ mod tests {
 
     /// 构造一个 UTC DateTime（方便测试）。
     fn dt(year: i32, month: u32, day: u32, hour: u32, min: u32) -> DateTime<Utc> {
+        // chrono::LocalResult 没有 .expect() 方法(T-D-B-07 误改),
+        // 用 .single().expect() 代替:UTC 时间不会歧义,single() 必返回 Some。
         Utc.with_ymd_and_hms(year, month, day, hour, min, 0)
-            .expect("test op should succeed")
+            .single()
+            .expect("test UTC datetime should be unambiguous")
     }
 
     // ---- parse() 基础测试 ----
