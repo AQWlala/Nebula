@@ -275,6 +275,7 @@ async fn negotiator_conflict_detection_e2e() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
@@ -284,6 +285,7 @@ async fn negotiator_conflict_detection_e2e() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
@@ -293,6 +295,7 @@ async fn negotiator_conflict_detection_e2e() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
     ];
 

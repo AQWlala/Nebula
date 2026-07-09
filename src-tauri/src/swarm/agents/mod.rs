@@ -54,20 +54,49 @@ pub use writer::WriterAgent;
 /// v2.0: `Generic` is the default for all new swarms.  `Coder`,
 /// `Writer`, `Reviewer`, `Researcher`, and `Planner` are
 /// **deprecated** and kept only for backward-compatible gRPC queries.
+///
+/// T-D-B-17 (v3.1): 5 个场景变体加上 `#[deprecated]` 属性,使 rustc
+/// 在新代码引用它们时发出警告,引导迁移到 `AgentKind::Generic` +
+/// [`AgentScenario`] 的场景化模式。仍需引用废弃变体的位置(角色 agent
+/// 实现、gRPC wire 兼容、向后兼容测试)用 `#[allow(deprecated)]` 显式放行。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentKind {
     /// v2.0: general-purpose task-driven agent (jiuwenswarm pattern).
+    ///
+    /// T-D-B-17: 唯一推荐的变体;场景差异通过 [`AgentScenario`] 表达。
     Generic,
-    /// Deprecated — use Generic instead.
+    /// Deprecated — use Generic + [`AgentScenario::Coding`] instead.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use AgentKind::Generic + AgentScenario::Coding instead (T-D-B-17)"
+    )]
     Coder,
-    /// Deprecated — use Generic instead.
+    /// Deprecated — use Generic + [`AgentScenario::Writing`] instead.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use AgentKind::Generic + AgentScenario::Writing instead (T-D-B-17)"
+    )]
     Writer,
-    /// Deprecated — use Generic instead.
+    /// Deprecated — use Generic + [`AgentScenario::Review`] instead.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use AgentKind::Generic + AgentScenario::Review instead (T-D-B-17)"
+    )]
     Reviewer,
-    /// Deprecated — use Generic instead. Researcher role from white paper.
+    /// Deprecated — use Generic + [`AgentScenario::Research`] instead.
+    /// Researcher role from white paper.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use AgentKind::Generic + AgentScenario::Research instead (T-D-B-17)"
+    )]
     Researcher,
-    /// Deprecated — use Generic instead. Planner role from white paper.
+    /// Deprecated — use Generic + [`AgentScenario::Planning`] instead.
+    /// Planner role from white paper.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use AgentKind::Generic + AgentScenario::Planning instead (T-D-B-17)"
+    )]
     Planner,
 }
 
@@ -75,11 +104,37 @@ impl AgentKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             AgentKind::Generic => "generic",
+            // T-D-B-17: 废弃变体保留以兼容旧 JSON/gRPC 调用方。
+            #[allow(deprecated)]
             AgentKind::Coder => "coder",
+            #[allow(deprecated)]
             AgentKind::Writer => "writer",
+            #[allow(deprecated)]
             AgentKind::Reviewer => "reviewer",
+            #[allow(deprecated)]
             AgentKind::Researcher => "researcher",
+            #[allow(deprecated)]
             AgentKind::Planner => "planner",
+        }
+    }
+
+    /// T-D-B-17: 把(可能已废弃的)`AgentKind` 映射到对应的场景标签。
+    ///
+    /// - `Generic` → `None`(无场景,纯通用 agent)
+    /// - 5 个废弃变体 → 对应的 [`AgentScenario`](`Coder→Coding` 等)
+    ///
+    /// 供角色 agent 在 `run()` 中给 [`AgentOutput`] 打场景标签,
+    /// 以及 [`DynamicAgentPool::acquire`] 在收到废弃 kind 时转换为
+    /// `Generic + scenario` 模式使用。
+    #[allow(deprecated)]
+    pub fn to_scenario(self) -> Option<AgentScenario> {
+        match self {
+            AgentKind::Generic => None,
+            AgentKind::Coder => Some(AgentScenario::Coding),
+            AgentKind::Writer => Some(AgentScenario::Writing),
+            AgentKind::Reviewer => Some(AgentScenario::Review),
+            AgentKind::Researcher => Some(AgentScenario::Research),
+            AgentKind::Planner => Some(AgentScenario::Planning),
         }
     }
 }
@@ -87,6 +142,7 @@ impl AgentKind {
 impl std::str::FromStr for AgentKind {
     type Err = String;
 
+    #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "generic" => Ok(AgentKind::Generic),
@@ -96,6 +152,60 @@ impl std::str::FromStr for AgentKind {
             "researcher" => Ok(AgentKind::Researcher),
             "planner" => Ok(AgentKind::Planner),
             other => Err(format!("unknown agent kind: {other}")),
+        }
+    }
+}
+
+/// T-D-B-17: Agent 场景化标签 — 取代废弃的 `AgentKind` 场景变体。
+///
+/// 设计意图(v3.1 HI-09):`AgentKind` 统一为单一 `Generic` 变体,
+/// 场景差异(coder/writer/reviewer/researcher/planner)通过独立的
+/// `AgentScenario` 枚举表达。这样:
+/// * `AgentKind` 只表示"agent 实现类型"(目前仅 Generic),
+///   不再硬编码角色 → 新增角色无需改枚举。
+/// * `AgentScenario` 独立演进,可承载更细粒度场景(如未来
+///   `SocialMedia` / `Novel` 等 v3.1 HI-10/HI-11 场景)。
+/// * `AgentOutput.scenario` 用 `Option<AgentScenario>` +
+///   `#[serde(default)]`,旧 JSON(无 scenario 字段)反序列化为 `None`,
+///   保证向后兼容。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentScenario {
+    /// 编码场景(原 `AgentKind::Coder`)。
+    Coding,
+    /// 写作场景(原 `AgentKind::Writer`)。
+    Writing,
+    /// 审查场景(原 `AgentKind::Reviewer`)。
+    Review,
+    /// 研究场景(原 `AgentKind::Researcher`)。
+    Research,
+    /// 规划场景(原 `AgentKind::Planner`)。
+    Planning,
+}
+
+impl AgentScenario {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AgentScenario::Coding => "coding",
+            AgentScenario::Writing => "writing",
+            AgentScenario::Review => "review",
+            AgentScenario::Research => "research",
+            AgentScenario::Planning => "planning",
+        }
+    }
+}
+
+impl std::str::FromStr for AgentScenario {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "coding" => Ok(AgentScenario::Coding),
+            "writing" => Ok(AgentScenario::Writing),
+            "review" => Ok(AgentScenario::Review),
+            "research" => Ok(AgentScenario::Research),
+            "planning" => Ok(AgentScenario::Planning),
+            other => Err(format!("unknown agent scenario: {other}")),
         }
     }
 }
@@ -122,6 +232,17 @@ pub struct AgentOutput {
     /// `#[serde(default)]` 保证旧 JSON(无此字段)反序列化为 None。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<super::tool_types::ToolCall>>,
+    /// T-D-B-17: 场景化标签(可选)。
+    ///
+    /// 配合 `AgentKind::Generic` 使用,表达 agent 在本次任务中的角色
+    /// 场景(编码/写作/审查/研究/规划)。角色 agent 在 `run()` 中
+    /// 通过 [`AgentOutput::new_with_scenario`] 或
+    /// [`AgentOutput::with_scenario`] 填充;`GenericAgent` 默认为 `None`。
+    ///
+    /// `#[serde(default)]` 保证旧 JSON(无 scenario 字段)反序列化为 `None`,
+    /// 不破坏向后兼容。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario: Option<AgentScenario>,
 }
 
 impl AgentOutput {
@@ -134,7 +255,23 @@ impl AgentOutput {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         }
+    }
+
+    /// T-D-B-17: 构造带场景标签的 `AgentOutput`(推荐用于角色 agent)。
+    ///
+    /// `kind` 通常为 `AgentKind::Generic`;`scenario` 描述角色场景。
+    /// 旧 [`AgentOutput::new`] 等价于 `scenario = None`。
+    pub fn new_with_scenario(
+        kind: AgentKind,
+        author: impl Into<String>,
+        body: impl Into<String>,
+        scenario: AgentScenario,
+    ) -> Self {
+        let mut out = Self::new(kind, author, body);
+        out.scenario = Some(scenario);
+        out
     }
 
     pub fn with_confidence(mut self, c: f32) -> Self {
@@ -145,6 +282,12 @@ impl AgentOutput {
     /// T-E-B-18: 设置 path_id(思维树模式专用)。
     pub fn with_path_id(mut self, path_id: impl Into<String>) -> Self {
         self.path_id = Some(path_id.into());
+        self
+    }
+
+    /// T-D-B-17: 设置场景标签(builder 风格)。
+    pub fn with_scenario(mut self, scenario: AgentScenario) -> Self {
+        self.scenario = Some(scenario);
         self
     }
 }
@@ -484,6 +627,10 @@ impl DynamicAgentPool {
         // 3) 新建 agent 入池
         let id = inner.next_id;
         inner.next_id += 1;
+        // T-D-B-17: 5 个废弃变体仍保留以支持向后兼容(scenarios.json /
+        // gRPC / 旧 API 调用)。新代码应传 `AgentKind::Generic` +
+        // `AgentScenario`。此处 `#[allow(deprecated)]` 显式放行。
+        #[allow(deprecated)]
         let agent: Arc<dyn Agent> = match kind {
             // T-E-S-02: 动态池暂用空 ToolRegistry(向后兼容,ToolRegistry 的注入由 Task 5 完成)。
             AgentKind::Generic => Arc::new(GenericAgent::new(

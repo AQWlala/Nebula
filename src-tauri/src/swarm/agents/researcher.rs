@@ -1,4 +1,4 @@
-﻿//! Researcher agent — web search, literature analysis, and information retrieval.
+//! Researcher agent — web search, literature analysis, and information retrieval.
 //!
 //! ## 白皮书设计规格
 //! - **角色**：Researcher-B（资料检索）
@@ -15,7 +15,7 @@ use crate::llm::{ChatMessage, LlmGateway};
 use crate::memory::types::MemoryLayer;
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput};
+use super::{Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Researcher 可用工具集。
 const RESEARCHER_TOOL_SET: [&str; 2] = ["memory_search", "tool_invoke"];
@@ -39,6 +39,9 @@ impl ResearcherAgent {
 }
 
 #[async_trait]
+// T-D-B-17: 角色 agent 保留以支持向后兼容(scenarios.json / gRPC / 旧 API)。
+// kind() 与 run() 引用废弃的 AgentKind::Researcher,此处显式放行废弃警告。
+#[allow(deprecated)]
 impl Agent for ResearcherAgent {
     fn kind(&self) -> AgentKind {
         AgentKind::Researcher
@@ -71,7 +74,9 @@ impl Agent for ResearcherAgent {
         let body = resp.message.content;
         ctx.push_str(self.name(), "research", &body);
         info!(target: "nebula.swarm", agent = %self.name(), "researcher finished");
-        Ok(AgentOutput::new(AgentKind::Researcher, self.name(), body))
+        // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        Ok(AgentOutput::new(AgentKind::Researcher, self.name(), body)
+            .with_scenario(AgentScenario::Research))
     }
 }
 

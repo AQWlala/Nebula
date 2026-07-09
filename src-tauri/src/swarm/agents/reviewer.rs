@@ -23,7 +23,7 @@ use crate::memory::types::MemoryLayer;
 use crate::shadow_workspace::engine::ShadowWorkspaceEngine;
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput};
+use super::{Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Reviewer 可用工具集(只读,无写权限)。
 const REVIEWER_TOOL_SET: [&str; 2] = ["editor_read", "tool_invoke"];
@@ -146,6 +146,8 @@ pub struct ReviewerAgent {
     shadow_engine: Option<Arc<ShadowWorkspaceEngine>>,
 }
 
+// T-D-B-17: run_independent 引用废弃的 AgentKind::Reviewer,显式放行废弃警告。
+#[allow(deprecated)]
 impl ReviewerAgent {
     pub fn new(llm: Arc<LlmGateway>) -> Self {
         Self {
@@ -372,7 +374,9 @@ impl ReviewerAgent {
             verdict,
             "checker independent review finished"
         );
-        Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body).with_confidence(verdict))
+        Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body)
+            .with_confidence(verdict)
+            .with_scenario(AgentScenario::Review))
     }
 
     // ---- T-E-L-03 Commit 4: 自动降级 L4→L2 ----
@@ -417,6 +421,9 @@ impl ReviewerAgent {
 }
 
 #[async_trait]
+// T-D-B-17: 角色 agent 保留以支持向后兼容(scenarios.json / gRPC / 旧 API)。
+// kind() 与 run() 引用废弃的 AgentKind::Reviewer,此处显式放行废弃警告。
+#[allow(deprecated)]
 impl Agent for ReviewerAgent {
     fn kind(&self) -> AgentKind {
         AgentKind::Reviewer
@@ -456,7 +463,10 @@ impl Agent for ReviewerAgent {
             0.2
         };
         info!(target: "nebula.swarm", agent = %self.name(), verdict, "reviewer finished");
-        Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body).with_confidence(verdict))
+        // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        Ok(AgentOutput::new(AgentKind::Reviewer, self.name(), body)
+            .with_confidence(verdict)
+            .with_scenario(AgentScenario::Review))
     }
 }
 

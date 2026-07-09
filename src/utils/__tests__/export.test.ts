@@ -104,7 +104,6 @@ describe('downloadMarkdown', () => {
     downloadMarkdown('content');
     expect(clickSpy).toHaveBeenCalledOnce();
     // 默认文件名包含 chat-export-
-    const a = (document.createElement as any).__lastAnchor;
     // jsdom 中 a.download 已设置,验证通过 click 调用即可
   });
 });

@@ -841,6 +841,7 @@ impl SwarmOrchestrator {
                         reasoning_chain: Vec::new(),
                         path_id: None,
                         tool_calls: None,
+                        scenario: None,
                     });
                 }
                 Err(join_err) => {
@@ -854,6 +855,7 @@ impl SwarmOrchestrator {
                         reasoning_chain: Vec::new(),
                         path_id: None,
                         tool_calls: None,
+                        scenario: None,
                     });
                 }
             }
@@ -1153,6 +1155,7 @@ impl SwarmOrchestrator {
                         reasoning_chain: Vec::new(),
                         path_id: Some(path_id),
                         tool_calls: None,
+                        scenario: None,
                     });
                 }
                 Err(join_err) => {
@@ -1170,6 +1173,7 @@ impl SwarmOrchestrator {
                         reasoning_chain: Vec::new(),
                         path_id: None,
                         tool_calls: None,
+                        scenario: None,
                     });
                 }
             }

@@ -10,7 +10,7 @@ use crate::llm::{ChatMessage, LlmGateway};
 use crate::memory::types::MemoryLayer;
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput};
+use super::{Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Coder 可用工具集。
 const CODER_TOOL_SET: [&str; 4] = ["shell", "editor_read", "editor_write", "tool_invoke"];
@@ -34,6 +34,9 @@ impl CoderAgent {
 }
 
 #[async_trait]
+// T-D-B-17: 角色 agent 保留以支持向后兼容(scenarios.json / gRPC / 旧 API)。
+// kind() 与 run() 引用废弃的 AgentKind::Coder,此处显式放行废弃警告。
+#[allow(deprecated)]
 impl Agent for CoderAgent {
     fn kind(&self) -> AgentKind {
         AgentKind::Coder
@@ -66,7 +69,9 @@ impl Agent for CoderAgent {
         let body = resp.message.content;
         ctx.push_str(self.name(), "code", &body);
         info!(target: "nebula.swarm", agent = %self.name(), "coder finished");
-        Ok(AgentOutput::new(AgentKind::Coder, self.name(), body))
+        // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        Ok(AgentOutput::new(AgentKind::Coder, self.name(), body)
+            .with_scenario(AgentScenario::Coding))
     }
 }
 

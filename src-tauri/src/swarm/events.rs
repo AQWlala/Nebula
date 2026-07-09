@@ -335,6 +335,9 @@ impl SwarmEvent {
 }
 
 #[cfg(test)]
+// T-D-B-17: 测试模块验证废弃 AgentKind 变体(Coder/Writer/Reviewer)的
+// 序列化向后兼容,显式放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

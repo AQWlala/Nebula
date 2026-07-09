@@ -875,6 +875,8 @@ pub fn debounce_should_fire(last: Option<Instant>, now: Instant, debounce_ms: u6
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+// T-D-B-17: 测试用废弃 AgentKind::Coder/Writer 构造事件,放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::swarm::agents::AgentKind;

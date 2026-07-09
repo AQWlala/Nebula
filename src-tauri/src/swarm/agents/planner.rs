@@ -1,4 +1,4 @@
-﻿//! Planner agent — task decomposition, scheduling, and arbitration.
+//! Planner agent — task decomposition, scheduling, and arbitration.
 //!
 //! ## 白皮书设计规格
 //! - **角色**：Planner-F（任务拆解）
@@ -16,7 +16,7 @@ use crate::llm::{ChatMessage, LlmGateway};
 use crate::memory::types::MemoryLayer;
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput};
+use super::{Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Planner 可用工具集。
 const PLANNER_TOOL_SET: [&str; 2] = ["memory_search", "tool_invoke"];
@@ -39,6 +39,9 @@ impl PlannerAgent {
 }
 
 #[async_trait]
+// T-D-B-17: 角色 agent 保留以支持向后兼容(scenarios.json / gRPC / 旧 API)。
+// kind() 与 run() 引用废弃的 AgentKind::Planner,此处显式放行废弃警告。
+#[allow(deprecated)]
 impl Agent for PlannerAgent {
     fn kind(&self) -> AgentKind {
         AgentKind::Planner
@@ -75,7 +78,9 @@ impl Agent for PlannerAgent {
         let body = resp.message.content;
         ctx.push_str(self.name(), "plan", &body);
         info!(target: "nebula.swarm", agent = %self.name(), "planner finished");
-        Ok(AgentOutput::new(AgentKind::Planner, self.name(), body))
+        // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        Ok(AgentOutput::new(AgentKind::Planner, self.name(), body)
+            .with_scenario(AgentScenario::Planning))
     }
 }
 

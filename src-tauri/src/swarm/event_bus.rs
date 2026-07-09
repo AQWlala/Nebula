@@ -87,6 +87,8 @@ pub fn global() -> &'static Arc<EventBus> {
 }
 
 #[cfg(test)]
+// T-D-B-17: 测试用废弃 AgentKind::Coder/Writer 构造事件,放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::swarm::AgentKind;

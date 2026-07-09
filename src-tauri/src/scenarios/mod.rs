@@ -163,6 +163,8 @@ impl TemplateEngine {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+// T-D-B-17: 测试验证废弃 AgentKind::Planner 的反序列化向后兼容,放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

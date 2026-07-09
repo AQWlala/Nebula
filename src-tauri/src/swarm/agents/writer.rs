@@ -1,4 +1,4 @@
-﻿//! Writer agent — produces Markdown documentation.
+//! Writer agent — produces Markdown documentation.
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use crate::memory::sponge::SpongeEngine;
 use crate::memory::types::{MemoryLayer, MemoryType, SourceKind};
 use crate::swarm::context::TeamContext;
 
-use super::{Agent, AgentKind, AgentOutput};
+use super::{Agent, AgentKind, AgentOutput, AgentScenario};
 
 /// T-6: Writer 可用工具集。
 const WRITER_TOOL_SET: [&str; 3] = ["editor_read", "editor_write", "tool_invoke"];
@@ -36,6 +36,9 @@ impl WriterAgent {
 }
 
 #[async_trait]
+// T-D-B-17: 角色 agent 保留以支持向后兼容(scenarios.json / gRPC / 旧 API)。
+// kind() 与 run() 引用废弃的 AgentKind::Writer,此处显式放行废弃警告。
+#[allow(deprecated)]
 impl Agent for WriterAgent {
     fn kind(&self) -> AgentKind {
         AgentKind::Writer
@@ -82,7 +85,9 @@ impl Agent for WriterAgent {
         }
 
         info!(target: "nebula.swarm", agent = %self.name(), "writer finished");
-        Ok(AgentOutput::new(AgentKind::Writer, self.name(), body))
+        // T-D-B-17: 同时填充 scenario 字段,供新代码读取场景标签。
+        Ok(AgentOutput::new(AgentKind::Writer, self.name(), body)
+            .with_scenario(AgentScenario::Writing))
     }
 }
 

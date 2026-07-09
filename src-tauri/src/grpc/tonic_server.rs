@@ -793,6 +793,10 @@ fn agent_kind_to_prost_from_str(s: &str) -> i32 {
 /// Converts a Rust [`crate::swarm::AgentKind`] into the prost `AgentKind` `i32`.
 /// `Generic`, `Researcher`, and `Planner` have no prost equivalent and
 /// map to `Unspecified` (0).
+///
+/// T-D-B-17: 本函数匹配废弃变体 Coder/Writer/Reviewer,用 `#[allow(deprecated)]`
+/// 显式放行 — gRPC wire 格式需保留这些映射以兼容旧客户端。
+#[allow(deprecated)]
 fn swarm_agent_kind_to_prost(kind: crate::swarm::AgentKind) -> i32 {
     use crate::swarm::AgentKind as K;
     match kind {

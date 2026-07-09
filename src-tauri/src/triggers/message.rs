@@ -100,6 +100,8 @@ fn handle_event(
 }
 
 #[cfg(test)]
+// T-D-B-17: 测试用废弃 AgentKind::Coder 构造事件,放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::swarm::agents::AgentKind;

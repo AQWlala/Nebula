@@ -1,23 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/preact';
 import { ToolCallCard } from '../ToolCallCard';
-import type { AgentToolCall } from '../../../lib/tauri';
+import type { AgentToolCall } from '../../lib/tauri';
 
 const successCall: AgentToolCall = {
+  agent_id: 'agent-1',
+  agent_role: 'coder',
   tool_name: 'shell_exec',
-  success: true,
+  start_ts: 1000,
+  end_ts: 1042,
   duration_ms: 42,
+  success: true,
   output_preview: 'hello world',
-  error: undefined,
-} as AgentToolCall;
+  error: null,
+  task_id: 'task-1',
+};
 
 const failedCall: AgentToolCall = {
+  agent_id: 'agent-2',
+  agent_role: 'coder',
   tool_name: 'file_read',
-  success: false,
+  start_ts: 2000,
+  end_ts: 2010,
   duration_ms: 10,
-  output_preview: undefined,
+  success: false,
+  output_preview: null,
   error: 'permission denied',
-} as AgentToolCall;
+  task_id: 'task-2',
+};
 
 describe('ToolCallCard', () => {
   it('renders tool name and duration', () => {

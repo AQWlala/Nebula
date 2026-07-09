@@ -39,7 +39,9 @@ pub mod tool_loop;
 pub mod tool_types;
 pub mod tot;
 
-pub use agents::{build_agent_pool, Agent, AgentKind, AgentOutput, DynamicAgentPool, GenericAgent};
+pub use agents::{
+    build_agent_pool, Agent, AgentKind, AgentOutput, AgentScenario, DynamicAgentPool, GenericAgent,
+};
 pub use agents::{canonical_team, CoderAgent, ReviewerAgent, WriterAgent};
 pub use bus::{AgentBus, BusMessage, BusMessageType};
 pub use composer::{SkillComposer, SkillContext, SkillMatch};

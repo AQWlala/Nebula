@@ -84,6 +84,8 @@ fn test_agent_bus_point_to_point() {
 }
 
 #[test]
+// T-D-B-17: 测试用废弃 AgentKind::Coder/Writer 构造输出,放行废弃警告。
+#[allow(deprecated)]
 fn test_negotiator_high_confidence() {
     let negotiator = Negotiator::new();
     let outputs = vec![
@@ -96,6 +98,7 @@ fn test_negotiator_high_confidence() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         nebula_lib::swarm::agents::AgentOutput {
             kind: nebula_lib::swarm::agents::AgentKind::Writer,
@@ -105,6 +108,7 @@ fn test_negotiator_high_confidence() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
     ];
     let result = negotiator.negotiate(outputs);

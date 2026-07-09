@@ -142,6 +142,7 @@ fn negotiator_picks_highest_confidence_when_no_conflict() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
@@ -151,6 +152,7 @@ fn negotiator_picks_highest_confidence_when_no_conflict() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
@@ -160,6 +162,7 @@ fn negotiator_picks_highest_confidence_when_no_conflict() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
     ];
     let result = neg.negotiate(outputs);
@@ -181,6 +184,7 @@ fn negotiator_detects_conflict_on_divergent_outputs() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
         AgentOutput {
             kind: AgentKind::Generic,
@@ -190,6 +194,7 @@ fn negotiator_detects_conflict_on_divergent_outputs() {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         },
     ];
     let result = neg.negotiate(outputs);
@@ -211,6 +216,7 @@ fn negotiator_single_output_passes_through() {
         reasoning_chain: Vec::new(),
         path_id: None,
         tool_calls: None,
+        scenario: None,
     }];
     let result = neg.negotiate(outputs);
     assert_eq!(result.chosen.author, "solo");

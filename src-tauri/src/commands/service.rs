@@ -260,6 +260,8 @@ impl NebulaService for AppState {
 }
 
 #[cfg(test)]
+// T-D-B-17: 测试验证废弃 AgentKind 变体的 from_str 解析向后兼容,放行废弃警告。
+#[allow(deprecated)]
 mod tests {
     #[test]
     fn swarm_agent_kind_parses_known_values() {

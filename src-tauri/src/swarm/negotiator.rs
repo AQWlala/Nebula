@@ -349,6 +349,7 @@ impl Negotiator {
                             reasoning_chain: Vec::new(),
                             path_id: None,
                             tool_calls: None,
+                            scenario: None,
                         })
                     })
                     .collect();
@@ -416,6 +417,7 @@ impl Negotiator {
                     reasoning_chain: Vec::new(),
                     path_id: None,
                     tool_calls: None,
+                    scenario: None,
                 });
             }
         }
@@ -473,6 +475,7 @@ impl Negotiator {
             reasoning_chain: Vec::new(),
             path_id: None,
             tool_calls: None,
+            scenario: None,
         })
     }
 
@@ -567,6 +570,7 @@ mod tests {
                 reasoning_chain: Vec::new(),
                 path_id: None,
                 tool_calls: None,
+                scenario: None,
             },
             AgentOutput {
                 kind: super::super::agents::AgentKind::Generic,
@@ -576,6 +580,7 @@ mod tests {
                 reasoning_chain: Vec::new(),
                 path_id: None,
                 tool_calls: None,
+                scenario: None,
             },
         ];
         let result = n.negotiate(outputs);
@@ -633,6 +638,7 @@ mod tests {
                 reasoning_chain: Vec::new(),
                 path_id: Some("path-0".into()),
                 tool_calls: None,
+                scenario: None,
             },
             AgentOutput {
                 kind: super::super::agents::AgentKind::Generic,
@@ -642,6 +648,7 @@ mod tests {
                 reasoning_chain: Vec::new(),
                 path_id: Some("path-1".into()),
                 tool_calls: None,
+                scenario: None,
             },
         ];
         let result = n
@@ -903,6 +910,7 @@ mod tests {
                     function_name: "read_file".to_string(),
                     arguments: serde_json::json!({"path": "/tmp/test.txt"}),
                 }]),
+                scenario: None,
             },
             AgentOutput {
                 kind: super::super::agents::AgentKind::Generic,
@@ -912,6 +920,7 @@ mod tests {
                 reasoning_chain: Vec::new(),
                 path_id: None,
                 tool_calls: None,
+                scenario: None,
             },
         ];
 
