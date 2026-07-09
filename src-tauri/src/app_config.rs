@@ -382,3 +382,205 @@ impl AppConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// T-D-T-02: 确保环境变量测试串行执行,避免并行污染。
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// 清理所有可能影响 AppConfig::from_env() 的环境变量。
+    fn cleanup_env() {
+        let keys = [
+            "NEBULA_DB",
+            "NEBULA_LANCE",
+            "OLLAMA_URL",
+            "NEBULA_CHAT_MODEL",
+            "NEBULA_EMBED_MODEL",
+            "NEBULA_LLM_PROVIDER",
+            "DEEPSEEK_API_URL",
+            "DEEPSEEK_API_KEY",
+            "NEBULA_REMOTE_URL",
+            "NEBULA_BH_DAYS",
+            "NEBULA_EMBED_DIM",
+            "NEBULA_REFLECT_INTERVAL",
+            "NEBULA_REFLECT_WINDOW_DAYS",
+            "NEBULA_REFLECT_MIN_IMPORTANCE",
+            "NEBULA_GRPC",
+            "NEBULA_GRPC_ADDR",
+            "NEBULA_REST",
+            "NEBULA_REST_ADDR",
+            "NEBULA_REST_TOKEN",
+            "NEBULA_WORKSPACE",
+            "NEBULA_SYNC_INBOX",
+            "NEBULA_EXEC_APPROVAL_TIMEOUT_SECS",
+            "NEBULA_SEMANTIC_CACHE",
+            "NEBULA_COST_TRACKER",
+            "NEBULA_TOKEN_JUICE",
+            "NEBULA_ROUTER",
+            "NEBULA_ROUTER_MODEL",
+            "NEBULA_PREFIX_CACHE",
+            "NEBULA_DB_ENCRYPTION",
+            "NEBULA_MCP_SERVERS_PATH",
+            "NEBULA_VISION_MODEL",
+        ];
+        for k in &keys {
+            std::env::remove_var(k);
+        }
+    }
+
+    #[test]
+    fn test_default_config_values() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        let config = AppConfig::from_env();
+
+        // 路径默认值
+        assert_eq!(config.db_path, "nebula.db");
+        assert_eq!(config.lance_path, "nebula_lance");
+        assert_eq!(config.editor_workspace, ".");
+        assert_eq!(config.sync_inbox, "sync_inbox");
+
+        // LLM 默认值
+        assert_eq!(config.chat_model, "deepseek-chat");
+        assert_eq!(config.llm_provider, "deepseek");
+        assert_eq!(config.ollama_url, "http://127.0.0.1:11434");
+        assert_eq!(config.deepseek_api_url, "https://api.deepseek.com/v1");
+        assert_eq!(config.deepseek_api_key, None);
+        assert_eq!(config.remote_fallback_url, None);
+
+        // gRPC 默认开启
+        assert!(config.grpc_enabled);
+        assert_eq!(config.grpc_bind_addr, "127.0.0.1:50051");
+
+        // REST 默认关闭
+        assert!(!config.rest_enabled);
+        assert_eq!(config.rest_bind_addr, "127.0.0.1:8080");
+        assert_eq!(config.rest_api_token, None);
+
+        // 数值默认值
+        assert_eq!(config.blackhole_threshold_days, 30);
+        assert_eq!(config.embedding_dim, 512);
+        assert_eq!(config.exec_approval_timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_grpc_disabled_via_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        std::env::set_var("NEBULA_GRPC", "0");
+        let config = AppConfig::from_env();
+        assert!(!config.grpc_enabled);
+        std::env::remove_var("NEBULA_GRPC");
+    }
+
+    #[test]
+    fn test_rest_enabled_via_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        std::env::set_var("NEBULA_REST", "1");
+        let config = AppConfig::from_env();
+        assert!(config.rest_enabled);
+        std::env::remove_var("NEBULA_REST");
+    }
+
+    #[test]
+    fn test_rest_token_filtering() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        // 空字符串应被过滤为 None
+        std::env::set_var("NEBULA_REST_TOKEN", "");
+        let config = AppConfig::from_env();
+        assert_eq!(config.rest_api_token, None);
+        // 非空字符串应保留
+        std::env::set_var("NEBULA_REST_TOKEN", "secret-token");
+        let config = AppConfig::from_env();
+        assert_eq!(config.rest_api_token.as_deref(), Some("secret-token"));
+        std::env::remove_var("NEBULA_REST_TOKEN");
+    }
+
+    #[test]
+    fn test_custom_paths_via_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        std::env::set_var("NEBULA_DB", "/custom/data.db");
+        std::env::set_var("NEBULA_LANCE", "/custom/lance");
+        std::env::set_var("NEBULA_GRPC_ADDR", "0.0.0.0:50051");
+        std::env::set_var("NEBULA_REST_ADDR", "0.0.0.0:8080");
+        let config = AppConfig::from_env();
+        assert_eq!(config.db_path, "/custom/data.db");
+        assert_eq!(config.lance_path, "/custom/lance");
+        assert_eq!(config.grpc_bind_addr, "0.0.0.0:50051");
+        assert_eq!(config.rest_bind_addr, "0.0.0.0:8080");
+        std::env::remove_var("NEBULA_DB");
+        std::env::remove_var("NEBULA_LANCE");
+        std::env::remove_var("NEBULA_GRPC_ADDR");
+        std::env::remove_var("NEBULA_REST_ADDR");
+    }
+
+    #[test]
+    fn test_numeric_parsing_via_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        std::env::set_var("NEBULA_BH_DAYS", "90");
+        std::env::set_var("NEBULA_EMBED_DIM", "1024");
+        std::env::set_var("NEBULA_EXEC_APPROVAL_TIMEOUT_SECS", "120");
+        let config = AppConfig::from_env();
+        assert_eq!(config.blackhole_threshold_days, 90);
+        assert_eq!(config.embedding_dim, 1024);
+        assert_eq!(config.exec_approval_timeout_secs, 120);
+        std::env::remove_var("NEBULA_BH_DAYS");
+        std::env::remove_var("NEBULA_EMBED_DIM");
+        std::env::remove_var("NEBULA_EXEC_APPROVAL_TIMEOUT_SECS");
+    }
+
+    #[test]
+    fn test_numeric_invalid_falls_back_to_default() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        // 无效数值应回退到默认值
+        std::env::set_var("NEBULA_BH_DAYS", "not-a-number");
+        let config = AppConfig::from_env();
+        assert_eq!(config.blackhole_threshold_days, 30);
+        std::env::remove_var("NEBULA_BH_DAYS");
+    }
+
+    #[test]
+    fn test_feature_toggles_via_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        // 关闭语义缓存
+        std::env::set_var("NEBULA_SEMANTIC_CACHE", "0");
+        let config = AppConfig::from_env();
+        assert!(!config.semantic_cache_enabled);
+
+        // 关闭费用追踪
+        std::env::set_var("NEBULA_COST_TRACKER", "false");
+        let config = AppConfig::from_env();
+        assert!(!config.cost_tracker_enabled);
+
+        // 关闭 TokenJuice
+        std::env::set_var("NEBULA_TOKEN_JUICE", "0");
+        let config = AppConfig::from_env();
+        assert!(!config.token_juice_enabled);
+
+        std::env::remove_var("NEBULA_SEMANTIC_CACHE");
+        std::env::remove_var("NEBULA_COST_TRACKER");
+        std::env::remove_var("NEBULA_TOKEN_JUICE");
+    }
+
+    #[test]
+    fn test_api_key_from_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock poisoned");
+        cleanup_env();
+        std::env::set_var("DEEPSEEK_API_KEY", "sk-test-key-123");
+        let config = AppConfig::from_env();
+        assert_eq!(
+            config.deepseek_api_key.as_deref(),
+            Some("sk-test-key-123")
+        );
+        std::env::remove_var("DEEPSEEK_API_KEY");
+    }
+}
