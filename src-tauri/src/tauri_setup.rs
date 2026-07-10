@@ -710,6 +710,10 @@ pub fn run() {
             crate::commands::skill_debug_step,
             crate::commands::skill_debug_stop,
             crate::commands::skill_profile,
+            // P2-5: 技能更新检查命令(远端版本比对 + 一键更新)。
+            crate::commands::check_skill_updates,
+            crate::commands::update_skill,
+            crate::commands::update_all_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

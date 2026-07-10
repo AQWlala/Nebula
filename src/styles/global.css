@@ -5202,6 +5202,31 @@ code.evolution-meta-val {
   gap: 8px;
   margin-left: auto;
 }
+
+/* P2-5: 技能更新检查样式 */
+.skill-update-section {
+  padding: 8px 10px;
+  background: rgba(234, 88, 12, 0.08);
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  border-radius: 6px;
+}
+.skill-update-item {
+  transition: border-color 0.15s ease;
+}
+.skill-update-item:hover {
+  border-color: rgba(234, 88, 12, 0.5);
+}
+.skill-update-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  color: #fdba74;
+  background: rgba(234, 88, 12, 0.15);
+  border-radius: 3px;
+  white-space: nowrap;
+}
 .onboarding-overlay .onboarding-buttons .btn-ghost {
   padding: 8px 16px;
   border-radius: 6px;

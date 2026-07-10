@@ -247,4 +247,8 @@ pub use skill_debug::*;
 pub mod skill_openclaw;
 pub use skill_openclaw::*;
 
+// P2-5: 技能更新检查命令(远端版本比对 + 一键更新)。
+pub mod skill_update;
+pub use skill_update::*;
+
 pub use error::{CommandError, ErrorCode};

@@ -897,10 +897,7 @@ pub async fn get_model_health(state: State<'_, AppState>) -> Result<Vec<ModelHea
         let is_configured = if p.kind == crate::llm::models_config::ProviderKind::Ollama {
             true
         } else {
-            match crate::security::keychain::get_provider_key(&p.id) {
-                Ok(Some(_)) => true,
-                _ => false,
-            }
+            matches!(crate::security::keychain::get_provider_key(&p.id), Ok(Some(_)))
         };
 
         // 从 ModelHealthTracker 读取指标(若该 provider 有记录)。

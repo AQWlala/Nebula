@@ -8,6 +8,7 @@ import type {
   UseSkillRequest, RateSkillRequest, ListSkillsRequest, SkillSearchRequest,
   ImportResult, TagCount, StreamToken, ChatComplete, BallState,
   SkillSourceInfo,
+  SkillUpdateInfo,
   WritingTemplate, Document, CreateDocumentRequest, DocumentExport,
   WorkTask, CreateTaskRequest, UpdateTaskRequest, MeetingMinutes,
   FileEntry, FileContent, GitStatus, GitLogEntry, GitDiff,
@@ -210,6 +211,23 @@ export class nebulaAPI {
   /** P1-7: 性能分析（CPU / 内存 / IO / 子调用 + 时间线）。 */
   static skillProfile(skillId: string, testInput: string): Promise<SkillProfile> {
     return invoke('skill_profile', { skill_id: skillId, test_input: testInput });
+  }
+
+  // P2-5: 技能更新检查 — 远端版本比对 + 一键更新。
+
+  /** P2-5: 检查所有已安装技能的远端版本更新，返回更新信息列表。 */
+  static checkSkillUpdates(): Promise<SkillUpdateInfo[]> {
+    return invoke('check_skill_updates');
+  }
+
+  /** P2-5: 一键更新单个技能（拉取远端 SKILL.md，保留 trust_level）。 */
+  static updateSkill(skillId: string): Promise<void> {
+    return invoke('update_skill', { skill_id: skillId });
+  }
+
+  /** P2-5: 一键更新所有有更新的技能，返回成功更新的数量。 */
+  static updateAllSkills(): Promise<number> {
+    return invoke('update_all_skills');
   }
 
   static writingListTemplates(): Promise<WritingTemplate[]> {

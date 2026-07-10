@@ -596,6 +596,15 @@
 
   "skillPanel.debug": "Debug",
 
+  "skillPanel.checkUpdates": "Check Updates",
+  "skillPanel.checkUpdatesHint": "Check for skill version updates from remote",
+  "skillPanel.checkingUpdates": "Checking...",
+  "skillPanel.updatesAvailable": "{count} updates available",
+  "skillPanel.updateAll": "Update All",
+  "skillPanel.updatingAll": "Updating...",
+  "skillPanel.update": "Update",
+  "skillPanel.updating": "Updating...",
+
   "skillDebugger.title": "Skill Debugger",
   "skillDebugger.close": "Close",
   "skillDebugger.tab.inspector": "Inspector",

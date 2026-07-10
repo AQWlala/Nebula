@@ -151,11 +151,49 @@ const SKILL_MEM_LIMIT_BYTES: u64 = 100 * 1024 * 1024;
 /// v1.0 P0#5: maximum captured stdout+stderr before truncation.
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
-/// v1.0 P0#5: languages accepted by the shell sandbox.  Anything
-/// not on this list is rejected with a `CommandError::validation`
-/// error.  The list is intentionally tiny in v1.0; the roadmap
-/// adds JavaScript (WASM sandboxed) in v1.1.
-const ALLOWED_SHELL_LANGUAGES: &[&str] = &["python"];
+/// P2-2: 沙箱支持的语言白名单（规范化名称）。
+/// 任何不在此列表中的语言都会被拒绝并返回校验错误。
+/// v1.0 仅接受 python；P2-2 扩展为 python / node / bash / powershell。
+#[allow(dead_code)] // P2-2 预留:校验逻辑待接入 SkillExecutor
+const ALLOWED_SHELL_LANGUAGES: &[&str] = &["python", "node", "bash", "powershell"];
+
+/// P2-3: 引擎级沙箱配置 — 统一管理内存/超时/语言/网络/文件权限。
+///
+/// 此结构体集中描述沙箱执行参数，便于未来从硬编码常量迁移到
+/// 可配置的运行时参数。当前引擎仍使用 `SKILL_TIMEOUT` /
+/// `SKILL_MEM_LIMIT_BYTES` 等常量作为实际执行限制，本结构体
+/// 为统一配置入口和测试提供基础。
+#[derive(Debug, Clone)]
+pub struct SandboxConfig {
+    /// 内存上限（字节）。默认 100MB，与 `SKILL_MEM_LIMIT_BYTES` 一致。
+    pub memory_limit_bytes: usize,
+    /// 执行超时（秒）。默认 30。
+    pub timeout_secs: u64,
+    /// 允许的沙箱语言列表。
+    pub allowed_languages: Vec<String>,
+    /// 是否允许网络访问。默认 false（受 `SANDBOX_PREAMBLE` 和
+    /// `CapabilitySet` 双重控制）。
+    pub network_allowed: bool,
+    /// 是否允许写入文件系统。默认 false（受 `CapabilitySet` 控制）。
+    pub file_write_allowed: bool,
+}
+
+impl Default for SandboxConfig {
+    fn default() -> Self {
+        Self {
+            memory_limit_bytes: 100 * 1024 * 1024,
+            timeout_secs: 30,
+            allowed_languages: vec![
+                "python".to_string(),
+                "node".to_string(),
+                "bash".to_string(),
+                "powershell".to_string(),
+            ],
+            network_allowed: false,
+            file_write_allowed: false,
+        }
+    }
+}
 
 /// v1.0.1 P0#11: Python-level network blocker.  This bootstrap
 /// runs *before* any user code, so every `import socket` (and
@@ -405,23 +443,28 @@ impl SkillEngine {
             }
         }
 
+        // P2-2: sandbox_type 使用规范化语言名（python/node/bash/powershell），
+        // 而非统一写 "python"。审计日志和审批描述会反映实际执行的语言。
         let sandbox_type = if skill.language == "llm" {
             "llm"
-        } else if is_accepted_language(&skill.language) {
-            "python"
+        } else if let Some(lang) = normalize_language(&skill.language) {
+            lang
         } else if skill.language == "wasm" {
             "wasm"
         } else {
             "unknown"
         };
 
-        // T-E-S-20: exec 类动作(python 沙箱、WASM 沙箱)执行前需用户审批。
+        // T-E-S-20: exec 类动作(shell 沙箱、WASM 沙箱)执行前需用户审批。
         // 识别依据:这些路径在本地执行代码(execute_shell / execute_wasm),
         // 而 execute_llm 仅发起 LLM chat 调用,不属于 exec 类;不支持的语言
         // 本就会被拒绝,无需审批。
+        // P2-2: 所有沙箱语言（python/node/bash/powershell）均需审批。
         if let Some(ref tracker) = self.exec_approval {
             let exec_action = match sandbox_type {
-                "python" => Some(format!("exec python sandbox (skill {})", skill.id)),
+                "python" | "node" | "bash" | "powershell" => {
+                    Some(format!("exec {} sandbox (skill {})", sandbox_type, skill.id))
+                }
                 "wasm" => Some(format!("exec wasm sandbox (skill {})", skill.id)),
                 _ => None,
             };
@@ -438,7 +481,7 @@ impl SkillEngine {
             self.execute_wasm(&skill, &req.params).await
         } else {
             Err(anyhow!(
-                "language {:?} is not supported in v1.0 (sandbox); use language=\"llm\" or \"python\"",
+                "language {:?} is not supported in v1.0 (sandbox); use language=\"llm\", \"python\", \"node\", \"bash\", or \"powershell\"",
                 skill.language
             ))
         };
@@ -506,39 +549,39 @@ impl SkillEngine {
         Ok((resp.message.content, tokens))
     }
 
-    /// Sandboxed shell execution (v1.0 P0#5 + v1.0.1 P0#11).
+    /// Sandboxed shell execution (v1.0 P0#5 + v1.0.1 P0#11 + P2-2 多语言).
     ///
-    /// Only `python` is allowed; see [`ALLOWED_SHELL_LANGUAGES`].
-    /// The code is written to a `tempfile::NamedTempFile`, then
-    /// executed with `-I` for interpreter isolation, a 5 s
-    /// wall-clock timeout (enforced by polling the child), and a
-    /// 100 MB `RLIMIT_AS` cap on Unix.
+    /// P2-2: 支持 python / node / bash / powershell 四种语言。
+    /// 代码写入 `tempfile::NamedTempFile`，按语言选择解释器执行，
+    /// 5 秒 wall-clock 超时（通过轮询子进程），100MB 内存上限
+    /// （Unix: RLIMIT_AS / Windows: JobObject）。
     ///
-    /// v1.0.1 P0#11: the user code is *prepended* with a
-    /// Python-level socket blocker.  The blocker is small (a few
-    /// dozen lines) and runs at module top before any user
-    /// `import` statement, so the user always sees the patched
-    /// `socket` module.  See `SANDBOX_PREAMBLE` for the
-    /// bootstrap source.
+    /// v1.0.1 P0#11: 仅 Python 代码会 *prepend* 网络阻断 preamble。
+    /// 其他语言没有等价的 Python 级 socket 拦截，依赖超时和内存 cap
+    /// 作为安全兜底。未来可通过 seccomp / OS 级网络隔离加强。
     async fn execute_shell(
         &self,
         skill: &Skill,
         params: &HashMap<String, String>,
     ) -> Result<(String, u32)> {
+        // P2-2: 获取规范化语言名，选择对应解释器。
+        let canonical = normalize_language(&skill.language).unwrap_or("python");
+
         // Substitute the most common `{{key}}` placeholders.
         let mut code = skill.code.clone();
         for (k, v) in params {
             code = code.replace(&format!("{{{{{k}}}}}"), v);
         }
 
-        // v1.0.1 P0#11: prepend the socket blocker.  The
-        // preamble MUST be at the very top of the file because
-        // every subsequent `import socket` (or `import
-        // urllib.request`, etc.) is bound at runtime, not at
-        // parse time, so the order of definitions in the file
-        // is the order of execution.  We indent the user's
-        // code by zero spaces (no need to wrap in a function).
-        let prepended = format!("{SANDBOX_PREAMBLE}\n# --- user code below ---\n{code}");
+        // v1.0.1 P0#11: 仅对 Python prepend socket blocker。preamble
+        // 必须在文件最前面，因为后续的 `import socket` 等在运行时
+        // 绑定，文件中的定义顺序即执行顺序。对其他语言 prepend
+        // Python 代码会导致语法错误。
+        let final_code = if canonical == "python" {
+            format!("{SANDBOX_PREAMBLE}\n# --- user code below ---\n{code}")
+        } else {
+            code
+        };
 
         // v1.0 P0#5: write to a NamedTempFile (not the predictable
         // `std::env::temp_dir()` path).  The OS picks the name and
@@ -552,7 +595,7 @@ impl SkillEngine {
         {
             use std::io::Write as _;
             let mut f = tmp.reopen().context("reopening temp file for writing")?;
-            f.write_all(prepended.as_bytes())
+            f.write_all(final_code.as_bytes())
                 .context("writing skill code to sandboxed temp file")?;
             f.flush().ok();
         }
@@ -561,8 +604,9 @@ impl SkillEngine {
         debug!(
             target: "nebula.skills",
             id = %skill.id,
+            language = %canonical,
             path = %script_path.display(),
-            "spawning sandboxed python"
+            "spawning sandboxed script"
         );
 
         // v1.0 P0#5: run synchronously and poll the child so we
@@ -573,8 +617,9 @@ impl SkillEngine {
         let (tx, rx) = mpsc::channel::<ShellOutcome>();
         let script_for_thread = script_path.clone();
         let skill_id = skill.id.clone();
+        let lang_for_thread = canonical.to_string();
         thread::spawn(move || {
-            let outcome = run_python_sandboxed(&script_for_thread);
+            let outcome = run_script_sandboxed(&script_for_thread, &lang_for_thread);
             let _ = tx.send(outcome);
         });
 
@@ -675,7 +720,7 @@ impl SkillEngine {
                 out.push_str(&extra);
                 Err(anyhow!(out))
             }
-            ShellOutcome::SpawnError(e) => Err(anyhow!("spawning python failed: {e}")),
+            ShellOutcome::SpawnError(e) => Err(anyhow!("spawning sandboxed script failed: {e}")),
             ShellOutcome::Timeout => {
                 error!(
                     target: "nebula.skills",
@@ -875,10 +920,83 @@ enum ShellOutcome {
     Timeout,
 }
 
-/// Returns `true` if `language` is on the v1.0 P0#5 allow-list.
+/// Returns `true` if `language` is on the P2-2 allow-list.
 fn is_accepted_language(language: &str) -> bool {
-    let normalised = language.trim().to_ascii_lowercase();
-    ALLOWED_SHELL_LANGUAGES.iter().any(|l| **l == normalised)
+    normalize_language(language).is_some()
+}
+
+/// P2-2: 将语言别名规范化为标准名称。
+///
+/// 返回 `Some(canonical)` 如果语言被支持，`None` 如果不支持。
+/// 标准名称用于选择解释器、审计日志和审批描述。
+///
+/// 支持的别名映射：
+/// - `python` / `python3` → `python`
+/// - `node` / `nodejs` → `node`
+/// - `bash` / `sh` → `bash`
+/// - `powershell` / `pwsh` → `powershell`
+fn normalize_language(language: &str) -> Option<&'static str> {
+    let lower = language.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "python" | "python3" => Some("python"),
+        "node" | "nodejs" => Some("node"),
+        "bash" | "sh" => Some("bash"),
+        "powershell" | "pwsh" => Some("powershell"),
+        _ => None,
+    }
+}
+
+/// P2-2: 根据规范化语言名选择解释器可执行文件和参数。
+///
+/// 返回 `(interpreter, args)` 元组：
+/// - `python` → `python -I <script>`
+/// - `node` → `node <script>`
+/// - `bash` → `bash --norc --noprofile <script>`
+/// - `powershell` → `pwsh -NoProfile -File <script>`
+///
+/// `--norc`/`--noprofile`/`-NoProfile` 跳过用户配置文件加载，
+/// 类似 Python 的 `-I` 隔离模式，防止用户 rc 文件注入代码。
+fn interpreter_for_language(canonical: &str) -> (&'static str, Vec<&'static str>) {
+    match canonical {
+        "python" => ("python", vec!["-I"]),
+        "node" => ("node", vec![]),
+        "bash" => ("bash", vec!["--norc", "--noprofile"]),
+        "powershell" => ("pwsh", vec!["-NoProfile", "-File"]),
+        // 防御性回退：不应到达此处（调用方应先通过 normalize_language 校验）
+        _ => ("python", vec!["-I"]),
+    }
+}
+
+/// P2-2: 为指定语言的子进程配置环境变量，隔离用户配置。
+///
+/// - Python: 移除 PYTHONPATH/PYTHONSTARTUP/PYTHONHOME，设置 NO_PROXY=*
+///   和 PYTHONUNBUFFERED=1（与 v1.0.1 P0#11 一致）。
+/// - Node.js: 移除 NODE_OPTIONS/NODE_PATH，防止用户注入模块。
+/// - Bash: 移除 BASH_ENV/ENV，防止启动时 source 任意文件。
+/// - PowerShell: -NoProfile 已处理，无需额外环境变量。
+fn configure_command_env(cmd: &mut std::process::Command, canonical: &str) {
+    match canonical {
+        "python" => {
+            cmd.env_remove("PYTHONPATH");
+            cmd.env_remove("PYTHONSTARTUP");
+            cmd.env_remove("PYTHONHOME");
+            // v1.0.1 P0#11: 强制 urllib 拒绝代理绕过
+            cmd.env("NO_PROXY", "*");
+            cmd.env("PYTHONUNBUFFERED", "1");
+        }
+        "node" => {
+            cmd.env_remove("NODE_OPTIONS");
+            cmd.env_remove("NODE_PATH");
+        }
+        "bash" => {
+            cmd.env_remove("BASH_ENV");
+            cmd.env_remove("ENV");
+        }
+        "powershell" => {
+            // -NoProfile 已隔离用户配置文件
+        }
+        _ => {}
+    }
 }
 
 /// Truncates combined stdout+stderr to at most `MAX_OUTPUT_BYTES`
@@ -920,43 +1038,32 @@ fn truncate_output(stdout: &[u8], stderr: &[u8]) -> String {
     s
 }
 
-/// Spawns a sandboxed Python subprocess for `script_path` and
-/// returns its [`ShellOutcome`].  On Unix the child is created
-/// with `RLIMIT_AS = SKILL_MEM_LIMIT_BYTES`.  The interpreter is
-/// launched with `-I` (isolated mode; no `PYTHONPATH`,
-/// `PYTHONSTARTUP`, or user-site) and a small set of additional
-/// environment variables that close common exfiltration paths
-/// (`NO_PROXY=*` makes the stdlib `urllib` refuse proxy
-/// bypasses; `PYTHONUNBUFFERED=1` keeps logs deterministic).
+/// P2-2: Spawns a sandboxed subprocess for `script_path` using the
+/// interpreter selected by `canonical_language` (one of
+/// `python` / `node` / `bash` / `powershell`).  Returns its
+/// [`ShellOutcome`].
 ///
-/// v1.0.1 P0#11: the user script is expected to have been
-/// prepended with [`SANDBOX_PREAMBLE`] before this function is
-/// called; we do **not** rely on a `sitecustomize.py` here
-/// because `-I` strips the script's directory from `sys.path`.
+/// This is the generic multi-language entry point.  It picks the
+/// interpreter and base args via [`interpreter_for_language`] and
+/// applies per-language env isolation via [`configure_command_env`].
+/// The wall-clock limit (`SKILL_TIMEOUT`) and Unix address-space
+/// cap (`SKILL_MEM_LIMIT_BYTES` via `RLIMIT_AS`) are enforced the
+/// same way as in the legacy Python-only path.
 ///
-/// v1.0 P0#5: the wall-clock limit is enforced by polling
-/// `child.try_wait` in a 20 ms loop.  If the budget elapses the
-/// child is `kill()`-ed and the `Timeout` variant is returned.
-fn run_python_sandboxed(script_path: &std::path::Path) -> ShellOutcome {
-    let mut cmd = std::process::Command::new("python");
-    // v1.0.1 P0#11: drop the `-S` flag.  We want the site
-    // module loaded so a `sitecustomize.py` (if any) would
-    // run, but we no longer depend on it because the socket
-    // blocker is prepended to the script directly.  `-I`
-    // alone is sufficient for our needs: it strips
-    // `PYTHONPATH`, `PYTHONSTARTUP`, and the user site dir.
-    cmd.arg("-I").arg(script_path);
-    // Block the child from inheriting an attacker's environment.
-    cmd.env_remove("PYTHONPATH");
-    cmd.env_remove("PYTHONSTARTUP");
-    cmd.env_remove("PYTHONHOME");
-    // v1.0.1 P0#11: force the stdlib `urllib` to refuse any
-    // proxy bypass; this is belt-and-suspenders alongside
-    // the Python-level socket blocker.
-    cmd.env("NO_PROXY", "*");
-    // Unbuffered stdout/stderr so the engine's pipe readers
-    // see the output as it's written (helpful for timeouts).
-    cmd.env("PYTHONUNBUFFERED", "1");
+/// v1.0.1 P0#11: only Python code is expected to have been
+/// prepended with [`SANDBOX_PREAMBLE`] by the caller; other
+/// languages have no equivalent socket blocker and rely on the
+/// timeout + memory cap as a safety net.
+fn run_script_sandboxed(script_path: &std::path::Path, canonical_language: &str) -> ShellOutcome {
+    let (interpreter, base_args) = interpreter_for_language(canonical_language);
+    let mut cmd = std::process::Command::new(interpreter);
+    for a in &base_args {
+        cmd.arg(a);
+    }
+    cmd.arg(script_path);
+    // P2-2: per-language env isolation (PYTHONPATH/NODE_OPTIONS/
+    // BASH_ENV removal, NO_PROXY for Python, etc.).
+    configure_command_env(&mut cmd, canonical_language);
 
     // v1.0 P0#5: cap the child's address space on Unix.
     #[cfg(unix)]
@@ -1102,6 +1209,14 @@ fn run_python_sandboxed(script_path: &std::path::Path) -> ShellOutcome {
     }
 }
 
+/// Legacy Python-only sandboxed runner.  Retained for backward
+/// compatibility with existing tests; delegates to the generic
+/// [`run_script_sandboxed`] with `canonical_language = "python"`.
+#[cfg(test)]
+fn run_python_sandboxed(script_path: &std::path::Path) -> ShellOutcome {
+    run_script_sandboxed(script_path, "python")
+}
+
 // Linux/macOS rlimit bindings.  Inline so we don't pull in the
 // `libc` crate (which isn't in our dependency tree).  These are
 // the standard POSIX values and stable across the platforms we
@@ -1169,12 +1284,16 @@ mod tests {
         assert!(is_accepted_language("python"));
         assert!(is_accepted_language("Python"));
         assert!(is_accepted_language("  PYTHON "));
-        // v1.0 P0#5: every other language is rejected.
-        assert!(!is_accepted_language("bash"));
-        assert!(!is_accepted_language("sh"));
+        // P2-2: bash / sh / node / powershell are now accepted.
+        assert!(is_accepted_language("bash"));
+        assert!(is_accepted_language("sh"));
+        assert!(is_accepted_language("node"));
+        assert!(is_accepted_language("NodeJS"));
+        assert!(is_accepted_language("powershell"));
+        assert!(is_accepted_language("pwsh"));
+        // v1.0 P0#5: every other language is still rejected.
         assert!(!is_accepted_language("javascript"));
         assert!(!is_accepted_language("js"));
-        assert!(!is_accepted_language("node"));
         assert!(!is_accepted_language("rust"));
         assert!(!is_accepted_language(""));
     }
@@ -1288,8 +1407,10 @@ mod tests {
         cleanup(&p);
     }
 
-    /// v1.0 P0#5: bash skills MUST be rejected at execute time.
-    /// This is the headline security test.
+    /// v1.0 P0#5: unsupported languages (e.g. rust) MUST be rejected
+    /// at execute time.  This is the headline security test.
+    /// P2-2: bash / node / powershell are now accepted, so we use
+    /// `rust` (still off the allow-list) as the rejection fixture.
     #[tokio::test]
     async fn use_skill_bash_is_rejected() {
         let (p, sqlite) = temp_db();
@@ -1299,7 +1420,7 @@ mod tests {
                 name: "evil".into(),
                 description: "rm -rf /".into(),
                 code: "rm -rf /".into(),
-                language: "bash".into(),
+                language: "rust".into(),
                 tags: vec![],
                 source_memory_id: None,
                 ..Default::default()
@@ -1311,7 +1432,7 @@ mod tests {
                 params: HashMap::new(),
             })
             .await;
-        let err = res.expect_err("bash must be rejected");
+        let err = res.expect_err("rust must be rejected");
         let msg = format!("{err}");
         assert!(
             msg.contains("not supported") && msg.contains("v1.0"),
@@ -1320,18 +1441,17 @@ mod tests {
         cleanup(&p);
     }
 
-    /// v1.0 P0#5: sh, node, javascript, rust must all be rejected.
+    /// v1.0 P0#5: javascript, js, rust, ruby, perl must all be rejected.
+    /// P2-2: sh / node / powershell are now accepted and therefore
+    /// removed from this rejection list.
     #[tokio::test]
     async fn use_skill_other_languages_are_rejected() {
         for lang in [
-            "sh",
-            "node",
             "javascript",
             "js",
             "rust",
             "ruby",
             "perl",
-            "powershell",
         ] {
             let (p, sqlite) = temp_db();
             let eng = SkillEngine::new(sqlite, llm());

@@ -596,6 +596,15 @@
 
   "skillPanel.debug": "调试",
 
+  "skillPanel.checkUpdates": "检查更新",
+  "skillPanel.checkUpdatesHint": "从远端检查技能版本更新",
+  "skillPanel.checkingUpdates": "检查中...",
+  "skillPanel.updatesAvailable": "{count} 个技能有更新",
+  "skillPanel.updateAll": "全部更新",
+  "skillPanel.updatingAll": "更新中...",
+  "skillPanel.update": "更新",
+  "skillPanel.updating": "更新中...",
+
   "skillDebugger.title": "技能调试器",
   "skillDebugger.close": "关闭",
   "skillDebugger.tab.inspector": "检查器",

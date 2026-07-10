@@ -616,7 +616,7 @@ fn synthesize_body(skill: &Skill) -> String {
     }
     body.push_str("```");
     body.push_str(&skill.language);
-    body.push_str("\n");
+    body.push('\n');
     body.push_str(&skill.code);
     if !skill.code.ends_with('\n') {
         body.push('\n');
@@ -704,11 +704,12 @@ fn compute_usage_stats(state: &State<'_, AppState>, skill: &Skill) -> UsageStats
     };
     // entries 按 executed_at DESC 排序,第一条是最近。
     let last_used = entries.first().map(|e| e.executed_at as u64);
-    let avg_latency_ms = if total > 0 {
-        entries.iter().map(|e| e.duration_ms).sum::<u64>() / total
-    } else {
-        0
-    };
+    let avg_latency_ms = entries
+        .iter()
+        .map(|e| e.duration_ms)
+        .sum::<u64>()
+        .checked_div(total)
+        .unwrap_or(0);
 
     UsageStats {
         call_count,

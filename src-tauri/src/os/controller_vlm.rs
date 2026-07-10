@@ -713,8 +713,8 @@ impl VlmController {
             .with_name("vlm-detected")
             .with_role("Unknown")
             .with_bounds(ElementBounds::new(
-                (win.bounds.x + px as i32),
-                (win.bounds.y + py as i32),
+                win.bounds.x + px as i32,
+                win.bounds.y + py as i32,
                 pw as i32,
                 ph as i32,
             )))

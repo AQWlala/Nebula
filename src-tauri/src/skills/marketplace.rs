@@ -2,6 +2,11 @@
 //!
 //! 与 `SkillStore`（CRUD 持久化）和 `SkillImporter`（外部导入）配合，
 //! 提供：索引构建、全文搜索、一键安装、更新检查、发布协议。
+//!
+//! P2-5 扩展：远端版本比对 + 一键更新。`check_remote_updates()` 从远端
+//! 拉取 SKILL.md frontmatter，解析 version 字段，与本地 version 做 semver
+//! 比对；`update_skill()` 拉取最新 SKILL.md 并替换本地技能文件（保留
+//! 用户的 trust_level 设置）。
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -105,6 +110,61 @@ pub struct UpdateInfo {
     pub current_version: String,
     pub latest_version: String,
     pub source: String,
+}
+
+/// P2-5: 远端版本检查结果 — 描述单个技能的更新状态。
+///
+/// 由 [`SkillMarketplace::check_remote_updates`] 返回。前端根据
+/// `update_available` 字段决定是否显示"更新"按钮。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillUpdateInfo {
+    /// 技能 ID。
+    pub skill_id: String,
+    /// 技能名称。
+    pub skill_name: String,
+    /// 当前本地版本号（semver）。
+    pub current_version: String,
+    /// 远端最新版本号（semver）。
+    pub latest_version: String,
+    /// 是否有更新可用（远端版本 > 本地版本）。
+    pub update_available: bool,
+    /// 技能的远端 source URL（若有）。
+    pub source_url: Option<String>,
+    /// 更新日志（可选，从远端 frontmatter 解析）。
+    pub changelog: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// P2-5: semver 比对工具函数
+// ---------------------------------------------------------------------------
+
+/// P2-5: 解析 semver 字符串为 (major, minor, patch) 元组。
+///
+/// 接受 `1.2.3` / `0.1.0` / `2.0.0`；拒绝 `1.2` / `latest` / `v1.2.3`。
+/// 不引入 semver crate（避免新依赖），仅做格式校验。
+fn parse_semver(s: &str) -> Option<(u32, u32, u32)> {
+    let parts: Vec<&str> = s.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let major = parts[0].parse::<u32>().ok()?;
+    let minor = parts[1].parse::<u32>().ok()?;
+    let patch = parts[2].parse::<u32>().ok()?;
+    Some((major, minor, patch))
+}
+
+/// P2-5: 比较两个 semver 版本字符串。
+///
+/// 返回 `std::cmp::Ordering`：
+/// - `Less` 表示 `a < b`（a 版本更低）
+/// - `Equal` 表示 `a == b`（版本相同）
+/// - `Greater` 表示 `a > b`（a 版本更高）
+///
+/// 无法解析的版本视为 `(0, 0, 0)`。
+pub fn semver_compare(a: &str, b: &str) -> std::cmp::Ordering {
+    let av = parse_semver(a).unwrap_or((0, 0, 0));
+    let bv = parse_semver(b).unwrap_or((0, 0, 0));
+    av.cmp(&bv)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,6 +320,13 @@ pub struct SkillMarketplace {
     importer: Arc<SkillImporter>,
     index: RwLock<InvertedIndex>,
     entries: RwLock<Vec<SkillEntry>>,
+    /// P2-5: HTTP 客户端,用于从远端拉取 SKILL.md frontmatter。
+    client: reqwest::Client,
+    /// P2-5: 技能 source URL 注册表（skill_id → source URL）。
+    ///
+    /// 当通过 `install()` 安装技能或通过 `register_source_url()` 注册时,
+    /// 记录技能的远端 URL,供 `check_remote_updates()` 和 `update_skill()` 使用。
+    source_urls: RwLock<HashMap<String, String>>,
 }
 
 impl SkillMarketplace {
@@ -269,7 +336,28 @@ impl SkillMarketplace {
             importer,
             index: RwLock::new(InvertedIndex::new()),
             entries: RwLock::new(Vec::new()),
+            client: reqwest::Client::builder()
+                .user_agent("nebula/1.3 skill-updater")
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new()),
+            source_urls: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// P2-5: 注册技能的 source URL。
+    ///
+    /// 在从远端安装技能后调用,记录 URL 供后续更新检查使用。
+    /// 同一 skill_id 重复注册会覆盖旧 URL。
+    pub fn register_source_url(&self, skill_id: &str, url: &str) {
+        self.source_urls
+            .write()
+            .insert(skill_id.to_string(), url.to_string());
+    }
+
+    /// P2-5: 获取技能的已注册 source URL。
+    pub fn get_source_url(&self, skill_id: &str) -> Option<String> {
+        self.source_urls.read().get(skill_id).cloned()
     }
 
     /// Build/refresh the index from the local SkillStore.
@@ -463,6 +551,19 @@ impl SkillMarketplace {
             .map(|s| s.tags.clone())
             .unwrap_or_default();
 
+        // P2-5: 记录技能的 source URL,供后续更新检查使用。
+        // agentskills source 的 identifier 就是 URL;其他 source 记录 result.source。
+        if !skill_id.is_empty() {
+            let url_to_register = if source == "agentskills" {
+                _identifier.to_string()
+            } else {
+                result.source.clone()
+            };
+            if !url_to_register.is_empty() {
+                self.register_source_url(&skill_id, &url_to_register);
+            }
+        }
+
         let e = entries
             .iter()
             .find(|e| e.id == skill_id)
@@ -531,6 +632,238 @@ impl SkillMarketplace {
                 source: e.source.clone(),
             })
             .collect()
+    }
+
+    // ------------------------------------------------------------------
+    // P2-5: 远端版本检查 + 一键更新
+    // ------------------------------------------------------------------
+
+    /// P2-5: 从远端 URL 拉取 SKILL.md 原始内容。
+    ///
+    /// 复用 SSRF 校验(与 SkillImporter::fetch_skill_md 一致),防止内网地址。
+    async fn fetch_remote_skill_md(&self, url: &str) -> Result<String, anyhow::Error> {
+        crate::security::SsrfGuard::new()
+            .validate_url(url)
+            .map_err(|e| anyhow::anyhow!("SSRF validation failed for skill URL: {e}"))?;
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("HTTP request failed: {e}"))?;
+        if !resp.status().is_success() {
+            anyhow::bail!("HTTP {}", resp.status());
+        }
+        resp.text()
+            .await
+            .map_err(|e| anyhow::anyhow!("reading response body failed: {e}"))
+    }
+
+    /// P2-5: 从 SKILL.md 内容中解析 version 字段（从 YAML frontmatter）。
+    ///
+    /// 复用 protocol 层的 `SkillSpecValidator::parse_manifest`,它返回
+    /// `SkillManifest`(含 version 字段)。解析失败时返回 None。
+    fn extract_version_from_skill_md(content: &str) -> Option<String> {
+        let manifest = crate::skills::protocol::SkillSpecValidator::parse_manifest(content).ok()?;
+        if manifest.version.is_empty() {
+            None
+        } else {
+            Some(manifest.version)
+        }
+    }
+
+    /// P2-5: 从 SKILL.md 内容中解析 changelog 字段（可选）。
+    ///
+    /// 从 YAML frontmatter 的 `changelog` 字段提取。若不存在返回 None。
+    fn extract_changelog_from_skill_md(content: &str) -> Option<String> {
+        let manifest = crate::skills::protocol::SkillSpecValidator::parse_manifest(content).ok()?;
+        manifest
+            .source
+            .and_then(|sources| {
+                // 尝试从 extra 字段或 source 列表中找 changelog
+                let _ = sources;
+                None
+            })
+            .or_else(|| {
+                // 直接从 YAML frontmatter 提取 changelog 字段
+                Self::extract_yaml_field(content, "changelog")
+            })
+    }
+
+    /// P2-5: 从 SKILL.md 的 YAML frontmatter 中提取指定字段的字符串值。
+    ///
+    /// 简单的行级解析,避免引入完整的 YAML 解析依赖。
+    fn extract_yaml_field(content: &str, field: &str) -> Option<String> {
+        let trimmed = content.trim_start();
+        if !trimmed.starts_with("---") {
+            return None;
+        }
+        let rest = &trimmed[3..];
+        let end = rest.find("---")?;
+        let yaml_str = &rest[..end];
+        let prefix = format!("{field}:");
+        for line in yaml_str.lines() {
+            let line = line.trim();
+            if let Some(value) = line.strip_prefix(&prefix) {
+                let value = value.trim();
+                // 去掉引号
+                let value = value.trim_matches(|c| c == '"' || c == '\'');
+                if !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+        None
+    }
+
+    /// P2-5: 检查所有已安装技能的远端版本更新。
+    ///
+    /// 遍历本地存储中的所有技能,对于已注册 source URL 的技能:
+    /// 1. 从远端拉取最新 SKILL.md frontmatter
+    /// 2. 解析远端 version 字段
+    /// 3. 与本地 version 做 semver 比对
+    /// 4. 如果远端版本 > 本地版本,标记 `update_available = true`
+    ///
+    /// 无 source URL 的技能（本地创建）返回 `update_available = false`。
+    /// 远端拉取失败的技能也返回 `update_available = false`,不中断整体检查。
+    pub async fn check_remote_updates(&self) -> Vec<SkillUpdateInfo> {
+        // 获取本地所有技能。
+        let local_skills = match self.store.list(
+            None,
+            None,
+            &[],
+            crate::skills::types::TagMatch::Any,
+            1000,
+        ) {
+            Ok(skills) => skills,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut results = Vec::new();
+        for skill in &local_skills {
+            // 本地版本：从 skill code 字段无法获取,使用默认 "1.0.0"。
+            // 注：当前 Skill 表无 version 列,本地版本统一取 "1.0.0"。
+            // 若 skill 通过 importer 安装,远端 SKILL.md 的 version 应高于 1.0.0 才触发更新。
+            let current_version = "1.0.0".to_string();
+
+            let source_url = self.get_source_url(&skill.id);
+
+            if let Some(ref url) = source_url {
+                // 有 source URL 的技能：从远端拉取并比对版本。
+                match self.fetch_remote_skill_md(url).await {
+                    Ok(content) => {
+                        let remote_version =
+                            Self::extract_version_from_skill_md(&content).unwrap_or_default();
+                        let changelog = Self::extract_changelog_from_skill_md(&content);
+                        let update_available = if remote_version.is_empty() {
+                            false
+                        } else {
+                            semver_compare(&remote_version, &current_version)
+                                == std::cmp::Ordering::Greater
+                        };
+                        results.push(SkillUpdateInfo {
+                            skill_id: skill.id.clone(),
+                            skill_name: skill.name.clone(),
+                            current_version: current_version.clone(),
+                            latest_version: remote_version,
+                            update_available,
+                            source_url: Some(url.clone()),
+                            changelog,
+                        });
+                    }
+                    Err(_) => {
+                        // 远端拉取失败：不标记更新,避免误报。
+                        results.push(SkillUpdateInfo {
+                            skill_id: skill.id.clone(),
+                            skill_name: skill.name.clone(),
+                            current_version: current_version.clone(),
+                            latest_version: String::new(),
+                            update_available: false,
+                            source_url: Some(url.clone()),
+                            changelog: None,
+                        });
+                    }
+                }
+            } else {
+                // 无 source URL 的技能：跳过远端检查。
+                results.push(SkillUpdateInfo {
+                    skill_id: skill.id.clone(),
+                    skill_name: skill.name.clone(),
+                    current_version: current_version.clone(),
+                    latest_version: String::new(),
+                    update_available: false,
+                    source_url: None,
+                    changelog: None,
+                });
+            }
+        }
+        results
+    }
+
+    /// P2-5: 一键更新单个技能。
+    ///
+    /// 1. 从远端拉取最新 SKILL.md
+    /// 2. 解析为 CreateSkillRequest
+    /// 3. 更新 store 中的技能（保留 trust_level 设置）
+    /// 4. 刷新 marketplace 索引
+    ///
+    /// 返回更新后的 SkillUpdateInfo(含新版本号)。
+    pub async fn update_skill(&self, skill_id: &str) -> Result<(), String> {
+        // 1. 获取 source URL。
+        let url = self
+            .get_source_url(skill_id)
+            .ok_or_else(|| format!("skill {skill_id} has no registered source URL"))?;
+
+        // 2. 获取本地技能（保留 trust_level）。
+        let existing = self
+            .store
+            .get(skill_id)
+            .map_err(|e| format!("failed to read skill {skill_id}: {e}"))?
+            .ok_or_else(|| format!("skill {skill_id} not found in store"))?;
+
+        // 3. 从远端拉取最新 SKILL.md。
+        let content = self
+            .fetch_remote_skill_md(&url)
+            .await
+            .map_err(|e| format!("failed to fetch remote SKILL.md: {e}"))?;
+
+        // 4. 解析为 CreateSkillRequest。
+        let req = crate::skills::importer::SkillImporter::from_skill_md(&content)
+            .map_err(|e| format!("failed to parse SKILL.md: {e}"))?;
+
+        // 5. 构造更新后的 Skill(保留 id / trust_level / usage_count / ratings)。
+        let now = chrono::Utc::now().timestamp();
+        let updated_skill = crate::skills::types::Skill {
+            id: existing.id.clone(),
+            name: req.name,
+            description: req.description,
+            code: req.code,
+            language: req.language,
+            tags: req.tags,
+            usage_count: existing.usage_count,
+            avg_rating: existing.avg_rating,
+            rating_count: existing.rating_count,
+            created_at: existing.created_at,
+            updated_at: now,
+            source_memory_id: existing.source_memory_id.clone(),
+            activation_condition: existing.activation_condition.clone(),
+            platform: existing.platform.clone(),
+            min_confidence: existing.min_confidence,
+            // P2-5: 保留用户的 trust_level 设置（不因更新重置）。
+            trust_level: existing.trust_level,
+            permissions: existing.permissions.clone(),
+            capabilities: existing.capabilities.clone(),
+        };
+
+        // 6. 写入 store（upsert：相同 id 则更新）。
+        self.store
+            .upsert(&updated_skill)
+            .map_err(|e| format!("failed to upsert skill {skill_id}: {e}"))?;
+
+        // 7. 刷新 marketplace 索引。
+        let _ = self.refresh();
+
+        Ok(())
     }
 
     pub fn generate_manifest(&self, skill_id: &str) -> Result<PublishManifest, anyhow::Error> {

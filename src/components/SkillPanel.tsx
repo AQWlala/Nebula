@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'preact/hooks';
-import { nebulaAPI, Skill, ListSkillsRequest, ImportResult, TagCount } from '../lib/tauri';
+import { nebulaAPI, Skill, ListSkillsRequest, ImportResult, TagCount, SkillUpdateInfo } from '../lib/tauri';
 import VisualCreatorDialog from './VisualCreatorDialog';
 import SkillDebugger from './SkillDebugger';
 import type { VizKind } from './VizRenderer';
@@ -111,6 +111,12 @@ export default function SkillPanel() {
   const [cliResult, setCliResult] = useState<{ kind: 'success' | 'error'; msg: string } | null>(
     null
   );
+
+  // P2-5: 远端版本更新检查状态。
+  const [skillUpdates, setSkillUpdates] = useState<SkillUpdateInfo[]>([]);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updatingSkillId, setUpdatingSkillId] = useState<string | null>(null);
+  const [updatingAll, setUpdatingAll] = useState(false);
 
   // T-E-S-37: 加载热门标签云(只加载一次,在 mount 时)。
   const loadTopTags = useCallback(async () => {
@@ -250,6 +256,47 @@ export default function SkillPanel() {
     setTab('detail');
   };
 
+  // P2-5: 检查所有技能的远端版本更新。
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    try {
+      const updates = await nebulaAPI.checkSkillUpdates();
+      setSkillUpdates(updates || []);
+    } catch {
+      // 静默失败:远端检查不可用时清空更新列表。
+      setSkillUpdates([]);
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  // P2-5: 一键更新单个技能,更新完成后刷新技能列表。
+  const handleUpdateSkill = async (skillId: string) => {
+    setUpdatingSkillId(skillId);
+    try {
+      await nebulaAPI.updateSkill(skillId);
+      // 更新成功后从更新列表中移除该技能。
+      setSkillUpdates((prev) =>
+        prev.filter((u) => u.skill_id !== skillId)
+      );
+      await loadSkills();
+    } finally {
+      setUpdatingSkillId(null);
+    }
+  };
+
+  // P2-5: 一键更新所有有更新的技能,完成后刷新技能列表。
+  const handleUpdateAll = async () => {
+    setUpdatingAll(true);
+    try {
+      await nebulaAPI.updateAllSkills();
+      setSkillUpdates([]);
+      await loadSkills();
+    } finally {
+      setUpdatingAll(false);
+    }
+  };
+
   // T-E-S-38: 打开可视化生成弹窗。
   const openVizDialog = (kind: VizKind) => {
     setVizDialogKind(kind);
@@ -314,6 +361,13 @@ export default function SkillPanel() {
             onOpenVizCreator={openVizDialog}
             sourceFilter={sourceFilter}
             onSourceFilterChange={setSourceFilter}
+            skillUpdates={skillUpdates}
+            checkingUpdates={checkingUpdates}
+            updatingSkillId={updatingSkillId}
+            updatingAll={updatingAll}
+            onCheckUpdates={handleCheckUpdates}
+            onUpdateSkill={handleUpdateSkill}
+            onUpdateAll={handleUpdateAll}
           />
         )}
 
@@ -406,6 +460,14 @@ function BrowseTab({
   onOpenVizCreator,
   sourceFilter,
   onSourceFilterChange,
+  // P2-5: 更新检查相关 props
+  skillUpdates,
+  checkingUpdates,
+  updatingSkillId,
+  updatingAll,
+  onCheckUpdates,
+  onUpdateSkill,
+  onUpdateAll,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -423,6 +485,14 @@ function BrowseTab({
   // P1-6: 来源筛选器
   sourceFilter: string;
   onSourceFilterChange: (s: string) => void;
+  // P2-5: 更新检查 props
+  skillUpdates: SkillUpdateInfo[];
+  checkingUpdates: boolean;
+  updatingSkillId: string | null;
+  updatingAll: boolean;
+  onCheckUpdates: () => void;
+  onUpdateSkill: (skillId: string) => void;
+  onUpdateAll: () => void;
 }) {
   return (
     <div>
@@ -463,6 +533,16 @@ function BrowseTab({
           class="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-sm
                  placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
+        {/* P2-5: 检查更新按钮 — 从远端拉取最新版本并比对。 */}
+        <button
+          onClick={onCheckUpdates}
+          disabled={checkingUpdates}
+          class="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700
+                 disabled:text-gray-500 text-white rounded-md transition-colors whitespace-nowrap"
+          title={t('skillPanel.checkUpdatesHint')}
+        >
+          {checkingUpdates ? t('skillPanel.checkingUpdates') : t('skillPanel.checkUpdates')}
+        </button>
         <button
           onClick={onRefresh}
           class="px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
@@ -471,6 +551,59 @@ function BrowseTab({
           ↻
         </button>
       </div>
+
+      {/* P2-5: 更新可用列表 — 仅当有远端更新时显示。 */}
+      {(() => {
+        const availableUpdates = skillUpdates.filter((u) => u.update_available);
+        if (availableUpdates.length === 0) return null;
+        return (
+          <div class="skill-update-section mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs text-orange-400 uppercase tracking-wide">
+                {t('skillPanel.updatesAvailable', { count: availableUpdates.length })}
+              </h3>
+              <button
+                onClick={onUpdateAll}
+                disabled={updatingAll}
+                class="px-2 py-1 text-xs bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700
+                       disabled:text-gray-500 text-white rounded transition-colors"
+              >
+                {updatingAll ? t('skillPanel.updatingAll') : t('skillPanel.updateAll')}
+              </button>
+            </div>
+            <div class="space-y-1.5">
+              {availableUpdates.map((info) => (
+                <div
+                  key={info.skill_id}
+                  class="skill-update-item flex items-center justify-between p-2 bg-gray-800
+                         border border-orange-900/50 rounded-md"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm text-white truncate">{info.skill_name}</span>
+                      <span class="skill-update-badge">
+                        {info.current_version} → {info.latest_version}
+                      </span>
+                    </div>
+                    {info.changelog && (
+                      <p class="text-xs text-gray-400 mt-0.5 truncate">{info.changelog}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onUpdateSkill(info.skill_id)}
+                    disabled={updatingSkillId === info.skill_id || updatingAll}
+                    class="ml-3 px-2 py-1 text-xs bg-green-600 hover:bg-green-700
+                           disabled:bg-gray-700 disabled:text-gray-500 text-white rounded
+                           transition-colors whitespace-nowrap shrink-0"
+                  >
+                    {updatingSkillId === info.skill_id ? t('skillPanel.updating') : t('skillPanel.update')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* P1-6: 来源筛选器 — 按来源 badge 过滤技能列表。 */}
       <div class="mb-4">

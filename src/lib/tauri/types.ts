@@ -325,6 +325,24 @@ export interface SkillSourceInfo {
   is_compatible: boolean;
 }
 
+/** P2-5: 远端版本检查结果 — 描述单个技能的更新状态。 */
+export interface SkillUpdateInfo {
+  /** 技能 ID。 */
+  skill_id: string;
+  /** 技能名称。 */
+  skill_name: string;
+  /** 当前本地版本号（semver）。 */
+  current_version: string;
+  /** 远端最新版本号（semver）。 */
+  latest_version: string;
+  /** 是否有更新可用（远端版本 > 本地版本）。 */
+  update_available: boolean;
+  /** 技能的远端 source URL（若有）。 */
+  source_url: string | null;
+  /** 更新日志（可选，从远端 frontmatter 解析）。 */
+  changelog: string | null;
+}
+
 export interface ArenaMatch {
   id: string;
   prompt: string;

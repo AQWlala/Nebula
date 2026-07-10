@@ -209,6 +209,9 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_SystemInformation",
     # T-E-S-55: 条件监控 Watch — GetDiskFreeSpaceExW(磁盘剩余空间百分比)。
     "Win32_Storage_FileSystem",
+    # P2-3: 沙箱 JobObject 内存 cap — CreateJobObjectW / SetInformationJobObject /
+    # AssignProcessToJobObject / JOBOBJECT_EXTENDED_LIMIT_INFORMATION。
+    "Win32_System_JobObjects",
 ] }
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["sync-secret-service", "vendored"] }
