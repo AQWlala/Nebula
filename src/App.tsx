@@ -12,7 +12,7 @@
  *    P0-4 replaces the old 3-step Onboarding with a 4-step
  *    OnboardingWizard (欢迎 / 配置模型 / 选择技能 / 完成)。
  */
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { lazy, Suspense } from 'preact/compat';
 import { signal } from '@preact/signals';
 import { CodeMode } from './components/CodeMode';
@@ -115,6 +115,20 @@ export function App() {
   // onReload → appKey.value++).  The decision is read directly from
   // localStorage key `nebula-onboarding-completed`.
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // P1-4: 侧边栏宽度（可拖拽调整 180-320px）+ 折叠状态，均持久化到 localStorage。
+  // --sidebar-width CSS 变量驱动 .sidebar 的 width；is-collapsed class 触发 48px 折叠态。
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('nebula-sidebar-width'));
+    return saved >= 180 && saved <= 320 ? saved : 240;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const [isCollapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('nebula-sidebar-collapsed') === 'true';
+  });
+  // ref 镜像 sidebarWidth，供 mouseup 回调读取最新值而无需将 sidebarWidth 纳入 effect 依赖。
+  const sidebarWidthRef = useRef(sidebarWidth);
+  sidebarWidthRef.current = sidebarWidth;
 
   // P1-6 / T-E-B-02: memory view mode — 'map' / 'list' / 'timeline' 三视图。
   // 改用 nebulaStore.memoryView signal,以便 ChatPanel `/journey` 命令跨组件切换。
@@ -232,6 +246,57 @@ export function App() {
     paletteOpen.value = true;
   });
 
+  // P1-4: 把 sidebarWidth 同步到 --sidebar-width CSS 变量（驱动 .sidebar width）。
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  // P1-4: 拖拽中给 body 添加 is-resizing class（CSS 禁用文本选择 + 统一 col-resize 指针）。
+  useEffect(() => {
+    if (isResizing) {
+      document.body.classList.add('is-resizing');
+    } else {
+      document.body.classList.remove('is-resizing');
+    }
+  }, [isResizing]);
+
+  // P1-4: 鼠标按下分隔条后监听 mousemove/mouseup，实时调整侧边栏宽度。
+  // 范围 180-320px，松开时持久化到 localStorage。
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(320, Math.max(180, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      try {
+        localStorage.setItem('nebula-sidebar-width', String(sidebarWidthRef.current));
+      } catch {
+        /* localStorage 不可用时忽略 */
+      }
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  // P1-4: 折叠/展开侧边栏，状态持久化到 localStorage。
+  const handleToggleCollapse = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('nebula-sidebar-collapsed', String(next));
+      } catch {
+        /* localStorage 不可用时忽略 */
+      }
+      return next;
+    });
+  };
+
   if (error) {
     return (
       <div class="app-error">
@@ -276,7 +341,14 @@ export function App() {
   return (
     <ErrorBoundary onReload={() => appKey.value++}>
       <div class="app" key={appKey.value}>
-        <Sidebar />
+        <Sidebar isCollapsed={isCollapsed} onToggleCollapse={handleToggleCollapse} />
+        <div
+          class={`sidebar-resizer${isResizing ? ' is-active' : ''}`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+        />
         <main class="main">
           <Suspense fallback={<LoadingFallback />}>
             {currentMode.value === 'code' ? (
@@ -391,7 +463,13 @@ function Workspace() {
   );
 }
 
-function Sidebar() {
+function Sidebar({
+  isCollapsed,
+  onToggleCollapse,
+}: {
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+}) {
   const items: { id: View; icon: string; label: string }[] = [
     { id: 'chat', icon: '💬', label: t('nav.chat') },
     { id: 'swarm', icon: '🐝', label: t('nav.swarm') },
@@ -406,10 +484,18 @@ function Sidebar() {
   ];
 
   return (
-    <nav class="sidebar">
+    <nav class={`sidebar${isCollapsed ? ' is-collapsed' : ''}`}>
       <div class="brand">
         <span class="brand-icon">🐍</span>
         <span class="brand-text">{t('app.name')}</span>
+        <button
+          class="sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          title={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+          aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+        >
+          {isCollapsed ? '▶' : '◀'}
+        </button>
       </div>
       {items.map((it) => (
         <button

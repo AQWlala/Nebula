@@ -181,6 +181,112 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   padding: 16px 0;
+  flex-shrink: 0;
+}
+
+/* P1-4: 侧边栏拖拽分隔条 — 位于 .sidebar 与 .main 之间，鼠标拖拽实时调整宽度。 */
+.sidebar-resizer {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 10;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.is-active {
+  background: var(--border, #444);
+}
+
+.sidebar-resizer.is-active {
+  background: var(--accent, #89b4fa);
+}
+
+/* P1-4: 拖拽中禁用文本选择 + 统一 col-resize 指针。 */
+body.is-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+body.is-resizing * {
+  cursor: col-resize !important;
+}
+
+/* P1-4: 折叠按钮 — 位于 .brand 右侧，折叠/展开切换。 */
+.sidebar-collapse-btn {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* P1-4: 折叠状态 — 仅桌面(min-width: 1025px)生效，避免覆盖响应式布局。
+   折叠时宽度收为 48px、隐藏文字标签、图标居中，分隔条隐藏。 */
+@media (min-width: 1025px) {
+  .sidebar.is-collapsed {
+    width: 48px;
+    overflow: hidden;
+  }
+
+  .sidebar.is-collapsed .brand {
+    padding: 0 0 24px;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .sidebar.is-collapsed .brand-icon,
+  .sidebar.is-collapsed .brand-text {
+    display: none;
+  }
+
+  .sidebar.is-collapsed .sidebar-collapse-btn {
+    margin-left: 0;
+  }
+
+  .sidebar.is-collapsed .nav-item {
+    justify-content: center;
+    padding: 12px 0;
+  }
+
+  .sidebar.is-collapsed .nav-label {
+    display: none;
+  }
+
+  .sidebar.is-collapsed .sidebar-footer {
+    padding: 16px 0;
+    align-items: center;
+  }
+
+  .sidebar.is-collapsed .sidebar-footer .version,
+  .sidebar.is-collapsed .sidebar-footer .slogan {
+    display: none;
+  }
+
+  .sidebar.is-collapsed .sidebar-footer .settings-btn {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .sidebar.is-collapsed .sidebar-footer .settings-btn .nav-label {
+    display: none;
+  }
+
+  /* 折叠时隐藏分隔条 */
+  .sidebar.is-collapsed + .sidebar-resizer {
+    display: none;
+  }
 }
 
 .brand {
@@ -2586,6 +2692,10 @@ body.immersive-mode .sidebar {
   display: none;
 }
 
+body.immersive-mode .sidebar-resizer {
+  display: none;
+}
+
 body.immersive-mode .main {
   width: 100%;
 }
@@ -3173,6 +3283,11 @@ body.immersive-mode .main {
 
   .sidebar {
     width: var(--rp-sidebar-width-narrow);
+  }
+
+  /* P1-4: 平板/窄屏隐藏拖拽分隔条 */
+  .sidebar-resizer {
+    display: none;
   }
 
   .brand {
@@ -5135,3 +5250,379 @@ code.evolution-meta-val {
     justify-content: flex-end;
   }
 }
+
+/* =========================================================================
+   P1-6: OpenClaw 兼容 badge + 命令行安装区域样式
+   ========================================================================= */
+
+/* 来源 badge 基础样式 */
+.skill-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+/* OpenClaw — 橙色 */
+.skill-source-badge--openclaw {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+  border-color: rgba(251, 146, 60, 0.35);
+}
+
+/* agentskills.io — 蓝色 */
+.skill-source-badge--agentskills {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+/* ClawHub — 紫色 */
+.skill-source-badge--clawhub {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+/* TeamSkillsHub — 绿色 */
+.skill-source-badge--teamhub {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+/* 本地 — 灰色 */
+.skill-source-badge--local {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+  border-color: rgba(107, 114, 128, 0.35);
+}
+
+/* 来源筛选器区域 */
+.skill-source-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.skill-source-filter .source-filter-chip {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background: rgba(55, 65, 81, 0.6);
+  color: #9ca3af;
+}
+
+.skill-source-filter .source-filter-chip:hover {
+  background: rgba(75, 85, 99, 0.8);
+  color: #d1d5db;
+}
+
+.skill-source-filter .source-filter-chip.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* 命令行安装区域 */
+.skill-cli-install {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(55, 65, 81, 0.8);
+  border-radius: 10px;
+}
+
+.skill-cli-install .cli-install-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.skill-cli-install .cli-install-header .cli-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.skill-cli-install .cli-install-header .cli-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.skill-cli-install .cli-install-hint {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.skill-cli-install .cli-install-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.skill-cli-install .cli-install-input-row input {
+  flex: 1;
+  padding: 8px 12px;
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(75, 85, 99, 0.8);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  color: #e5e7eb;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.skill-cli-install .cli-install-input-row input:focus {
+  border-color: rgba(251, 146, 60, 0.5);
+}
+
+.skill-cli-install .cli-install-input-row input::placeholder {
+  color: #4b5563;
+}
+
+.skill-cli-install .cli-install-input-row button {
+  padding: 8px 20px;
+  background: rgba(251, 146, 60, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fb923c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.skill-cli-install .cli-install-input-row button:hover:not(:disabled) {
+  background: rgba(251, 146, 60, 0.25);
+}
+
+.skill-cli-install .cli-install-input-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skill-cli-install .cli-install-formats {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(55, 65, 81, 0.5);
+}
+
+.skill-cli-install .cli-install-formats .formats-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.skill-cli-install .cli-install-formats .format-item {
+  font-size: 11px;
+  color: #9ca3af;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  line-height: 1.6;
+  padding-left: 8px;
+}
+
+.skill-cli-install .cli-install-formats .format-item::before {
+  content: '› ';
+  color: #fb923c;
+  opacity: 0.6;
+}
+
+.skill-cli-install .cli-install-result {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.skill-cli-install .cli-install-result.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.skill-cli-install .cli-install-result.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* 兼容协议信息区域 */
+.skill-compatibility-info {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(251, 146, 60, 0.08);
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  border-radius: 8px;
+}
+
+.skill-compatibility-info .compat-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fb923c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.skill-compatibility-info .compat-desc {
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+/* =====================================================================
+ * P1-9: 代码块复制按钮 + 输入框自动聚焦 + 时间戳切换 + 字符计数
+ * ===================================================================== */
+
+/* 代码块容器：作为复制按钮的定位上下文 */
+.code-block-wrapper {
+  position: relative;
+}
+
+/* 复制按钮：固定在代码块右上角,半透明背景 */
+.code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted, #888);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border, #444);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  z-index: 1;
+  user-select: none;
+}
+
+/* 鼠标悬停在代码块上时显示复制按钮 */
+.code-block-wrapper:hover .code-copy-btn {
+  opacity: 1;
+}
+
+/* 复制按钮悬停效果：加深背景 */
+.code-copy-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* 已复制状态：绿色高亮 */
+.code-copy-btn--copied {
+  color: #4caf50 !important;
+  border-color: rgba(76, 175, 80, 0.5) !important;
+  background: rgba(76, 175, 80, 0.15) !important;
+  opacity: 1 !important;
+}
+
+/* 输入框容器：相对定位,用于放置字符计数器 */
+.chat-input-wrapper {
+  position: relative;
+}
+
+/* 字符计数器：固定在输入区域右下角 */
+.char-counter {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--text-muted, #666);
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 消息时间戳：显示在角色标签右侧 */
+.msg-timestamp {
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--text-muted, #666);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 时间戳隐藏状态：通过 panel-header 按钮切换 */
+.msg-timestamp--hidden {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * P1-7: 技能调试器 — 时间线可视化样式
+ * ------------------------------------------------------------------------- */
+
+.skill-debugger-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.skill-debugger-timeline__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.skill-debugger-timeline__label {
+  flex-shrink: 0;
+  width: 4rem;
+  color: var(--text-secondary, #9ca3af);
+  font-family: var(--font-mono, monospace);
+}
+
+.skill-debugger-timeline__bar-wrap {
+  position: relative;
+  flex: 1;
+  height: 0.875rem;
+  background: rgba(31, 41, 55, 0.6);
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.skill-debugger-timeline__bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0.25rem;
+  transition: width 0.2s ease, left 0.2s ease;
+}
+
+/* 事件类型颜色: start=蓝 / execute=紫 / end=灰。 */
+.skill-debugger-timeline__bar--start {
+  background: #3b82f6;
+}
+.skill-debugger-timeline__bar--execute {
+  background: #a855f7;
+}
+.skill-debugger-timeline__bar--end {
+  background: #6b7280;
+}
+
+.skill-debugger-timeline__time {
+  flex-shrink: 0;
+  width: 7rem;
+  color: var(--text-tertiary, #6b7280);
+  font-family: var(--font-mono, monospace);
+  text-align: right;
+}
+

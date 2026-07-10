@@ -133,6 +133,10 @@ pub mod soul;
 // reject_pattern / get_config / set_config)。
 pub mod skill_auto_invent;
 
+// P1-7: 技能调试工具命令(skill_inspect / skill_test_run / skill_debug_start /
+// skill_debug_step / skill_debug_stop / skill_profile)。
+pub mod skill_debug;
+
 // Re-export the API DTOs so other modules (gRPC, tests) can reach them
 // through the `commands` namespace without depending on the internal
 // `api::server` module path.
@@ -235,5 +239,12 @@ pub use soul::*;
 
 // P0-6: SkillAutoInventor 命令 re-export。
 pub use skill_auto_invent::*;
+
+// P1-7: 技能调试工具命令 re-export。
+pub use skill_debug::*;
+
+// P1-6: OpenClaw 兼容命令(命令行式安装 + 来源查询)。
+pub mod skill_openclaw;
+pub use skill_openclaw::*;
 
 pub use error::{CommandError, ErrorCode};

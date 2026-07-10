@@ -34,6 +34,7 @@ impl AppState {
         Arc<crate::editor::InlineCompletionEngine>,
         Arc<parking_lot::RwLock<crate::llm::models_config::ModelsConfig>>,
         Arc<SemanticCache>,
+        Arc<crate::llm::model_health::ModelHealthTracker>,
     )> {
         let models_config_value =
             crate::llm::models_config::ModelsConfig::load(&config.models_config_path);
@@ -148,6 +149,8 @@ impl AppState {
             );
             Arc::new(base)
         };
+        // P1-1: 模型健康追踪器 — 在 gateway 构造前创建,以便注入。
+        let model_health_tracker = Arc::new(crate::llm::model_health::ModelHealthTracker::new());
         let mut llm_builder = LlmGateway::new(
             ollama,
             config.chat_model.clone(),
@@ -157,7 +160,8 @@ impl AppState {
             config.remote_fallback_url.clone(),
             ak,
             am,
-        );
+        )
+        .with_model_health_tracker(model_health_tracker.clone());
         let semantic_cache: Arc<SemanticCache> = Arc::new(
             crate::llm::semantic_cache::SemanticCache::default_config(
                 lance.clone(),
@@ -262,6 +266,7 @@ impl AppState {
             inline_completion,
             models_config,
             semantic_cache,
+            model_health_tracker,
         ))
     }
 

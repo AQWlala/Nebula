@@ -49,6 +49,7 @@ impl AppState {
             inline_completion,
             models_config,
             semantic_cache,
+            model_health_tracker,
         ) = Self::bootstrap_ai_core(&config, &sqlite, &lance, &startup, &app_handle).await?;
 
         // T-E-A-11: Smart Prefetch 引擎 — 与 LlmGateway 共享同一 Arc<SemanticCache>。
@@ -352,6 +353,8 @@ impl AppState {
             }
         };
 
+        info!(target: "nebula", "model health tracker ready (P1-1)");
+
         // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关
         #[cfg(feature = "master-orchestrator")]
         crate::swarm::init_master_orchestrator_from_env();
@@ -437,6 +440,7 @@ impl AppState {
                 arena,
                 inline_completion,
                 dispatcher,
+                model_health_tracker,
             },
             swarm: crate::app_state::SwarmSubsystem {
                 swarm,

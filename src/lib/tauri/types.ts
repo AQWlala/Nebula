@@ -257,6 +257,8 @@ export interface Skill {
   created_at: number;
   updated_at: number;
   source_memory_id: string | null;
+  /** P1-6: 技能来源标识（从 id 前缀解析，供 badge 显示）。 */
+  source?: string;
 }
 
 export interface SkillResult {
@@ -309,6 +311,18 @@ export interface ImportResult {
   skill?: Skill;
   source?: string;
   error?: string;
+}
+
+/** P1-6: 技能来源信息（供前端显示兼容性矩阵 + 来源筛选器）。 */
+export interface SkillSourceInfo {
+  /** 来源标识符（agentskills / clawhub / openclaw / teamskillshub / local）。 */
+  id: string;
+  /** 来源显示名称。 */
+  name: string;
+  /** 来源描述。 */
+  description: string;
+  /** 是否与 agentskills.io SKILL.md 格式兼容。 */
+  is_compatible: boolean;
 }
 
 export interface ArenaMatch {
@@ -982,6 +996,42 @@ export interface ModelInfo {
   context_length: number | null;
 }
 
+/** P1-2: `discover_all_models` 返回的单个 provider 模型发现结果。 */
+export interface ProviderModels {
+  provider_id: string;
+  provider_name: string;
+  models: ModelInfo[];
+  error: string | null;
+}
+
+/** P1-1: 单个 provider 的健康指标快照(供前端健康面板展示)。 */
+export interface ModelHealthInfo {
+  /** Provider id(如 "deepseek" / "ollama")。 */
+  provider_id: string;
+  /** Provider 显示名。 */
+  provider_name: string;
+  /** Provider kind 字符串("Ollama" / "OpenAiCompat" / "Anthropic" / "Custom")。 */
+  provider_kind: string;
+  /** 是否已配置 API key(Ollama 无需 key,始终为 true)。 */
+  is_configured: boolean;
+  /** 最近一次请求延迟(毫秒)。null 表示尚无请求。 */
+  latency_ms: number | null;
+  /** 当日(UTC)累计费用(USD)。 */
+  cost_today_usd: number;
+  /** 当月(UTC)累计费用(USD)。 */
+  cost_month_usd: number;
+  /** 语义缓存命中率 [0.0, 1.0](全局指标,非 per-provider)。 */
+  cache_hit_rate: number;
+  /** 当日(UTC)请求次数。 */
+  request_count_today: number;
+  /** 断路器状态("Closed" / "Open" / "HalfOpen")。 */
+  circuit_breaker_status: string;
+  /** 最近一次错误信息(成功后清空)。null 表示无错误。 */
+  last_error: string | null;
+  /** 最近一次请求的 Unix 时间戳(秒)。null 表示尚无请求。 */
+  last_request_at: number | null;
+}
+
 export interface WatchStatus {
   active: boolean;
   paths: string[];
@@ -1205,3 +1255,101 @@ export interface WikiNoteReadResponse {
   note: WikiNote;
   markdown: string;
 }
+
+// ---------------------------------------------------------------------------
+// P1-7: 技能调试工具 — Inspector / TestRunner / Debugger / Profiler
+// ---------------------------------------------------------------------------
+
+/** 技能清单 — 从 in-DB Skill 合成的 manifest（前端只读视图）。 */
+export interface SkillManifestView {
+  name: string;
+  version: string;
+  description: string;
+  capabilities: string[];
+  transport: 'Local' | 'Remote' | 'Mcp';
+  author: string | null;
+  source: string | null;
+  status: string | null;
+  dependencies: string[];
+  min_nebula_version: string | null;
+}
+
+/** 三层校验结果 — 结构层 / 规范层 / 资格层。 */
+export interface ValidationResult {
+  structure_ok: boolean;
+  spec_ok: boolean;
+  eligibility_ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/** 依赖检查结果 — bins / env / os 三维。 */
+export interface DependencyCheckResult {
+  bins_available: Record<string, boolean>;
+  env_set: Record<string, boolean>;
+  os_supported: boolean;
+}
+
+/** 使用统计 — 从 audit log 聚合。 */
+export interface UsageStats {
+  call_count: number;
+  success_rate: number;
+  last_used: number | null;
+  avg_latency_ms: number;
+}
+
+/** 技能检查结果 — skill_inspect 命令的返回值。 */
+export interface SkillInspection {
+  manifest: SkillManifestView;
+  body: string;
+  validation: ValidationResult;
+  dependency_check: DependencyCheckResult;
+  usage_stats: UsageStats;
+}
+
+/** 单次测试运行结果 — skill_test_run 命令的返回值。 */
+export interface SkillTestResult {
+  success: boolean;
+  output: string;
+  error: string | null;
+  latency_ms: number;
+  logs: string[];
+}
+
+/** 调试会话 — skill_debug_start 创建,逐步执行直到 skill_debug_stop。 */
+export interface DebugSession {
+  session_id: string;
+  skill_id: string;
+  test_input: string;
+  steps: string[];
+  variables: Record<string, string>;
+  call_stack: string[];
+  created_at: number;
+}
+
+/** 单步调试结果 — skill_debug_step 命令的返回值。 */
+export interface DebugStepResult {
+  step: string;
+  success: boolean;
+  output: string;
+  error: string | null;
+  variables: Record<string, string>;
+  call_stack: string[];
+}
+
+/** 性能时间线事件。 */
+export interface ProfileEvent {
+  name: string;
+  timestamp_ms: number;
+  duration_ms: number;
+}
+
+/** 性能分析结果 — skill_profile 命令的返回值。 */
+export interface SkillProfile {
+  cpu_time_ms: number;
+  memory_bytes: number;
+  io_operations: number;
+  sub_calls: number;
+  timeline: ProfileEvent[];
+}
+

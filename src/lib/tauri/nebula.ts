@@ -7,6 +7,7 @@ import type {
   MetricsSnapshot, MigrationStatus, Skill, SkillResult, CreateSkillRequest,
   UseSkillRequest, RateSkillRequest, ListSkillsRequest, SkillSearchRequest,
   ImportResult, TagCount, StreamToken, ChatComplete, BallState,
+  SkillSourceInfo,
   WritingTemplate, Document, CreateDocumentRequest, DocumentExport,
   WorkTask, CreateTaskRequest, UpdateTaskRequest, MeetingMinutes,
   FileEntry, FileContent, GitStatus, GitLogEntry, GitDiff,
@@ -16,7 +17,7 @@ import type {
   GenerateDidResponse, ResolveDidResponse,
   SkillAuditEntry, PersonaConfig, MaskedApiKey, ModelsConfig,
   ProviderConfig, ProviderTestResult,
-  ConnectionTestResult, ModelInfo,
+  ConnectionTestResult, ModelInfo, ProviderModels, ModelHealthInfo,
   UnifiedMessage, Annotation, AnnotationStats,
   SnapshotInfo, SpongeAbsorbFileResult, ContextMenuStatus,
   DiagnosticsSnapshot, DiagnosticEvent, WatchStatus,
@@ -28,6 +29,7 @@ import type {
   LongTask, LongTaskStep, StepInput, GraphSnapshot,
   RelationDimension, MdrmQueryParams, LeaderboardRow,
   ExecuteMode, LongTaskStatus, OperationKind,
+  SkillInspection, SkillTestResult, DebugStepResult, SkillProfile,
 } from './types';
 
 export class nebulaAPI {
@@ -159,6 +161,55 @@ export class nebulaAPI {
       skill_id: skillId,
       output_path: outputPath ?? null,
     });
+  }
+
+  // P1-6: OpenClaw 兼容 — 命令行式安装命令。
+
+  /** P1-6: 从 OpenClaw 社区市场安装技能（slug 解析到 GitHub 仓库），返回技能 ID。 */
+  static installSkillFromOpenclaw(slug: string): Promise<string> {
+    return invoke('install_skill_from_openclaw', { slug });
+  }
+
+  /** P1-6: 从任意 URL 安装 SKILL.md（通用安装命令），返回技能 ID。 */
+  static installSkillFromUrl(url: string): Promise<string> {
+    return invoke('install_skill_from_url', { url });
+  }
+
+  /** P1-6: 列出所有支持的技能来源（供前端显示兼容性矩阵 + 来源筛选器）。 */
+  static listSkillSources(): Promise<SkillSourceInfo[]> {
+    return invoke('list_skill_sources');
+  }
+
+  // P1-7: 技能调试工具 — Inspector / TestRunner / Debugger / Profiler。
+
+  /** P1-7: 检查技能详情 — manifest + body + 校验 + 依赖 + 使用统计。 */
+  static skillInspect(skillId: string): Promise<SkillInspection> {
+    return invoke('skill_inspect', { skill_id: skillId });
+  }
+
+  /** P1-7: 单技能测试运行（沙箱执行，30s 超时）。 */
+  static skillTestRun(skillId: string, testInput: string): Promise<SkillTestResult> {
+    return invoke('skill_test_run', { skill_id: skillId, test_input: testInput });
+  }
+
+  /** P1-7: 启动调试会话，返回 session_id。 */
+  static skillDebugStart(skillId: string, testInput: string): Promise<string> {
+    return invoke('skill_debug_start', { skill_id: skillId, test_input: testInput });
+  }
+
+  /** P1-7: 逐步执行调试（step: load / validate / execute / 自定义）。 */
+  static skillDebugStep(sessionId: string, step: string): Promise<DebugStepResult> {
+    return invoke('skill_debug_step', { session_id: sessionId, step });
+  }
+
+  /** P1-7: 停止调试会话（删除会话）。 */
+  static skillDebugStop(sessionId: string): Promise<void> {
+    return invoke('skill_debug_stop', { session_id: sessionId });
+  }
+
+  /** P1-7: 性能分析（CPU / 内存 / IO / 子调用 + 时间线）。 */
+  static skillProfile(skillId: string, testInput: string): Promise<SkillProfile> {
+    return invoke('skill_profile', { skill_id: skillId, test_input: testInput });
   }
 
   static writingListTemplates(): Promise<WritingTemplate[]> {
@@ -525,6 +576,20 @@ export class nebulaAPI {
     return invoke('remove_provider', { providerId });
   }
 
+  /**
+   * P1-3: 热更新 provider 字段(name / base_url / kind)。
+   * 所有参数(除 providerId 外)为可选,仅更新提供的字段。
+   * 修改后自动重建 gateway 客户端,无需重启。
+   */
+  static updateProvider(
+    providerId: string,
+    name?: string,
+    baseUrl?: string,
+    kind?: string,
+  ): Promise<void> {
+    return invoke('update_provider', { providerId, name, baseUrl, kind });
+  }
+
   /** 设置默认 provider 和 model。 */
   static setDefaultProvider(providerId: string, modelId: string): Promise<void> {
     return invoke('set_default_provider', { providerId, modelId });
@@ -533,6 +598,21 @@ export class nebulaAPI {
   /** 按 WorkType 设置路由。 */
   static setWorktypeRouting(workType: string, providerId: string): Promise<void> {
     return invoke('set_worktype_routing', { workType, providerId });
+  }
+
+  /** P1-2: 并行发现所有已配置 provider 的模型列表(失败的 provider 附带 error 字段)。 */
+  static discoverAllModels(): Promise<ProviderModels[]> {
+    return invoke('discover_all_models');
+  }
+
+  /** P1-2: 自动发现并将新模型写入 models.json(去重),返回新增模型数量。 */
+  static autoPopulateModels(providerId: string): Promise<number> {
+    return invoke('auto_populate_models', { providerId });
+  }
+
+  /** P1-1: 获取所有 provider 的健康指标(延迟/成本/命中率/断路器状态)。 */
+  static getModelHealth(): Promise<ModelHealthInfo[]> {
+    return invoke('get_model_health');
   }
 
   static personaReload(): Promise<PersonaConfig> {

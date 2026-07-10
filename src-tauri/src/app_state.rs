@@ -72,7 +72,7 @@ pub struct MemorySubsystem {
     pub file_watcher_worker: Arc<parking_lot::Mutex<Option<JoinHandle<()>>>>,
 }
 
-/// LLM 子系统:网关 / 费用追踪 / 预取 / 模型配置 / Arena / 内联补全 / 统一分发器。
+/// LLM 子系统:网关 / 费用追踪 / 预取 / 模型配置 / Arena / 内联补全 / 统一分发器 / 模型健康追踪。
 #[derive(Clone)]
 pub struct LlmSubsystem {
     pub llm: Arc<LlmGateway>,
@@ -89,6 +89,8 @@ pub struct LlmSubsystem {
     /// M7a #86: UnifiedModelDispatcher。
     /// P0-2: unified-dispatcher 默认启用；运行时关闭或未注入时为 None。
     pub dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>>,
+    /// P1-1: 模型健康追踪器 — 记录每个 provider 的延迟 / 错误 / 断路器状态。
+    pub model_health_tracker: Arc<crate::llm::model_health::ModelHealthTracker>,
 }
 
 /// 蜂群子系统:编排器 / 技能生态 / 事件总线 / 死锁检测 / 主控 / 进化 / 影子工作区 / 长任务 / 触发器 / 场景模板。

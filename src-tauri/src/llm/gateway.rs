@@ -41,6 +41,8 @@ use tracing::{debug, info, instrument, warn};
 
 use super::anthropic::AnthropicClient;
 use super::cost_tracker::CostTracker;
+use super::model_health::ModelHealthTracker;
+use super::models_config::ProviderKind;
 use super::ollama::{ChatMessage, ChatResponse, FunctionCall, OllamaClient, ToolCall, ToolSpec};
 use super::openai_compat::OpenAICompatClient;
 use super::semantic_cache::SemanticCache;
@@ -225,14 +227,18 @@ pub struct LlmGateway {
     primary: Arc<OllamaClient>,
     default_model: String,
     /// v1.2: DeepSeek 主路径 (OpenAI 兼容 /v1/chat/completions)。
-    deepseek: Option<DeepSeekPrimary>,
+    /// P1-3: 包裹在 `RwLock` 中以支持 `rebuild_client` 热替换。
+    deepseek: parking_lot::RwLock<Option<DeepSeekPrimary>>,
     /// 可选的通用远程 fallback (OpenAI 兼容,如 Azure / 自建)。
-    remote: Option<RemoteFallback>,
+    /// P1-3: 包裹在 `RwLock` 中以支持 `rebuild_client` 热替换。
+    remote: parking_lot::RwLock<Option<RemoteFallback>>,
     /// v1.1 P0-1: Anthropic Claude fallback chain。
-    anthropic: Option<AnthropicFallback>,
+    /// P1-3: 包裹在 `RwLock` 中以支持 `rebuild_client` 热替换。
+    anthropic: parking_lot::RwLock<Option<AnthropicFallback>>,
     /// T-E-S-40: OpenAI 兼容 provider(vLLM/LMStudio/OpenRouter/自建)。
     /// 与 `deepseek`/`remote` 并存,保留旧 struct 避免破坏现有代码。
-    openai_compat: Option<OpenAICompatClient>,
+    /// P1-3: 包裹在 `RwLock` 中以支持 `rebuild_client` 热替换。
+    openai_compat: parking_lot::RwLock<Option<OpenAICompatClient>>,
     /// v1.2: 主 provider 名 (deepseek / ollama / openai-compat / anthropic)。
     provider: String,
     cache: Mutex<LruCache<u64, CacheEntry>>,
@@ -248,6 +254,8 @@ pub struct LlmGateway {
     model_router: Option<Arc<crate::llm::model_router::ModelRouter>>,
     /// T-E-A-05: 日预算上限(USD),运行时可变(支持热更新)。
     daily_budget: parking_lot::RwLock<f64>,
+    /// P1-1: 模型健康追踪器(可选)。未注入时 record_health 静默跳过。
+    model_health_tracker: Option<Arc<ModelHealthTracker>>,
 }
 
 /// v1.2: DeepSeek 主路径客户端 (OpenAI 兼容 API)。
@@ -259,6 +267,8 @@ struct DeepSeekPrimary {
 }
 
 /// Optional remote fallback (OpenAI-compatible /v1/chat/completions).
+/// P1-3: 派生 Clone 以支持从 `RwLock` 中 clone 出快照后跨 .await 使用。
+#[derive(Clone)]
 struct RemoteFallback {
     base_url: String,
     api_key: Option<String>,
@@ -393,10 +403,10 @@ impl LlmGateway {
         Self {
             primary,
             default_model: default_model.into(),
-            deepseek,
-            remote,
-            anthropic,
-            openai_compat: None,
+            deepseek: parking_lot::RwLock::new(deepseek),
+            remote: parking_lot::RwLock::new(remote),
+            anthropic: parking_lot::RwLock::new(anthropic),
+            openai_compat: parking_lot::RwLock::new(None),
             provider: provider.into(),
             cache: Mutex::new(LruCache::new(cap)),
             breaker: CircuitBreaker::default(),
@@ -405,6 +415,7 @@ impl LlmGateway {
             compressor: None,
             model_router: None,
             daily_budget: parking_lot::RwLock::new(0.0),
+            model_health_tracker: None,
         }
     }
 
@@ -454,9 +465,112 @@ impl LlmGateway {
     /// T-E-S-40: 注入 OpenAI 兼容客户端(vLLM/LMStudio/OpenRouter/自建)。
     /// builder 风格,链式调用。未调用时 openai_compat 为 None,
     /// `effective_provider == "openai-compat"` 分支会静默跳过并降级到 fallback。
-    pub fn with_openai_compat(mut self, client: OpenAICompatClient) -> Self {
-        self.openai_compat = Some(client);
+    pub fn with_openai_compat(self, client: OpenAICompatClient) -> Self {
+        *self.openai_compat.write() = Some(client);
         self
+    }
+
+    /// P1-1: 注入 ModelHealthTracker。builder 风格,链式调用。
+    /// 未调用时 model_health_tracker 为 None,record_health 静默跳过。
+    pub fn with_model_health_tracker(mut self, tracker: Arc<ModelHealthTracker>) -> Self {
+        self.model_health_tracker = Some(tracker);
+        self
+    }
+
+    /// P1-1: 返回断路器当前状态的字符串表示("Closed" / "Open" / "HalfOpen")。
+    /// 供 `get_model_health` 命令和健康面板读取。
+    pub fn circuit_breaker_status(&self) -> &'static str {
+        match self.breaker.current() {
+            CB_CLOSED => "Closed",
+            CB_OPEN => "Open",
+            CB_HALF_OPEN => "HalfOpen",
+            _ => "Closed",
+        }
+    }
+
+    /// P1-3: 根据 provider 配置热重建对应客户端。
+    ///
+    /// 在 `update_provider` / `add_custom_provider` / `remove_provider`
+    /// 命令修改 `ModelsConfig` 并落盘后调用,使 gateway 内部的
+    /// `reqwest::Client` 立即生效新 base_url / api_key,无需重启。
+    ///
+    /// 映射关系:
+    /// - provider_id == "deepseek" → 重建 `deepseek` 字段(DeepSeek 主路径)
+    /// - kind == Anthropic → 重建 `anthropic` 字段
+    /// - kind == OpenAiCompat / Custom(非 deepseek)→ 重建 `openai_compat` 字段
+    /// - kind == Ollama → 无操作(Ollama 客户端用于 embedding,不在热更新范围)
+    pub fn rebuild_provider_client(
+        &self,
+        provider_id: &str,
+        kind: ProviderKind,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+    ) {
+        match kind {
+            ProviderKind::OpenAiCompat | ProviderKind::Custom => {
+                if provider_id == "deepseek" {
+                    // DeepSeek 主路径
+                    match (base_url, api_key) {
+                        (Some(url), Some(key)) if !key.is_empty() => {
+                            let ds = DeepSeekPrimary {
+                                base_url: url.to_string(),
+                                api_key: key.to_string(),
+                                http: Client::builder()
+                                    .timeout(Duration::from_secs(120))
+                                    .build()
+                                    .expect("reqwest client should build"),
+                            };
+                            *self.deepseek.write() = Some(ds);
+                            info!(target: "nebula.llm", provider = %provider_id, "DeepSeek 客户端已热重建");
+                        }
+                        _ => {
+                            *self.deepseek.write() = None;
+                            debug!(target: "nebula.llm", provider = %provider_id, "DeepSeek 客户端已清除(base_url 或 api_key 缺失)");
+                        }
+                    }
+                } else {
+                    // 通用 OpenAI 兼容 provider(vLLM/LMStudio/OpenRouter/自建)
+                    match (base_url, api_key) {
+                        (Some(url), Some(key)) if !key.is_empty() => {
+                            let client = OpenAICompatClient::new(
+                                url.to_string(),
+                                Some(key.to_string()),
+                                self.default_model.clone(),
+                            );
+                            *self.openai_compat.write() = Some(client);
+                            info!(target: "nebula.llm", provider = %provider_id, "OpenAI 兼容客户端已热重建");
+                        }
+                        _ => {
+                            *self.openai_compat.write() = None;
+                            debug!(target: "nebula.llm", provider = %provider_id, "OpenAI 兼容客户端已清除(base_url 或 api_key 缺失)");
+                        }
+                    }
+                }
+            }
+            ProviderKind::Anthropic => {
+                match api_key {
+                    Some(key) if !key.is_empty() => {
+                        let model = self.default_model.clone();
+                        let client = AnthropicClient::new(
+                            key.to_string(),
+                            model,
+                            base_url.map(|s| s.to_string()),
+                        );
+                        *self.anthropic.write() = Some(AnthropicFallback { client });
+                        info!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已热重建");
+                    }
+                    _ => {
+                        *self.anthropic.write() = None;
+                        debug!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已清除(api_key 缺失)");
+                    }
+                }
+            }
+            ProviderKind::Ollama => {
+                // Ollama 客户端用于 embedding + 本地 chat fallback,
+                // 不在热更新范围内。base_url 变更需重启生效。
+                debug!(target: "nebula.llm", provider = %provider_id, "Ollama 客户端不支持热重建(用于 embedding,需重启)");
+            }
+        }
     }
 
     /// T-E-A-05: 运行时热更新日预算。
@@ -499,6 +613,30 @@ impl LlmGateway {
     /// T-E-A-06: CostTracker 是否已注入。
     pub fn cost_tracker_is_set(&self) -> bool {
         self.cost_tracker.is_some()
+    }
+
+    /// P1-1: ModelHealthTracker 是否已注入。
+    pub fn model_health_tracker_is_set(&self) -> bool {
+        self.model_health_tracker.is_some()
+    }
+
+    /// P1-1: 记录一次 provider 请求的健康指标(延迟 / 成功 / 错误)。
+    /// tracker 未注入时静默跳过(向后兼容)。
+    /// 同时同步更新断路器状态字符串。
+    fn record_health(
+        &self,
+        provider_id: &str,
+        latency_ms: u64,
+        success: bool,
+        error: Option<&str>,
+    ) {
+        if let Some(tracker) = &self.model_health_tracker {
+            tracker.record_request(provider_id, latency_ms, success, error);
+            tracker.update_circuit_breaker_status(
+                &self.provider,
+                self.circuit_breaker_status(),
+            );
+        }
     }
 
     /// T-E-A-06: 记录一次 LLM 调用的 token 费用。
@@ -607,14 +745,14 @@ impl LlmGateway {
                 crate::llm::model_router::Route::Ollama => "ollama",
                 crate::llm::model_router::Route::DeepSeek => "deepseek",
                 crate::llm::model_router::Route::Anthropic => {
-                    if self.anthropic.is_some() {
+                    if self.anthropic.read().is_some() {
                         "anthropic"
                     } else {
                         "deepseek"
                     }
                 }
                 crate::llm::model_router::Route::Remote => {
-                    if self.remote.is_some() {
+                    if self.remote.read().is_some() {
                         "openai-compat"
                     } else {
                         "deepseek"
@@ -629,13 +767,24 @@ impl LlmGateway {
         // v1.0.1 P0#4: gate the upstream call on the breaker.
         self.breaker.check()?;
 
+        // P1-1: 计时起点,用于 record_health 延迟统计。
+        let chat_start = Instant::now();
+
         // v1.2: 根据 provider 配置决定调用顺序。
         // 主路径:DeepSeek (若配置) → Ollama (本地) → Anthropic → Remote。
         if effective_provider == "deepseek" {
-            if let Some(ds) = &self.deepseek {
-                match self.call_deepseek(ds, &self.default_model, &messages).await {
+            let ds_opt = self.deepseek.read().clone();
+            if let Some(ds) = ds_opt {
+                match self.call_deepseek(&ds, &self.default_model, &messages).await {
                     Ok((resp, prompt_tokens, completion_tokens)) => {
                         self.breaker.record_success();
+                        // P1-1: 记录健康指标(成功)。
+                        self.record_health(
+                            "deepseek",
+                            chat_start.elapsed().as_millis() as u64,
+                            true,
+                            None,
+                        );
                         // T-E-A-06: DeepSeek 响应含 usage(prompt/completion tokens),
                         // 直接透传给 CostTracker 计费。
                         self.maybe_record_cost(
@@ -648,6 +797,13 @@ impl LlmGateway {
                         return Ok(resp);
                     }
                     Err(e) => {
+                        // P1-1: 记录健康指标(失败)。
+                        self.record_health(
+                            "deepseek",
+                            chat_start.elapsed().as_millis() as u64,
+                            false,
+                            Some(&e.to_string()),
+                        );
                         warn!(target: "nebula.llm", error = ?e, "DeepSeek failed, falling back to Ollama");
                     }
                 }
@@ -655,13 +811,21 @@ impl LlmGateway {
         } else if effective_provider == "openai-compat" {
             // T-E-S-40: OpenAI 兼容主分支(vLLM/LMStudio/OpenRouter/自建)。
             // 调用 OpenAICompatClient,失败则降级到下方 fallback 链(Ollama/Anthropic/Remote)。
-            if let Some(client) = &self.openai_compat {
+            let compat_opt = self.openai_compat.read().clone();
+            if let Some(client) = compat_opt {
                 match self
-                    .call_openai_compat(client, &self.default_model, &messages)
+                    .call_openai_compat(&client, &self.default_model, &messages)
                     .await
                 {
                     Ok((resp, prompt_tokens, completion_tokens)) => {
                         self.breaker.record_success();
+                        // P1-1: 记录健康指标(成功)。
+                        self.record_health(
+                            "openai-compat",
+                            chat_start.elapsed().as_millis() as u64,
+                            true,
+                            None,
+                        );
                         self.maybe_record_cost(
                             &self.default_model,
                             prompt_tokens,
@@ -672,6 +836,13 @@ impl LlmGateway {
                         return Ok(resp);
                     }
                     Err(e) => {
+                        // P1-1: 记录健康指标(失败)。
+                        self.record_health(
+                            "openai-compat",
+                            chat_start.elapsed().as_millis() as u64,
+                            false,
+                            Some(&e.to_string()),
+                        );
                         warn!(target: "nebula.llm", error = ?e, "openai-compat failed, falling back to Ollama");
                     }
                 }
@@ -679,9 +850,17 @@ impl LlmGateway {
         }
 
         // Fallback 1: Ollama 本地
+        let ollama_start = Instant::now();
         match self.primary.chat(&self.default_model, &messages).await {
             Ok(resp) => {
                 self.breaker.record_success();
+                // P1-1: 记录健康指标(成功)。
+                self.record_health(
+                    "ollama",
+                    ollama_start.elapsed().as_millis() as u64,
+                    true,
+                    None,
+                );
                 // T-S1-B-03: Ollama API 不返回 prompt_tokens,仅 eval_count
                 // (生成 token 数)。prompt_tokens 记为 0,completion 取 eval_count。
                 let completion = resp.eval_count.unwrap_or(0);
@@ -694,11 +873,27 @@ impl LlmGateway {
                 Ok(resp)
             }
             Err(e) => {
+                // P1-1: 记录健康指标(失败)。
+                self.record_health(
+                    "ollama",
+                    ollama_start.elapsed().as_millis() as u64,
+                    false,
+                    Some(&e.to_string()),
+                );
                 // Fallback 2: Anthropic Claude
-                if let Some(anthropic) = &self.anthropic {
-                    match self.call_anthropic(anthropic, &messages).await {
+                let anthropic_opt = self.anthropic.read().clone();
+                if let Some(anthropic) = anthropic_opt {
+                    let anthro_start = Instant::now();
+                    match self.call_anthropic(&anthropic, &messages).await {
                         Ok(text) => {
                             self.breaker.record_success();
+                            // P1-1: 记录健康指标(成功)。
+                            self.record_health(
+                                "anthropic",
+                                anthro_start.elapsed().as_millis() as u64,
+                                true,
+                                None,
+                            );
                             let resp = ChatResponse {
                                 model: anthropic.client.model.clone(),
                                 message: ChatMessage {
@@ -716,18 +911,34 @@ impl LlmGateway {
                             return Ok(resp);
                         }
                         Err(anthropic_err) => {
+                            // P1-1: 记录健康指标(失败)。
+                            self.record_health(
+                                "anthropic",
+                                anthro_start.elapsed().as_millis() as u64,
+                                false,
+                                Some(&anthropic_err.to_string()),
+                            );
                             warn!(target: "nebula.llm", error = ?anthropic_err, "Anthropic fallback also failed");
                         }
                     }
                 }
                 // Fallback 3: 通用 Remote (OpenAI 兼容)
-                if let Some(remote) = &self.remote {
+                let remote_opt = self.remote.read().clone();
+                if let Some(remote) = remote_opt {
+                    let remote_start = Instant::now();
                     match self
-                        .call_remote(remote, &self.default_model, &messages)
+                        .call_remote(&remote, &self.default_model, &messages)
                         .await
                     {
                         Ok((resp, prompt_tokens, completion_tokens)) => {
                             self.breaker.record_success();
+                            // P1-1: 记录健康指标(成功)。
+                            self.record_health(
+                                "remote",
+                                remote_start.elapsed().as_millis() as u64,
+                                true,
+                                None,
+                            );
                             // T-E-A-06: Remote (OpenAI 兼容) 响应含 usage,
                             // 透传给 CostTracker 计费。
                             self.maybe_record_cost(
@@ -741,6 +952,13 @@ impl LlmGateway {
                         }
                         Err(remote_err) => {
                             self.breaker.record_failure();
+                            // P1-1: 记录健康指标(失败)。
+                            self.record_health(
+                                "remote",
+                                remote_start.elapsed().as_millis() as u64,
+                                false,
+                                Some(&remote_err.to_string()),
+                            );
                             return Err(remote_err)
                                 .context("deepseek/ollama/anthropic/remote all failed");
                         }
@@ -771,10 +989,10 @@ impl LlmGateway {
             return self.chat(messages).await;
         }
         match self.provider.as_str() {
-            "deepseek" if self.deepseek.is_some() => {
+            "deepseek" if self.deepseek.read().is_some() => {
                 self.call_deepseek_with_tools(messages, &tools).await
             }
-            "openai-compat" if self.remote.is_some() => {
+            "openai-compat" if self.remote.read().is_some() => {
                 self.call_remote_with_tools(messages, &tools).await
             }
             // Ollama/Anthropic 或未配置的 provider:降级为无 tools
@@ -874,7 +1092,11 @@ impl LlmGateway {
         messages: Vec<ChatMessage>,
         tools: &[ToolSpec],
     ) -> Result<ChatResponse> {
-        let ds = self.deepseek.as_ref().context("deepseek not configured")?;
+        let ds = self
+            .deepseek
+            .read()
+            .clone()
+            .context("deepseek not configured")?;
         let url = format!("{}/chat/completions", ds.base_url.trim_end_matches('/'));
         let req_body = serde_json::json!({
             "model": self.default_model,
@@ -990,20 +1212,20 @@ impl LlmGateway {
     ) -> futures::stream::BoxStream<'static, Result<StreamToken>> {
         // TODO(T-E-A-01): 流式响应缓存待后续支持。
         if self.provider == "deepseek" {
-            if let Some(ref ds) = self.deepseek {
-                return self.chat_stream_deepseek(ds.clone(), self.default_model.clone(), messages);
+            if let Some(ds) = self.deepseek.read().clone() {
+                return self.chat_stream_deepseek(ds, self.default_model.clone(), messages);
             }
         }
         // T-E-D-02: openai-compat provider(vLLM/LMStudio/OpenRouter/自建)。
         if self.provider == "openai-compat" {
-            if let Some(ref c) = self.openai_compat {
-                return self.chat_stream_openai_compat(c.clone(), messages);
+            if let Some(c) = self.openai_compat.read().clone() {
+                return self.chat_stream_openai_compat(c, messages);
             }
         }
         // T-E-D-02: anthropic provider(Claude event-stream SSE)。
         if self.provider == "anthropic" {
-            if let Some(ref a) = self.anthropic {
-                return self.chat_stream_anthropic(a.clone(), messages);
+            if let Some(a) = self.anthropic.read().clone() {
+                return self.chat_stream_anthropic(a, messages);
             }
         }
         self.chat_stream_ollama(messages)
@@ -1554,7 +1776,11 @@ impl LlmGateway {
         messages: Vec<ChatMessage>,
         tools: &[ToolSpec],
     ) -> Result<ChatResponse> {
-        let remote = self.remote.as_ref().context("remote not configured")?;
+        let remote = self
+            .remote
+            .read()
+            .clone()
+            .context("remote not configured")?;
         let url = format!("{}/v1/chat/completions", remote.base_url);
         let ssrf_guard = SsrfGuard::new();
         ssrf_guard
@@ -1727,19 +1953,21 @@ impl LlmGateway {
             "deepseek" => {
                 let ds = self
                     .deepseek
-                    .as_ref()
+                    .read()
+                    .clone()
                     .ok_or_else(|| anyhow!("DeepSeek not configured"))?;
                 let (resp, _, _) = self
-                    .call_deepseek(ds, &self.default_model, messages)
+                    .call_deepseek(&ds, &self.default_model, messages)
                     .await?;
                 Ok(resp)
             }
             "anthropic" => {
                 let ant = self
                     .anthropic
-                    .as_ref()
+                    .read()
+                    .clone()
                     .ok_or_else(|| anyhow!("Anthropic not configured"))?;
-                let text = self.call_anthropic(ant, messages).await?;
+                let text = self.call_anthropic(&ant, messages).await?;
                 Ok(ChatResponse {
                     model: ant.client.model_name().to_string(),
                     message: ChatMessage {
@@ -1756,10 +1984,11 @@ impl LlmGateway {
             "openai-compat" => {
                 let client = self
                     .openai_compat
-                    .as_ref()
+                    .read()
+                    .clone()
                     .ok_or_else(|| anyhow!("openai-compat not configured"))?;
                 let (resp, _, _) = self
-                    .call_openai_compat(client, &self.default_model, messages)
+                    .call_openai_compat(&client, &self.default_model, messages)
                     .await?;
                 Ok(resp)
             }

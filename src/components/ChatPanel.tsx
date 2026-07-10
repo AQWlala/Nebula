@@ -56,6 +56,30 @@ const WIDTH_MODE_CONFIG: Record<
 
 const WIDTH_MODE_ORDER: ChatWidthMode[] = ['narrow', 'medium', 'wide', 'immersive'];
 
+/* P1-9: 消息时间戳显示开关,持久化到 localStorage。
+ * 默认 true(显示),用户可在 panel-header 切换。 */
+const SHOW_TIMESTAMPS_STORAGE_KEY = 'nebula-show-timestamps';
+
+/** 从 localStorage 读取时间戳显示开关,默认 true。 */
+function loadShowTimestamps(): boolean {
+  try {
+    const saved = localStorage.getItem(SHOW_TIMESTAMPS_STORAGE_KEY);
+    // null(未设置)时默认 true;字符串 'false' 才关闭
+    return saved !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+/** P1-9: 格式化时间戳为 HH:MM 简短显示。 */
+function formatTimestamp(ts: number): string {
+  if (ts <= 0) return '';
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 /** 把宽度模式写入 CSS 变量（<html> 上），驱动 global.css 中的 .chat-panel / .msg。 */
 function applyWidthMode(mode: ChatWidthMode): void {
   const config = WIDTH_MODE_CONFIG[mode];
@@ -133,6 +157,42 @@ const MessageContent = memo(function MessageContent({
 }) {
   // M6 #80: 流式期间用纯文本显示（保留换行），流结束后才 markdown 渲染。
   const html = useMemo(() => renderMarkdown(content), [content]);
+  // P1-9: 容器 ref,用于在 dangerouslySetInnerHTML 渲染后查找 pre > code 并插入复制按钮
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // P1-9: markdown HTML 渲染后,为每个代码块(<pre><code>)添加右上角复制按钮。
+  // 由于 dangerouslySetInnerHTML 每次更新会全量替换 innerHTML,需在每次 html 变化后重新挂载按钮。
+  useEffect(() => {
+    if (streaming || !containerRef.current) return;
+    const pres = containerRef.current.querySelectorAll('pre');
+    pres.forEach((pre) => {
+      const code = pre.querySelector('code');
+      if (!code) return;
+      // 给 pre 添加 code-block-wrapper class,使其成为定位上下文(position: relative)
+      pre.classList.add('code-block-wrapper');
+      // 创建复制按钮
+      const btn = document.createElement('button');
+      btn.className = 'code-copy-btn';
+      btn.type = 'button';
+      btn.textContent = '复制';
+      btn.addEventListener('click', async () => {
+        const text = code.textContent || '';
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = '已复制 ✓';
+          btn.classList.add('code-copy-btn--copied');
+          window.setTimeout(() => {
+            btn.textContent = '复制';
+            btn.classList.remove('code-copy-btn--copied');
+          }, 2000);
+        } catch {
+          // 剪贴板 API 不可用(非 HTTPS / 非 Tauri 环境),静默失败
+        }
+      });
+      pre.appendChild(btn);
+    });
+  }, [html, streaming]);
+
   if (streaming) {
     return (
       <div class="msg-content msg-content-streaming">
@@ -143,6 +203,7 @@ const MessageContent = memo(function MessageContent({
   }
   return (
     <div
+      ref={containerRef}
       class="msg-content"
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
@@ -286,6 +347,10 @@ export function ChatPanel() {
   // T-E-B-13: 知识卡片弹窗 — 点击 msg-content 中的 [[xxx]] wiki-link 后,
   // 设置 knowledgeCardSlug 触发 KnowledgeCardDialog 加载对应卡片。
   const [knowledgeCardSlug, setKnowledgeCardSlug] = useState<string | null>(null);
+  // P1-9: 输入框 ref — 用于自动聚焦(挂载/发送后/prefill/点击空白处)
+  const inputRef = useRef<HTMLInputElement>(null);
+  // P1-9: 消息时间戳显示开关,持久化到 localStorage
+  const [showTimestamps, setShowTimestamps] = useState<boolean>(() => loadShowTimestamps());
 
   // P1 性能优化:流式 token 节流 refs。
   // rafPendingRef:标记当前是否已有一个 rAF 回调在等待执行(true=已调度,跳过新调度)。
@@ -397,13 +462,20 @@ export function ChatPanel() {
 
   // T-E-D-06: 右键"问Nebula" → App.tsx 设置 chatPrefill signal,
   // 此 effect 监听变化,注入到输入框后清空 signal(一次性消费)。
+  // P1-9: prefill 注入后自动聚焦输入框,方便用户直接 Enter 发送。
   useEffect(() => {
     const prefill = nebulaStore.chatPrefill.value;
     if (prefill) {
       setInput(prefill);
       nebulaStore.chatPrefill.value = null;
+      inputRef.current?.focus();
     }
   }, [nebulaStore.chatPrefill.value]);
+
+  // P1-9: 挂载时自动聚焦输入框
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   /** T-S1-B-01b: 中止正在进行的流式生成。
    *  保留已累积的内容，追加 `[已停止生成]` 标记。 */
@@ -457,6 +529,8 @@ export function ChatPanel() {
     setMessages((m) => [...m, userMsg]);
     const text = userMsg.content;
     setInput('');
+    // P1-9: 发送后重新聚焦输入框
+    inputRef.current?.focus();
     setLoading(true);
     setStreaming(true);
 
@@ -585,6 +659,8 @@ export function ChatPanel() {
     setMessages((m) => [...m, userMsg]);
     const text = userMsg.content;
     setInput('');
+    // P1-9: 发送后重新聚焦输入框
+    inputRef.current?.focus();
     setLoading(true);
 
     // P0#07: 8s client-side timeout.  We wire AbortController
@@ -703,6 +779,32 @@ export function ChatPanel() {
               );
             })}
           </div>
+          {/* P1-9: 时间戳显示切换按钮 */}
+          <button
+            onClick={() => {
+              const next = !showTimestamps;
+              setShowTimestamps(next);
+              try {
+                localStorage.setItem(SHOW_TIMESTAMPS_STORAGE_KEY, String(next));
+              } catch {
+                /* localStorage 不可用时忽略 */
+              }
+            }}
+            title={showTimestamps ? '隐藏时间戳' : '显示时间戳'}
+            aria-pressed={showTimestamps}
+            style={{
+              padding: '4px 10px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              background: showTimestamps ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+              color: showTimestamps ? 'var(--accent-purple, #a855f7)' : 'var(--text-muted)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {showTimestamps ? '🕐' : '⏰'}
+          </button>
           <button
             onClick={() => setShowTemplatesDialog(true)}
             title={t('chatPanel.templatesTitle')}
@@ -756,7 +858,15 @@ export function ChatPanel() {
 
       <OllamaStatusBanner />
 
-      <div class="chat-messages">
+      <div
+        class="chat-messages"
+        onClick={(e) => {
+          // P1-9: 点击消息区域空白处时聚焦输入框
+          if (e.target === e.currentTarget) {
+            inputRef.current?.focus();
+          }
+        }}
+      >
         {messages.length === 0 && (
           <div style="text-align: center; color: var(--text-muted); padding: 40px;">
             <div style="font-size: 48px; margin-bottom: 16px;">🐍</div>
@@ -771,7 +881,17 @@ export function ChatPanel() {
             key={m.turnId || `${m.role}-${i}-${m.content.slice(0, 20)}`}
             class={`msg msg-${m.role}`}
           >
-            <div class="msg-role">{m.role === 'user' ? t('chatPanel.roleUser') : 'Nebula'}</div>
+            <div class="msg-role">
+              {m.role === 'user' ? t('chatPanel.roleUser') : 'Nebula'}
+              {/* P1-9: 消息时间戳,可通过 panel-header 按钮切换显示 */}
+              {m.timestamp > 0 && (
+                <span
+                  class={`msg-timestamp${showTimestamps ? '' : ' msg-timestamp--hidden'}`}
+                >
+                  {formatTimestamp(m.timestamp)}
+                </span>
+              )}
+            </div>
             {m.role === 'assistant' && m.reasoningChain && (
               <details
                 class="reasoning-chain"
@@ -872,7 +992,7 @@ export function ChatPanel() {
         )}
       </div>
 
-      <div class="chat-input" style={{ position: 'relative' }}>
+      <div class="chat-input chat-input-wrapper" style={{ position: 'relative' }}>
         {/* T-E-S-51: Level 0 内联补全 — 仅在自主度 L0 时启用(组件内部判断)。 */}
         <InlineSuggestion
           prefix={input}
@@ -884,6 +1004,9 @@ export function ChatPanel() {
           {({ onKeyDown }) => (
             <input
               type="text"
+              // P1-9: autoFocus 挂载时自动聚焦,ref 用于后续编程式聚焦
+              autoFocus
+              ref={inputRef}
               placeholder={t('chatPanel.inputPlaceholder')}
               value={input}
               onInput={(e) => {
@@ -985,7 +1108,11 @@ export function ChatPanel() {
                     })
                     .catch((err) => toast.error(t('chatPanel.directedEditFailed'), String(err)));
                 }
-                if (e.key === 'Enter') sendStream();
+                // P1-9: Enter 发送,Shift+Enter 不触发发送(预留多行输入扩展)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendStream();
+                }
               }}
               disabled={loading}
             />
@@ -1075,6 +1202,10 @@ export function ChatPanel() {
               ↩
             </button>
           </>
+        )}
+        {/* P1-9: 输入框字符计数器,显示在右下角 */}
+        {input.length > 0 && (
+          <span class="char-counter">{input.length}</span>
         )}
       </div>
       {showExportDialog && (

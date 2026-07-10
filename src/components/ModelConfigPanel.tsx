@@ -14,7 +14,7 @@
  * ## 后端命令
  * - getProviderKeyStatus / setProviderKey(复用既有)
  * - testProviderConnection / discoverModels
- * - addCustomProvider / removeProvider
+ * - addCustomProvider / removeProvider / updateProvider(P1-3 热更新)
  * - setDefaultProvider / setWorktypeRouting
  * - modelsConfigLoad / modelsConfigReload(读取最新配置)
  */
@@ -25,9 +25,11 @@ import {
   type ProviderConfig,
   type ConnectionTestResult,
   type ModelInfo,
+  type ProviderModels,
   type WorkType,
 } from '../lib/tauri';
 import { Modal } from './Modal';
+import { ModelHealthPanel } from './ModelHealthPanel';
 import { toast, toastFromError } from './Toast';
 
 interface ModelConfigPanelProps {
@@ -82,6 +84,119 @@ const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: 'custom', label: '自定义' },
 ];
 
+/**
+ * P1-2: 模型自动发现按钮组(独立组件,减少与 P1-1/P1-3 的冲突面)。
+ *
+ * 功能:
+ * - "自动拉取"按钮:调用 `autoPopulateModels(provider_id)` 将新模型写入 models.json。
+ * - "刷新所有 Provider"按钮:调用 `discoverAllModels` 并行拉取所有 provider 的模型列表。
+ * - 拉取后展示每个 provider 的模型数量 / 错误状态。
+ *
+ * 该组件自管理状态,不依赖父组件的 state,仅通过 `onReload` 通知父组件刷新。
+ */
+interface ModelDiscoverButtonsProps {
+  provider: ProviderConfig;
+  onReload: () => Promise<void> | void;
+}
+
+function ModelDiscoverButtons({ provider, onReload }: ModelDiscoverButtonsProps) {
+  const [populating, setPopulating] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  /** discover_all_models 的结果(展示每个 provider 的拉取状态)。 */
+  const [allResults, setAllResults] = useState<ProviderModels[] | null>(null);
+
+  /** 自动拉取当前 provider 的模型并写入 models.json(去重)。 */
+  const handleAutoPopulate = useCallback(async () => {
+    setPopulating(true);
+    try {
+      const n = await nebulaAPI.autoPopulateModels(provider.id);
+      if (n > 0) {
+        toast.success(`成功拉取 ${n} 个新模型`);
+      } else {
+        toast.info('没有新模型可拉取(可能已全部存在)');
+      }
+      await onReload();
+    } catch (err) {
+      toastFromError(err);
+    } finally {
+      setPopulating(false);
+    }
+  }, [provider.id, onReload]);
+
+  /** 并行刷新所有已配置 provider 的模型列表(不写入,仅展示)。 */
+  const handleDiscoverAll = useCallback(async () => {
+    setRefreshingAll(true);
+    try {
+      const results = await nebulaAPI.discoverAllModels();
+      setAllResults(results);
+      const okCount = results.filter((r) => r.error === null).length;
+      const errCount = results.filter((r) => r.error !== null).length;
+      const totalModels = results.reduce((sum, r) => sum + r.models.length, 0);
+      if (errCount === 0) {
+        toast.success(`已发现 ${totalModels} 个模型(${okCount} 个 provider)`);
+      } else {
+        toast.warning(`已发现 ${totalModels} 个模型,${errCount} 个 provider 失败`);
+      }
+    } catch (err) {
+      toastFromError(err);
+    } finally {
+      setRefreshingAll(false);
+    }
+  }, []);
+
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          class="btn btn-small"
+          onClick={handleAutoPopulate}
+          disabled={populating}
+          style={{ fontSize: '11px', padding: '4px 10px' }}
+        >
+          {populating ? '拉取中…' : '自动拉取'}
+        </button>
+        <button
+          type="button"
+          class="btn btn-small"
+          onClick={handleDiscoverAll}
+          disabled={refreshingAll}
+          style={{ fontSize: '11px', padding: '4px 10px' }}
+        >
+          {refreshingAll ? '刷新中…' : '刷新所有 Provider'}
+        </button>
+      </div>
+      {allResults && (
+        <div
+          style={{
+            marginTop: '6px',
+            padding: '6px 8px',
+            borderRadius: '4px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-primary)',
+            fontSize: '11px',
+            color: 'var(--text-secondary)',
+            maxHeight: '160px',
+            overflowY: 'auto',
+          }}
+        >
+          {allResults.map((r) => (
+            <div key={r.provider_id} style={{ marginBottom: '2px' }}>
+              <span style={{ color: 'var(--text-primary)' }}>{r.provider_name}</span>
+              {': '}
+              {r.error ? (
+                <span style={{ color: 'var(--accent-error)' }}>✗ {r.error}</span>
+              ) : (
+                <span style={{ color: 'var(--accent)' }}>✓ {r.models.length} 个模型</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
   const [config, setConfig] = useState<ModelsConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,6 +212,10 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
   const [addForm, setAddForm] = useState<AddProviderForm>(DEFAULT_ADD_FORM);
   const [adding, setAdding] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  /** P1-3: 编辑模式状态。 */
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<AddProviderForm>(DEFAULT_ADD_FORM);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   /** 加载 ModelsConfig + 各 provider 的 key 状态。 */
   const reload = useCallback(async () => {
@@ -291,6 +410,38 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
     }
   }, [addForm, reload]);
 
+  /** P1-3: 进入编辑模式,预填当前 provider 的值。 */
+  const startEdit = useCallback(() => {
+    if (!selectedProvider) return;
+    setEditForm({
+      name: selectedProvider.display_name,
+      baseUrl: selectedProvider.base_url ?? '',
+      kind: selectedProvider.kind,
+    });
+    setEditing(true);
+  }, [selectedProvider]);
+
+  /** P1-3: 保存编辑,调用 updateProvider 热更新 provider 字段。 */
+  const saveEdit = useCallback(async () => {
+    if (!selectedProvider) return;
+    setSavingEdit(true);
+    try {
+      await nebulaAPI.updateProvider(
+        selectedProvider.id,
+        editForm.name.trim() || undefined,
+        editForm.baseUrl.trim() || undefined,
+        editForm.kind,
+      );
+      await reload();
+      setEditing(false);
+      toast.success('provider 已更新');
+    } catch (err) {
+      toastFromError(err);
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [selectedProvider, editForm, reload]);
+
   /** 状态灯 emoji。 */
   function statusEmoji(providerId: string): string {
     const h = healthMap[providerId];
@@ -319,6 +470,7 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
           配置加载失败,请关闭后重试
         </div>
       ) : (
+        <>
         <div style={{ display: 'flex', gap: '16px', minHeight: '480px' }}>
           {/* 左侧:Provider 列表 */}
           <div
@@ -347,7 +499,7 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedId(p.id)}
+                  onClick={() => { setSelectedId(p.id); setEditing(false); }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -503,60 +655,161 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
                       </code>
                     </h4>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {!selectedProvider.is_builtin && (
-                        <button
-                          type="button"
-                          class="btn btn-danger btn-small"
-                          onClick={() => removeProvider(selectedProvider.id)}
-                          disabled={config.default_provider === selectedProvider.id}
-                          style={{ fontSize: '11px', padding: '3px 10px' }}
-                        >
-                          删除
-                        </button>
+                      {editing ? (
+                        <>
+                          <button
+                            type="button"
+                            class="btn btn-small"
+                            onClick={saveEdit}
+                            disabled={savingEdit}
+                            style={{ fontSize: '11px', padding: '3px 10px' }}
+                          >
+                            {savingEdit ? '保存中…' : '保存'}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-small"
+                            onClick={() => setEditing(false)}
+                            disabled={savingEdit}
+                            style={{ fontSize: '11px', padding: '3px 10px' }}
+                          >
+                            取消
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            class="btn btn-small"
+                            onClick={startEdit}
+                            style={{ fontSize: '11px', padding: '3px 10px' }}
+                          >
+                            编辑
+                          </button>
+                          {!selectedProvider.is_builtin && (
+                            <button
+                              type="button"
+                              class="btn btn-danger btn-small"
+                              onClick={() => removeProvider(selectedProvider.id)}
+                              disabled={config.default_provider === selectedProvider.id}
+                              style={{ fontSize: '11px', padding: '3px 10px' }}
+                            >
+                              删除
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
                   {/* 基本信息 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      类型
-                      <input
-                        type="text"
-                        value={selectedProvider.kind}
-                        disabled
-                        style={{
-                          width: '100%',
-                          fontSize: '12px',
-                          padding: '4px 8px',
-                          marginTop: '2px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--bg-primary)',
-                          color: 'var(--text-secondary)',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      Base URL
-                      <input
-                        type="text"
-                        value={selectedProvider.base_url ?? ''}
-                        disabled
-                        style={{
-                          width: '100%',
-                          fontSize: '12px',
-                          padding: '4px 8px',
-                          marginTop: '2px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--bg-primary)',
-                          color: 'var(--text-secondary)',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </label>
+                    {editing ? (
+                      <>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          名称
+                          <input
+                            type="text"
+                            value={editForm.name}
+                            onInput={(e) => setEditForm((f) => ({ ...f, name: e.currentTarget.value }))}
+                            style={{
+                              width: '100%',
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              marginTop: '2px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--accent)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </label>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          类型
+                          <select
+                            value={editForm.kind}
+                            onChange={(e) => setEditForm((f) => ({ ...f, kind: e.currentTarget.value }))}
+                            style={{
+                              width: '100%',
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              marginTop: '2px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--accent)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box',
+                            }}
+                          >
+                            {KIND_OPTIONS.map((o) => (
+                              <option value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          Base URL
+                          <input
+                            type="text"
+                            value={editForm.baseUrl}
+                            onInput={(e) => setEditForm((f) => ({ ...f, baseUrl: e.currentTarget.value }))}
+                            placeholder="如 http://127.0.0.1:8000/v1"
+                            style={{
+                              width: '100%',
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              marginTop: '2px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--accent)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          类型
+                          <input
+                            type="text"
+                            value={selectedProvider.kind}
+                            disabled
+                            style={{
+                              width: '100%',
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              marginTop: '2px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-secondary)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </label>
+                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          Base URL
+                          <input
+                            type="text"
+                            value={selectedProvider.base_url ?? ''}
+                            disabled
+                            style={{
+                              width: '100%',
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              marginTop: '2px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-secondary)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </label>
+                      </>
+                    )}
                   </div>
 
                   {/* API Key 输入 */}
@@ -730,6 +983,8 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
                   >
                     模型列表({selectedProvider.models.length})
                   </div>
+                  {/* P1-2: 自动拉取按钮组(独立组件,减少与 P1-1/P1-3 的冲突面) */}
+                  <ModelDiscoverButtons provider={selectedProvider} onReload={reload} />
                   {selectedProvider.models.length === 0 ? (
                     <div
                       style={{
@@ -878,6 +1133,10 @@ export function ModelConfigPanel({ open, onClose }: ModelConfigPanelProps) {
             )}
           </div>
         </div>
+
+        {/* P1-1: 模型健康面板(延迟/成本/命中率/断路器状态) */}
+        <ModelHealthPanel />
+        </>
       )}
     </Modal>
   );

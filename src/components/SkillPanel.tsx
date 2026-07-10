@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SkillPanel — v1.2 enhanced skill management
  *
  * Replaces the basic SkillMarketplace with:
@@ -12,11 +12,70 @@
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import { nebulaAPI, Skill, ListSkillsRequest, ImportResult, TagCount } from '../lib/tauri';
 import VisualCreatorDialog from './VisualCreatorDialog';
+import SkillDebugger from './SkillDebugger';
 import type { VizKind } from './VizRenderer';
 import { Spinner } from './Spinner';
 import { t } from '../i18n';
 
 type Tab = 'browse' | 'import' | 'detail';
+
+// ---------------------------------------------------------------------------
+// P1-6: 来源 badge 辅助 — 从 skill id 前缀解析来源
+// ---------------------------------------------------------------------------
+
+/** P1-6: 从 skill id 前缀解析来源标识符。
+ *
+ * id 格式约定（importer.rs store_skill_with_source）:
+ * - `import-openclaw-<name>-<ts>` → "openclaw"
+ * - `import-clawhub-<name>-<ts>` → "clawhub"
+ * - `import-agentskills-<name>-<ts>` → "agentskills"
+ * - `import-teamskillshub-<name>-<ts>` → "teamskillshub"
+ * - `import-<name>-<ts>`（旧格式）→ "agentskills"（向后兼容）
+ * - 其他 → "local"
+ */
+function getSourceFromId(id: string): string {
+  if (!id.startsWith('import-')) return 'local';
+  // 去掉 "import-" 前缀后检查第二段是否为已知 source 标签
+  const rest = id.slice(7); // "import-".length === 7
+  const knownSources = ['openclaw', 'clawhub', 'agentskills', 'teamskillshub'];
+  for (const src of knownSources) {
+    if (rest.startsWith(src + '-')) return src;
+  }
+  // 旧格式 import-<name>-<ts>，无法区分，默认 agentskills
+  return 'agentskills';
+}
+
+/** P1-6: 来源标识符 → badge CSS class 后缀。 */
+function sourceToBadgeClass(source: string): string {
+  switch (source) {
+    case 'openclaw':
+      return 'skill-source-badge--openclaw';
+    case 'agentskills':
+      return 'skill-source-badge--agentskills';
+    case 'clawhub':
+      return 'skill-source-badge--clawhub';
+    case 'teamskillshub':
+      return 'skill-source-badge--teamhub';
+    default:
+      return 'skill-source-badge--local';
+  }
+}
+
+/** P1-6: 来源标识符 → i18n badge 文本 key。 */
+function sourceToBadgeLabel(source: string): string {
+  switch (source) {
+    case 'openclaw':
+      return t('skillPanel.sourceBadge.openclaw');
+    case 'agentskills':
+      return t('skillPanel.sourceBadge.agentskills');
+    case 'clawhub':
+      return t('skillPanel.sourceBadge.clawhub');
+    case 'teamskillshub':
+      return t('skillPanel.sourceBadge.teamskillshub');
+    default:
+      return t('skillPanel.sourceBadge.local');
+  }
+}
 
 /** T-E-S-37: 多 tag 匹配模式(与后端 TagMatch lowercase 序列化对齐)。 */
 type TagMatchMode = 'any' | 'all';
@@ -35,12 +94,23 @@ export default function SkillPanel() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   // T-E-S-38: 可视化生成弹窗状态。
   const [vizDialogKind, setVizDialogKind] = useState<VizKind | null>(null);
+  // P1-7: 技能调试器弹窗状态。
+  const [debuggerSkill, setDebuggerSkill] = useState<Skill | null>(null);
 
   // Import state
   const [importUrl, setImportUrl] = useState('');
   const [importSource, setImportSource] = useState<string>('url');
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  // P1-6: 来源筛选器状态（空字符串 = 不按来源过滤，展示全部）。
+  const [sourceFilter, setSourceFilter] = useState<string>('');
+  // P1-6: 命令行安装状态。
+  const [cliInput, setCliInput] = useState('');
+  const [cliInstalling, setCliInstalling] = useState(false);
+  const [cliResult, setCliResult] = useState<{ kind: 'success' | 'error'; msg: string } | null>(
+    null
+  );
 
   // T-E-S-37: 加载热门标签云(只加载一次,在 mount 时)。
   const loadTopTags = useCallback(async () => {
@@ -79,15 +149,23 @@ export default function SkillPanel() {
     loadSkills();
   }, [loadSkills]);
 
-  // Filtered skills
+  // Filtered skills — P1-6: 同时支持文本搜索 + 来源筛选。
   const filtered = skills.filter((s) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      s.name.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q) ||
-      s.tags.some((t) => t.toLowerCase().includes(q))
-    );
+    // 文本搜索过滤
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const textMatch =
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.tags.some((t) => t.toLowerCase().includes(q));
+      if (!textMatch) return false;
+    }
+    // P1-6: 来源筛选（sourceFilter 非空时按来源 badge 过滤）。
+    if (sourceFilter) {
+      const skillSource = getSourceFromId(s.id);
+      if (skillSource !== sourceFilter) return false;
+    }
+    return true;
   });
 
   // T-E-S-37: 标签云源 — 优先用 skill_tags 命令的全局聚合,降级到当前 skills 派生。
@@ -122,6 +200,47 @@ export default function SkillPanel() {
       }
     } finally {
       setImporting(false);
+    }
+  };
+
+  // P1-6: 命令行式安装处理器 — 支持 openclaw/<slug> / GitHub URL / 任意 URL 三种格式。
+  const handleCliInstall = async () => {
+    const input = cliInput.trim();
+    if (!input) return;
+    setCliInstalling(true);
+    setCliResult(null);
+    try {
+      let skillName = '';
+      if (input.startsWith('openclaw/')) {
+        // openclaw/<slug> 格式 → 从 OpenClaw 社区安装
+        const slug = input.slice('openclaw/'.length);
+        const skillId = await nebulaAPI.installSkillFromOpenclaw(slug);
+        skillName = skillId;
+      } else if (input.startsWith('http://') || input.startsWith('https://')) {
+        // URL 格式 → 通用 URL 安装
+        const skillId = await nebulaAPI.installSkillFromUrl(input);
+        skillName = skillId;
+      } else {
+        // 无前缀的 slug → 默认按 OpenClaw slug 安装
+        const skillId = await nebulaAPI.installSkillFromOpenclaw(input);
+        skillName = skillId;
+      }
+      setCliResult({
+        kind: 'success',
+        msg: t('skillPanel.cliInstallSuccess', { name: skillName }),
+      });
+      setCliInput('');
+      // 安装成功后刷新技能列表。
+      await loadSkills();
+    } catch (e) {
+      setCliResult({
+        kind: 'error',
+        msg: t('skillPanel.cliInstallFailed', {
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      });
+    } finally {
+      setCliInstalling(false);
     }
   };
 
@@ -193,6 +312,8 @@ export default function SkillPanel() {
             onSelect={openDetail}
             onRefresh={loadSkills}
             onOpenVizCreator={openVizDialog}
+            sourceFilter={sourceFilter}
+            onSourceFilterChange={setSourceFilter}
           />
         )}
 
@@ -205,6 +326,11 @@ export default function SkillPanel() {
             importing={importing}
             result={importResult}
             onImport={handleImport}
+            cliInput={cliInput}
+            onCliInputChange={setCliInput}
+            onCliInstall={handleCliInstall}
+            cliInstalling={cliInstalling}
+            cliResult={cliResult}
           />
         )}
 
@@ -213,6 +339,7 @@ export default function SkillPanel() {
             skill={selectedSkill}
             onBack={() => setTab('browse')}
             onUseSkill={handleUseSkill}
+            onDebug={() => setDebuggerSkill(selectedSkill)}
           />
         )}
       </div>
@@ -220,6 +347,15 @@ export default function SkillPanel() {
       {/* T-E-S-38: 可视化生成弹窗 */}
       {vizDialogKind && (
         <VisualCreatorDialog initialKind={vizDialogKind} onClose={() => setVizDialogKind(null)} />
+      )}
+
+      {/* P1-7: 技能调试器弹窗 */}
+      {debuggerSkill && (
+        <SkillDebugger
+          skillId={debuggerSkill.id}
+          skillName={debuggerSkill.name}
+          onClose={() => setDebuggerSkill(null)}
+        />
       )}
     </div>
   );
@@ -268,6 +404,8 @@ function BrowseTab({
   onSelect,
   onRefresh,
   onOpenVizCreator,
+  sourceFilter,
+  onSourceFilterChange,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -282,6 +420,9 @@ function BrowseTab({
   onSelect: (s: Skill) => void;
   onRefresh: () => void;
   onOpenVizCreator: (kind: VizKind) => void;
+  // P1-6: 来源筛选器
+  sourceFilter: string;
+  onSourceFilterChange: (s: string) => void;
 }) {
   return (
     <div>
@@ -329,6 +470,32 @@ function BrowseTab({
         >
           ↻
         </button>
+      </div>
+
+      {/* P1-6: 来源筛选器 — 按来源 badge 过滤技能列表。 */}
+      <div class="mb-4">
+        <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-2">
+          {t('skillPanel.sourceFilter')}
+        </h3>
+        <div class="skill-source-filter">
+          <button
+            onClick={() => onSourceFilterChange('')}
+            class={`source-filter-chip ${!sourceFilter ? 'active' : ''}`}
+          >
+            {t('skillPanel.sourceFilterAll')}
+          </button>
+          {(['openclaw', 'agentskills', 'clawhub', 'teamskillshub', 'local'] as const).map(
+            (src) => (
+              <button
+                key={src}
+                onClick={() => onSourceFilterChange(sourceFilter === src ? '' : src)}
+                class={`source-filter-chip ${sourceFilter === src ? 'active' : ''}`}
+              >
+                {sourceToBadgeLabel(src)}
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       {/* T-E-S-37: 标签云 — 显示热门 tag(最多前 10)+ 频次 + 多选 chip。 */}
@@ -449,10 +616,24 @@ function VizQuickEntry({
 }
 
 // ---------------------------------------------------------------------------
+// P1-6: SourceBadge — 来源 badge 组件
+// ---------------------------------------------------------------------------
+
+function SourceBadge({ source }: { source: string }) {
+  return (
+    <span class={`skill-source-badge ${sourceToBadgeClass(source)}`}>
+      {sourceToBadgeLabel(source)}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SkillCard
 // ---------------------------------------------------------------------------
 
 function SkillCard({ skill, onClick }: { skill: Skill; onClick: () => void }) {
+  // P1-6: 从 skill id 解析来源，用于显示 badge。
+  const source = getSourceFromId(skill.id);
   return (
     <div
       onClick={onClick}
@@ -461,7 +642,11 @@ function SkillCard({ skill, onClick }: { skill: Skill; onClick: () => void }) {
     >
       <div class="flex items-start justify-between">
         <div class="flex-1 min-w-0">
-          <h3 class="text-sm font-semibold text-white truncate">{skill.name}</h3>
+          <div class="flex items-center gap-2 mb-1">
+            <h3 class="text-sm font-semibold text-white truncate">{skill.name}</h3>
+            {/* P1-6: 来源 badge */}
+            <SourceBadge source={source} />
+          </div>
           <p class="text-xs text-gray-400 mt-1 line-clamp-2">{skill.description}</p>
         </div>
         <div class="flex items-center gap-2 ml-3 shrink-0">
@@ -529,6 +714,12 @@ function ImportTab({
   importing,
   result,
   onImport,
+  // P1-6: 命令行安装相关 props
+  cliInput,
+  onCliInputChange,
+  onCliInstall,
+  cliInstalling,
+  cliResult,
 }: {
   url: string;
   onUrlChange: (v: string) => void;
@@ -537,6 +728,12 @@ function ImportTab({
   importing: boolean;
   result: ImportResult | null;
   onImport: () => void;
+  // P1-6: 命令行安装 props
+  cliInput: string;
+  onCliInputChange: (v: string) => void;
+  onCliInstall: () => void;
+  cliInstalling: boolean;
+  cliResult: { kind: 'success' | 'error'; msg: string } | null;
 }) {
   return (
     <div class="max-w-lg">
@@ -626,6 +823,44 @@ function ImportTab({
           )}
         </div>
       )}
+
+      {/* P1-6: 命令行安装区域 — 支持 openclaw/<slug> / GitHub URL / 任意 URL 三种格式。 */}
+      <div class="skill-cli-install">
+        <div class="cli-install-header">
+          <span class="cli-icon">⌘</span>
+          <h3 class="cli-title">{t('skillPanel.cliInstallTitle')}</h3>
+        </div>
+        <p class="cli-install-hint">{t('skillPanel.cliInstallHint')}</p>
+        <div class="cli-install-input-row">
+          <input
+            type="text"
+            value={cliInput}
+            onInput={(e) => onCliInputChange((e.target as HTMLInputElement).value)}
+            placeholder={t('skillPanel.cliInstallPlaceholder')}
+          />
+          <button
+            onClick={onCliInstall}
+            disabled={cliInstalling || !cliInput.trim()}
+          >
+            {cliInstalling ? t('skillPanel.cliInstalling') : t('skillPanel.cliInstallButton')}
+          </button>
+        </div>
+        {/* 支持的安装格式示例 */}
+        <div class="cli-install-formats">
+          <p class="formats-title">{t('skillPanel.cliFormatTitle')}</p>
+          <ul>
+            <li class="format-item">{t('skillPanel.cliFormatOpenclaw')}</li>
+            <li class="format-item">{t('skillPanel.cliFormatGithub')}</li>
+            <li class="format-item">{t('skillPanel.cliFormatUrl')}</li>
+          </ul>
+        </div>
+        {/* 安装结果反馈 */}
+        {cliResult && (
+          <div class={`cli-install-result ${cliResult.kind}`}>
+            {cliResult.msg}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -638,10 +873,12 @@ function DetailTab({
   skill,
   onBack,
   onUseSkill,
+  onDebug,
 }: {
   skill: Skill;
   onBack: () => void;
   onUseSkill: (skill: Skill) => void;
+  onDebug: () => void;
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportToast, setExportToast] = useState<{ kind: 'success' | 'error'; msg: string } | null>(
@@ -692,6 +929,15 @@ function DetailTab({
               {t('skillPanel.useSkill')}
             </button>
           )}
+          {/* P1-7: "调试" 按钮 — 打开技能调试器(Inspector/TestRunner/Debugger/Profiler)。 */}
+          <button
+            onClick={onDebug}
+            class="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700
+                   text-white rounded-md transition-colors"
+            title={t('skillPanel.debug')}
+          >
+            {t('skillPanel.debug')}
+          </button>
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -777,6 +1023,15 @@ function DetailTab({
             {t('skillPanel.sourceMemory', { id: skill.source_memory_id })}
           </div>
         )}
+
+        {/* P1-6: 兼容协议信息 — 展示 skill 来源 badge 与 OpenClaw 兼容性说明。 */}
+        <div class="skill-compatibility-info">
+          <div class="compat-title flex items-center gap-2">
+            <SourceBadge source={getSourceFromId(skill.id)} />
+            <span>{t('skillPanel.compatibilityTitle')}</span>
+          </div>
+          <p class="compat-desc">{t('skillPanel.compatibilityOpenclaw')}</p>
+        </div>
       </div>
     </div>
   );

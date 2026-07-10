@@ -351,6 +351,10 @@ pub fn run() {
             crate::commands::skill_scan_paths,
             crate::commands::skill_validate_md,
             crate::commands::skill_import_teamskillshub,
+            // P1-6: OpenClaw 兼容 — 命令行式安装 + 来源查询。
+            crate::commands::install_skill_from_openclaw,
+            crate::commands::install_skill_from_url,
+            crate::commands::list_skill_sources,
             crate::commands::writing_list_templates,
             crate::commands::writing_get_template,
             crate::commands::writing_list_templates_by_category,
@@ -684,8 +688,14 @@ pub fn run() {
             crate::commands::discover_models,
             crate::commands::add_custom_provider,
             crate::commands::remove_provider,
+            crate::commands::update_provider,
             crate::commands::set_default_provider,
             crate::commands::set_worktype_routing,
+            // P1-2: 模型自动发现增强(批量发现 / 自动写入 models.json)。
+            crate::commands::discover_all_models,
+            crate::commands::auto_populate_models,
+            // P1-1: 模型健康面板(延迟 / 成本 / 命中率 / 断路器状态)。
+            crate::commands::get_model_health,
             // P0-6: Hermes 式自动发明技能命令(auto_invent_get_patterns /
             // accept_pattern / reject_pattern / get_config / set_config)。
             crate::commands::auto_invent_get_patterns,
@@ -693,6 +703,13 @@ pub fn run() {
             crate::commands::auto_invent_reject_pattern,
             crate::commands::auto_invent_get_config,
             crate::commands::auto_invent_set_config,
+            // P1-7: 技能调试工具命令(Inspector / TestRunner / Debugger / Profiler)。
+            crate::commands::skill_inspect,
+            crate::commands::skill_test_run,
+            crate::commands::skill_debug_start,
+            crate::commands::skill_debug_step,
+            crate::commands::skill_debug_stop,
+            crate::commands::skill_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

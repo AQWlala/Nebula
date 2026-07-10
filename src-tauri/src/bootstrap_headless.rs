@@ -57,6 +57,7 @@ impl AppState {
             inline_completion,
             models_config,
             semantic_cache,
+            model_health_tracker,
         ) = Self::bootstrap_ai_core_headless(&config, &sqlite, &lance, &startup).await?;
 
         // Smart Prefetch
@@ -291,6 +292,8 @@ impl AppState {
             }
         };
 
+        info!(target: "nebula", "model health tracker ready (headless, P1-1)");
+
         // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关 (headless)
         #[cfg(feature = "master-orchestrator")]
         crate::swarm::init_master_orchestrator_from_env();
@@ -372,6 +375,7 @@ impl AppState {
                 arena,
                 inline_completion,
                 dispatcher,
+                model_health_tracker,
             },
             swarm: crate::app_state::SwarmSubsystem {
                 swarm,
@@ -456,6 +460,7 @@ impl AppState {
         Arc<crate::editor::InlineCompletionEngine>,
         Arc<parking_lot::RwLock<crate::llm::models_config::ModelsConfig>>,
         Arc<SemanticCache>,
+        Arc<crate::llm::model_health::ModelHealthTracker>,
     )> {
         let models_config_value =
             crate::llm::models_config::ModelsConfig::load(&config.models_config_path);
@@ -489,6 +494,9 @@ impl AppState {
             Arc::new(base)
         };
 
+        // P1-1: 模型健康追踪器 — 在 gateway 构造前创建,以便注入。
+        let model_health_tracker = Arc::new(crate::llm::model_health::ModelHealthTracker::new());
+
         let mut llm_builder = LlmGateway::new(
             ollama,
             config.chat_model.clone(),
@@ -498,7 +506,8 @@ impl AppState {
             config.remote_fallback_url.clone(),
             ak,
             am,
-        );
+        )
+        .with_model_health_tracker(model_health_tracker.clone());
 
         let semantic_cache: Arc<SemanticCache> = Arc::new(
             crate::llm::semantic_cache::SemanticCache::default_config(
@@ -584,6 +593,7 @@ impl AppState {
             inline_completion,
             models_config,
             semantic_cache,
+            model_health_tracker,
         ))
     }
 }

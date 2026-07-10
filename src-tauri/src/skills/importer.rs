@@ -43,6 +43,8 @@ pub enum SkillSource {
     ClawHub,
     /// TeamSkillsHub asset ID.
     TeamSkillsHub,
+    /// P1-6: OpenClaw 社区市场 slug（与 agentskills.io SKILL.md 格式完全兼容）。
+    OpenClaw,
 }
 
 /// Result of an import operation.
@@ -103,8 +105,17 @@ impl SkillImporter {
     /// The URL must point to a raw Markdown file following the
     /// agentskills.io SKILL.md schema (YAML front-matter + body).
     pub async fn import_from_url(&self, url: &str) -> ImportResult {
+        // P1-6: 通用 URL 安装默认使用 agentskills source 标签。
+        self.import_from_url_with_source(url, "agentskills").await
+    }
+
+    /// P1-6: 内部方法 — 从 URL 拉取 SKILL.md 并用指定 source 标签入库。
+    ///
+    /// source 标签会编码到 skill id 前缀中（`import-<source>-<name>-<ts>`），
+    /// 供前端 badge 显示来源（agentskills / clawhub / openclaw 等）。
+    async fn import_from_url_with_source(&self, url: &str, source_label: &str) -> ImportResult {
         let source = url.to_string();
-        debug!(target: "nebula.importer", url, "fetching skill");
+        debug!(target: "nebula.importer", url, source_label, "fetching skill");
 
         let content = match self.fetch_skill_md(url).await {
             Ok(c) => c,
@@ -130,12 +141,13 @@ impl SkillImporter {
             }
         };
 
-        match self.store_skill(parsed).await {
+        match self.store_skill_with_source(parsed, source_label).await {
             Ok(skill) => {
                 info!(
                     target: "nebula.importer",
                     id = %skill.id,
                     name = %skill.name,
+                    source_label,
                     "skill imported successfully"
                 );
                 ImportResult {
@@ -178,7 +190,43 @@ impl SkillImporter {
             )
         };
 
-        self.import_from_url(&url).await
+        // P1-6: 使用 clawhub source 标签，供前端 badge 显示。
+        self.import_from_url_with_source(&url, "clawhub").await
+    }
+
+    /// P1-6: 从 OpenClaw 社区市场安装技能。
+    ///
+    /// OpenClaw 使用与 agentskills.io 完全兼容的 SKILL.md 格式。
+    /// slug 解析规则：
+    /// - `user/repo` → `https://raw.githubusercontent.com/<user>/<repo>/main/SKILL.md`
+    /// - `user/repo/path` → `https://raw.githubusercontent.com/<user>/<repo>/main/<path>/SKILL.md`
+    /// - 无 `/` 的 slug → 视为 OpenClaw 官方仓库 `openclaw/skills` 下的技能名
+    pub async fn import_from_openclaw(&self, slug: &str) -> ImportResult {
+        let url = if slug.contains('/') {
+            let parts: Vec<&str> = slug.splitn(3, '/').collect();
+            if parts.len() == 3 {
+                // user/repo/path → raw URL 指向 <path>/SKILL.md
+                format!(
+                    "https://raw.githubusercontent.com/{}/{}/main/{}/SKILL.md",
+                    parts[0], parts[1], parts[2]
+                )
+            } else {
+                // user/repo → raw URL 指向仓库根 SKILL.md
+                format!(
+                    "https://raw.githubusercontent.com/{}/{}/main/SKILL.md",
+                    parts[0], parts[1]
+                )
+            }
+        } else {
+            // 无 / 的 slug → OpenClaw 官方仓库
+            format!(
+                "https://raw.githubusercontent.com/openclaw/skills/main/{}/SKILL.md",
+                slug
+            )
+        };
+
+        // P1-6: 使用 openclaw source 标签，供前端 badge 显示"OpenClaw 兼容"。
+        self.import_from_url_with_source(&url, "openclaw").await
     }
 
     /// Import a skill from TeamSkillsHub by asset ID.
@@ -239,8 +287,8 @@ impl SkillImporter {
             }
         };
 
-        // 3) 构造 Skill 并写入 SQLite(复用 store_skill)。
-        match self.store_skill(req).await {
+        // 3) 构造 Skill 并写入 SQLite(复用 store_skill_with_source,P1-6 source 标签)。
+        match self.store_skill_with_source(req, "teamskillshub").await {
             Ok(skill) => {
                 info!(
                     target: "nebula.importer",
@@ -432,9 +480,17 @@ impl SkillImporter {
         }
     }
 
-    async fn store_skill(&self, req: CreateSkillRequest) -> Result<Skill> {
+    /// P1-6: 存储 skill 并在 id 中编码 source 标签。
+    ///
+    /// id 格式：`import-<source_label>-<name>-<timestamp>`，供前端解析来源 badge。
+    /// 向后兼容：旧 id 格式 `import-<name>-<ts>` 在前端被解析为 "agentskills" 来源。
+    async fn store_skill_with_source(
+        &self,
+        req: CreateSkillRequest,
+        source_label: &str,
+    ) -> Result<Skill> {
         let now = chrono::Utc::now().timestamp_millis();
-        let id = format!("import-{}-{}", req.name, now);
+        let id = format!("import-{}-{}-{}", source_label, req.name, now);
         let skill = Skill {
             id: id.clone(),
             name: req.name.clone(),

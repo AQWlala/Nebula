@@ -8,9 +8,11 @@
 //! 环境变量 > models.json > 内置默认(向后兼容)。
 //!
 //! ## 热更新
-//! provider 列表修改重启生效(reqwest::Client 不易热替换);
-//! `default_provider` / `default_model` 通过 `AppState.models_config`
-//! 的 `Arc<parking_lot::RwLock<ModelsConfig>>` 支持热更新。
+//! P1-3: provider 增删改通过 `AppState.models_config` 的
+//! `Arc<parking_lot::RwLock<ModelsConfig>>` 支持热更新,无需重启。
+//! `add_custom_provider` / `remove_provider` / `update_provider` 命令
+//! 在写锁内修改内存结构并落盘;`LlmGateway::rebuild_client` 在
+//! base_url 变更时重建激活 provider 的 reqwest::Client。
 //!
 //! ## 内置默认
 //! `default_builtin()` 返回 deepseek / anthropic / ollama 三家。
@@ -543,6 +545,46 @@ impl ModelsConfig {
         }
         // 前缀匹配(如 `claude-3-5-sonnet-20241022` → `claude-3-5-sonnet`)。
         p.models.iter().find(|m| model_id.starts_with(&m.id))
+    }
+
+    /// P1-3: 热更新 provider 字段(name / base_url / kind)。
+    ///
+    /// 调用方需已持有 `models_config` 的写锁;本方法仅修改内存结构,
+    /// 不落盘(由命令层负责 `save` 与 `cost_tracker` 同步)。
+    ///
+    /// - `name` / `base_url` / `kind` 为 `None` 的字段保持原值不变。
+    /// - `base_url` 传入空字符串视为清除(None)。
+    /// - `name` 传入空白字符串视为不修改。
+    pub fn update_provider(
+        &mut self,
+        provider_id: &str,
+        name: Option<String>,
+        base_url: Option<String>,
+        kind: Option<ProviderKind>,
+    ) -> Result<()> {
+        let p = self
+            .providers
+            .iter_mut()
+            .find(|p| p.id == provider_id)
+            .ok_or_else(|| anyhow::anyhow!("provider `{provider_id}` 不存在"))?;
+        if let Some(n) = name {
+            let trimmed = n.trim();
+            if !trimmed.is_empty() {
+                p.display_name = trimmed.to_string();
+            }
+        }
+        if let Some(u) = base_url {
+            let trimmed = u.trim();
+            p.base_url = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            };
+        }
+        if let Some(k) = kind {
+            p.kind = k;
+        }
+        Ok(())
     }
 }
 

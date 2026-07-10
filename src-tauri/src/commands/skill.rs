@@ -112,6 +112,8 @@ pub async fn skill_import(
         "agentskills" => crate::skills::importer::SkillSource::AgentskillsIo,
         "clawhub" => crate::skills::importer::SkillSource::ClawHub,
         "teamskillshub" => crate::skills::importer::SkillSource::TeamSkillsHub,
+        // P1-6: OpenClaw 兼容源 — 与 agentskills.io SKILL.md 格式完全兼容。
+        "openclaw" => crate::skills::importer::SkillSource::OpenClaw,
         other => {
             return Err(CommandError::validation("skill_import")
                 .with_details(format!("unknown source: {other}")))
@@ -143,6 +145,10 @@ pub async fn skill_import(
         }
         crate::skills::importer::SkillSource::TeamSkillsHub => {
             importer.import_from_teamskillshub(&identifier).await
+        }
+        // P1-6: OpenClaw 社区市场安装。
+        crate::skills::importer::SkillSource::OpenClaw => {
+            importer.import_from_openclaw(&identifier).await
         }
     };
     if result.success {

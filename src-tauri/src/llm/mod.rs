@@ -37,6 +37,8 @@ pub mod persona;
 pub mod prefetch;
 // T-E-A-14: Arena A/B 测试 — 模型对战 + ELO 评分 + SQLite 持久化。
 pub mod arena;
+// P1-1: 模型健康追踪器（延迟 / 错误 / 断路器状态）。
+pub mod model_health;
 // ADR-003 v3.1: 统一模型调度层。
 // P0-2: unified-dispatcher feature 已改为默认启用，不再需要 cfg gate。
 // 运行时仍可通过 UNIFIED_DISPATCHER_ENABLED=0 禁用作为安全网（ADR-004）。
@@ -49,6 +51,8 @@ pub use cost_tracker::{
 };
 // M5 #71: CostPolicy 统一预算门禁
 pub use cost_policy::{CostDecision, CostPolicy};
+// P1-1: 模型健康追踪器。
+pub use model_health::{ModelHealthTracker, ProviderMetrics};
 // ADR-003: CircuitBreaker 重新导出，供 dispatcher.rs 使用。
 pub use gateway::{CircuitBreaker, LlmGateway, StreamToken};
 pub use model_router::{ModelRouter, Route};
