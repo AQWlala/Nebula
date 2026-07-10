@@ -991,7 +991,7 @@
   "chatPanel.selectTextFirst": "Please select text first",
   "chatPanel.directedEditFailed": "Directed edit failed",
   "chatPanel.title": "💬 Chat",
-  "chatPanel.subtitle": "Hydra head #1: general chat",
+  "chatPanel.subtitle": "General chat",
   "chatPanel.templatesTitle": "Work scenario templates",
   "chatPanel.templates": "🎭 Templates",
   "chatPanel.exportTitle": "Export chat",

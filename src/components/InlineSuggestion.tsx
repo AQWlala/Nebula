@@ -1,4 +1,4 @@
-﻿/**
+/**
  * T-E-S-51: Level 0 内联补全 UI 组件。
  *
  * 在 ChatPanel 的单行输入框上叠加灰色 ghost text 建议文本。
@@ -85,9 +85,9 @@ export function InlineSuggestion({ prefix, onAccept, onReject, children }: Inlin
     // prefix 变化时立即清空旧建议(避免显示过时 ghost text)。
     setSuggestion('');
 
-    // 未启用(L2/L3/L4) / Ollama 离线 / prefix 太短 → 不请求。
+    // 未启用(L2/L3/L4) / prefix 太短 → 不请求。
+    // v2.2: 移除 Ollama 离线阻断——后端多 provider 架构不强制本地 Ollama。
     if (!enabled) return;
-    if (nebulaStore.ollamaStatus.value === 'down') return;
     if (prefix.trim().length < MIN_PREFIX_LEN) return;
 
     const controller = new AbortController();

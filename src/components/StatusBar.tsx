@@ -1,12 +1,11 @@
 /**
- * v1.0: status bar.
- * v1.8: 真正轮询 `perf_sample` + `metrics` 命令，展示：
- *   - current mode
- *   - memory count (from `nebulaStore.recentMemories`)
- *   - RSS budget meter (only when `perf-telemetry` is on)
- *   - LLM online/offline (best-effort: 1 quick HEAD to the
- *     configured Ollama URL)
- *   - v1.8: 缓存命中率 + 检索/对话平均延迟
+ * v2.2: 状态栏重构。
+ *
+ * 优化点：
+ * - 隐藏 "–" 空值指标（缓存/检索/对话延迟无数据时不渲染，避免占位噪音）
+ * - 左侧核心指标（模式/模型/内存）+ 右侧操作按钮（浮动/悬浮球）分区布局
+ * - 模型状态用圆点指示器替代文字，更紧凑
+ * - 记忆数仅在 > 0 时显示
  */
 import { useEffect, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
@@ -26,7 +25,7 @@ export const startupMs = signal<number | null>(null);
 export const llmOnline = signal<boolean>(true);
 
 function fmtBytes(n: number | null | undefined): string {
-  if (n == null) return '–';
+  if (n == null) return '';
   if (n < 1024) return `${n} B`;
   const kb = n / 1024;
   if (kb < 1024) return `${kb.toFixed(0)} KB`;
@@ -35,7 +34,7 @@ function fmtBytes(n: number | null | undefined): string {
 }
 
 function fmtMs(us: number | null | undefined, count: number | null | undefined): string {
-  if (!count || count === 0) return '–';
+  if (!count || count === 0) return '';
   const avgMs = (us ?? 0) / count / 1000;
   if (avgMs < 1) return `${(avgMs * 1000).toFixed(0)}µs`;
   if (avgMs < 1000) return `${avgMs.toFixed(0)}ms`;
@@ -46,7 +45,7 @@ function fmtRatio(hits: number | null | undefined, misses: number | null | undef
   const h = hits ?? 0;
   const m = misses ?? 0;
   const total = h + m;
-  if (total === 0) return '–';
+  if (total === 0) return '';
   const r = (h / total) * 100;
   return `${r.toFixed(0)}%`;
 }
@@ -60,11 +59,9 @@ export function StatusBar() {
   const rssOver = rssBudgetBytes.value != null && (perf?.rss_bytes ?? 0) > rssBudgetBytes.value;
 
   useEffect(() => {
-    // T-D-F-06: AbortController 替代 cancelled 布尔反模式。
     const ac = new AbortController();
     async function tick() {
       try {
-        // v1.8: 真正调用后端 perf_sample（RSS）+ metrics（计数器/延迟）。
         const [perfSample, metricsSnap] = await Promise.all([
           invokeTauri<PerfSample>('perf_sample'),
           invokeTauri<MetricsSnapshot>('metrics'),
@@ -85,7 +82,7 @@ export function StatusBar() {
     };
   }, []);
 
-  /** T-S5-B-01: 打开浮动聊天窗口 (PIP)。 */
+  /** 打开浮动聊天窗口 (PIP)。 */
   async function openFloatingChat() {
     try {
       await nebulaAPI.floatingChatOpen();
@@ -94,7 +91,7 @@ export function StatusBar() {
     }
   }
 
-  /** T-E-D-03: 打开 / toggle 桌面悬浮球。 */
+  /** 打开 / toggle 桌面悬浮球。 */
   async function openFloatingBall() {
     try {
       await nebulaAPI.floatingBallOpen();
@@ -103,53 +100,88 @@ export function StatusBar() {
     }
   }
 
+  // v2.2: 次要指标仅在有实际数据时才计算，空字符串则不渲染。
+  const rssText = fmtBytes(perf?.rss_bytes ?? null);
+  const cacheText = fmtRatio(metrics?.embedding_cache_hits, metrics?.embedding_cache_misses);
+  const searchText = fmtMs(metrics?.memory_search_latency_us_total, metrics?.memory_search_latency_count);
+  const chatText = fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count);
+
   return (
     <footer class="statusbar" role="status" aria-live="polite">
+      {/* 左侧：核心指标 */}
       <span class="sb-item">
         <span class="sb-key">{t('statusbar.mode')}</span>
         <span class="sb-val">{t(`mode.${mode}`)}</span>
       </span>
+      <span class="sb-divider" />
       <span class="sb-item">
-        <span class="sb-key">{t('statusbar.memories')}</span>
-        <span class="sb-val">{memCount}</span>
-      </span>
-      <span class={`sb-item ${rssOver ? 'warn' : ''}`}>
-        <span class="sb-key">{t('statusbar.memory')}</span>
-        <span class="sb-val">
-          {fmtBytes(perf?.rss_bytes ?? null)}
-          {rssOver ? ` (${t('statusbar.rss.over')})` : ''}
-        </span>
-      </span>
-      <span class="sb-item">
+        <span class={`sb-dot ${online ? 'ok' : 'off'}`} />
         <span class="sb-key">{t('statusbar.llm')}</span>
         <span class={`sb-val ${online ? 'ok' : 'off'}`}>
           {online ? t('statusbar.llm.online') : t('statusbar.llm.offline')}
         </span>
       </span>
-      {startupMs.value != null && (
-        <span class="sb-item">
-          <span class="sb-key">{t('statusbar.startup')}</span>
-          <span class="sb-val">{(startupMs.value / 1000).toFixed(1)}s</span>
-        </span>
+      {rssText && (
+        <>
+          <span class="sb-divider" />
+          <span class={`sb-item ${rssOver ? 'warn' : ''}`}>
+            <span class="sb-key">{t('statusbar.memory')}</span>
+            <span class="sb-val">
+              {rssText}
+              {rssOver ? ` (${t('statusbar.rss.over')})` : ''}
+            </span>
+          </span>
+        </>
       )}
-      <span class="sb-item">
-        <span class="sb-key">{t('statusbar.cache')}</span>
-        <span class="sb-val">
-          {fmtRatio(metrics?.embedding_cache_hits, metrics?.embedding_cache_misses)}
-        </span>
-      </span>
-      <span class="sb-item">
-        <span class="sb-key">{t('statusbar.search')}</span>
-        <span class="sb-val">
-          {fmtMs(metrics?.memory_search_latency_us_total, metrics?.memory_search_latency_count)}
-        </span>
-      </span>
-      <span class="sb-item">
-        <span class="sb-key">{t('statusbar.chat')}</span>
-        <span class="sb-val">
-          {fmtMs(metrics?.llm_chat_latency_us_total, metrics?.llm_chat_latency_count)}
-        </span>
-      </span>
+      {memCount > 0 && (
+        <>
+          <span class="sb-divider" />
+          <span class="sb-item">
+            <span class="sb-key">{t('statusbar.memories')}</span>
+            <span class="sb-val">{memCount}</span>
+          </span>
+        </>
+      )}
+      {startupMs.value != null && (
+        <>
+          <span class="sb-divider" />
+          <span class="sb-item">
+            <span class="sb-key">{t('statusbar.startup')}</span>
+            <span class="sb-val">{(startupMs.value / 1000).toFixed(1)}s</span>
+          </span>
+        </>
+      )}
+
+      {/* 次要指标：仅有数据时显示 */}
+      {cacheText && (
+        <>
+          <span class="sb-divider" />
+          <span class="sb-item sb-secondary">
+            <span class="sb-key">{t('statusbar.cache')}</span>
+            <span class="sb-val">{cacheText}</span>
+          </span>
+        </>
+      )}
+      {searchText && (
+        <>
+          <span class="sb-divider" />
+          <span class="sb-item sb-secondary">
+            <span class="sb-key">{t('statusbar.search')}</span>
+            <span class="sb-val">{searchText}</span>
+          </span>
+        </>
+      )}
+      {chatText && (
+        <>
+          <span class="sb-divider" />
+          <span class="sb-item sb-secondary">
+            <span class="sb-key">{t('statusbar.chat')}</span>
+            <span class="sb-val">{chatText}</span>
+          </span>
+        </>
+      )}
+
+      {/* 右侧：操作按钮 */}
       <button
         class="sb-item sb-floating-btn"
         title={t('statusBar.openFloatingChat')}

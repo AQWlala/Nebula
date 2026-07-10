@@ -1727,17 +1727,20 @@ body.is-resizing * {
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   padding: 6px 16px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
 }
 .statusbar .sb-item {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 .statusbar .sb-key {
   color: var(--text-muted);
@@ -1755,6 +1758,31 @@ body.is-resizing * {
 .statusbar .sb-item.warn .sb-val {
   color: var(--accent-warning);
 }
+/* v2.2: 分隔符 — 指标之间的细竖线 */
+.statusbar .sb-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+/* v2.2: 模型状态圆点指示器 */
+.statusbar .sb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.statusbar .sb-dot.ok {
+  background: var(--accent-neon);
+}
+.statusbar .sb-dot.off {
+  background: var(--accent-error);
+}
+/* v2.2: 次要指标（缓存/检索/对话）— 透明度降低，视觉层级低于核心指标 */
+.statusbar .sb-secondary {
+  opacity: 0.7;
+}
+
 
 /* v1.8: Dashboard */
 .dashboard {

@@ -1,46 +1,10 @@
-﻿/**
- * v1.0.1 (P0#07): friendly "Ollama is down" banner.
+/**
+ * v2.2: Ollama 不再是强制依赖。
  *
- * Rendered at the top of ChatPanel whenever
- * `nebulaStore.ollamaStatus.value === 'down'`.  Offers:
- *  - a link to the upstream project (https://ollama.com)
- *  - a "Retry" button that calls `checkOllama()` again
- *
- * Rendered as a normal DOM subtree, no portal — the panel already
- * stacks the banner above the message list.
+ * 后端 LLM 网关支持多 provider（DeepSeek 优先 → Ollama 兜底 → Anthropic/远程兼容），
+ * 前端不再强制要求本地 Ollama 守护进程。此组件保留为空壳以维持 ChatPanel/FloatingChat
+ * 的 import 兼容性，后续可在彻底移除引用后删除。
  */
-import { nebulaStore } from '../stores/nebulaStore';
-import { t } from '../i18n';
-
-const OLLAMA_URL = 'https://ollama.com';
-
 export function OllamaStatusBanner() {
-  const status = nebulaStore.ollamaStatus.value;
-  if (status !== 'down') return null;
-
-  function retry() {
-    void nebulaStore.checkOllama();
-  }
-
-  return (
-    <div class="ollama-banner" role="alert" aria-live="polite" data-testid="ollama-banner">
-      <div class="ollama-banner__body">
-        <strong>{t('ollama.banner.title')}</strong>
-        <span>{t('ollama.banner.body')}</span>
-      </div>
-      <div class="ollama-banner__actions">
-        <a class="ollama-banner__link" href={OLLAMA_URL} target="_blank" rel="noreferrer noopener">
-          {t('ollama.banner.howto')} ↗
-        </a>
-        <button
-          type="button"
-          class="ollama-banner__retry"
-          onClick={retry}
-          data-testid="ollama-banner-retry"
-        >
-          {t('ollama.banner.retry')}
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 }

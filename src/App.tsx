@@ -104,7 +104,6 @@ const paletteOpen = signal(false);
 const settingsOpen = signal(false);
 const appKey = signal(0);
 
-const OLLAMA_POLL_MS = 30_000;
 
 export function App() {
   const [ready, setReady] = useState(false);
@@ -166,13 +165,8 @@ export function App() {
       (e) => setError(String(e))
     );
 
-    // P0#07: poll the Ollama health endpoint every 30s so the
-    // banner appears / disappears live as the user starts / stops
-    // the daemon.  Cleanup on unmount.
-    const poll = window.setInterval(() => {
-      nebulaStore.checkOllama();
-    }, OLLAMA_POLL_MS);
-    return () => window.clearInterval(poll);
+    // v2.2: Ollama 健康轮询已移除——后端多 provider 架构不强制本地 Ollama。
+
   }, []);
 
   // v1.7: 监听全局快捷键触发的 view 切换事件（由 Rust 端 emit）。
