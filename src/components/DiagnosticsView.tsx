@@ -20,6 +20,17 @@ const KIND_META: Record<DiagnosticEvent['kind'], { icon: string; label: string }
   dropped: { icon: '📉', label: 'Dropped' },
 };
 
+/** 错误级别的事件类型集合 — 用于日志颜色编码。 */
+const ERROR_KINDS: ReadonlySet<DiagnosticEvent['kind']> = new Set([
+  'l4_deny',
+  'acl_rejected',
+  'injection_guard_hit',
+  'sidecar_crash',
+]);
+
+/** 警告级别的事件类型集合 — 用于日志颜色编码。 */
+const WARN_KINDS: ReadonlySet<DiagnosticEvent['kind']> = new Set(['tracing_warn', 'dropped']);
+
 /** 把事件渲染为单行摘要。 */
 function eventSummary(evt: DiagnosticEvent): string {
   switch (evt.kind) {
@@ -43,6 +54,13 @@ function eventSummary(evt: DiagnosticEvent): string {
 /** 把 DiagnosticEvent seq 转为可读时间(粗略:seq 越大越新)。 */
 function eventTime(evt: DiagnosticEvent): string {
   return `#${evt.seq}`;
+}
+
+/** 根据事件类型返回日志级别 CSS 类名。 */
+function logLevelClass(kind: DiagnosticEvent['kind']): string {
+  if (ERROR_KINDS.has(kind)) return 'log-level-error';
+  if (WARN_KINDS.has(kind)) return 'log-level-warn';
+  return 'log-level-info';
 }
 
 export function DiagnosticsView() {
@@ -115,82 +133,94 @@ export function DiagnosticsView() {
   }
 
   return (
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">🩺 {t('diagnostics.title')}</span>
-        <span style="color: var(--text-muted); font-size: 12px;">
-          {enabled
-            ? t('diagnostics.eventsCount', {
-                count: events.length,
-                capacity,
-                live: subscribed ? ' · ' + t('diagnostics.live') : '',
-              })
-            : t('diagnostics.disabled')}
-        </span>
-      </div>
-
-      <div class="card" style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
-        <button class="btn" onClick={openLogs} title={t('diagnostics.openLogs')}>
-          📂 {t('diagnostics.openLogs')}
-        </button>
-        <span style="flex: 1;" />
-        <span
-          class="badge"
-          style={{
-            background: subscribed ? '#1e5f3a' : '#3a3a5f',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {subscribed ? t('diagnostics.live') : t('diagnostics.idle')}
-        </span>
-      </div>
-
-      {events.length === 0 ? (
-        <div class="card" style="padding: 24px; text-align: center; color: var(--text-muted);">
-          {enabled ? t('diagnostics.empty') : t('diagnostics.disabled')}
+    <div class="diagnostics-view" style="display:flex;flex-direction:column;height:100%;">
+      {/* 页面头:标题 + 工具按钮 */}
+      <div class="page-header">
+        <div>
+          <div class="page-title">🩺 {t('diagnostics.title')}</div>
+          <div class="page-subtitle">
+            {enabled
+              ? t('diagnostics.eventsCount', {
+                  count: events.length,
+                  capacity,
+                  live: subscribed ? ' · ' + t('diagnostics.live') : '',
+                })
+              : t('diagnostics.disabled')}
+          </div>
         </div>
-      ) : (
-        <div class="diagnostics-list" style="display: flex; flex-direction: column; gap: 4px;">
-          {events.map((evt, i) => {
-            const meta = KIND_META[evt.kind] || { icon: '❓', label: evt.kind };
-            return (
-              <div
-                key={`${evt.seq}-${i}`}
-                class="card"
-                style={{
-                  padding: '8px 12px',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                  fontSize: '12px',
-                  borderLeft: `3px solid ${evt.kind === 'dropped' ? '#5f1e1e' : 'var(--accent-purple)'}`,
-                }}
-              >
-                <span style="font-size: 16px; flex-shrink: 0;">{meta.icon}</span>
-                <div style="flex: 1; min-width: 0;">
-                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-                    <strong style="font-size: 12px;">{meta.label}</strong>
-                    <span style="color: var(--text-muted); font-size: 11px;">{eventTime(evt)}</span>
+        <div class="page-actions">
+          <button class="tool-btn" onClick={openLogs} title={t('diagnostics.openLogs')}>
+            📂 {t('diagnostics.openLogs')}
+          </button>
+          <span
+            class="tool-btn"
+            style={{
+              background: subscribed ? 'rgba(40,200,64,0.2)' : 'rgba(255,255,255,0.06)',
+              color: subscribed ? '#28c840' : 'rgba(255,255,255,0.4)',
+              cursor: 'default',
+            }}
+          >
+            {subscribed ? t('diagnostics.live') : t('diagnostics.idle')}
+          </span>
+        </div>
+      </div>
+
+      <div class="page-body" style="display:flex;flex-direction:column;gap:20px;">
+        {/* 健康检查网格(2 列) */}
+        <div class="diag-section">
+          <div class="diag-section-title">{t('diagnostics.title')}</div>
+          <div class="diag-checks">
+            <div class="diag-check">
+              <span class="diag-icon">{enabled ? '✅' : '⚠️'}</span>
+              <span class="diag-name">{t('diagnostics.title')}</span>
+              <span class={`diag-status ${enabled ? 'ok' : 'warn'}`}>
+                {enabled ? '正常' : '已禁用'}
+              </span>
+            </div>
+            <div class="diag-check">
+              <span class="diag-icon">{subscribed ? '✅' : '⏳'}</span>
+              <span class="diag-name">{t('diagnostics.live')}</span>
+              <span class={`diag-status ${subscribed ? 'ok' : 'warn'}`}>
+                {subscribed ? '实时' : '空闲'}
+              </span>
+            </div>
+            <div class="diag-check">
+              <span class="diag-icon">📊</span>
+              <span class="diag-name">{t('diagnostics.eventsCount', { count: events.length, capacity, live: '' })}</span>
+              <span class="diag-status ok">{events.length}</span>
+            </div>
+            <div class="diag-check">
+              <span class="diag-icon">📦</span>
+              <span class="diag-name">Buffer</span>
+              <span class="diag-status ok">{capacity}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 实时日志流 */}
+        <div class="diag-section">
+          <div class="diag-section-title">{t('diagnostics.live')}</div>
+          {events.length === 0 ? (
+            <div class="stat-card" style="padding:24px;text-align:center;color:rgba(255,255,255,0.4);">
+              {enabled ? t('diagnostics.empty') : t('diagnostics.disabled')}
+            </div>
+          ) : (
+            <div class="diag-log">
+              {events.map((evt, i) => {
+                const meta = KIND_META[evt.kind] || { icon: '❓', label: evt.kind };
+                const levelClass = logLevelClass(evt.kind);
+                return (
+                  <div class="log-line" key={`${evt.seq}-${i}`}>
+                    <span class={levelClass}>[{meta.label}]</span>{' '}
+                    {eventTime(evt)} — {eventSummary(evt)}
                   </div>
-                  <code
-                    style={{
-                      display: 'block',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-all',
-                      fontFamily: 'Menlo, Consolas, monospace',
-                      fontSize: '11px',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {eventSummary(evt)}
-                  </code>
-                </div>
-              </div>
-            );
-          })}
-          <div ref={eventsEndRef} />
+                );
+              })}
+              <div ref={eventsEndRef} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

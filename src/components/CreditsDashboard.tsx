@@ -210,340 +210,380 @@ export function CreditsDashboard() {
     alarmedRef.current = false;
   }
 
+  // Provider 分布归一化:取最大桶费用作为标尺。
+  const maxProviderCost = Math.max(...overview.by_provider.map((p) => p.cost_usd), 0.01);
+
+  // 预算进度条颜色:<60% 绿 / <90% 橙 / ≥90% 红。
+  const monthlyPct = budget > 0 ? (overview.total_cost_usd / budget) * 100 : 0;
+  const monthlyFillClass = overBudget || monthlyPct >= 90 ? 'red' : monthlyPct >= 60 ? 'orange' : 'green';
+  const dailyPct = dailyBudget > 0 ? (todayCost / dailyBudget) * 100 : 0;
+  const dailyFillClass = overDailyBudget || dailyPct >= 90 ? 'red' : dailyPct >= 60 ? 'orange' : 'green';
+  const cacheFillClass = cacheHitRate >= 70 ? 'green' : cacheHitRate >= 30 ? 'orange' : 'red';
+
   return (
-    <div
-      class="credits-dashboard"
-      style="padding:16px;display:flex;flex-direction:column;gap:16px;"
-    >
-      {/* 顶部:总费用 + 预算进度条 */}
-      <div style="display:flex;gap:12px;align-items:center;">
-        <div class="metric-card card-accent-green" style="flex:1;padding:12px;">
-          <div class="metric-title">{t('creditsDashboard.totalCost')}</div>
-          <div class="metric-value" style={{ color: overBudget ? '#ef4444' : undefined }}>
-            ${overview.total_cost_usd.toFixed(4)}
-          </div>
-          {budget > 0 && (
-            <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
-              {t('creditsDashboard.monthlyBudget', { budget: budget.toFixed(2) })}{' '}
-              {overBudget
-                ? t('creditsDashboard.overBudget')
-                : t('creditsDashboard.budgetRemaining', {
-                    amount: (budget - overview.total_cost_usd).toFixed(2),
-                  })}
-            </div>
-          )}
-        </div>
-        <div class="metric-card card-accent-cyan" style="flex:1;padding:12px;">
-          <div class="metric-title">{t('creditsDashboard.cacheHitRate')}</div>
-          <div class="metric-value">{cacheHitRate.toFixed(1)}%</div>
-          <div style="font-size:11px;color:var(--text-secondary)">
-            {overview.semantic_cache_hits} / {cacheTotal}
+    <div class="credits-dashboard" style="display:flex;flex-direction:column;height:100%;">
+      {/* 页面头:标题 + 工具按钮 */}
+      <div class="page-header">
+        <div>
+          <div class="page-title">💰 {t('creditsDashboard.totalCost')}</div>
+          <div class="page-subtitle">
+            {budget > 0
+              ? t('creditsDashboard.monthlyBudget', { budget: budget.toFixed(2) })
+              : t('creditsDashboard.costTrend')}
           </div>
         </div>
-        <div class="metric-card card-accent-amber" style="flex:1;padding:12px;">
-          <div class="metric-title">{t('creditsDashboard.saved')}</div>
-          <div class="metric-value">${overview.cost_saved_usd.toFixed(4)}</div>
-          <div style="font-size:11px;color:var(--text-secondary)">
-            {t('creditsDashboard.prefixCacheTokens', {
-              count: overview.prefix_cache_cached_tokens,
-            })}
-          </div>
-        </div>
-        {/* T-E-A-05: 当日费用 / 日预算进度 */}
-        <div
-          class="metric-card"
-          style={{
-            flex: 1,
-            padding: '12px',
-            borderLeft: `3px solid ${overDailyBudget ? '#ef4444' : 'var(--accent)'}`,
-          }}
-        >
-          <div class="metric-title">{t('creditsDashboard.dailyCost')}</div>
-          <div class="metric-value" style={{ color: overDailyBudget ? '#ef4444' : undefined }}>
-            ${todayCost.toFixed(4)}
-          </div>
-          {dailyBudget > 0 ? (
-            <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
-              {t('creditsDashboard.dailyBudget', { budget: dailyBudget.toFixed(2) })}{' '}
-              {overDailyBudget
-                ? t('creditsDashboard.overDailyBudget')
-                : t('creditsDashboard.dailyBudgetRemaining', {
-                    amount: (dailyBudget - todayCost).toFixed(2),
-                  })}
-            </div>
-          ) : (
-            <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">
-              {t('creditsDashboard.dailyBudgetNotSet')}
-            </div>
-          )}
+        <div class="page-actions">
+          <div class="tool-btn">📊 {t('creditsDashboard.costTrend')}</div>
         </div>
       </div>
 
-      {/* 趋势图 */}
-      <div class="metric-card" style="padding:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div class="metric-title">
-            {tab === 'source'
-              ? t('creditsDashboard.chatVsAutomation')
-              : tab === 'work_type'
-                ? t('creditsDashboard.workTypeTitle')
-                : t('creditsDashboard.costTrend')}
-          </div>
-          <div style="display:flex;gap:4px;">
-            {(['daily', 'weekly', 'monthly', 'source', 'work_type'] as TrendTab[]).map((tb) => (
-              <button
-                key={tb}
-                onClick={() => setTab(tb)}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  border: '1px solid var(--border)',
-                  borderRadius: 3,
-                  background: tab === tb ? 'var(--accent)' : 'transparent',
-                  color: tab === tb ? '#fff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                {t(`creditsDashboard.tab.${tb}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-        {tab === 'source' ? (
-          /* T-E-A-12: Chat vs Automation 两栏对比 — 当月费用 + 调用次数 + 自动化占比。 */
-          <div style="display:flex;gap:12px;">
-            <div
-              class="metric-card"
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderLeft: '3px solid #3b82f6',
-              }}
-            >
-              <div class="metric-title">{t('creditsDashboard.chatManual')}</div>
-              <div class="metric-value" style={{ color: '#3b82f6' }}>
-                ${chatCost.toFixed(4)}
-              </div>
-              <div style="font-size:11px;color:var(--text-secondary)">
-                {t('creditsDashboard.callsCount', { count: chatCalls })}
-              </div>
+      <div class="page-body" style="display:flex;flex-direction:column;gap:16px;">
+        {/* 预算卡片:月度预算 / 今日花费 / 缓存命中 / 省钱 */}
+        <div class="credits-overview">
+          {/* 月度预算 */}
+          <div class="credit-card">
+            <div class="credit-label">{t('creditsDashboard.totalCost')}</div>
+            <div class="credit-value" style={{ color: overBudget ? '#ff5f57' : undefined }}>
+              ${overview.total_cost_usd.toFixed(4)}
+              {budget > 0 && (
+                <span style="font-size:14px;color:rgba(255,255,255,0.3);"> / ${budget.toFixed(2)}</span>
+              )}
             </div>
-            <div
-              class="metric-card"
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderLeft: '3px solid #f59e0b',
-              }}
-            >
-              <div class="metric-title">{t('creditsDashboard.automation')}</div>
-              <div class="metric-value" style={{ color: '#f59e0b' }}>
-                ${automationCost.toFixed(4)}
-              </div>
-              <div style="font-size:11px;color:var(--text-secondary)">
-                {t('creditsDashboard.callsCount', { count: automationCalls })}
-              </div>
-            </div>
-            <div
-              class="metric-card"
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderLeft: `3px solid ${automationRatio > 50 ? '#ef4444' : 'var(--accent)'}`,
-              }}
-            >
-              <div class="metric-title">{t('creditsDashboard.automationRatio')}</div>
-              <div
-                class="metric-value"
-                style={{ color: automationRatio > 50 ? '#ef4444' : undefined }}
-              >
-                {automationRatio.toFixed(1)}%
-              </div>
-              <div style="font-size:11px;color:var(--text-secondary)">
-                {t('creditsDashboard.sourceTotal', { amount: sourceTotal.toFixed(4) })}
-              </div>
-            </div>
-          </div>
-        ) : tab === 'work_type' ? (
-          /* M6 #81: WorkType 分域 — local_only vs remote-allowed + 7 桶柱状图(每桶独立着色)。 */
-          <div class="work-type-view">
-            {/* 顶部:三栏汇总卡片 */}
-            <div style="display:flex;gap:12px;margin-bottom:12px;">
-              <div
-                class="metric-card"
-                style={{ flex: 1, padding: '12px', borderLeft: '3px solid #10b981' }}
-              >
-                <div class="metric-title">{t('creditsDashboard.workTypeLocal')}</div>
-                <div class="metric-value" style={{ color: '#10b981' }}>
-                  ${localTotal.toFixed(4)}
-                </div>
-                <div style="font-size:11px;color:var(--text-secondary)">
-                  {t('creditsDashboard.workTypeCalls', { count: localCalls })}
-                </div>
-              </div>
-              <div
-                class="metric-card"
-                style={{ flex: 1, padding: '12px', borderLeft: '3px solid #3b82f6' }}
-              >
-                <div class="metric-title">{t('creditsDashboard.workTypeRemote')}</div>
-                <div class="metric-value" style={{ color: '#3b82f6' }}>
-                  ${remoteTotal.toFixed(4)}
-                </div>
-                <div style="font-size:11px;color:var(--text-secondary)">
-                  {t('creditsDashboard.workTypeCalls', { count: remoteCalls })}
-                </div>
-              </div>
-              <div
-                class="metric-card"
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderLeft: `3px solid ${localRatio >= 50 ? '#10b981' : '#f59e0b'}`,
-                }}
-              >
-                <div class="metric-title">{t('creditsDashboard.automationRatio')}</div>
+            {budget > 0 && (
+              <div class="credit-bar">
                 <div
-                  class="metric-value"
-                  style={{ color: localRatio >= 50 ? '#10b981' : '#f59e0b' }}
-                >
-                  {localRatio.toFixed(1)}%
-                </div>
-                <div style="font-size:11px;color:var(--text-secondary)">
-                  {t('creditsDashboard.workTypeLocalRatio', { ratio: localRatio.toFixed(1) })}
-                </div>
+                  class={`credit-fill ${monthlyFillClass}`}
+                  style={`width:${Math.min(monthlyPct, 100)}%`}
+                />
               </div>
-            </div>
-
-            {/* 中部:7 桶柱状图(每桶独立着色,local_only 半透明虚线边框) */}
-            {workTypeBuckets.length === 0 ? (
-              <div class="work-type-empty">{t('common.loading')}</div>
-            ) : (
-              <svg
-                class="work-type-bar-chart"
-                width={560}
-                height={140}
-                style={{ display: 'block' }}
-              >
-                {workTypeBuckets.map((w, i) => {
-                  const meta = WORK_TYPE_META[w.source] ?? WORK_TYPE_META.unknown;
-                  const barWidth = 560 / workTypeBuckets.length;
-                  const barAreaHeight = 100;
-                  const barHeight = (w.cost_usd / maxWorkTypeCost) * barAreaHeight;
-                  const x = i * barWidth + 4;
-                  const y = barAreaHeight - barHeight + 4;
-                  const labelY = barAreaHeight + 16;
-                  const valueY = y - 4;
-                  const truncatedLabel =
-                    meta.label.length > 8 ? meta.label.slice(0, 7) + '..' : meta.label;
-                  return (
-                    <g key={w.source}>
-                      <rect
-                        x={x}
-                        y={y}
-                        width={barWidth - 8}
-                        height={barHeight}
-                        fill={meta.color}
-                        fillOpacity={meta.localOnly ? 0.55 : 0.85}
-                        stroke={meta.localOnly ? meta.color : 'none'}
-                        strokeDasharray={meta.localOnly ? '3,2' : 'none'}
-                        rx={2}
-                      />
-                      <text
-                        x={x + (barWidth - 8) / 2}
-                        y={valueY}
-                        fill="var(--text-secondary, #888)"
-                        fontSize={9}
-                        textAnchor="middle"
-                      >
-                        ${w.cost_usd.toFixed(3)}
-                      </text>
-                      <text
-                        x={x + (barWidth - 8) / 2}
-                        y={labelY}
-                        fill="var(--text-secondary, #888)"
-                        fontSize={9}
-                        textAnchor="middle"
-                      >
-                        {truncatedLabel}
-                      </text>
-                      <text
-                        x={x + (barWidth - 8) / 2}
-                        y={labelY + 12}
-                        fill="var(--text-secondary, #888)"
-                        fontSize={8}
-                        textAnchor="middle"
-                      >
-                        {w.calls}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
             )}
+            {budget > 0 && (
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:6px;">
+                {overBudget
+                  ? t('creditsDashboard.overBudget')
+                  : t('creditsDashboard.budgetRemaining', {
+                      amount: (budget - overview.total_cost_usd).toFixed(2),
+                    })}
+              </div>
+            )}
+          </div>
 
-            {/* 底部:桶明细列表(按费用降序) */}
-            <div class="work-type-list">
-              {workTypeBuckets.map((w) => {
-                const meta = WORK_TYPE_META[w.source] ?? WORK_TYPE_META.unknown;
-                return (
-                  <div
-                    key={w.source}
-                    class="work-type-row"
-                    style={{ borderLeft: `3px solid ${meta.color}` }}
-                  >
-                    <span class="work-type-label" title={w.source}>
-                      <span
-                        class="work-type-dot"
-                        style={{
-                          backgroundColor: meta.color,
-                          opacity: meta.localOnly ? 0.55 : 1,
-                        }}
-                      />
-                      {t(meta.label)}
-                    </span>
-                    <span class="work-type-cost">${w.cost_usd.toFixed(4)}</span>
-                    <span class="work-type-calls">
-                      {t('creditsDashboard.workTypeCalls', { count: w.calls })}
-                    </span>
-                    {meta.localOnly && (
-                      <span
-                        class="work-type-badge"
-                        title={t('creditsDashboard.workTypeLocalOnlyHint')}
-                      >
-                        local-only
-                      </span>
-                    )}
-                  </div>
-                );
+          {/* 今日花费 */}
+          <div class="credit-card">
+            <div class="credit-label">{t('creditsDashboard.dailyCost')}</div>
+            <div class="credit-value" style={{ color: overDailyBudget ? '#ff5f57' : undefined }}>
+              ${todayCost.toFixed(4)}
+              {dailyBudget > 0 && (
+                <span style="font-size:14px;color:rgba(255,255,255,0.3);"> / ${dailyBudget.toFixed(2)}</span>
+              )}
+            </div>
+            {dailyBudget > 0 && (
+              <div class="credit-bar">
+                <div
+                  class={`credit-fill ${dailyFillClass}`}
+                  style={`width:${Math.min(dailyPct, 100)}%`}
+                />
+              </div>
+            )}
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:6px;">
+              {dailyBudget > 0
+                ? overDailyBudget
+                  ? t('creditsDashboard.overDailyBudget')
+                  : t('creditsDashboard.dailyBudgetRemaining', {
+                      amount: (dailyBudget - todayCost).toFixed(2),
+                    })
+                : t('creditsDashboard.dailyBudgetNotSet')}
+            </div>
+          </div>
+
+          {/* 缓存命中率 */}
+          <div class="credit-card">
+            <div class="credit-label">{t('creditsDashboard.cacheHitRate')}</div>
+            <div class="credit-value">{cacheHitRate.toFixed(1)}%</div>
+            <div class="credit-bar">
+              <div
+                class={`credit-fill ${cacheFillClass}`}
+                style={`width:${Math.min(cacheHitRate, 100)}%`}
+              />
+            </div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:6px;">
+              {overview.semantic_cache_hits} / {cacheTotal}
+            </div>
+          </div>
+
+          {/* 省钱 */}
+          <div class="credit-card">
+            <div class="credit-label">{t('creditsDashboard.saved')}</div>
+            <div class="credit-value">${overview.cost_saved_usd.toFixed(4)}</div>
+            <div class="credit-bar">
+              <div class="credit-fill green" style="width:100%" />
+            </div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:6px;">
+              {t('creditsDashboard.prefixCacheTokens', {
+                count: overview.prefix_cache_cached_tokens,
               })}
             </div>
           </div>
-        ) : (
-          <Sparkline data={trendData} width={560} height={80} threshold={monthlyBudgetThreshold} />
-        )}
-      </div>
+        </div>
 
-      {/* 分桶图 */}
-      <div style="display:flex;gap:12px;">
-        <div class="metric-card" style="flex:1;padding:12px;">
-          <div class="metric-title" style="margin-bottom:8px;">
+        {/* 趋势图 */}
+        <div class="stat-card" style="padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="stat-label" style="margin-bottom:0;">
+              {tab === 'source'
+                ? t('creditsDashboard.chatVsAutomation')
+                : tab === 'work_type'
+                  ? t('creditsDashboard.workTypeTitle')
+                  : t('creditsDashboard.costTrend')}
+            </div>
+            <div class="page-actions">
+              {(['daily', 'weekly', 'monthly', 'source', 'work_type'] as TrendTab[]).map((tb) => (
+                <button
+                  key={tb}
+                  onClick={() => setTab(tb)}
+                  class={`tool-btn ${tab === tb ? 'tool-btn-primary' : ''}`}
+                  style={{ cursor: 'pointer', border: 'none' }}
+                >
+                  {t(`creditsDashboard.tab.${tb}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {tab === 'source' ? (
+            /* T-E-A-12: Chat vs Automation 两栏对比 — 当月费用 + 调用次数 + 自动化占比。 */
+            <div style="display:flex;gap:12px;">
+              <div
+                class="stat-card"
+                style={{ flex: 1, padding: '12px', borderLeft: '3px solid #3b82f6' }}
+              >
+                <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.chatManual')}</div>
+                <div class="stat-value" style={{ color: '#3b82f6', fontSize: '20px' }}>
+                  ${chatCost.toFixed(4)}
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                  {t('creditsDashboard.callsCount', { count: chatCalls })}
+                </div>
+              </div>
+              <div
+                class="stat-card"
+                style={{ flex: 1, padding: '12px', borderLeft: '3px solid #f59e0b' }}
+              >
+                <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.automation')}</div>
+                <div class="stat-value" style={{ color: '#f59e0b', fontSize: '20px' }}>
+                  ${automationCost.toFixed(4)}
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                  {t('creditsDashboard.callsCount', { count: automationCalls })}
+                </div>
+              </div>
+              <div
+                class="stat-card"
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderLeft: `3px solid ${automationRatio > 50 ? '#ff5f57' : '#0A84FF'}`,
+                }}
+              >
+                <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.automationRatio')}</div>
+                <div
+                  class="stat-value"
+                  style={{ color: automationRatio > 50 ? '#ff5f57' : undefined, fontSize: '20px' }}
+                >
+                  {automationRatio.toFixed(1)}%
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                  {t('creditsDashboard.sourceTotal', { amount: sourceTotal.toFixed(4) })}
+                </div>
+              </div>
+            </div>
+          ) : tab === 'work_type' ? (
+            /* M6 #81: WorkType 分域 — local_only vs remote-allowed + 7 桶柱状图(每桶独立着色)。 */
+            <div class="work-type-view">
+              {/* 顶部:三栏汇总卡片 */}
+              <div style="display:flex;gap:12px;margin-bottom:12px;">
+                <div
+                  class="stat-card"
+                  style={{ flex: 1, padding: '12px', borderLeft: '3px solid #10b981' }}
+                >
+                  <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.workTypeLocal')}</div>
+                  <div class="stat-value" style={{ color: '#10b981', fontSize: '20px' }}>
+                    ${localTotal.toFixed(4)}
+                  </div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                    {t('creditsDashboard.workTypeCalls', { count: localCalls })}
+                  </div>
+                </div>
+                <div
+                  class="stat-card"
+                  style={{ flex: 1, padding: '12px', borderLeft: '3px solid #3b82f6' }}
+                >
+                  <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.workTypeRemote')}</div>
+                  <div class="stat-value" style={{ color: '#3b82f6', fontSize: '20px' }}>
+                    ${remoteTotal.toFixed(4)}
+                  </div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                    {t('creditsDashboard.workTypeCalls', { count: remoteCalls })}
+                  </div>
+                </div>
+                <div
+                  class="stat-card"
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderLeft: `3px solid ${localRatio >= 50 ? '#10b981' : '#f59e0b'}`,
+                  }}
+                >
+                  <div class="stat-label" style="margin-bottom:0;">{t('creditsDashboard.automationRatio')}</div>
+                  <div
+                    class="stat-value"
+                    style={{ color: localRatio >= 50 ? '#10b981' : '#f59e0b', fontSize: '20px' }}
+                  >
+                    {localRatio.toFixed(1)}%
+                  </div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.4);">
+                    {t('creditsDashboard.workTypeLocalRatio', { ratio: localRatio.toFixed(1) })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 中部:7 桶柱状图(每桶独立着色,local_only 半透明虚线边框) */}
+              {workTypeBuckets.length === 0 ? (
+                <div class="work-type-empty">{t('common.loading')}</div>
+              ) : (
+                <svg
+                  class="work-type-bar-chart"
+                  width={560}
+                  height={140}
+                  style={{ display: 'block' }}
+                >
+                  {workTypeBuckets.map((w, i) => {
+                    const meta = WORK_TYPE_META[w.source] ?? WORK_TYPE_META.unknown;
+                    const barWidth = 560 / workTypeBuckets.length;
+                    const barAreaHeight = 100;
+                    const barHeight = (w.cost_usd / maxWorkTypeCost) * barAreaHeight;
+                    const x = i * barWidth + 4;
+                    const y = barAreaHeight - barHeight + 4;
+                    const labelY = barAreaHeight + 16;
+                    const valueY = y - 4;
+                    const truncatedLabel =
+                      meta.label.length > 8 ? meta.label.slice(0, 7) + '..' : meta.label;
+                    return (
+                      <g key={w.source}>
+                        <rect
+                          x={x}
+                          y={y}
+                          width={barWidth - 8}
+                          height={barHeight}
+                          fill={meta.color}
+                          fillOpacity={meta.localOnly ? 0.55 : 0.85}
+                          stroke={meta.localOnly ? meta.color : 'none'}
+                          strokeDasharray={meta.localOnly ? '3,2' : 'none'}
+                          rx={2}
+                        />
+                        <text
+                          x={x + (barWidth - 8) / 2}
+                          y={valueY}
+                          fill="var(--text-secondary, #888)"
+                          fontSize={9}
+                          textAnchor="middle"
+                        >
+                          ${w.cost_usd.toFixed(3)}
+                        </text>
+                        <text
+                          x={x + (barWidth - 8) / 2}
+                          y={labelY}
+                          fill="var(--text-secondary, #888)"
+                          fontSize={9}
+                          textAnchor="middle"
+                        >
+                          {truncatedLabel}
+                        </text>
+                        <text
+                          x={x + (barWidth - 8) / 2}
+                          y={labelY + 12}
+                          fill="var(--text-secondary, #888)"
+                          fontSize={8}
+                          textAnchor="middle"
+                        >
+                          {w.calls}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              )}
+
+              {/* 底部:桶明细列表(按费用降序) */}
+              <div class="work-type-list">
+                {workTypeBuckets.map((w) => {
+                  const meta = WORK_TYPE_META[w.source] ?? WORK_TYPE_META.unknown;
+                  return (
+                    <div
+                      key={w.source}
+                      class="work-type-row"
+                      style={{ borderLeft: `3px solid ${meta.color}` }}
+                    >
+                      <span class="work-type-label" title={w.source}>
+                        <span
+                          class="work-type-dot"
+                          style={{
+                            backgroundColor: meta.color,
+                            opacity: meta.localOnly ? 0.55 : 1,
+                          }}
+                        />
+                        {t(meta.label)}
+                      </span>
+                      <span class="work-type-cost">${w.cost_usd.toFixed(4)}</span>
+                      <span class="work-type-calls">
+                        {t('creditsDashboard.workTypeCalls', { count: w.calls })}
+                      </span>
+                      {meta.localOnly && (
+                        <span
+                          class="work-type-badge"
+                          title={t('creditsDashboard.workTypeLocalOnlyHint')}
+                        >
+                          local-only
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <Sparkline data={trendData} width={560} height={80} threshold={monthlyBudgetThreshold} />
+          )}
+        </div>
+
+        {/* Provider 分布条形图 */}
+        <div class="stat-card" style="padding:16px;">
+          <div class="stat-label" style="margin-bottom:10px;">
             {t('creditsDashboard.byProvider')}
           </div>
-          <BarChart
-            data={overview.by_provider.map((p) => ({ label: p.provider, value: p.cost_usd }))}
-            width={270}
-            height={120}
-            color="#3b82f6"
-            valueFormatter={(v) => `$${v.toFixed(3)}`}
-          />
+          <div class="provider-list">
+            {overview.by_provider.map((p) => {
+              const pct = (p.cost_usd / maxProviderCost) * 100;
+              return (
+                <div class="provider-row" key={p.provider}>
+                  <span class="provider-name">{p.provider}</span>
+                  <div class="provider-bar">
+                    <div class="provider-fill" style={`width:${pct}%`} />
+                  </div>
+                  <span class="provider-cost">${p.cost_usd.toFixed(2)}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div class="metric-card" style="flex:1;padding:12px;">
-          <div class="metric-title" style="margin-bottom:8px;">
+
+        {/* Agent 分布 */}
+        <div class="stat-card" style="padding:16px;">
+          <div class="stat-label" style="margin-bottom:10px;">
             {t('creditsDashboard.byAgent')}
           </div>
           <BarChart
             data={overview.by_agent.map((a) => ({ label: a.provider, value: a.cost_usd }))}
-            width={270}
+            width={560}
             height={120}
             color="#8b5cf6"
             valueFormatter={(v) => `$${v.toFixed(3)}`}

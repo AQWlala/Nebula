@@ -31,7 +31,8 @@ export type View =
   | 'credits'
   | 'diagnostics'
   | 'shadow'
-  | 'longtask';
+  | 'longtask'
+  | 'settings';
 
 class nebulaStoreClass {
   ready = signal(false);
@@ -68,7 +69,7 @@ class nebulaStoreClass {
    *  放在 store 而非 App local state,以便 ChatPanel `/journey` 命令跨组件触发。 */
   memoryView = signal<'map' | 'list' | 'timeline'>('map');
   /** T-E-B-02: 顶层视图路由(原 App.tsx currentMode)。 */
-  currentMode = signal<View>('code');
+  currentMode = signal<View>('chat');
 
   async bootstrap(): Promise<void> {
     await nebulaAPI.bootstrap();

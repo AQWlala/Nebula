@@ -754,14 +754,13 @@ export function ChatPanel() {
 
   return (
     <div class="panel chat-panel">
-      <div class="panel-header">
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span class="panel-title">{t('chatPanel.title')}</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-            {t('chatPanel.subtitle')}
-          </span>
+      {/* macOS 风格页面头：标题 + 副标题 + 工具按钮区 */}
+      <div class="page-header">
+        <div>
+          <div class="page-title">{t('chatPanel.title')}</div>
+          <div class="page-subtitle">{t('chatPanel.subtitle')}</div>
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div class="page-actions">
           {/* P0-3: 对话宽度 4 档切换按钮组 */}
           <div class="chat-width-toggle" role="group" aria-label="对话宽度">
             {WIDTH_MODE_ORDER.map((mode) => {
@@ -781,6 +780,7 @@ export function ChatPanel() {
           </div>
           {/* P1-9: 时间戳显示切换按钮 */}
           <button
+            class="tool-btn"
             onClick={() => {
               const next = !showTimestamps;
               setShowTimestamps(next);
@@ -792,64 +792,21 @@ export function ChatPanel() {
             }}
             title={showTimestamps ? '隐藏时间戳' : '显示时间戳'}
             aria-pressed={showTimestamps}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              background: showTimestamps ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
-              color: showTimestamps ? 'var(--accent-purple, #a855f7)' : 'var(--text-muted)',
-              transition: 'all 0.15s',
-            }}
+            style={showTimestamps ? { background: 'rgba(168, 85, 247, 0.12)', color: 'var(--accent-purple, #a855f7)' } : undefined}
           >
-            {showTimestamps ? '🕐' : '⏰'}
+            🕐
           </button>
           <button
+            class="tool-btn"
             onClick={() => setShowTemplatesDialog(true)}
             title={t('chatPanel.templatesTitle')}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-neon)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-            }}
           >
             {t('chatPanel.templates')}
           </button>
           <button
+            class="tool-btn"
             onClick={() => setShowExportDialog(true)}
             title={t('chatPanel.exportTitle')}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-neon)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-            }}
           >
             {t('chatPanel.exportLabel')}
           </button>
@@ -992,7 +949,9 @@ export function ChatPanel() {
         )}
       </div>
 
-      <div class="chat-input chat-input-wrapper" style={{ position: 'relative' }}>
+      {/* macOS 风格输入区：毛玻璃容器 + 圆形发送按钮 */}
+      <div class="chat-input-area">
+        <div class="chat-input-wrapper" style={{ position: 'relative' }}>
         {/* T-E-S-51: Level 0 内联补全 — 仅在自主度 L0 时启用(组件内部判断)。 */}
         <InlineSuggestion
           prefix={input}
@@ -1003,6 +962,7 @@ export function ChatPanel() {
         >
           {({ onKeyDown }) => (
             <input
+              class="chat-input"
               type="text"
               // P1-9: autoFocus 挂载时自动聚焦,ref 用于后续编程式聚焦
               autoFocus
@@ -1180,21 +1140,27 @@ export function ChatPanel() {
             ))}
           </div>
         )}
+        {/* 圆形发送按钮（流式时变为停止按钮） */}
         {streaming ? (
           <button
-            class="btn btn-stop"
+            class="chat-send-btn"
             onClick={stopStreaming}
             title={t('chatPanel.stopButtonTitle')}
           >
-            {t('chatPanel.stopButton')}
+            ⏹
           </button>
         ) : (
           <>
-            <button class="btn" onClick={sendStream} disabled={loading || !input.trim()}>
-              {t('chatPanel.send')}
+            <button
+              class="chat-send-btn"
+              onClick={sendStream}
+              disabled={loading || !input.trim()}
+              title={t('chatPanel.send')}
+            >
+              ↑
             </button>
             <button
-              class="btn btn-secondary"
+              class="tool-btn"
               onClick={send}
               disabled={loading || !input.trim()}
               title={t('chatPanel.nonStreamingTitle')}
@@ -1207,6 +1173,7 @@ export function ChatPanel() {
         {input.length > 0 && (
           <span class="char-counter">{input.length}</span>
         )}
+        </div>
       </div>
       {showExportDialog && (
         <ExportDialog messages={messages} onClose={() => setShowExportDialog(false)} />

@@ -70,14 +70,33 @@ export function setLocale(l: Locale): void {
 export function t(key: keyof Dict, vars?: Record<string, string | number>): string {
   const locale = currentLocale.value;
   const dict = DICTS[locale] || DICTS['en-US'];
-  const raw =
-    (dict as Record<string, string>)[key as string] ??
-    (DICTS['en-US'] as Record<string, string>)[key as string] ??
-    key;
-  if (!vars) return raw;
+  // v3.0: 支持嵌套对象查找（如 'nav.chat' / 'settings.general'）。
+  // 先尝试扁平 key 查找,再尝试点号路径嵌套查找。
+  const flat = (dict as Record<string, unknown>)[key as string];
+  const flatFallback = (DICTS['en-US'] as Record<string, unknown>)[key as string];
+  let raw: unknown = flat ?? flatFallback ?? key;
+  if (typeof raw !== 'string' && typeof key === 'string' && key.includes('.')) {
+    const parts = key.split('.');
+    let cur: unknown = dict;
+    for (const p of parts) {
+      cur = (cur as Record<string, unknown>)?.[p];
+      if (cur === undefined) break;
+    }
+    if (typeof cur === 'string') raw = cur;
+    else {
+      let cur2: unknown = DICTS['en-US'];
+      for (const p of parts) {
+        cur2 = (cur2 as Record<string, unknown>)?.[p];
+        if (cur2 === undefined) break;
+      }
+      if (typeof cur2 === 'string') raw = cur2;
+    }
+  }
+  const rawStr = typeof raw === 'string' ? raw : String(key);
+  if (!vars) return rawStr;
   return Object.entries(vars).reduce(
     (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)),
-    raw
+    rawStr
   );
 }
 

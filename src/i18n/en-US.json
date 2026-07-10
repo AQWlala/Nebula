@@ -1242,5 +1242,38 @@
   "shadowWorkspace.confirmAbortTitle": "Confirm discard",
   "shadowWorkspace.confirmMergeBody": "Will merge the Agent branch changes back to the base branch. The worktree will be cleaned up after merge.",
   "shadowWorkspace.confirmAbortBody": "Will forcefully clean up the worktree and delete the branch. All unmerged changes will be lost. This action is irreversible.",
-  "shadowWorkspace.dialogCancel": "Cancel"
+  "shadowWorkspace.dialogCancel": "Cancel",
+
+  "nav": {
+    "groups": { "favorites": "Favorites", "work": "Work", "monitor": "Monitor", "advanced": "Advanced", "system": "System" },
+    "chat": "Chat",
+    "swarm": "Swarm",
+    "memory": "Memory",
+    "code": "Code",
+    "skills": "Skills",
+    "dashboard": "Dashboard",
+    "credits": "Credits",
+    "diagnostics": "Diagnostics",
+    "shadow": "Shadow Workspace",
+    "longtask": "Long Tasks",
+    "settings": "Settings"
+  },
+
+  "settings": {
+    "title": "Settings",
+    "subtitle": "System Config",
+    "general": "General",
+    "appearance": "Appearance",
+    "autonomy": "Autonomy",
+    "models": "Models",
+    "multimodal": "Multimodal",
+    "vision": "Vision",
+    "audio": "Audio",
+    "video": "Video",
+    "heartbeat": "Heartbeat",
+    "browser": "Browser",
+    "about": "About",
+    "save": "Save",
+    "reset": "Reset to Defaults"
+  }
 }

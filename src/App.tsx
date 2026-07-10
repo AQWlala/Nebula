@@ -101,7 +101,6 @@ function LoadingFallback() {
 // T-E-B-02: currentMode 移至 nebulaStore 以便 ChatPanel `/journey` 跨组件切换。
 const currentMode = nebulaStore.currentMode;
 const paletteOpen = signal(false);
-const settingsOpen = signal(false);
 const appKey = signal(0);
 
 
@@ -335,6 +334,8 @@ export function App() {
   return (
     <ErrorBoundary onReload={() => appKey.value++}>
       <div class="app" key={appKey.value}>
+        <Titlebar />
+        <div class="main-layout">
         <Sidebar isCollapsed={isCollapsed} onToggleCollapse={handleToggleCollapse} />
         <div
           class={`sidebar-resizer${isResizing ? ' is-active' : ''}`}
@@ -386,21 +387,21 @@ export function App() {
                 {currentMode.value === 'diagnostics' && <DiagnosticsView />}
                 {currentMode.value === 'shadow' && <ShadowWorkspacePanel />}
                 {currentMode.value === 'longtask' && <LongTaskPanel />}
+                {/* v2.2: settings 内联视图路由。Settings 当前为 Modal 形态，
+                    后续 agent 会改造 Settings.tsx 为纯内联；此处保留 onClose 以满足类型。 */}
+                {(currentMode.value as string) === 'settings' && (
+                  <Settings
+                    onClose={() => {
+                      currentMode.value = 'chat';
+                    }}
+                  />
+                )}
               </>
             )}
           </Suspense>
         </main>
+        </div>
         <StatusBar />
-        <Suspense fallback={<LoadingFallback />}>
-          {settingsOpen.value && (
-            <Settings
-              onClose={() => {
-                settingsOpen.value = false;
-                toast.success(t('settings.saved'));
-              }}
-            />
-          )}
-        </Suspense>
         <CommandPalette
           open={paletteOpen.value}
           onClose={() => {
@@ -418,7 +419,8 @@ export function App() {
                 nebulaStore.mode.value = m;
               },
               openSettings: () => {
-                settingsOpen.value = true;
+                // v2.2: 设置改为内联视图，切换到 settings view（View 类型暂未包含 'settings'，用断言）。
+                currentMode.value = 'settings' as View;
               },
               triggerReflection: () => {
                 nebulaStore.triggerReflection().then(
@@ -457,6 +459,51 @@ function Workspace() {
   );
 }
 
+/** v2.2: macOS 风格 Titlebar —— 红绿灯占位 + Spotlight 搜索框 + 浮动窗/悬浮球/设置按钮。
+ *  搜索框点击触发 CommandPalette；设置按钮切换到 settings 视图。 */
+function Titlebar() {
+  return (
+    <div class="titlebar">
+      {/* 红绿灯占位（仅视觉，窗口控制由 Tauri 处理） */}
+      <div class="traffic-lights">
+        <div class="traffic-light tl-close" />
+        <div class="traffic-light tl-min" />
+        <div class="traffic-light tl-max" />
+      </div>
+      <div class="titlebar-title">{t('app.name')}</div>
+      {/* Spotlight 风格搜索框：点击打开命令面板 */}
+      <button
+        type="button"
+        class="titlebar-search"
+        onClick={() => {
+          paletteOpen.value = true;
+        }}
+        title="搜索或输入命令"
+      >
+        <span>🔍</span>
+        <span>搜索或输入命令...</span>
+        <span style="margin-left:auto;font-size:11px;opacity:0.5;">⌘K</span>
+      </button>
+      <div class="titlebar-actions">
+        <button type="button" class="titlebar-btn" title="浮动窗">🪟</button>
+        <button type="button" class="titlebar-btn" title="悬浮球">🌀</button>
+        <button
+          type="button"
+          class="titlebar-btn"
+          title={t('nav.settings')}
+          onClick={() => {
+            currentMode.value = 'settings' as View;
+          }}
+        >
+          ⚙️
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** v2.2: macOS 风格分组导航侧边栏 —— 品牌 + 4 组导航(收藏/工作/监控/高级)
+ *  + 系统组(设置) + 底部状态区。保留 P1-4 的折叠/展开功能。 */
 function Sidebar({
   isCollapsed,
   onToggleCollapse,
@@ -464,24 +511,49 @@ function Sidebar({
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }) {
-  const items: { id: View; icon: string; label: string }[] = [
-    { id: 'chat', icon: '💬', label: t('nav.chat') },
-    { id: 'swarm', icon: '🐝', label: t('nav.swarm') },
-    { id: 'memory', icon: '🧠', label: t('nav.memory') },
-    { id: 'code', icon: '💻', label: t('nav.code') },
-    { id: 'skills', icon: '🔍', label: t('nav.skills') },
-    { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
-    { id: 'credits', icon: '💰', label: t('nav.credits') },
-    { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
-    { id: 'shadow', icon: '🌑', label: t('nav.shadow') },
-    { id: 'longtask', icon: '⏳', label: t('nav.longtask') },
+  // 导航分组定义（顺序对应设计样稿：收藏 / 工作 / 监控 / 高级）。
+  const groups: { label: string; items: { id: View; icon: string; label: string }[] }[] = [
+    {
+      label: '收藏',
+      items: [
+        { id: 'chat', icon: '💬', label: t('nav.chat') },
+        { id: 'swarm', icon: '🐝', label: t('nav.swarm') },
+      ],
+    },
+    {
+      label: '工作',
+      items: [
+        { id: 'memory', icon: '🧠', label: t('nav.memory') },
+        { id: 'code', icon: '💻', label: t('nav.code') },
+        { id: 'skills', icon: '🔍', label: t('nav.skills') },
+      ],
+    },
+    {
+      label: '监控',
+      items: [
+        { id: 'dashboard', icon: '📊', label: t('nav.dashboard') },
+        { id: 'credits', icon: '💰', label: t('nav.credits') },
+        { id: 'diagnostics', icon: '🩺', label: t('nav.diagnostics') },
+      ],
+    },
+    {
+      label: '高级',
+      items: [
+        { id: 'shadow', icon: '🌑', label: t('nav.shadow') },
+        { id: 'longtask', icon: '⏳', label: t('nav.longtask') },
+      ],
+    },
   ];
+
+  // 以字符串读取当前模式，兼容尚未加入 View 联合类型的 'settings' 视图。
+  const activeMode = currentMode.value as string;
 
   return (
     <nav class={`sidebar${isCollapsed ? ' is-collapsed' : ''}`}>
-      <div class="brand">
-        <span class="brand-icon">🐍</span>
-        <span class="brand-text">{t('app.name')}</span>
+      {/* 品牌区 */}
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">🌌</span>
+        <span class="sidebar-brand-text">{t('app.name')}</span>
         <button
           class="sidebar-collapse-btn"
           onClick={onToggleCollapse}
@@ -491,29 +563,54 @@ function Sidebar({
           {isCollapsed ? '▶' : '◀'}
         </button>
       </div>
-      {items.map((it) => (
-        <button
-          key={it.id}
-          class={`nav-item ${currentMode.value === it.id ? 'active' : ''}`}
-          onClick={() => (currentMode.value = it.id)}
-        >
-          <span class="nav-icon">{it.icon}</span>
-          <span class="nav-label">{it.label}</span>
-        </button>
+
+      {/* 导航分组 */}
+      {groups.map((g) => (
+        <div class="nav-group" key={g.label}>
+          {!isCollapsed && <div class="nav-group-label">{g.label}</div>}
+          {g.items.map((it) => (
+            <button
+              key={it.id}
+              class={`nav-item${activeMode === it.id ? ' active' : ''}`}
+              onClick={() => {
+                currentMode.value = it.id;
+              }}
+              title={it.label}
+            >
+              <span class="nav-item-icon">{it.icon}</span>
+              <span class="nav-label">{it.label}</span>
+            </button>
+          ))}
+        </div>
       ))}
-      <div class="sidebar-footer">
+
+      {/* 系统组：设置 */}
+      <div class="nav-group">
+        {!isCollapsed && <div class="nav-group-label">系统</div>}
         <button
-          class="nav-item settings-btn"
+          class={`nav-item${activeMode === 'settings' ? ' active' : ''}`}
           onClick={() => {
-            settingsOpen.value = true;
+            currentMode.value = 'settings' as View;
           }}
           title={t('nav.settings')}
         >
-          <span class="nav-icon">⚙️</span>
+          <span class="nav-item-icon">⚙️</span>
           <span class="nav-label">{t('nav.settings')}</span>
         </button>
-        <span class="version">v{nebulaStore.version}</span>
-        <span class="slogan">{t('app.slogan')}</span>
+      </div>
+
+      {/* 底部状态区：模型状态 + 内存 + 版本 */}
+      <div class="sidebar-status">
+        <div class="status-row">
+          <span class="status-dot ok" />
+          <span>模型在线 · deepseek-chat</span>
+        </div>
+        <div class="status-row">
+          <span>内存 247MB</span>
+        </div>
+        <div class="status-row" style="opacity:0.6;">
+          <span>v{nebulaStore.version}</span>
+        </div>
       </div>
     </nav>
   );

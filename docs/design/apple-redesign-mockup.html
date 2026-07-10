@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nebula · 知识星云 — 设计样稿</title>
+<style>
+:root {
+  --bg-root: #0d0d0d;
+  --bg-elevated: #1c1c1e;
+  --bg-card: #252527;
+  --bg-hover: #2c2c2e;
+  --bg-active: #3a3a3c;
+  --bg-glass: rgba(28, 28, 30, 0.82);
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.12);
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --text-tertiary: #6d6d72;
+  --text-placeholder: #48484a;
+  --accent: #5e5ce6;
+  --accent-hover: #6e6cf0;
+  --accent-subtle: rgba(94, 92, 230, 0.15);
+  --accent-text: #a5a3f7;
+  --green: #30d158; --orange: #ff9f0a; --red: #ff453a;
+  --blue: #0a84ff; --cyan: #64d2ff; --purple: #bf5af2;
+  --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-xl: 16px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+  --transition-fast: 150ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-smooth: 250ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font-sans);font-size:13px;line-height:1.5;background:var(--bg-root);color:var(--text-primary);-webkit-font-smoothing:antialiased;user-select:none}
+button{font:inherit;border:none;cursor:pointer;background:none;color:inherit}
+input,textarea{font:inherit;border:none;outline:none;background:none;color:inherit}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:100px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+.app{display:flex;height:100vh}
+.sidebar{width:220px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg-glass);backdrop-filter:blur(40px) saturate(140%);-webkit-backdrop-filter:blur(40px) saturate(140%);border-right:1px solid var(--border);z-index:10}
+.sidebar.is-collapsed{width:56px}
+.sidebar.is-collapsed .brand-text,.sidebar.is-collapsed .nav-label,.sidebar.is-collapsed .sidebar-footer-text{display:none}
+.sidebar.is-collapsed .nav-item{justify-content:center;padding:10px 0}
+.sidebar-brand{display:flex;align-items:center;gap:10px;padding:14px 16px;height:48px;border-bottom:1px solid var(--border)}
+.sidebar-brand-icon{width:22px;height:22px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+.sidebar-brand-text{font-weight:700;font-size:15px;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--text-primary),var(--accent-text));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-collapse-btn{margin-left:auto;opacity:0.4;transition:opacity var(--transition-fast);display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--radius-sm)}
+.sidebar-collapse-btn:hover{opacity:0.8;background:var(--bg-hover)}
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;height:34px;border-radius:var(--radius);font-size:13px;font-weight:450;color:var(--text-secondary);transition:all var(--transition-fast);text-decoration:none}
+.nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.nav-item.active{background:var(--accent-subtle);color:var(--accent-text);font-weight:550}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:0.7}
+.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;font-size:11px;font-weight:600;background:var(--bg-active);color:var(--text-secondary);padding:1px 6px;border-radius:100px}
+.sidebar-footer{padding:12px 8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.sidebar-footer .version{font-size:11px;color:var(--text-tertiary);padding:0 12px}
+.sidebar-resizer{width:3px;flex-shrink:0;cursor:col-resize;background:transparent;transition:background var(--transition-fast)}
+.sidebar-resizer:hover,.sidebar-resizer.active{background:var(--accent)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg-elevated);-webkit-app-region:drag}
+.topbar-title{font-weight:600;font-size:14px;color:var(--text-primary)}
+.topbar-actions{margin-left:auto;display:flex;gap:4px;-webkit-app-region:no-drag}
+.topbar-btn{width:30px;height:30px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:all var(--transition-fast)}
+.topbar-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.topbar-btn svg{width:16px;height:16px}
+
+
+.content{flex:1;overflow-y:auto;padding:24px}
+.content-inner{max-width:960px;margin:0 auto}
+.segmented{display:inline-flex;background:var(--bg-card);border-radius:var(--radius);padding:2px;border:1px solid var(--border)}
+.segmented button{padding:5px 16px;border-radius:6px;font-size:12px;font-weight:500;color:var(--text-secondary);transition:all var(--transition-fast)}
+.segmented button.active{background:var(--bg-active);color:var(--text-primary)}
+.segmented button:hover:not(.active){color:var(--text-primary)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;transition:border-color var(--transition-fast)}
+.card:hover{border-color:var(--border-strong)}
+.card-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.card-header-icon{width:32px;height:32px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:15px}
+.card-title{font-weight:600;font-size:13px;color:var(--text-secondary)}
+.card-value{font-size:28px;font-weight:700;color:var(--text-primary);letter-spacing:-0.02em}
+.card-sub{font-size:12px;color:var(--text-tertiary);margin-top:4px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+.section{margin-bottom:28px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:15px;font-weight:650}
+.table-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.table-row{display:grid;grid-template-columns:1fr 140px 100px;gap:16px;padding:12px 20px;align-items:center;border-bottom:1px solid var(--border);font-size:13px}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:var(--bg-hover)}
+.table-row.header{font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em}
+.table-row.header:hover{background:transparent}
+.statusbar{height:28px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 14px;font-size:11px;color:var(--text-tertiary);background:var(--bg-card);border-top:1px solid var(--border)}
+.statusbar-dot{width:6px;height:6px;border-radius:50%}
+.statusbar-dot.online{background:var(--green)}
+.statusbar-spacer{flex:1}
+.chat-container{max-width:760px;margin:0 auto}
+.chat-message{display:flex;gap:12px;padding:14px 0;animation:msgIn 300ms ease-out}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.chat-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+.chat-avatar.user{background:var(--accent-subtle);color:var(--accent-text)}
+.chat-avatar.agent{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff}
+.chat-bubble{background:var(--bg-card);border-radius:var(--radius-lg);padding:12px 16px;max-width:100%;line-height:1.6;border:1px solid var(--border)}
+.chat-bubble.user{background:var(--accent-subtle);border-color:rgba(94,92,230,0.2)}
+.chat-bubble p{margin-bottom:8px}
+.chat-bubble p:last-child{margin-bottom:0}
+.chat-bubble pre{background:var(--bg-root);border-radius:var(--radius);padding:12px;font-family:var(--font-mono);font-size:12px;overflow-x:auto;margin:8px 0;border:1px solid var(--border)}
+.chat-bubble code{font-family:var(--font-mono);font-size:12px;background:var(--bg-root);padding:1px 5px;border-radius:4px}
+.chat-bubble ol{margin-bottom:8px}
+.chat-input-wrap{position:sticky;bottom:0;padding:16px 0}
+.chat-input-bar{display:flex;align-items:flex-end;gap:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:8px 14px;transition:border-color var(--transition-fast)}
+.chat-input-bar:focus-within{border-color:var(--accent)}
+.chat-input-bar textarea{flex:1;resize:none;min-height:24px;max-height:120px;font-size:13px;line-height:1.5;padding:4px 0}
+.chat-input-bar textarea::placeholder{color:var(--text-placeholder)}
+.chat-send-btn{width:32px;height:32px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;transition:all var(--transition-fast);flex-shrink:0}
+.chat-send-btn:hover{background:var(--accent-hover)}
+.chat-send-btn svg{width:16px;height:16px}
+.memory-viz{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;position:relative;overflow:hidden}
+.memory-node{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;transition:transform var(--transition-smooth);cursor:pointer}
+.memory-node:hover{transform:scale(1.15);z-index:5}
+.memory-node.l0{background:rgba(10,132,255,0.7)}
+.memory-node.l1{background:rgba(48,209,88,0.7)}
+.memory-node.l2{background:rgba(255,159,10,0.7)}
+.memory-node.l3{background:rgba(191,90,242,0.7)}
+.memory-node.l4{background:rgba(94,92,230,0.8)}
+.memory-node.l5{background:rgba(255,69,58,0.8)}
+.memory-edge{position:absolute;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04));transform-origin:left center;pointer-events:none}
+
+
+.swarm-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.agent-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;transition:all var(--transition-fast)}
+.agent-card:hover{border-color:var(--border-strong)}
+.agent-card.status-running{border-color:var(--accent)}
+.agent-card.status-completed{border-color:var(--green)}
+.agent-card.status-failed{border-color:var(--red)}
+.agent-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.agent-avatar{width:36px;height:36px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:18px}
+.agent-name{font-weight:650;font-size:14px}
+.agent-status{font-size:11px;padding:2px 8px;border-radius:100px;margin-left:auto;font-weight:500}
+.agent-status.running{background:rgba(94,92,230,0.2);color:var(--accent-text)}
+.agent-status.completed{background:rgba(48,209,88,0.2);color:var(--green)}
+.agent-status.failed{background:rgba(255,69,58,0.2);color:var(--red)}
+.agent-log{background:var(--bg-root);border-radius:var(--radius);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);max-height:160px;overflow-y:auto;line-height:1.6}
+.code-layout{display:flex;height:100%}
+.code-sidebar{width:200px;flex-shrink:0;background:var(--bg-elevated);border-right:1px solid var(--border);padding:12px 0}
+.code-tree-item{display:flex;align-items:center;gap:8px;padding:5px 16px;font-size:12px;color:var(--text-secondary);cursor:pointer}
+.code-tree-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.code-tree-item svg{width:14px;height:14px;opacity:0.6}
+.code-editor{flex:1;background:var(--bg-root);padding:16px;font-family:var(--font-mono);font-size:13px;color:var(--text-secondary);line-height:1.7;overflow-y:auto}
+.code-line{display:flex}
+.code-line-num{width:40px;color:var(--text-tertiary);text-align:right;padding-right:16px;flex-shrink:0}
+.code-kw{color:var(--purple)}.code-str{color:var(--green)}.code-fn{color:var(--blue)}.code-cm{color:var(--text-tertiary);font-style:italic}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;transition:all var(--transition-fast)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary)}
+.btn-secondary:hover{background:var(--bg-hover);border-color:var(--border-strong)}
+.btn-ghost{color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:var(--radius-sm)}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:500;background:var(--bg-hover);color:var(--text-secondary)}
+.progress-bar{height:4px;background:var(--bg-hover);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:var(--accent);transition:width 600ms ease-out}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.pulse{animation:pulse 2s infinite}
+.view{display:none}
+.view.active{display:flex;flex-direction:column;flex:1;min-height:0}
+.card label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.card select,.card input[type=range]{width:100%;margin-bottom:16px}
+.card select{padding:8px 12px;background:var(--bg-root);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--text-primary)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.fade-in{animation:fadeIn 300ms ease-out}
+</style>
+</head>
+<body>
+<div class="app">
+
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">N</div>
+      <span class="sidebar-brand-text">Nebula</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="折叠侧边栏">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="showView('dashboard',this)" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-label">仪表盘</span>
+      </button>
+      <button class="nav-item" onclick="showView('chat',this)" data-view="chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="nav-label">对话</span><span class="nav-badge">3</span>
+      </button>
+      <button class="nav-item" onclick="showView('swarm',this)" data-view="swarm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="2"/><circle cx="15" cy="7" r="2"/><circle cx="12" cy="13" r="2"/><circle cx="9" cy="19" r="2"/><circle cx="15" cy="19" r="2"/><line x1="9" y1="9" x2="9" y2="17"/><line x1="15" y1="9" x2="15" y2="17"/><line x1="11" y1="8" x2="14" y2="12"/></svg>
+        <span class="nav-label">蜂群</span>
+      </button>
+      <button class="nav-item" onclick="showView('memory',this)" data-view="memory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="nav-label">记忆</span>
+      </button>
+      <button class="nav-item" onclick="showView('code',this)" data-view="code">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span class="nav-label">工作台</span>
+      </button>
+      <button class="nav-item" onclick="showView('skills',this)" data-view="skills">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        <span class="nav-label">技能</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="showView('settings',this)" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="nav-label sidebar-footer-text">设置</span>
+      </button>
+      <span class="version sidebar-footer-text">v2.2.0 · MIT</span>
+    </div>
+  </aside>
+  <div class="sidebar-resizer" id="resizer"></div>
+  <main class="main">
+    <header class="topbar">
+      <span class="topbar-title" id="viewTitle">仪表盘</span>
+      <div class="topbar-actions">
+        <button class="topbar-btn" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+        <button class="topbar-btn" title="通知"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+      </div>
+    </header>
+
+
+    <div class="view active" id="view-dashboard">
+      <div class="content"><div class="content-inner">
+        <div class="section"><div class="section-header"><span class="section-title">系统概览</span><div class="segmented"><button class="active">24h</button><button>7d</button><button>30d</button></div></div>
+        <div class="grid-4">
+          <div class="card"><div class="card-header"><div class="card-header-icon" style="background:rgba(10,132,255,0.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="card-title">内存占用</span></div><div class="card-value">247 MB</div><div class="card-sub">↗ 12% 较昨日</div></div>
+          <div class="card"><div class="card-header"><div class="card-header-icon" style="background:rgba(48,209,88,0.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#30d158" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span class="card-title">向量检索延迟</span></div><div class="card-value">1.8 ms</div><div class="card-sub">P95: 3.2 ms · 12K 次</div></div>
+          <div class="card"><div class="card-header"><div class="card-header-icon" style="background:rgba(191,90,242,0.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#bf5af2" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v-2"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><span class="card-title">蜂群任务</span></div><div class="card-value">47</div><div class="card-sub">成功率 94.2% · 3 活跃</div></div>
+          <div class="card"><div class="card-header"><div class="card-header-icon" style="background:rgba(255,159,10,0.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff9f0a" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div><span class="card-title">缓存命中率</span></div><div class="card-value">87.3%</div><div class="card-sub">↗ 5% 优化后</div></div>
+        </div></div>
+        <div class="section"><div class="section-header"><span class="section-title">最近活动</span><button class="btn btn-ghost btn-sm">查看全部 →</button></div>
+        <div class="table-wrap">
+          <div class="table-row header"><span>会话</span><span>时间</span><span>状态</span></div>
+          <div class="table-row"><span>修复 Windows 构建脚本中的路径错误</span><span style="color:var(--text-tertiary)">2 分钟前</span><span><span class="tag" style="background:rgba(48,209,88,0.15);color:var(--green)">✓ 完成</span></span></div>
+          <div class="table-row"><span>分析今天头条文章的用户反馈数据</span><span style="color:var(--text-tertiary)">18 分钟前</span><span><span class="tag" style="background:rgba(94,92,230,0.15);color:var(--accent-text)">● 进行中</span></span></div>
+          <div class="table-row"><span>从对话中提取 L2 经验记忆</span><span style="color:var(--text-tertiary)">42 分钟前</span><span><span class="tag" style="background:rgba(48,209,88,0.15);color:var(--green)">✓ 完成</span></span></div>
+          <div class="table-row"><span>Skill: code-review 自动审查 PR #142</span><span style="color:var(--text-tertiary)">1 小时前</span><span><span class="tag" style="background:rgba(255,69,58,0.15);color:var(--red)">✗ 失败</span></span></div>
+          <div class="table-row"><span>生成本周工作周报草稿</span><span style="color:var(--text-tertiary)">2 小时前</span><span><span class="tag" style="background:rgba(48,209,88,0.15);color:var(--green)">✓ 完成</span></span></div>
+        </div></div>
+        <div class="section"><div class="section-header"><span class="section-title">记忆健康度</span></div>
+        <div class="grid-3">
+          <div class="card" style="text-align:center;padding:24px"><div style="font-size:48px;font-weight:700;color:var(--accent-text);margin-bottom:8px">1.2K</div><div style="font-size:12px;color:var(--text-secondary)">L1 消息条目</div><div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:72%"></div></div></div>
+          <div class="card" style="text-align:center;padding:24px"><div style="font-size:48px;font-weight:700;color:var(--green);margin-bottom:8px">386</div><div style="font-size:12px;color:var(--text-secondary)">L2 经验条目</div><div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:45%;background:var(--green)"></div></div></div>
+          <div class="card" style="text-align:center;padding:24px"><div style="font-size:48px;font-weight:700;color:var(--purple);margin-bottom:8px">24</div><div style="font-size:12px;color:var(--text-secondary)">L3 结构化事实</div><div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:28%;background:var(--purple)"></div></div></div>
+        </div></div>
+      </div></div>
+    </div>
+
+
+    <div class="view" id="view-chat">
+      <div class="content"><div class="chat-container">
+        <div class="chat-message"><div class="chat-avatar agent">N</div><div class="chat-bubble"><p>你好，我是 Nebula。你的本地优先 AI 助手。所有对话和记忆都安全加密存储在本地。</p><p>我可以帮你编写代码、分析数据、管理知识库，还可以调度蜂群 agent 协作完成复杂任务。</p></div></div>
+        <div class="chat-message"><div class="chat-avatar user">U</div><div class="chat-bubble user"><p>帮我分析一下 <code>src/lib/tauri.ts</code> 里有哪些需要优化的地方</p></div></div>
+        <div class="chat-message"><div class="chat-avatar agent">N</div><div class="chat-bubble">
+          <p>好的，让我分析一下 <code>src/lib/tauri.ts</code>。</p>
+          <pre><span class="code-cm">// 当前实现</span>
+<span class="code-kw">export async function</span> <span class="code-fn">invokeTauri</span>(cmd, args) {
+  <span class="code-kw">try</span> {
+    <span class="code-kw">return await</span> invoke(cmd, args);
+  } <span class="code-kw">catch</span> (e) {
+    console.error(<span class="code-str">"[tauri] failed:"</span>, e);
+    <span class="code-kw">throw</span> e;
+  }
+}</pre>
+          <p>主要优化建议：</p>
+          <ol style="padding-left:20px;margin-top:8px"><li>添加请求去重和缓存层，避免重复 IPC 调用</li><li>统一错误类型，支持结构化错误恢复</li><li>增加请求超时控制和重试策略</li></ol>
+        </div></div>
+        <div class="chat-input-wrap"><div class="chat-input-bar"><textarea placeholder="输入消息…" rows="1"></textarea><button class="chat-send-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div></div>
+      </div></div>
+    </div>
+    <div class="view" id="view-swarm">
+      <div class="content"><div class="content-inner">
+        <div class="section"><div class="section-header"><span class="section-title">活跃任务</span><button class="btn btn-primary btn-sm">+ 新建蜂群任务</button></div>
+        <div style="background:var(--bg-card);border:1px solid var(--accent);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="pulse" style="width:8px;height:8px;border-radius:50%;background:var(--green)"></div>
+            <div><div style="font-weight:600;font-size:14px">修复 Windows 构建脚本中的路径错误</div><div style="font-size:12px;color:var(--text-secondary)">编排者: Master · 3 个 Worker · 进度 68%</div></div>
+            <div class="progress-bar" style="flex:1;max-width:200px;margin-left:auto"><div class="progress-fill" style="width:68%"></div></div>
+          </div></div></div>
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:14px">Agent 状态</span>
+        <div class="swarm-grid">
+          <div class="agent-card status-running"><div class="agent-header"><div class="agent-avatar" style="background:rgba(94,92,230,0.2)">&#x1f4bb;</div><div><div class="agent-name">Coder</div><div style="font-size:11px;color:var(--text-tertiary)">代码生成与修复</div></div><span class="agent-status running">运行中</span></div><div class="agent-log">&gt; cargo build --release
+&gt; Compiling nebula v2.2.0
+&gt; Checking commands.rs...
+&gt; Running tests: 3/5 passed</div></div>
+          <div class="agent-card status-running"><div class="agent-header"><div class="agent-avatar" style="background:rgba(48,209,88,0.2)">&#x1f4dd;</div><div><div class="agent-name">Writer</div><div style="font-size:11px;color:var(--text-tertiary)">文档与说明生成</div></div><span class="agent-status running">运行中</span></div><div class="agent-log">&gt; 生成 CHANGELOG.md 条目
+&gt; 更新 API.md 文档
+&gt; 编写迁移说明 · 完成</div></div>
+          <div class="agent-card status-completed"><div class="agent-header"><div class="agent-avatar" style="background:rgba(255,159,10,0.2)">&#x1f50d;</div><div><div class="agent-name">Reviewer</div><div style="font-size:11px;color:var(--text-tertiary)">代码审查与验证</div></div><span class="agent-status completed">已完成</span></div><div class="agent-log">&gt; 审查路径修复方案
+&gt; 验证跨平台兼容性 ✓
+&gt; 耗时: 1.2s</div></div>
+        </div></div>
+      </div></div>
+    </div>
+
+
+    <div class="view" id="view-memory">
+      <div class="content"><div class="content-inner">
+        <div class="section"><div class="section-header"><span class="section-title">记忆图谱</span><div class="segmented"><button class="active">图谱</button><button>列表</button><button>时间线</button></div></div>
+        <div class="memory-viz" id="memoryViz" style="height:420px;position:relative"></div>
+        <div style="display:flex;justify-content:center;gap:20px;margin-top:16px;font-size:11px;color:var(--text-tertiary)">
+          <span>&#9679; L0 缓存 (48)</span><span>&#9679; L1 消息 (86)</span><span>&#9679; L2 经验 (42)</span><span>&#9679; L3 事实 (24)</span><span>&#9679; L4 知识 (12)</span><span>&#9679; L5 教训 (5)</span>
+        </div></div>
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:14px">最近提取的记忆</span>
+        <div class="grid-2">
+          <div class="card"><div style="font-size:11px;color:var(--orange);font-weight:600;margin-bottom:6px">L2 · 经验</div><div style="font-weight:550;margin-bottom:4px">Windows PowerShell 路径处理</div><div style="font-size:12px;color:var(--text-secondary)">在 Windows 上使用 PathBuf 替代字符串拼接来处理文件路径，避免反斜杠转义问题。来源：Coder agent 任务 #47</div></div>
+          <div class="card"><div style="font-size:11px;color:var(--purple);font-weight:600;margin-bottom:6px">L3 · 事实</div><div style="font-weight:550;margin-bottom:4px">Tauri 2.0 命令注册需 async</div><div style="font-size:12px;color:var(--text-secondary)">Tauri 2.0 中所有 #[tauri::command] 必须为 async fn，否则在 IPC 调用时会出现运行时 panic。</div></div>
+        </div></div>
+      </div></div>
+    </div>
+    <div class="view" id="view-code">
+      <div class="code-layout" style="flex:1;min-height:0">
+        <div class="code-sidebar">
+          <div class="code-tree-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> src/</div>
+          <div class="code-tree-item" style="padding-left:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> components/</div>
+          <div class="code-tree-item" style="padding-left:48px">App.tsx</div>
+          <div class="code-tree-item" style="padding-left:48px">Dashboard.tsx</div>
+          <div class="code-tree-item" style="padding-left:48px">ChatPanel.tsx</div>
+          <div class="code-tree-item" style="padding-left:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> lib/</div>
+          <div class="code-tree-item" style="padding-left:48px">tauri.ts</div>
+          <div class="code-tree-item" style="padding-left:48px">autonomy.ts</div>
+          <div class="code-tree-item" style="padding-left:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> styles/</div>
+        </div>
+        <div class="code-editor">
+          <div class="code-line"><span class="code-line-num">1</span><span class="code-cm">/** Nebula Tauri Bridge */</span></div>
+          <div class="code-line"><span class="code-line-num">2</span></div>
+          <div class="code-line"><span class="code-line-num">3</span><span class="code-kw">import</span> { invoke } <span class="code-kw">from</span> <span class="code-str">'@tauri-apps/api/core'</span>;</div>
+          <div class="code-line"><span class="code-line-num">4</span></div>
+          <div class="code-line"><span class="code-line-num">5</span><span class="code-kw">export async function</span> <span class="code-fn">invokeTauri</span>&lt;T&gt;(</div>
+          <div class="code-line"><span class="code-line-num">6</span>  cmd: <span class="code-kw">string</span>,</div>
+          <div class="code-line"><span class="code-line-num">7</span>  args?: Record&lt;<span class="code-kw">string</span>, <span class="code-kw">unknown</span>&gt;</div>
+          <div class="code-line"><span class="code-line-num">8</span>): Promise&lt;T&gt; {</div>
+          <div class="code-line"><span class="code-line-num">9</span>  <span class="code-kw">return</span> invoke&lt;T&gt;(cmd, args);</div>
+          <div class="code-line"><span class="code-line-num">10</span>}</div>
+        </div>
+      </div>
+    </div>
+    <div class="view" id="view-skills">
+      <div class="content"><div class="content-inner">
+        <div class="section"><div class="section-header"><span class="section-title">已安装技能</span><div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm">从 Marketplace 导入</button><button class="btn btn-primary btn-sm">+ 创建技能</button></div></div>
+        <div class="grid-3">
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:36px;height:36px;background:rgba(10,132,255,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:16px">&#x1f50d;</div><div><div style="font-weight:600;font-size:13px">code-review</div><div style="font-size:11px;color:var(--text-tertiary)">LLM 提示技能</div></div></div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">自动审查代码 PR，检查安全性、性能和最佳实践。</div><div style="display:flex;gap:8px"><span class="tag">v1.2</span><span class="tag">使用 47 次</span></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:36px;height:36px;background:rgba(48,209,88,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:16px">&#x1f4ca;</div><div><div style="font-weight:600;font-size:13px">data-analyzer</div><div style="font-size:11px;color:var(--text-tertiary)">Python 沙盒技能</div></div></div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">使用 pandas 和 matplotlib 分析 CSV/Excel 数据。</div><div style="display:flex;gap:8px"><span class="tag">v2.0</span><span class="tag">使用 23 次</span></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:36px;height:36px;background:rgba(191,90,242,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:16px">&#x270d;&#xfe0f;</div><div><div style="font-weight:600;font-size:13px">article-writer</div><div style="font-size:11px;color:var(--text-tertiary)">LLM 提示技能</div></div></div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">根据大纲生成深度文章，支持头条风格。</div><div style="display:flex;gap:8px"><span class="tag">v1.5</span><span class="tag">使用 89 次</span></div></div>
+        </div></div>
+      </div></div>
+    </div>
+
+
+    <div class="view" id="view-settings">
+      <div class="content"><div class="content-inner">
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:16px">外观</span>
+        <div class="card" style="margin-bottom:16px">
+          <label>主题</label>
+          <div style="display:flex;gap:8px;margin-bottom:16px"><button class="btn btn-primary btn-sm">深色</button><button class="btn btn-secondary btn-sm">浅色</button><button class="btn btn-secondary btn-sm">跟随系统</button></div>
+          <label>强调色</label>
+          <div style="display:flex;gap:8px"><button style="width:28px;height:28px;border-radius:50%;background:#5e5ce6;border:2px solid var(--text-primary)"></button><button style="width:28px;height:28px;border-radius:50%;background:#0a84ff;border:2px solid transparent"></button><button style="width:28px;height:28px;border-radius:50%;background:#30d158;border:2px solid transparent"></button><button style="width:28px;height:28px;border-radius:50%;background:#ff9f0a;border:2px solid transparent"></button><button style="width:28px;height:28px;border-radius:50%;background:#bf5af2;border:2px solid transparent"></button></div>
+        </div></div>
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:16px">通用</span>
+        <div class="card">
+          <label>语言</label><select><option>简体中文</option><option>English</option></select>
+          <label>字体大小</label><input type="range" min="12" max="20" value="13" style="width:100%">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary)"><span>12px</span><span>13px</span><span>20px</span></div>
+        </div></div>
+      </div></div>
+    </div>
+    <div class="statusbar">
+      <span class="statusbar-dot online"></span><span>系统正常</span>
+      <span class="statusbar-spacer"></span>
+      <span>CPU 4%</span><span>MEM 247MB</span><span>Disk 1.2GB</span>
+    </div>
+  </main>
+</div>
+<script>
+function showView(name, btn) {
+  document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
+  document.getElementById("view-"+name).classList.add("active");
+  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active")});
+  if (btn) btn.classList.add("active");
+  var titles = {dashboard:"仪表盘",chat:"对话",swarm:"蜂群",memory:"记忆",code:"工作台",skills:"技能",settings:"设置"};
+  document.getElementById("viewTitle").textContent = titles[name] || name;
+}
+var collapsed = false;
+function toggleSidebar() {
+  collapsed = !collapsed;
+  document.getElementById("sidebar").classList.toggle("is-collapsed", collapsed);
+}
+var resizing = false;
+document.getElementById("resizer").addEventListener("mousedown", function() { resizing = true; document.body.style.cursor = "col-resize"; });
+document.addEventListener("mousemove", function(e) { if (!resizing) return; document.getElementById("sidebar").style.width = Math.max(180, Math.min(320, e.clientX)) + "px"; });
+document.addEventListener("mouseup", function() { resizing = false; document.body.style.cursor = ""; });
+(function() {
+  var c = document.getElementById("memoryViz"); if (!c) return;
+  var nodes = [
+    {x:200,y:210,s:28,l:"l0",t:"L0"},{x:420,y:100,s:32,l:"l1",t:"L1"},{x:380,y:300,s:36,l:"l2",t:"L2"},
+    {x:600,y:180,s:40,l:"l3",t:"L3"},{x:750,y:120,s:44,l:"l4",t:"L4"},{x:720,y:280,s:48,l:"l5",t:"L5"},
+    {x:120,y:80,s:24,l:"l0",t:"L0"},{x:320,y:200,s:30,l:"l1",t:"L1"},{x:500,y:320,s:34,l:"l2",t:"L2"},
+    {x:650,y:50,s:26,l:"l1",t:"L1"},{x:880,y:200,s:38,l:"l3",t:"L3"}
+  ];
+  for (var i = 0; i < nodes.length; i++) {
+    for (var j = i + 1; j < nodes.length; j++) {
+      if (Math.random() > 0.55) continue;
+      var a = nodes[i], b = nodes[j], dx = b.x - a.x, dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy), angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      var edge = document.createElement("div");
+      edge.className = "memory-edge";
+      edge.style.cssText = "left:"+a.x+"px;top:"+a.y+"px;width:"+dist+"px;transform:rotate("+angle+"deg)";
+      c.appendChild(edge);
+    }
+  }
+  nodes.forEach(function(n) {
+    var el = document.createElement("div");
+    el.className = "memory-node " + n.l;
+    el.style.cssText = "left:"+(n.x-n.s)+"px;top:"+(n.y-n.s)+"px;width:"+(n.s*2)+"px;height:"+(n.s*2)+"px";
+    el.textContent = n.t;
+    c.appendChild(el);
+  });
+})();
+var ta = document.querySelector(".chat-input-bar textarea");
+if (ta) ta.addEventListener("input", function() { this.style.height = "auto"; this.style.height = Math.min(this.scrollHeight, 120) + "px"; });
+</script>
+</body>
+</html>
+

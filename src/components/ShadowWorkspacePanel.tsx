@@ -25,15 +25,6 @@ import {
 import { toast } from './Toast';
 import { t, type Dict } from '../i18n';
 
-const STATUS_COLORS: Record<ShadowStatus, string> = {
-  creating: '#9CA3AF',
-  running: '#3B82F6',
-  completed: '#10B981',
-  failed: '#EF4444',
-  merged: '#6B7280',
-  aborted: '#F59E0B',
-};
-
 const STATUS_LABELS: Record<ShadowStatus, keyof Dict> = {
   creating: 'shadowWorkspace.status.creating',
   running: 'shadowWorkspace.status.running',
@@ -41,6 +32,16 @@ const STATUS_LABELS: Record<ShadowStatus, keyof Dict> = {
   failed: 'shadowWorkspace.status.failed',
   merged: 'shadowWorkspace.status.merged',
   aborted: 'shadowWorkspace.status.aborted',
+};
+
+/** ShadowStatus → task-status CSS 类名映射(running/done/queued/failed)。 */
+const STATUS_TASK_CLASS: Record<ShadowStatus, string> = {
+  creating: 'queued',
+  running: 'running',
+  completed: 'done',
+  failed: 'failed',
+  merged: 'done',
+  aborted: 'queued',
 };
 
 // T-E-C-09: 操作种类图标 + 标签(供录屏时间线渲染)
@@ -214,62 +215,66 @@ export function ShadowWorkspacePanel() {
 
   return (
     <div
-      className="shadow-workspace-panel h-full flex flex-col bg-gray-950 text-white"
+      class="shadow-workspace-panel"
+      style="display:flex;flex-direction:column;height:100%;"
       data-testid="shadow-workspace-panel"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">{t('shadowWorkspace.title')}</h2>
-        <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-gray-500">{t('shadowWorkspace.loading')}</span>}
-          <span className="text-xs text-gray-500">
+      {/* 页面头:标题 + 工具按钮 */}
+      <div class="page-header">
+        <div>
+          <div class="page-title">🌑 {t('shadowWorkspace.title')}</div>
+          <div class="page-subtitle">
+            {loading && <span>{t('shadowWorkspace.loading')} · </span>}
             {t('shadowWorkspace.wsCount', { n: workspaces.length })}
-          </span>
-          <button
-            onClick={refresh}
-            className="text-xs text-gray-400 hover:text-white transition-colors"
-            title={t('shadowWorkspace.refresh')}
-          >
-            ↻
+          </div>
+        </div>
+        <div class="page-actions">
+          <button class="tool-btn" onClick={refresh} title={t('shadowWorkspace.refresh')}>
+            ↻ {t('shadowWorkspace.refresh')}
           </button>
         </div>
       </div>
 
-      {/* 创建表单 */}
-      <div className="px-4 py-2 border-b border-gray-800 space-y-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder={t('shadowWorkspace.descPlaceholder')}
-            value={taskDesc}
-            onInput={(e) => setTaskDesc((e.target as HTMLInputElement).value)}
-            className="flex-1 px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
-            data-testid="shadow-task-input"
-          />
-          <input
-            type="text"
-            placeholder={t('shadowWorkspace.baseBranchPlaceholder')}
-            value={baseBranch}
-            onInput={(e) => setBaseBranch((e.target as HTMLInputElement).value)}
-            className="w-40 px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:border-blue-600 outline-none"
-            data-testid="shadow-base-input"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={creating || !taskDesc.trim()}
-            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-white transition-colors"
-            data-testid="shadow-create-btn"
-          >
-            {creating ? t('shadowWorkspace.creating') : t('shadowWorkspace.create')}
-          </button>
+      <div class="page-body" style="display:flex;flex-direction:column;gap:12px;">
+        {/* 创建表单 */}
+        <div class="stat-card" style="padding:14px 16px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input
+              type="text"
+              placeholder={t('shadowWorkspace.descPlaceholder')}
+              value={taskDesc}
+              onInput={(e) => setTaskDesc((e.target as HTMLInputElement).value)}
+              style="flex:1;padding:6px 10px;font-size:13px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:7px;color:inherit;outline:none;"
+              data-testid="shadow-task-input"
+            />
+            <input
+              type="text"
+              placeholder={t('shadowWorkspace.baseBranchPlaceholder')}
+              value={baseBranch}
+              onInput={(e) => setBaseBranch((e.target as HTMLInputElement).value)}
+              style="width:160px;padding:6px 10px;font-size:13px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:7px;color:inherit;outline:none;"
+              data-testid="shadow-base-input"
+            />
+            <button
+              onClick={handleCreate}
+              disabled={creating || !taskDesc.trim()}
+              class="tool-btn tool-btn-primary"
+              style={{ cursor: 'pointer', opacity: creating || !taskDesc.trim() ? 0.4 : 1 }}
+              data-testid="shadow-create-btn"
+            >
+              {creating ? t('shadowWorkspace.creating') : t('shadowWorkspace.create')}
+            </button>
+          </div>
+          <p style="font-size:11px;color:rgba(255,255,255,0.3);">{t('shadowWorkspace.hint')}</p>
         </div>
-        <p className="text-xs text-gray-600">{t('shadowWorkspace.hint')}</p>
-      </div>
 
-      {/* 列表 */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Workspace 列表 */}
         {workspaces.length === 0 && !loading && (
-          <div className="text-center text-gray-500 py-12" data-testid="shadow-empty">
+          <div
+            class="stat-card"
+            style="padding:48px;text-align:center;color:rgba(255,255,255,0.4);"
+            data-testid="shadow-empty"
+          >
             {t('shadowWorkspace.empty')}
           </div>
         )}
@@ -283,55 +288,56 @@ export function ShadowWorkspacePanel() {
           return (
             <div
               key={ws.id}
+              class="task-card"
               data-testid={`shadow-item-${ws.id}`}
-              className="border-b border-gray-800 px-4 py-2"
             >
-              {/* 行头 */}
-              <div className="flex items-center gap-2 mb-1">
+              {/* 任务头部:状态 + ID + 分支 */}
+              <div class="task-header">
                 <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: STATUS_COLORS[ws.status] }}
-                />
-                <span className="text-xs text-gray-500 font-mono">{ws.id}</span>
-                <span
-                  className="text-xs px-1.5 py-0.5 rounded"
-                  style={{
-                    backgroundColor: `${STATUS_COLORS[ws.status]}33`,
-                    color: STATUS_COLORS[ws.status],
-                  }}
+                  class={`task-status ${STATUS_TASK_CLASS[ws.status]}`}
+                  style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}
+                  data-testid={`shadow-status-${ws.id}`}
                 >
                   {t(STATUS_LABELS[ws.status])}
                 </span>
-                <span className="text-xs text-gray-600">·</span>
-                <span className="text-xs text-gray-500 font-mono">{ws.branch}</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.35);font-family:monospace;">{ws.id}</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.3);">·</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.35);font-family:monospace;">{ws.branch}</span>
                 {ws.error && (
-                  <span className="text-xs text-red-400 truncate" title={ws.error}>
+                  <span style="font-size:11px;color:#ff5f57;overflow:hidden;text-overflow:ellipsis;" title={ws.error}>
                     ⚠ {ws.error}
                   </span>
                 )}
               </div>
+
               {/* 任务描述 */}
-              <div className="text-sm text-gray-200 mb-1">{ws.task_description}</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:6px;">
+                {ws.task_description}
+              </div>
+
               {/* 元数据 */}
-              <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-1">
+              <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:rgba(255,255,255,0.3);margin-bottom:8px;">
                 <span>base: {ws.base_branch}</span>
                 <span>{t('shadowWorkspace.createdAt', { time: formatTime(ws.created_at) })}</span>
                 {ws.finished_at && (
                   <span>{t('shadowWorkspace.finishedAt', { time: formatTime(ws.finished_at) })}</span>
                 )}
               </div>
+
               {/* 操作按钮 */}
-              <div className="flex flex-wrap gap-2 mt-1">
+              <div class="shadow-actions" style="padding:0;border-top:none;">
                 <button
                   onClick={() => handleViewDiff(ws.id)}
-                  className="text-xs px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
+                  class="tool-btn"
+                  style={{ cursor: 'pointer' }}
                   data-testid={`shadow-diff-btn-${ws.id}`}
                 >
                   {isExpanded ? t('shadowWorkspace.hideDiff') : t('shadowWorkspace.viewDiff')}
                 </button>
                 <button
                   onClick={() => handleViewRecording(ws.id)}
-                  className="text-xs px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
+                  class="tool-btn"
+                  style={{ cursor: 'pointer' }}
                   data-testid={`shadow-replay-btn-${ws.id}`}
                   title={t('shadowWorkspace.replayTitle')}
                 >
@@ -340,7 +346,8 @@ export function ShadowWorkspacePanel() {
                 {canComplete && (
                   <button
                     onClick={() => handleComplete(ws.id)}
-                    className="text-xs px-2 py-0.5 bg-green-900/60 hover:bg-green-800/60 rounded text-green-300 transition-colors"
+                    class="tool-btn"
+                    style={{ cursor: 'pointer', color: '#28c840' }}
                   >
                     {t('shadowWorkspace.markComplete')}
                   </button>
@@ -348,99 +355,132 @@ export function ShadowWorkspacePanel() {
                 {canMerge && (
                   <button
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'merge' })}
-                    className="text-xs px-2 py-0.5 bg-blue-900/60 hover:bg-blue-800/60 rounded text-blue-300 transition-colors"
+                    class="tool-btn tool-btn-primary"
+                    style={{ cursor: 'pointer' }}
                   >
-                    {t('shadowWorkspace.merge')}
+                    ▶ {t('shadowWorkspace.merge')}
                   </button>
                 )}
                 {canAbort && (
                   <button
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'abort' })}
-                    className="text-xs px-2 py-0.5 bg-red-900/60 hover:bg-red-800/60 rounded text-red-300 transition-colors"
+                    class="tool-btn"
+                    style={{ cursor: 'pointer', color: '#ff5f57' }}
                   >
-                    {t('shadowWorkspace.abort')}
+                    🗑 {t('shadowWorkspace.abort')}
                   </button>
                 )}
               </div>
-              {/* diff 展开 */}
+
+              {/* Diff 展开:左右分栏对比(原始 vs 修改) */}
               {isExpanded && (
-                <div className="mt-2" data-testid={`shadow-diff-view-${ws.id}`}>
+                <div style="margin-top:10px;" data-testid={`shadow-diff-view-${ws.id}`}>
                   {diffLoading ? (
-                    <div className="text-xs text-gray-500">{t('shadowWorkspace.loadingDiff')}</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);">{t('shadowWorkspace.loadingDiff')}</div>
                   ) : (
-                    <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded p-2 overflow-auto max-h-80 whitespace-pre-wrap">
-                      {diffText}
-                    </pre>
+                    <div class="shadow-split">
+                      {/* 原始文件(删除行高亮) */}
+                      <div class="shadow-pane">
+                        <div class="shadow-pane-header">📄 原始文件</div>
+                        <div class="shadow-pane-body">
+                          {diffText.split('\n').map((line, i) => {
+                            if (line.startsWith('+++') || line.startsWith('---')) return null;
+                            if (line.startsWith('+')) return <div key={i}>&nbsp;</div>;
+                            const isDel = line.startsWith('-');
+                            return (
+                              <div key={i} class={isDel ? 'diff-del' : ''}>
+                                {line || '\u00A0'}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* 影子副本(添加行高亮) */}
+                      <div class="shadow-pane">
+                        <div class="shadow-pane-header">📝 影子副本 (已修改)</div>
+                        <div class="shadow-pane-body">
+                          {diffText.split('\n').map((line, i) => {
+                            if (line.startsWith('+++') || line.startsWith('---')) return null;
+                            if (line.startsWith('-')) return <div key={i}>&nbsp;</div>;
+                            const isAdd = line.startsWith('+');
+                            return (
+                              <div key={i} class={isAdd ? 'diff-add' : ''}>
+                                {line || '\u00A0'}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
+
               {/* T-E-C-09: 录屏回放时间线 */}
               {isRecExpanded && (
-                <div className="mt-2" data-testid={`shadow-recording-view-${ws.id}`}>
+                <div style="margin-top:10px;" data-testid={`shadow-recording-view-${ws.id}`}>
                   {recLoading ? (
-                    <div className="text-xs text-gray-500">{t('shadowWorkspace.loadingRecording')}</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);">{t('shadowWorkspace.loadingRecording')}</div>
                   ) : recOps.length === 0 ? (
                     <div
-                      className="text-xs text-gray-600"
+                      style="font-size:12px;color:rgba(255,255,255,0.3);"
                       data-testid={`shadow-recording-empty-${ws.id}`}
                     >
                       {t('shadowWorkspace.recordingEmpty')}
                     </div>
                   ) : (
-                    <div className="border border-gray-800 rounded">
-                      <div className="text-xs text-gray-500 px-2 py-1 border-b border-gray-800 bg-gray-900/50">
+                    <div class="stat-card" style="padding:0;overflow:hidden;">
+                      <div style="font-size:12px;color:rgba(255,255,255,0.4);padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.04);">
                         {t('shadowWorkspace.recordingHeader', { n: recOps.length })}
                       </div>
-                      <ul className="divide-y divide-gray-800 max-h-96 overflow-y-auto">
+                      <ul style="list-style:none;max-height:240px;overflow-y:auto;margin:0;padding:0;">
                         {recOps.map((op) => (
                           <li
                             key={op.seq}
-                            className="px-2 py-1.5 hover:bg-gray-900/50 cursor-pointer"
+                            style="padding:6px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.03);"
                             data-testid={`shadow-recording-op-${ws.id}-${op.seq}`}
                             onClick={() => setRecExpanded(recExpanded === op.seq ? null : op.seq)}
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-600 font-mono w-6 flex-shrink-0">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                              <span style="font-size:11px;color:rgba(255,255,255,0.3);font-family:monospace;width:24px;flex-shrink:0;">
                                 #{op.seq}
                               </span>
-                              <span className="text-sm flex-shrink-0">{OP_ICONS[op.kind]}</span>
-                              <span className="text-xs text-gray-400 flex-shrink-0">
+                              <span style="font-size:13px;flex-shrink:0;">{OP_ICONS[op.kind]}</span>
+                              <span style="font-size:11px;color:rgba(255,255,255,0.4);flex-shrink:0;">
                                 {t(OP_LABELS[op.kind])}
                               </span>
                               {op.target && (
-                                <span className="text-xs text-gray-300 font-mono truncate flex-1">
+                                <span style="font-size:11px;color:rgba(255,255,255,0.3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;flex:1;">
                                   {op.target}
                                 </span>
                               )}
-                              <span
-                                className={`text-xs flex-shrink-0 ${op.success ? 'text-green-400' : 'text-red-400'}`}
-                              >
+                              <span style={{ fontSize: '11px', flexShrink: 0, color: op.success ? '#28c840' : '#ff5f57' }}>
                                 {op.success ? '✓' : '✗'}
                               </span>
-                              <span className="text-xs text-gray-600 flex-shrink-0">
+                              <span style="font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">
                                 {formatRecTime(op.ts_ms)}
                               </span>
                             </div>
                             {op.detail && recExpanded !== op.seq && (
-                              <div className="text-xs text-gray-600 mt-0.5 ml-8 truncate">
+                              <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:2px;margin-left:32px;overflow:hidden;text-overflow:ellipsis;">
                                 {op.detail}
                               </div>
                             )}
                             {recExpanded === op.seq && (
                               <div
-                                className="mt-1 ml-8 space-y-1"
+                                style="margin-top:4px;margin-left:32px;"
                                 data-testid={`shadow-recording-detail-${ws.id}-${op.seq}`}
                               >
                                 {op.detail && (
                                   <div>
-                                    <span className="text-xs text-gray-500">{t('shadowWorkspace.detailLabel')}</span>
-                                    <code className="text-xs text-gray-300">{op.detail}</code>
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">{t('shadowWorkspace.detailLabel')}</span>
+                                    <code style="font-size:11px;color:rgba(255,255,255,0.3);">{op.detail}</code>
                                   </div>
                                 )}
                                 {op.message && (
                                   <div>
-                                    <span className="text-xs text-gray-500">{t('shadowWorkspace.messageLabel')}</span>
-                                    <pre className="text-xs text-gray-400 bg-gray-900 border border-gray-800 rounded p-1 mt-0.5 overflow-auto max-h-40 whitespace-pre-wrap inline-block w-full">
+                                    <span style="font-size:11px;color:rgba(255,255,255,0.3);">{t('shadowWorkspace.messageLabel')}</span>
+                                    <pre style="font-size:11px;color:rgba(255,255,255,0.4);background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.04);border-radius:4px;padding:4px;margin-top:2px;overflow:auto;max-height:160px;white-space:pre-wrap;">
                                       {op.message}
                                     </pre>
                                   </div>
@@ -462,30 +502,32 @@ export function ShadowWorkspacePanel() {
       {/* 二次确认对话框 */}
       {confirmAction && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:50;"
           data-testid="shadow-confirm-dialog"
         >
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 max-w-sm">
-            <h3 className="text-sm font-semibold text-white mb-2">
+          <div class="stat-card" style="padding:16px;max-width:320px;">
+            <h3 style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9);margin-bottom:8px;">
               {confirmAction.kind === 'merge'
                 ? t('shadowWorkspace.confirmMergeTitle')
                 : t('shadowWorkspace.confirmAbortTitle')}
             </h3>
-            <p className="text-xs text-gray-400 mb-4">
+            <p style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:16px;">
               {confirmAction.kind === 'merge'
                 ? t('shadowWorkspace.confirmMergeBody')
                 : t('shadowWorkspace.confirmAbortBody')}
             </p>
-            <div className="flex gap-2 justify-end">
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300"
+                class="tool-btn"
+                style={{ cursor: 'pointer' }}
               >
                 {t('shadowWorkspace.dialogCancel')}
               </button>
               <button
                 onClick={handleConfirmAction}
-                className={`text-xs px-3 py-1 rounded text-white ${confirmAction.kind === 'merge' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
+                class={`tool-btn ${confirmAction.kind === 'merge' ? 'tool-btn-primary' : ''}`}
+                style={{ cursor: 'pointer', color: confirmAction.kind === 'merge' ? '#fff' : '#ff5f57' }}
                 data-testid="shadow-confirm-btn"
               >
                 {confirmAction.kind === 'merge'

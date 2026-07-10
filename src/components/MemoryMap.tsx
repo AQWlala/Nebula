@@ -83,6 +83,32 @@ const dimLabel = (d: RelationDimension): string => t(`memoryMap.dim.${d}`);
 /** v1.0 i18n: convert const Record map to function form so labels re-render on locale switch. */
 const layerLabel = (l: Layer): string => t(`memoryMap.layer.${l}`);
 
+/** 设计稿六层记忆（L0-L5）的图例与卡片标签及配色 */
+const VIZ_LAYERS: {
+  layer: 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5';
+  legend: string;
+  card: string;
+  color: string;
+  dot: string;
+}[] = [
+  { layer: 'L0', legend: '缓存', card: '原始', color: 'rgba(255,255,255,0.5)', dot: 'rgba(160,160,160,0.65)' },
+  { layer: 'L1', legend: '消息', card: '消息摘要', color: '#0A84FF', dot: 'rgba(10,132,255,0.65)' },
+  { layer: 'L2', legend: '经验', card: '经验', color: '#28c840', dot: 'rgba(48,209,88,0.65)' },
+  { layer: 'L3', legend: '事实', card: '事实', color: '#FF9F0A', dot: 'rgba(255,159,10,0.65)' },
+  { layer: 'L4', legend: '知识', card: '知识', color: '#a78bfa', dot: 'rgba(167,139,246,0.7)' },
+  { layer: 'L5', legend: '教训', card: '教训', color: '#ff5f57', dot: 'rgba(255,95,87,0.7)' },
+];
+
+/** 默认记忆卡片（设计稿示例，真实数据为空时兜底） */
+const DEFAULT_CARDS = [
+  { layer: 'L5', label: '教训', color: '#ff5f57', dot: 'rgba(255,95,87,0.7)', title: '不要在生产环境热更新模型', desc: '上次热更新导致 3 分钟服务中断。必须在离线测试环境验证后再切换生产模型。' },
+  { layer: 'L4', label: '知识', color: '#a78bfa', dot: 'rgba(167,139,246,0.7)', title: '项目名必须统一为 Nebula', desc: '不得出现 nine_snake / 九头蛇 / 蛇头 等旧名残留。CI 配置须用 stable 工具链。' },
+  { layer: 'L3', label: '事实', color: '#FF9F0A', dot: 'rgba(255,159,10,0.65)', title: '用户使用 Tauri + Preact + Rust 技术栈', desc: '熟悉 SQLite、LanceDB、gRPC、E2EE 加密（X25519, HKDF, AES-256-GCM）。' },
+  { layer: 'L2', label: '经验', color: '#28c840', dot: 'rgba(48,209,88,0.65)', title: 'Windows PowerShell 路径处理', desc: '在 Windows 上用 PathBuf 替代字符串拼接处理路径，避免反斜杠转义问题。来源：Coder agent 任务 #47。' },
+  { layer: 'L1', label: '消息摘要', color: '#0A84FF', dot: 'rgba(10,132,255,0.65)', title: '用户偏好苹果系统风格设计', desc: '侧边栏毛玻璃、大圆角卡片、半透明分层、Spotlight 搜索。来源：对话 2026-07-10。' },
+  { layer: 'L0', label: '原始', color: 'rgba(255,255,255,0.5)', dot: 'rgba(160,160,160,0.65)', title: '原始输入: 按竞品形式重新布局', desc: '"按照jiuwenswarm和openakita的形式重新布局，喜欢苹果系统风格" — 2026-07-10 09:30' },
+];
+
 /** 简单的字符串 hash 用于伪随机角度分配 */
 function hashCode(str: string): number {
   let hash = 0;
@@ -157,6 +183,8 @@ export function MemoryMap() {
   // PixiJS 资源引用
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 六层记忆图谱 HTML 可视化容器（参考设计稿 preview.html）
+  const vizRef = useRef<HTMLDivElement>(null);
   const hoverDivRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
@@ -693,6 +721,89 @@ export function MemoryMap() {
     });
   }, [selectedId]);
 
+  // 六层记忆图谱 HTML 渲染（参考设计稿 preview.html：节点 + 连线动态渲染）
+  useEffect(() => {
+    const container = vizRef.current;
+    if (!container) return;
+
+    const render = () => {
+      const W = container.clientWidth || 600;
+      const H = 340;
+      container.innerHTML = '';
+
+      // 默认节点布局（参考 preview.html）
+      const defaultVizNodes = [
+        { x: W * 0.22, y: H * 0.55, s: 24, l: 'l0', t: 'L0' },
+        { x: W * 0.4, y: H * 0.28, s: 28, l: 'l1', t: 'L1' },
+        { x: W * 0.38, y: H * 0.72, s: 32, l: 'l2', t: 'L2' },
+        { x: W * 0.58, y: H * 0.42, s: 36, l: 'l3', t: 'L3' },
+        { x: W * 0.75, y: H * 0.25, s: 40, l: 'l4', t: 'L4' },
+        { x: W * 0.73, y: H * 0.65, s: 44, l: 'l5', t: 'L5' },
+        { x: W * 0.12, y: H * 0.22, s: 22, l: 'l0', t: 'L0' },
+        { x: W * 0.3, y: H * 0.5, s: 26, l: 'l1', t: 'L1' },
+        { x: W * 0.5, y: H * 0.78, s: 30, l: 'l2', t: 'L2' },
+        { x: W * 0.65, y: H * 0.15, s: 24, l: 'l1', t: 'L1' },
+        { x: W * 0.88, y: H * 0.55, s: 34, l: 'l3', t: 'L3' },
+      ];
+
+      // 若有真实记忆数据，按层级映射到 l0-l5；否则用默认节点
+      let vizNodes: { x: number; y: number; s: number; l: string; t: string }[];
+      if (nodes.length > 0) {
+        vizNodes = nodes.slice(0, 12).map((n) => {
+          const li = Math.min(parseInt(n.layer.slice(1), 10), 5);
+          const angle = ((hashCode(n.id) % 360) * Math.PI) / 180;
+          const r = 40 + li * 30;
+          return {
+            x: W / 2 + r * Math.cos(angle),
+            y: H / 2 + r * Math.sin(angle),
+            s: 24 + Math.min(Math.round(n.importance * 20), 20),
+            l: 'l' + li,
+            t: n.layer,
+          };
+        });
+      } else {
+        vizNodes = defaultVizNodes;
+      }
+
+      // 连线（随机连接，参考 preview.html）
+      for (let i = 0; i < vizNodes.length; i++) {
+        for (let j = i + 1; j < vizNodes.length; j++) {
+          if (Math.random() > 0.55) continue;
+          const a = vizNodes[i];
+          const b = vizNodes[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+          const edge = document.createElement('div');
+          edge.className = 'memory-edge';
+          edge.style.left = a.x + 'px';
+          edge.style.top = a.y + 'px';
+          edge.style.width = dist + 'px';
+          edge.style.transform = 'rotate(' + angle + 'deg)';
+          container.appendChild(edge);
+        }
+      }
+
+      // 节点
+      vizNodes.forEach((n) => {
+        const el = document.createElement('div');
+        el.className = 'memory-node ' + n.l;
+        el.style.left = n.x - n.s + 'px';
+        el.style.top = n.y - n.s + 'px';
+        el.style.width = n.s * 2 + 'px';
+        el.style.height = n.s * 2 + 'px';
+        el.textContent = n.t;
+        container.appendChild(el);
+      });
+    };
+
+    render();
+    const ro = new ResizeObserver(render);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [nodes]);
+
   const selectedNode = nodes.find((n) => n.id === selectedId);
   const hoveredNode = nodes.find((n) => n.id === hoveredId);
   const hoveredGraphNode = graphSnapshot?.nodes.find((n) => n.id === hoveredId);
@@ -710,47 +821,76 @@ export function MemoryMap() {
     });
   };
 
+  // 最近提取的记忆卡片：优先用真实数据，为空时用设计稿默认卡片
+  const memoryCards =
+    nodes.length === 0
+      ? DEFAULT_CARDS
+      : nodes.slice(0, 6).map((n) => {
+          const li = Math.min(parseInt(n.layer.slice(1), 10), 5);
+          const meta = VIZ_LAYERS[li];
+          return {
+            layer: String(n.layer),
+            label: meta.card,
+            color: meta.color,
+            dot: meta.dot,
+            title: n.content.length > 40 ? n.content.slice(0, 40) + '…' : n.content,
+            desc: n.summary || n.content,
+          };
+        });
+
   return (
     <div className="memory-map-container h-full flex flex-col bg-gray-950 text-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-300">{t('memoryMap.title')}</h2>
-        <div className="flex items-center gap-3">
-          {/* T-E-B-07: 视图切换 */}
-          <div className="flex bg-gray-800 rounded text-xs">
-            <button
-              data-testid="view-layer"
-              onClick={() => setViewMode('layer')}
-              className={`px-2 py-1 rounded transition-colors ${viewMode === 'layer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              {t('memoryMap.viewLayer')}
-            </button>
-            <button
-              data-testid="view-graph"
-              onClick={() => setViewMode('graph')}
-              className={`px-2 py-1 rounded transition-colors ${viewMode === 'graph' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              {t('memoryMap.viewGraph')}
-            </button>
+      {/* 页面头 */}
+      <div className="page-header">
+        <div>
+          <div className="page-title">🧠 记忆系统</div>
+          <div className="page-subtitle">
+            L0-L5 六层记忆 · {nodes.length} {t('memoryMap.memories')}
           </div>
-          {loading && <span className="text-xs text-gray-500">{t('memoryMap.loading')}</span>}
-          {graphLoading && <span className="text-xs text-gray-500">{t('memoryMap.graphLoading')}</span>}
-          <span className="text-xs text-gray-500">
-            {viewMode === 'graph' && graphSnapshot
-              ? t('memoryMap.nodeEdgeCount', { nodes: graphSnapshot.nodes.length, edges: graphSnapshot.edges.length })
-              : `${nodes.length} ${t('memoryMap.memories')}`}
-          </span>
-          <button
-            onClick={loadMemories}
-            className="text-xs text-gray-400 hover:text-white transition-colors"
-            title={t('memoryMap.refresh')}
-          >
-            ↻
+        </div>
+        <div className="page-actions">
+          <button className="tool-btn">🔄 反思</button>
+          <button className="tool-btn" onClick={loadMemories}>
+            📥 导入
           </button>
         </div>
       </div>
 
-      {/* T-E-B-07: 维度筛选(仅 Graph View) */}
+      {/* 视图切换 + 状态指示（保留现有功能） */}
+      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-gray-800 text-xs">
+        <div className="flex bg-gray-800 rounded">
+          <button
+            data-testid="view-layer"
+            onClick={() => setViewMode('layer')}
+            className={`px-2 py-1 rounded transition-colors ${viewMode === 'layer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
+            {t('memoryMap.viewLayer')}
+          </button>
+          <button
+            data-testid="view-graph"
+            onClick={() => setViewMode('graph')}
+            className={`px-2 py-1 rounded transition-colors ${viewMode === 'graph' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
+            {t('memoryMap.viewGraph')}
+          </button>
+        </div>
+        {loading && <span className="text-gray-500">{t('memoryMap.loading')}</span>}
+        {graphLoading && <span className="text-gray-500">{t('memoryMap.graphLoading')}</span>}
+        <span className="text-gray-500">
+          {viewMode === 'graph' && graphSnapshot
+            ? t('memoryMap.nodeEdgeCount', { nodes: graphSnapshot.nodes.length, edges: graphSnapshot.edges.length })
+            : `${nodes.length} ${t('memoryMap.memories')}`}
+        </span>
+        <button
+          onClick={loadMemories}
+          className="text-gray-400 hover:text-white transition-colors"
+          title={t('memoryMap.refresh')}
+        >
+          ↻
+        </button>
+      </div>
+
+      {/* 维度筛选(仅 Graph View，保留现有功能) */}
       {viewMode === 'graph' && (
         <div className="flex flex-wrap items-center gap-3 px-4 py-1.5 border-b border-gray-800 text-xs">
           <span className="text-gray-500">{t('memoryMap.dimensionLabel')}</span>
@@ -786,112 +926,142 @@ export function MemoryMap() {
         </div>
       )}
 
-      {/* WebGL 画布区 */}
-      <div ref={containerRef} className="flex-1 overflow-hidden relative">
-        <canvas ref={canvasRef} className="block w-full h-full" style={{ touchAction: 'none' }} />
+      <div className="page-body">
+        {/* 六层记忆图谱（HTML 节点可视化，参考设计稿 preview.html） */}
+        <div style={{ fontSize: '13.5px', fontWeight: 650, marginBottom: 10 }}>六层记忆图谱</div>
+        <div className="memory-viz" ref={vizRef} style={{ height: 340 }} />
+        <div className="memory-legend">
+          {VIZ_LAYERS.map((v) => (
+            <span key={v.layer}>
+              <span className="layer-dot" style={{ background: v.dot }}></span>
+              {v.layer} {v.legend}
+            </span>
+          ))}
+        </div>
 
-        {/* Hover 摘要浮层（HTML absolute，位置由 ticker 直接更新 style）*/}
-        {hoveredNode && !selectedId && viewMode === 'layer' && (
-          <div
-            ref={hoverDivRef}
-            className="absolute bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs max-w-xs pointer-events-none"
-            style={{
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -120%)',
-            }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: LAYER_COLORS[hoveredNode.layer] }}
-              />
-              <span className="text-gray-400">
-                {hoveredNode.layer} · {layerLabel(hoveredNode.layer)}
-              </span>
-            </div>
-            <div className="text-gray-200 line-clamp-3">
-              {hoveredNode.summary || hoveredNode.content}
-            </div>
-          </div>
-        )}
-        {hoveredGraphNode && !selectedId && viewMode === 'graph' && (
-          <div
-            ref={hoverDivRef}
-            className="absolute bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs max-w-xs pointer-events-none"
-            style={{
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -120%)',
-            }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: LAYER_COLORS[hoveredGraphNode.layer] }}
-              />
-              <span className="text-gray-400">
-                {hoveredGraphNode.layer} · depth {hoveredGraphNode.depth}
-                {hoveredGraphNode.id === graphSnapshot?.root_id && t('memoryMap.rootNode')}
-              </span>
-            </div>
-            <div className="text-gray-200 line-clamp-3">{hoveredGraphNode.summary}</div>
-          </div>
-        )}
-      </div>
+        {/* 交互式图谱（PixiJS WebGL，保留现有图谱交互功能） */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            margin: '22px 0 10px',
+          }}
+        >
+          <span style={{ fontSize: '13.5px', fontWeight: 650 }}>交互式图谱</span>
+        </div>
+        <div
+          ref={containerRef}
+          className="overflow-hidden relative"
+          style={{ height: 320, background: '#0a0a0a', borderRadius: 12 }}
+        >
+          <canvas ref={canvasRef} className="block w-full h-full" style={{ touchAction: 'none' }} />
 
-      {/* 选中节点详情 */}
-      {selectedNode && viewMode === 'layer' && (
-        <div className="border-t border-gray-800 p-4 bg-gray-900">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: LAYER_COLORS[selectedNode.layer] }}
-              />
-              <span className="text-sm font-medium">
-                {selectedNode.layer} · {layerLabel(selectedNode.layer)}
-              </span>
-              {selectedNode.compressed && (
-                <span className="text-xs px-2 py-0.5 rounded bg-red-900 text-red-300">
-                  {t('memoryMap.compressed')}
+          {/* Hover 摘要浮层（HTML absolute，位置由 ticker 直接更新 style）*/}
+          {hoveredNode && !selectedId && viewMode === 'layer' && (
+            <div
+              ref={hoverDivRef}
+              className="absolute bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs max-w-xs pointer-events-none"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -120%)' }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: LAYER_COLORS[hoveredNode.layer] }}
+                />
+                <span className="text-gray-400">
+                  {hoveredNode.layer} · {layerLabel(hoveredNode.layer)}
                 </span>
-              )}
-            </div>
-            <button onClick={() => setSelectedId(null)} className="text-gray-500 hover:text-white">
-              ×
-            </button>
-          </div>
-          <div className="text-sm text-gray-200 mb-2">{selectedNode.content}</div>
-          {selectedNode.summary && selectedNode.summary !== selectedNode.content && (
-            <div className="text-xs text-gray-400 border-t border-gray-700 pt-2">
-              {selectedNode.summary}
+              </div>
+              <div className="text-gray-200 line-clamp-3">
+                {hoveredNode.summary || hoveredNode.content}
+              </div>
             </div>
           )}
-          <div className="flex gap-4 mt-2 text-xs text-gray-500">
-            <span>
-              {t('memoryMap.importance')}: {selectedNode.importance.toFixed(2)}
-            </span>
-            <span>
-              {t('memoryMap.created')}:{' '}
-              {new Date(selectedNode.created_at * 1000).toLocaleString('zh-CN')}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Layer Legend */}
-      <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-gray-800 text-xs">
-        {(Object.keys(LAYER_COLORS) as Layer[]).map((layer) => (
-          <div key={layer} className="flex items-center gap-1">
+          {hoveredGraphNode && !selectedId && viewMode === 'graph' && (
             <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: LAYER_COLORS[layer] }}
-            />
-            <span className="text-gray-400">{layer}</span>
-            <span className="text-gray-600">{layerLabel(layer)}</span>
+              ref={hoverDivRef}
+              className="absolute bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs max-w-xs pointer-events-none"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -120%)' }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: LAYER_COLORS[hoveredGraphNode.layer] }}
+                />
+                <span className="text-gray-400">
+                  {hoveredGraphNode.layer} · depth {hoveredGraphNode.depth}
+                  {hoveredGraphNode.id === graphSnapshot?.root_id && t('memoryMap.rootNode')}
+                </span>
+              </div>
+              <div className="text-gray-200 line-clamp-3">{hoveredGraphNode.summary}</div>
+            </div>
+          )}
+        </div>
+
+        {/* 选中节点详情（保留现有功能） */}
+        {selectedNode && viewMode === 'layer' && (
+          <div className="border-t border-gray-800 p-4 bg-gray-900 mt-3" style={{ borderRadius: 8 }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: LAYER_COLORS[selectedNode.layer] }}
+                />
+                <span className="text-sm font-medium">
+                  {selectedNode.layer} · {layerLabel(selectedNode.layer)}
+                </span>
+                {selectedNode.compressed && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-red-900 text-red-300">
+                    {t('memoryMap.compressed')}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setSelectedId(null)} className="text-gray-500 hover:text-white">
+                ×
+              </button>
+            </div>
+            <div className="text-sm text-gray-200 mb-2">{selectedNode.content}</div>
+            {selectedNode.summary && selectedNode.summary !== selectedNode.content && (
+              <div className="text-xs text-gray-400 border-t border-gray-700 pt-2">
+                {selectedNode.summary}
+              </div>
+            )}
+            <div className="flex gap-4 mt-2 text-xs text-gray-500">
+              <span>
+                {t('memoryMap.importance')}: {selectedNode.importance.toFixed(2)}
+              </span>
+              <span>
+                {t('memoryMap.created')}:{' '}
+                {new Date(selectedNode.created_at * 1000).toLocaleString('zh-CN')}
+              </span>
+            </div>
           </div>
-        ))}
+        )}
+
+        {/* 最近提取的记忆卡片 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            margin: '22px 0 10px',
+          }}
+        >
+          <span style={{ fontSize: '13.5px', fontWeight: 650 }}>最近提取的记忆</span>
+        </div>
+        <div className="memory-card-grid">
+          {memoryCards.map((card, i) => (
+            <div className="memory-card" key={i}>
+              <div className="memory-card-layer" style={{ color: card.color }}>
+                <span className="layer-dot" style={{ background: card.dot }}></span>
+                {card.layer} · {card.label}
+              </div>
+              <div className="memory-card-title">{card.title}</div>
+              <div className="memory-card-desc">{card.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

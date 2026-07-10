@@ -77,6 +77,23 @@ function sourceToBadgeLabel(source: string): string {
   }
 }
 
+/** 技能语言 → 展示用 emoji(用于卡片元信息)。 */
+function langEmoji(lang: string): string {
+  switch (lang.toLowerCase()) {
+    case 'rust':
+      return '🦀';
+    case 'python':
+      return '🐍';
+    case 'javascript':
+    case 'js':
+    case 'typescript':
+    case 'ts':
+      return '⚡';
+    default:
+      return '💻';
+  }
+}
+
 /** T-E-S-37: 多 tag 匹配模式(与后端 TagMatch lowercase 序列化对齐)。 */
 type TagMatchMode = 'any' | 'all';
 
@@ -368,6 +385,8 @@ export default function SkillPanel() {
             onCheckUpdates={handleCheckUpdates}
             onUpdateSkill={handleUpdateSkill}
             onUpdateAll={handleUpdateAll}
+            onCreateSkill={() => setTab('import')}
+            onUseSkill={handleUseSkill}
           />
         )}
 
@@ -457,6 +476,9 @@ function BrowseTab({
   loading,
   onSelect,
   onRefresh,
+  // 页面头"创建技能"按钮回调 + 卡片"使用"按钮回调。
+  onCreateSkill,
+  onUseSkill,
   onOpenVizCreator,
   sourceFilter,
   onSourceFilterChange,
@@ -481,6 +503,9 @@ function BrowseTab({
   loading: boolean;
   onSelect: (s: Skill) => void;
   onRefresh: () => void;
+  // 页面头"创建技能"按钮回调 + 卡片"使用"按钮回调。
+  onCreateSkill: () => void;
+  onUseSkill: (skill: Skill) => void;
   onOpenVizCreator: (kind: VizKind) => void;
   // P1-6: 来源筛选器
   sourceFilter: string;
@@ -496,6 +521,30 @@ function BrowseTab({
 }) {
   return (
     <div>
+      {/* 页面头:标题 + 副标题 + 工具按钮(刷新/检查更新/创建技能) */}
+      <div class="page-header">
+        <div>
+          <div class="page-title">🔍 技能市场</div>
+          <div class="page-subtitle">{skills.length} 个技能 · 4 个来源</div>
+        </div>
+        <div class="page-actions">
+          <button class="tool-btn" onClick={onRefresh} title={t('skillPanel.refresh')}>
+            ↻ {t('skillPanel.refresh')}
+          </button>
+          <button
+            class="tool-btn"
+            onClick={onCheckUpdates}
+            disabled={checkingUpdates}
+            title={t('skillPanel.checkUpdatesHint')}
+          >
+            ⬆ {checkingUpdates ? t('skillPanel.checkingUpdates') : t('skillPanel.checkUpdates')}
+          </button>
+          <button class="tool-btn tool-btn-primary" onClick={onCreateSkill}>
+            + 创建技能
+          </button>
+        </div>
+      </div>
+
       {/* T-E-S-38: 三个可视化 creator 快速入口卡片 */}
       <div class="mb-5">
         <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-2">
@@ -523,33 +572,16 @@ function BrowseTab({
         </div>
       </div>
 
-      {/* Search bar */}
-      <div class="flex gap-2 mb-4">
+      {/* 搜索栏(刷新/检查更新按钮已移至页面头) */}
+      <div class="mb-4">
         <input
           type="text"
           placeholder={t('skillPanel.searchPlaceholder')}
           value={search}
           onInput={(e) => onSearch((e.target as HTMLInputElement).value)}
-          class="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-sm
+          class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-sm
                  placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
-        {/* P2-5: 检查更新按钮 — 从远端拉取最新版本并比对。 */}
-        <button
-          onClick={onCheckUpdates}
-          disabled={checkingUpdates}
-          class="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700
-                 disabled:text-gray-500 text-white rounded-md transition-colors whitespace-nowrap"
-          title={t('skillPanel.checkUpdatesHint')}
-        >
-          {checkingUpdates ? t('skillPanel.checkingUpdates') : t('skillPanel.checkUpdates')}
-        </button>
-        <button
-          onClick={onRefresh}
-          class="px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
-          title={t('skillPanel.refresh')}
-        >
-          ↻
-        </button>
       </div>
 
       {/* P2-5: 更新可用列表 — 仅当有远端更新时显示。 */}
@@ -685,9 +717,14 @@ function BrowseTab({
           {search || selectedTags.length > 0 ? t('skillPanel.noMatch') : t('skillPanel.empty')}
         </div>
       ) : (
-        <div class="grid gap-3 grid-cols-1">
+        <div class="skills-grid">
           {skills.map((skill) => (
-            <SkillCard key={skill.id} skill={skill} onClick={() => onSelect(skill)} />
+            <SkillCard
+              key={skill.id}
+              skill={skill}
+              onUse={() => onUseSkill(skill)}
+              onDetail={() => onSelect(skill)}
+            />
           ))}
         </div>
       )}
@@ -764,47 +801,40 @@ function SourceBadge({ source }: { source: string }) {
 // SkillCard
 // ---------------------------------------------------------------------------
 
-function SkillCard({ skill, onClick }: { skill: Skill; onClick: () => void }) {
-  // P1-6: 从 skill id 解析来源，用于显示 badge。
-  const source = getSourceFromId(skill.id);
+function SkillCard({
+  skill,
+  onUse,
+  onDetail,
+}: {
+  skill: Skill;
+  onUse: () => void;
+  onDetail: () => void;
+}) {
+  // P1-6: 优先使用 skill.source 字段确定来源,降级到从 id 前缀解析。
+  const source = skill.source || getSourceFromId(skill.id);
+  // badge CSS class: 设计仅 4 色(local/openclaw/agentskills/clawhub),其余来源归入 local。
+  const badgeClass = ['openclaw', 'agentskills', 'clawhub'].includes(source) ? source : 'local';
   return (
-    <div
-      onClick={onClick}
-      class="skill-card p-4 bg-gray-800 border border-gray-700 rounded-lg cursor-pointer
-             hover:border-blue-500 transition-colors"
-    >
-      <div class="flex items-start justify-between">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">
-            <h3 class="text-sm font-semibold text-white truncate">{skill.name}</h3>
-            {/* P1-6: 来源 badge */}
-            <SourceBadge source={source} />
-          </div>
-          <p class="text-xs text-gray-400 mt-1 line-clamp-2">{skill.description}</p>
-        </div>
-        <div class="flex items-center gap-2 ml-3 shrink-0">
-          {skill.avg_rating > 0 && (
-            <span
-              class="text-xs text-yellow-500"
-              title={t('skillPanel.rating', { value: skill.avg_rating.toFixed(1) })}
-            >
-              {'★'.repeat(Math.round(skill.avg_rating))}
-            </span>
-          )}
-          <span class="text-xs text-gray-500">
-            {t('skillPanel.usageCount', { count: skill.usage_count })}
-          </span>
-        </div>
+    <div class="skill-card">
+      <div class="skill-card-header">
+        <span class="skill-card-name">{skill.name}</span>
+        <span class={`skill-card-badge ${badgeClass}`}>{sourceToBadgeLabel(source)}</span>
       </div>
-      <div class="flex flex-wrap gap-1 mt-2">
-        {skill.tags.map((tag) => (
-          <span key={tag} class="px-1.5 py-0.5 text-[10px] bg-gray-700 text-gray-400 rounded">
-            {tag}
-          </span>
-        ))}
-        <span class="px-1.5 py-0.5 text-[10px] bg-blue-900/50 text-blue-400 rounded">
-          {skill.language}
+      <div class="skill-card-desc">{skill.description}</div>
+      <div class="skill-card-meta">
+        <span>
+          {langEmoji(skill.language)} {skill.language}
         </span>
+        {skill.avg_rating > 0 && <span>★ {skill.avg_rating.toFixed(1)}</span>}
+        <span>使用 {skill.usage_count}</span>
+      </div>
+      <div class="skill-card-actions">
+        <button class="skill-btn skill-btn-primary" onClick={onUse}>
+          使用
+        </button>
+        <button class="skill-btn skill-btn-secondary" onClick={onDetail}>
+          详情
+        </button>
       </div>
     </div>
   );

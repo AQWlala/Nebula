@@ -1242,5 +1242,38 @@
   "shadowWorkspace.confirmAbortTitle": "确认丢弃",
   "shadowWorkspace.confirmMergeBody": "将把 Agent 分支的修改合并回 base 分支。合并后 worktree 将被清理。",
   "shadowWorkspace.confirmAbortBody": "将强制清理 worktree 并删除分支,所有未合并的修改将丢失。此操作不可逆。",
-  "shadowWorkspace.dialogCancel": "取消"
+  "shadowWorkspace.dialogCancel": "取消",
+
+  "nav": {
+    "groups": { "favorites": "收藏", "work": "工作", "monitor": "监控", "advanced": "高级", "system": "系统" },
+    "chat": "对话",
+    "swarm": "蜂群",
+    "memory": "记忆",
+    "code": "代码",
+    "skills": "技能",
+    "dashboard": "仪表盘",
+    "credits": "积分",
+    "diagnostics": "诊断",
+    "shadow": "影子工作区",
+    "longtask": "长任务",
+    "settings": "设置"
+  },
+
+  "settings": {
+    "title": "设置",
+    "subtitle": "系统配置",
+    "general": "通用",
+    "appearance": "外观",
+    "autonomy": "自主性",
+    "models": "模型管理",
+    "multimodal": "多模态",
+    "vision": "视觉",
+    "audio": "音频",
+    "video": "视频",
+    "heartbeat": "心跳",
+    "browser": "浏览器",
+    "about": "关于",
+    "save": "保存",
+    "reset": "恢复默认"
+  }
 }

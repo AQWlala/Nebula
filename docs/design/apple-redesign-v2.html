@@ -1,0 +1,432 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Nebula v3.0 · 前端设计样稿</title><style>
+/* === macOS Desktop Simulation === */
+.desktop{height:100vh;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;align-items:center;justify-content:center;padding:20px}
+.app-window{width:100%;max-width:1280px;height:100%;max-height:860px;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;background:#1a1a1a}
+.titlebar{height:44px;display:flex;align-items:center;padding:0 16px;background:rgba(30,30,30,0.7);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;gap:12px}
+.tl-dots{display:flex;gap:8px}
+.tl-dot{width:12px;height:12px;border-radius:50%}
+.tl-close{background:#ff5f57}.tl-min{background:#febc2e}.tl-max{background:#28c840}
+.tl-title{font-size:13px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:-0.01em;margin-left:6px}
+.tl-search{flex:1;max-width:320px;margin:0 auto;background:rgba(255,255,255,0.06);border-radius:7px;padding:5px 10px;color:rgba(255,255,255,0.35);font-size:12px;display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,0.04)}
+.tl-search svg{width:13px;height:13px;opacity:0.5}
+.tl-actions{display:flex;gap:6px}
+.tl-btn{width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s}
+.tl-btn:hover{background:rgba(255,255,255,0.12)}
+.tl-btn svg{width:14px;height:14px;opacity:0.6}
+.main-layout{flex:1;display:flex;overflow:hidden}
+/* === Design Tokens === */
+:root{--accent:#5e5ce6;--accent-hover:#6e6cf0;--accent-subtle:rgba(94,92,230,0.15);--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--blue:#0a84ff;--purple:#bf5af2;--cyan:#64d2ff}
+
+
+/* === Sidebar === */
+.sidebar{width:220px;background:rgba(30,30,30,0.45);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sidebar-brand{padding:14px 14px 8px;display:flex;align-items:center;gap:8px}
+.sb-icon{width:24px;height:24px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:700}
+.sb-text{font-size:16px;font-weight:700;letter-spacing:-0.02em;background:linear-gradient(135deg,rgba(255,255,255,0.9),#a5a3f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-resizer{width:3px;flex-shrink:0;cursor:col-resize;background:transparent;transition:background .15s}
+.sidebar-resizer:hover,.sidebar-resizer.active{background:var(--accent)}
+.nav-group{margin:8px 0}
+.nav-group-label{padding:4px 14px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,0.25)}
+.nav-item{display:flex;align-items:center;gap:9px;padding:6px 14px;margin:1px 6px;border-radius:7px;font-size:12.5px;color:rgba(255,255,255,0.65);cursor:pointer;transition:all .12s}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.9)}
+.nav-item.active{background:var(--accent-subtle);color:var(--accent);font-weight:550}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:0.65}
+.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;font-size:10px;font-weight:600;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:100px;color:rgba(255,255,255,0.45)}
+.sidebar-status{margin-top:auto;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.06);font-size:10.5px;color:rgba(255,255,255,0.35)}
+.status-row{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.status-dot{width:5px;height:5px;border-radius:50%}
+.status-dot.ok{background:var(--green)}
+.status-dot.off{background:var(--red)}
+/* === Content Area === */
+.content-area{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:10px}
+.content-card{flex:1;background:rgba(40,40,40,0.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.06);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.view-panel{display:none;flex:1;flex-direction:column;overflow:hidden}
+.view-panel.active{display:flex}
+/* === Scrollbar === */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+/* === Shared: Header bar in views === */
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,0.04);flex-shrink:0}
+.panel-title{font-size:14px;font-weight:600;letter-spacing:-0.01em}
+.panel-actions{display:flex;gap:6px}
+.panel-btn{padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);font-size:11.5px;color:rgba(255,255,255,0.55);cursor:pointer;transition:background .15s}
+.panel-btn:hover{background:rgba(255,255,255,0.1)}
+.panel-body{flex:1;overflow-y:auto;padding:18px}
+/* === Cards === */
+.card{background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;transition:border-color .15s}
+.card:hover{border-color:rgba(255,255,255,0.1)}
+.card-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.card-title{font-weight:600;font-size:12.5px;color:rgba(255,255,255,0.5)}
+.card-value{font-size:26px;font-weight:700;letter-spacing:-0.02em}
+.card-sub{font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+
+
+/* === Section === */
+.section{margin-bottom:22px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.section-title{font-size:13.5px;font-weight:650}
+/* === Segmented Control === */
+.segmented{display:inline-flex;background:rgba(255,255,255,0.05);border-radius:7px;padding:2px;border:1px solid rgba(255,255,255,0.06)}
+.segmented button{padding:4px 14px;border-radius:5px;font-size:11.5px;font-weight:500;color:rgba(255,255,255,0.45);transition:all .12s}
+.segmented button.active{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.85)}
+.segmented button:hover:not(.active){color:rgba(255,255,255,0.7)}
+/* === Buttons === */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:12.5px;font-weight:500;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.8)}.btn-secondary:hover{background:rgba(255,255,255,0.1)}
+.btn-ghost{color:rgba(255,255,255,0.5)}.btn-ghost:hover{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8)}
+.btn-sm{padding:3px 8px;font-size:11px;border-radius:5px}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:10.5px;font-weight:500;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5)}
+.progress-bar{height:3px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .6s ease-out}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.pulse{animation:pulse 2s infinite}
+/* === Table === */
+.table-wrap{background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden}
+.table-row{display:grid;grid-template-columns:1fr 130px 90px;gap:12px;padding:10px 16px;align-items:center;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12.5px}
+.table-row:last-child{border-bottom:none}.table-row:hover{background:rgba(255,255,255,0.03)}
+.table-row.header{font-size:10.5px;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:.05em}.table-row.header:hover{background:transparent}
+/* === Chat View === */
+.chat-messages{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:74%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.6;animation:msgIn .25s ease-out}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg-user{align-self:flex-end;background:var(--accent-subtle);border:1px solid rgba(94,92,230,0.2);border-bottom-right-radius:4px;color:rgba(255,255,255,0.92)}
+.msg-assistant{align-self:flex-start;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-bottom-left-radius:4px;color:rgba(255,255,255,0.82)}
+.msg-role{font-size:10.5px;color:rgba(255,255,255,0.35);margin-bottom:3px;font-weight:500}
+.msg code{font-family:"SF Mono","JetBrains Mono",monospace;font-size:12px;background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:4px}
+.msg pre{background:rgba(0,0,0,0.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-family:"SF Mono","JetBrains Mono",monospace;font-size:11.5px;line-height:1.6;overflow-x:auto;border:1px solid rgba(255,255,255,0.04)}
+.msg b{color:rgba(255,255,255,0.95)}
+.chat-input-area{padding:10px 18px 14px;flex-shrink:0}
+.chat-input-wrap{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:8px 10px 8px 14px;transition:border-color .15s}
+.chat-input-wrap:focus-within{border-color:var(--accent)}
+.chat-input{flex:1;background:none;border:none;color:rgba(255,255,255,0.88);font-size:13px;outline:none;font-family:inherit;resize:none}
+.chat-input::placeholder{color:rgba(255,255,255,0.25)}
+.chat-send{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;flex-shrink:0;transition:background .15s}
+.chat-send:hover{background:var(--accent-hover)}
+.chat-send svg{width:14px;height:14px}
+
+
+/* === Memory View === */
+.memory-viz{background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.04);border-radius:10px;position:relative;overflow:hidden;min-height:380px}
+.memory-node{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#fff;transition:transform .2s cubic-bezier(0.23,1,0.32,1);cursor:pointer}
+.memory-node:hover{transform:scale(1.12);z-index:5}
+.memory-node.l0{background:rgba(10,132,255,0.65)}.memory-node.l1{background:rgba(48,209,88,0.65)}
+.memory-node.l2{background:rgba(255,159,10,0.65)}.memory-node.l3{background:rgba(191,90,242,0.65)}
+.memory-node.l4{background:rgba(94,92,230,0.7)}.memory-node.l5{background:rgba(255,69,58,0.7)}
+.memory-edge{position:absolute;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03));transform-origin:left center;pointer-events:none}
+.memory-legend{display:flex;justify-content:center;gap:16px;padding:8px;font-size:10.5px;color:rgba(255,255,255,0.35);flex-wrap:wrap}
+.memory-legend span{padding:2px 6px;border-radius:4px}
+/* === Swarm View === */
+.swarm-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.agent-card{background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;transition:all .15s}
+.agent-card:hover{border-color:rgba(255,255,255,0.1)}
+.agent-card.running{border-color:var(--accent)}.agent-card.done{border-color:var(--green)}.agent-card.failed{border-color:var(--red)}
+.agent-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.agent-avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.agent-name{font-weight:600;font-size:13px}.agent-status{font-size:10.5px;padding:2px 7px;border-radius:100px;margin-left:auto;font-weight:500}
+.agent-status.running{background:rgba(94,92,230,0.2);color:var(--accent)}
+.agent-status.done{background:rgba(48,209,88,0.2);color:var(--green)}
+.agent-status.failed{background:rgba(255,69,58,0.2);color:var(--red)}
+.agent-log{background:rgba(0,0,0,0.25);border-radius:7px;padding:10px;font-family:"SF Mono","JetBrains Mono",monospace;font-size:11px;color:rgba(255,255,255,0.5);max-height:140px;overflow-y:auto;line-height:1.6}
+/* === Code View === */
+.code-layout{display:flex;flex:1;min-height:0}
+.code-sidebar{width:190px;flex-shrink:0;background:rgba(0,0,0,0.15);border-right:1px solid rgba(255,255,255,0.04);padding:8px 0;overflow-y:auto}
+.code-tree{display:flex;align-items:center;gap:6px;padding:4px 14px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer}
+.code-tree:hover{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.8)}
+.code-tree svg{width:12px;height:12px;opacity:0.5}
+.code-editor{flex:1;background:rgba(0,0,0,0.2);padding:14px;font-family:"SF Mono","JetBrains Mono",monospace;font-size:12.5px;color:rgba(255,255,255,0.6);line-height:1.65;overflow-y:auto}
+.code-line{display:flex}.code-ln{width:36px;color:rgba(255,255,255,0.2);text-align:right;padding-right:14px;flex-shrink:0;font-size:11.5px}
+.code-cm{color:rgba(255,255,255,0.28);font-style:italic}.code-kw{color:var(--purple)}.code-str{color:var(--green)}.code-fn{color:var(--blue)}
+/* === Skills View === */
+.skills-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.skill-card{background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px;transition:transform .15s,box-shadow .15s}
+.skill-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+.skill-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.skill-card-name{font-size:13.5px;font-weight:600}
+.skill-card-badge{font-size:9.5px;padding:2px 7px;border-radius:999px;font-weight:500}
+.skill-card-badge.local{background:var(--accent-subtle);color:var(--accent)}
+.skill-card-badge.market{background:rgba(255,159,10,0.2);color:var(--orange)}
+.skill-card-desc{font-size:11.5px;color:rgba(255,255,255,0.45);margin-bottom:10px;line-height:1.5}
+.skill-card-meta{display:flex;gap:8px;font-size:10.5px;color:rgba(255,255,255,0.35);margin-bottom:8px}
+.skill-card-actions{display:flex;gap:6px}
+.skill-btn{flex:1;padding:5px;border-radius:5px;font-size:11.5px;text-align:center;cursor:pointer;transition:all .12s}
+.skill-btn-primary{background:var(--accent);color:#fff}.skill-btn-primary:hover{background:var(--accent-hover)}
+.skill-btn-secondary{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6)}.skill-btn-secondary:hover{background:rgba(255,255,255,0.12)}
+/* === Settings === */
+.settings-group{margin-bottom:20px}
+.settings-label{display:block;font-size:11.5px;font-weight:600;color:rgba(255,255,255,0.45);margin-bottom:6px}
+.color-swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .12s}
+.color-swatch.active{border-color:rgba(255,255,255,0.9)}
+.color-swatch:hover{border-color:rgba(255,255,255,0.5);transform:scale(1.1)}
+/* === Tooltip === */
+@keyframes tipIn{from{opacity:0;transform:translateY(-50%) translateX(-4px)}to{opacity:1;transform:translateY(-50%) translateX(0)}}
+.ttip{position:fixed;z-index:200;padding:4px 10px;background:rgba(50,50,50,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:11px;color:rgba(255,255,255,0.85);pointer-events:none;white-space:nowrap;animation:tipIn .12s ease-out}
+</style></head><body>
+
+
+<div class="desktop">
+<div class="app-window">
+<div class="titlebar">
+  <div class="tl-dots"><div class="tl-dot tl-close"></div><div class="tl-dot tl-min"></div><div class="tl-dot tl-max"></div></div>
+  <span class="tl-title">Nebula</span>
+  <div class="tl-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>搜索命令、记忆、技能...</div>
+  <div class="tl-actions">
+    <div class="tl-btn" title="通知"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+    <div class="tl-btn" title="更多"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+  </div>
+</div>
+<div class="main-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><div class="sb-icon">N</div><span class="sb-text">Nebula</span></div>
+    <div class="nav-group"><div class="nav-group-label">核心功能</div>
+      <div class="nav-item active" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>仪表盘</div>
+      <div class="nav-item" onclick="showView('chat',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>对话<span class="nav-badge">3</span></div>
+      <div class="nav-item" onclick="showView('swarm',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="2"/><circle cx="15" cy="7" r="2"/><circle cx="12" cy="13" r="2"/><circle cx="9" cy="19" r="2"/><circle cx="15" cy="19" r="2"/><line x1="9" y1="9" x2="9" y2="17"/><line x1="15" y1="9" x2="15" y2="17"/></svg>蜂群</div>
+      <div class="nav-item" onclick="showView('memory',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>记忆</div>
+    </div>
+    <div class="nav-group"><div class="nav-group-label">工作空间</div>
+      <div class="nav-item" onclick="showView('code',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>代码编辑器</div>
+      <div class="nav-item" onclick="showView('skills',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>技能市场</div>
+    </div>
+    <div class="nav-group"><div class="nav-group-label">系统</div>
+      <div class="nav-item" onclick="showView('settings',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>设置</div>
+    </div>
+    <div class="sidebar-status">
+      <div class="status-row"><span class="status-dot ok"></span><span>模型在线</span></div>
+      <div class="status-row"><span>内存 247MB · 记忆 217条</span></div>
+      <div class="status-row" style="opacity:0.6"><span>v2.2.0 · MIT</span></div>
+    </div>
+  </aside>
+  <div class="sidebar-resizer" id="resizer"></div>
+  <div class="content-area"><div class="content-card">
+
+
+    <div class="view-panel active" id="view-dashboard">
+      <div class="panel-header"><span class="panel-title">系统概览</span><div class="panel-actions"><div class="segmented"><button class="active">24h</button><button>7d</button><button>30d</button></div></div></div>
+      <div class="panel-body">
+        <div class="section"><div class="grid-4">
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="card-icon" style="background:rgba(10,132,255,0.15)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/></svg></div><span class="card-title">内存占用</span></div><div class="card-value">247 MB</div><div class="card-sub">↗ 12% 较昨日</div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="card-icon" style="background:rgba(48,209,88,0.15)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#30d158" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span class="card-title">向量检索延迟</span></div><div class="card-value">1.8 ms</div><div class="card-sub">P95: 3.2 ms · 12K次</div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="card-icon" style="background:rgba(191,90,242,0.15)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#bf5af2" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v-2"/></svg></div><span class="card-title">蜂群任务</span></div><div class="card-value">47</div><div class="card-sub">成功率 94.2% · 3活跃</div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="card-icon" style="background:rgba(255,159,10,0.15)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff9f0a" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div><span class="card-title">缓存命中率</span></div><div class="card-value">87.3%</div><div class="card-sub">↗ 5% 优化后</div></div>
+        </div></div>
+        <div class="section"><div class="section-header"><span class="section-title">最近活动</span><button class="btn btn-ghost btn-sm">查看全部 →</button></div>
+        <div class="table-wrap">
+          <div class="table-row header"><span>会话</span><span>时间</span><span>状态</span></div>
+          <div class="table-row"><span>修复 Windows 构建脚本路径错误</span><span style="color:rgba(255,255,255,0.3)">2分钟前</span><span><span class="tag" style="background:rgba(48,209,88,0.13);color:#30d158">✓ 完成</span></span></div>
+          <div class="table-row"><span>分析今天头条文章的用户反馈</span><span style="color:rgba(255,255,255,0.3)">18分钟前</span><span><span class="tag" style="background:rgba(94,92,230,0.13);color:#a5a3f7">● 进行中</span></span></div>
+          <div class="table-row"><span>从对话中提取 L2 经验记忆</span><span style="color:rgba(255,255,255,0.3)">42分钟前</span><span><span class="tag" style="background:rgba(48,209,88,0.13);color:#30d158">✓ 完成</span></span></div>
+          <div class="table-row"><span>Skill: code-review 审查 PR #142</span><span style="color:rgba(255,255,255,0.3)">1小时前</span><span><span class="tag" style="background:rgba(255,69,58,0.13);color:#ff453a">✗ 失败</span></span></div>
+          <div class="table-row"><span>生成本周工作周报草稿</span><span style="color:rgba(255,255,255,0.3)">2小时前</span><span><span class="tag" style="background:rgba(48,209,88,0.13);color:#30d158">✓ 完成</span></span></div>
+        </div></div>
+        <div class="section"><div class="section-header"><span class="section-title">记忆健康度</span></div>
+        <div class="grid-3">
+          <div class="card" style="text-align:center;padding:20px"><div style="font-size:42px;font-weight:700;color:var(--accent);margin-bottom:6px">1.2K</div><div style="font-size:11px;color:rgba(255,255,255,0.45)">L1 消息条目</div><div class="progress-bar" style="margin-top:10px"><div class="progress-fill" style="width:72%"></div></div></div>
+          <div class="card" style="text-align:center;padding:20px"><div style="font-size:42px;font-weight:700;color:var(--green);margin-bottom:6px">386</div><div style="font-size:11px;color:rgba(255,255,255,0.45)">L2 经验条目</div><div class="progress-bar" style="margin-top:10px"><div class="progress-fill" style="width:45%;background:var(--green)"></div></div></div>
+          <div class="card" style="text-align:center;padding:20px"><div style="font-size:42px;font-weight:700;color:var(--purple);margin-bottom:6px">24</div><div style="font-size:11px;color:rgba(255,255,255,0.45)">L3 结构化事实</div><div class="progress-bar" style="margin-top:10px"><div class="progress-fill" style="width:28%;background:var(--purple)"></div></div></div>
+        </div></div>
+      </div>
+    </div>
+
+
+    <div class="view-panel" id="view-chat">
+      <div class="panel-header"><span class="panel-title">对话</span><div class="panel-actions"><div class="panel-btn">导出</div><div class="panel-btn">清空</div><div class="panel-btn">模板</div></div></div>
+      <div class="chat-messages">
+        <div class="msg msg-assistant"><div class="msg-role">Nebula</div>你好，我是 Nebula。你的本地优先 AI 助手。所有对话和记忆安全加密存储在本地。我可以编写代码、分析数据、管理知识库，还可以调度蜂群 agent 协作完成复杂任务。</div>
+        <div class="msg msg-user"><div class="msg-role">你</div>帮我分析一下 <code>src/lib/tauri.ts</code> 里有哪些需要优化的地方</div>
+        <div class="msg msg-assistant"><div class="msg-role">Nebula</div>好的，让我分析一下 <code>src/lib/tauri.ts</code>：<pre><span class="code-cm">// 当前实现</span>
+<span class="code-kw">export async function</span> <span class="code-fn">invokeTauri</span>(cmd, args) {
+  <span class="code-kw">try</span> {
+    <span class="code-kw">return await</span> invoke(cmd, args);
+  } <span class="code-kw">catch</span> (e) {
+    console.error(<span class="code-str">"[tauri] failed:"</span>, e);
+    <span class="code-kw">throw</span> e;
+  }
+}</pre>主要优化建议：<br><br><b>1.</b> 添加请求去重和缓存层，避免重复 IPC 调用<br><b>2.</b> 统一错误类型，支持结构化错误恢复<br><b>3.</b> 增加请求超时控制和重试策略</div>
+        <div class="msg msg-user"><div class="msg-role">你</div>第二点能详细说说吗？结构化错误恢复具体怎么做？</div>
+        <div class="msg msg-assistant"><div class="msg-role">Nebula</div>在 Tauri IPC 场景中，错误可能来自<b>三个层面</b>：Rust 后端 panic、序列化失败、网络超时。建议定义统一的 <code>Result&lt;T, NebulaError&gt;</code> 类型：<pre><span class="code-kw">enum</span> <span class="code-fn">NebulaError</span> {
+  Backend(code, msg),
+  Timeout(ms),
+  Serialize(field),
+}</pre>这样前端可以根据 <code>error.kind</code> 做针对性降级处理，而不是所有错误都弹一个 toast。</div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input-wrap"><input class="chat-input" placeholder="输入消息... (Shift+Enter 换行)" /><div class="chat-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div></div></div>
+    </div>
+
+
+    <div class="view-panel" id="view-swarm">
+      <div class="panel-header"><span class="panel-title">蜂群协作</span><div class="panel-actions"><div class="segmented"><button class="active">列表</button><button>时间线</button><button>事件流</button></div><button class="btn btn-primary btn-sm" style="margin-left:6px">+ 新建任务</button></div></div>
+      <div class="panel-body">
+        <div class="section"><div style="background:rgba(255,255,255,0.04);border:1px solid var(--accent);border-radius:12px;padding:14px 18px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="pulse" style="width:7px;height:7px;border-radius:50%;background:var(--green)"></div>
+            <div style="flex:1"><div style="font-weight:600;font-size:13px">修复 Windows 构建脚本中的路径错误</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">编排者: Master · 3个Worker · 进度68%</div></div>
+            <div class="progress-bar" style="width:180px"><div class="progress-fill" style="width:68%"></div></div>
+          </div></div></div>
+        <div class="section"><div class="section-header"><span class="section-title">Agent 实时状态</span></div>
+        <div class="swarm-grid">
+          <div class="agent-card running"><div class="agent-header"><div class="agent-avatar" style="background:rgba(94,92,230,0.2)">&#x1f4bb;</div><div><div class="agent-name">Coder</div><div style="font-size:10.5px;color:rgba(255,255,255,0.35)">代码生成与修复</div></div><span class="agent-status running">运行中</span></div><div class="agent-log">&gt; cargo build --release
+&gt; Compiling nebula v2.2.0
+&gt; Checking commands.rs...
+&gt; Running tests: 3/5 passed</div></div>
+          <div class="agent-card running"><div class="agent-header"><div class="agent-avatar" style="background:rgba(48,209,88,0.2)">&#x1f4dd;</div><div><div class="agent-name">Writer</div><div style="font-size:10.5px;color:rgba(255,255,255,0.35)">文档与说明生成</div></div><span class="agent-status running">运行中</span></div><div class="agent-log">&gt; 生成 CHANGELOG.md 条目
+&gt; 更新 API.md 文档
+&gt; 编写迁移说明 · 完成</div></div>
+          <div class="agent-card done"><div class="agent-header"><div class="agent-avatar" style="background:rgba(255,159,10,0.2)">&#x1f50d;</div><div><div class="agent-name">Reviewer</div><div style="font-size:10.5px;color:rgba(255,255,255,0.35)">代码审查与验证</div></div><span class="agent-status done">已完成</span></div><div class="agent-log">&gt; 审查路径修复方案
+&gt; 验证跨平台兼容性 OK
+&gt; 耗时: 1.2s</div></div>
+        </div></div>
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:12px">历史任务</span>
+        <div class="table-wrap">
+          <div class="table-row header"><span>任务</span><span>时间</span><span>状态</span></div>
+          <div class="table-row"><span>优化数据库索引性能</span><span style="color:rgba(255,255,255,0.3)">昨天</span><span><span class="tag" style="background:rgba(48,209,88,0.13);color:var(--green)">完成</span></span></div>
+          <div class="table-row"><span>生成 API 接口文档</span><span style="color:rgba(255,255,255,0.3)">昨天</span><span><span class="tag" style="background:rgba(48,209,88,0.13);color:var(--green)">完成</span></span></div>
+          <div class="table-row"><span>CI 流程调试</span><span style="color:rgba(255,255,255,0.3)">2天前</span><span><span class="tag" style="background:rgba(255,69,58,0.13);color:var(--red)">失败</span></span></div>
+        </div></div>
+      </div>
+    </div>
+
+
+    <div class="view-panel" id="view-memory">
+      <div class="panel-header"><span class="panel-title">记忆管理</span><div class="panel-actions"><div class="segmented"><button class="active">图谱</button><button>列表</button><button>时间线</button></div><button class="btn btn-ghost btn-sm" style="margin-left:6px">🔍 搜索</button></div></div>
+      <div class="panel-body">
+        <div class="section"><span class="section-title" style="display:block;margin-bottom:8px">六层记忆图谱</span>
+        <div class="memory-viz" id="memoryViz" style="height:340px"></div>
+        <div class="memory-legend"><span>&#9679; L0 缓存</span><span style="color:var(--blue)">&#9679; L1 消息</span><span style="color:var(--green)">&#9679; L2 经验</span><span style="color:var(--orange)">&#9679; L3 事实</span><span style="color:var(--purple)">&#9679; L4 知识</span><span style="color:var(--red)">&#9679; L5 教训</span></div></div>
+        <div class="section"><div class="section-header"><span class="section-title">最近提取的记忆</span></div>
+        <div class="grid-2">
+          <div class="card"><div style="font-size:10.5px;color:var(--orange);font-weight:600;margin-bottom:4px">L2 · 经验</div><div style="font-weight:550;margin-bottom:3px">Windows PowerShell 路径处理</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">在 Windows 上使用 PathBuf 替代字符串拼接来处理文件路径，避免反斜杠转义问题。来源：Coder agent 任务 #47</div></div>
+          <div class="card"><div style="font-size:10.5px;color:var(--purple);font-weight:600;margin-bottom:4px">L3 · 事实</div><div style="font-weight:550;margin-bottom:3px">Tauri 2.0 命令注册需 async</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">Tauri 2.0 中所有 #[tauri::command] 必须为 async fn，否则 IPC 调用时会出现运行时 panic。</div></div>
+          <div class="card"><div style="font-size:10.5px;color:var(--blue);font-weight:600;margin-bottom:4px">L1 · 消息摘要</div><div style="font-weight:550;margin-bottom:3px">用户偏好 Python 脚本自动化</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">用户频繁使用 Python 编写自动化脚本处理日常任务，偏好用 subprocess 和 pathlib。</div></div>
+          <div class="card"><div style="font-size:10.5px;color:var(--red);font-weight:600;margin-bottom:4px">L5 · 教训</div><div style="font-weight:550;margin-bottom:3px">不要在生产环境热更新模型</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">上次热更新导致 3 分钟服务中断。以后必须在离线测试环境验证后再切换生产模型。</div></div>
+        </div></div>
+      </div>
+    </div>
+
+
+    <div class="view-panel" id="view-code">
+      <div class="panel-header"><span class="panel-title">代码编辑器</span><div class="panel-actions"><div class="segmented"><button class="active">代码</button><button>写作</button><button>工作</button></div></div></div>
+      <div class="code-layout">
+        <div class="code-sidebar">
+          <div class="code-tree"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> src/</div>
+          <div class="code-tree" style="padding-left:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> components/</div>
+          <div class="code-tree" style="padding-left:32px">App.tsx</div>
+          <div class="code-tree" style="padding-left:32px">Dashboard.tsx</div>
+          <div class="code-tree" style="padding-left:32px">ChatPanel.tsx</div>
+          <div class="code-tree" style="padding-left:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> lib/</div>
+          <div class="code-tree" style="padding-left:32px">tauri.ts</div>
+          <div class="code-tree" style="padding-left:32px">autonomy.ts</div>
+          <div class="code-tree" style="padding-left:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> styles/</div>
+        </div>
+        <div class="code-editor">
+          <div class="code-line"><span class="code-ln">1</span><span class="code-cm">/**</span></div>
+          <div class="code-line"><span class="code-ln">2</span><span class="code-cm"> * Nebula Tauri Bridge - 统一后端调用层</span></div>
+          <div class="code-line"><span class="code-ln">3</span><span class="code-cm"> * 支持请求去重、超时、重试、缓存</span></div>
+          <div class="code-line"><span class="code-ln">4</span><span class="code-cm"> */</span></div>
+          <div class="code-line"><span class="code-ln">5</span></div>
+          <div class="code-line"><span class="code-ln">6</span><span class="code-kw">import</span> { invoke } <span class="code-kw">from</span> <span class="code-str">'@tauri-apps/api/core'</span>;</div>
+          <div class="code-line"><span class="code-ln">7</span></div>
+          <div class="code-line"><span class="code-ln">8</span><span class="code-kw">export enum</span> NebulaErrorKind { Backend, Timeout, Serialize }</div>
+          <div class="code-line"><span class="code-ln">9</span></div>
+          <div class="code-line"><span class="code-ln">10</span><span class="code-kw">export async function</span> <span class="code-fn">invokeTauri</span>&lt;T&gt;(</div>
+          <div class="code-line"><span class="code-ln">11</span>  cmd: <span class="code-kw">string</span>, args?: Record&lt;<span class="code-kw">string</span>, <span class="code-kw">unknown</span>&gt;,</div>
+          <div class="code-line"><span class="code-ln">12</span>  opts?: { timeout?: <span class="code-kw">number</span>; retry?: <span class="code-kw">number</span> }</div>
+          <div class="code-line"><span class="code-ln">13</span>): Promise&lt;T&gt; {</div>
+          <div class="code-line"><span class="code-ln">14</span>  <span class="code-kw">return</span> invoke&lt;T&gt;(cmd, args);</div>
+          <div class="code-line"><span class="code-ln">15</span>}</div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="view-panel" id="view-skills">
+      <div class="panel-header"><span class="panel-title">技能市场</span><div class="panel-actions"><div class="panel-btn">🔄 刷新</div><div class="panel-btn">🔍 搜索</div><button class="btn btn-primary btn-sm" style="margin-left:6px">+ 创建技能</button></div></div>
+      <div class="panel-body"><div class="skills-grid">
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">📄 文档写作</span><span class="skill-card-badge local">本地</span></div><div class="skill-card-desc">智能文档写作助手，支持 Markdown、技术文档、报告等格式</div><div class="skill-card-meta"><span>🦀 rust</span><span>⭐ 4.8</span><span>使用 1.2k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">🌐 网页搜索</span><span class="skill-card-badge market">市场</span></div><div class="skill-card-desc">实时网页搜索，支持多引擎、结果摘要、可信度评估</div><div class="skill-card-meta"><span>🐍 python</span><span>⭐ 4.6</span><span>使用 3.5k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">🔡 代码审查</span><span class="skill-card-badge market">市场</span></div><div class="skill-card-desc">自动代码审查，检测 bug、安全漏洞、性能问题、代码规范</div><div class="skill-card-meta"><span>⚡ js</span><span>⭐ 4.9</span><span>使用 5.1k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">📊 数据分析</span><span class="skill-card-badge market">市场</span></div><div class="skill-card-desc">结构化数据分析，支持 CSV/JSON/Excel，自动生成图表</div><div class="skill-card-meta"><span>🐍 python</span><span>⭐ 4.5</span><span>使用 2.3k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">🌍 翻译</span><span class="skill-card-badge local">本地</span></div><div class="skill-card-desc">多语言翻译，支持 30+ 语言，保留专业术语和语境</div><div class="skill-card-meta"><span>🦀 rust</span><span>⭐ 4.7</span><span>使用 890</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">📧 邮件起草</span><span class="skill-card-badge market">市场</span></div><div class="skill-card-desc">智能邮件起草，根据要点生成专业邮件，支持多语气风格</div><div class="skill-card-meta"><span>🐍 python</span><span>⭐ 4.3</span><span>使用 670</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">📝 自媒体写作</span><span class="skill-card-badge local">本地</span></div><div class="skill-card-desc">根据大纲生成头条/公众号风格深度文章，支持自定义人设</div><div class="skill-card-meta"><span>🦀 rust</span><span>⭐ 5.0</span><span>使用 1.8k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">🔗 Git 助手</span><span class="skill-card-badge local">本地</span></div><div class="skill-card-desc">智能 Git 操作，支持 commit 信息生成、PR 描述、冲突解决</div><div class="skill-card-meta"><span>⚡ js</span><span>⭐ 4.4</span><span>使用 450</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+        <div class="skill-card"><div class="skill-card-header"><span class="skill-card-name">🧪 测试生成</span><span class="skill-card-badge market">市场</span></div><div class="skill-card-desc">自动生成单元测试和集成测试，支持多种测试框架</div><div class="skill-card-meta"><span>⚡ js</span><span>⭐ 4.6</span><span>使用 1.1k</span></div><div class="skill-card-actions"><div class="skill-btn skill-btn-primary">使用</div><div class="skill-btn skill-btn-secondary">详情</div></div></div>
+      </div></div>
+    </div>
+
+
+    <div class="view-panel" id="view-settings">
+      <div class="panel-header"><span class="panel-title">设置</span><div class="panel-actions"><div class="segmented"><button class="active">通用</button><button>模型</button><button>IM绑定</button><button>关于</button></div></div></div>
+      <div class="panel-body" style="max-width:540px">
+        <div class="settings-group"><span class="section-title" style="display:block;margin-bottom:16px">外观</span>
+        <div class="card" style="margin-bottom:16px">
+          <div class="settings-label">主题</div>
+          <div style="display:flex;gap:8px;margin-bottom:16px"><button class="btn btn-primary btn-sm">深色</button><button class="btn btn-secondary btn-sm">浅色</button><button class="btn btn-secondary btn-sm">跟随系统</button></div>
+          <div class="settings-label">强调色</div>
+          <div style="display:flex;gap:10px"><span class="color-swatch active" style="background:#5e5ce6"></span><span class="color-swatch" style="background:#0a84ff"></span><span class="color-swatch" style="background:#30d158"></span><span class="color-swatch" style="background:#ff9f0a"></span><span class="color-swatch" style="background:#bf5af2"></span></div>
+        </div></div>
+        <div class="settings-group"><span class="section-title" style="display:block;margin-bottom:16px">通用</span>
+        <div class="card">
+          <div class="settings-label">语言</div>
+          <select style="width:100%;padding:7px 10px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:7px;font-size:12.5px;color:rgba(255,255,255,0.85);margin-bottom:16px"><option>简体中文</option><option>English</option></select>
+          <div class="settings-label">字体大小</div>
+          <input type="range" min="12" max="20" value="13" style="width:100%;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:rgba(255,255,255,0.3)"><span>12px</span><span>13px</span><span>20px</span></div>
+        </div></div>
+        <div class="settings-group"><span class="section-title" style="display:block;margin-bottom:16px">模型配置</span>
+        <div class="card">
+          <div class="settings-label">默认 Provider</div>
+          <select style="width:100%;padding:7px 10px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:7px;font-size:12.5px;color:rgba(255,255,255,0.85);margin-bottom:16px"><option>Ollama (本地)</option><option>OpenAI</option><option>Anthropic</option></select>
+          <div class="settings-label">默认模型</div>
+          <select style="width:100%;padding:7px 10px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:7px;font-size:12.5px;color:rgba(255,255,255,0.85)"><option>qwen2.5:14b</option><option>llama3.1:8b</option><option>deepseek-r1:7b</option></select>
+        </div></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+</div></div></div>
+
+
+<script>
+function showView(name, btn) {
+  document.querySelectorAll(".view-panel").forEach(v => v.classList.remove("active"));
+  document.getElementById("view-" + name).classList.add("active");
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+}
+var resizing = false;
+document.getElementById("resizer").addEventListener("mousedown", function() { resizing = true; document.body.style.cursor = "col-resize"; });
+document.addEventListener("mousemove", function(e) { if (!resizing) return; document.querySelector(".sidebar").style.width = Math.max(180, Math.min(300, e.clientX)) + "px"; });
+document.addEventListener("mouseup", function() { resizing = false; document.body.style.cursor = ""; });
+(function() {
+  var c = document.getElementById("memoryViz"); if (!c) return;
+  var W = c.clientWidth - 40, H = 340;
+  var nodes = [
+    {x:W*.22,y:H*.55,s:24,l:"l0",t:"L0"},{x:W*.40,y:H*.28,s:28,l:"l1",t:"L1"},{x:W*.38,y:H*.72,s:32,l:"l2",t:"L2"},
+    {x:W*.58,y:H*.42,s:36,l:"l3",t:"L3"},{x:W*.75,y:H*.25,s:40,l:"l4",t:"L4"},{x:W*.73,y:H*.65,s:44,l:"l5",t:"L5"},
+    {x:W*.12,y:H*.22,s:22,l:"l0",t:"L0"},{x:W*.30,y:H*.50,s:26,l:"l1",t:"L1"},{x:W*.50,y:H*.78,s:30,l:"l2",t:"L2"},
+    {x:W*.65,y:H*.15,s:24,l:"l1",t:"L1"},{x:W*.88,y:H*.55,s:34,l:"l3",t:"L3"}
+  ];
+  for (var i = 0; i < nodes.length; i++)
+    for (var j = i + 1; j < nodes.length; j++) {
+      if (Math.random() > 0.5) continue;
+      var a = nodes[i], b = nodes[j], dx = b.x - a.x, dy = b.y - a.y;
+      var dist = Math.sqrt(dx*dx+dy*dy), angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      var edge = document.createElement("div"); edge.className = "memory-edge";
+      edge.style.cssText = "left:"+a.x+"px;top:"+a.y+"px;width:"+dist+"px;transform:rotate("+angle+"deg)";
+      c.appendChild(edge);
+    }
+  nodes.forEach(function(n) {
+    var el = document.createElement("div"); el.className = "memory-node "+n.l;
+    el.style.cssText = "left:"+(n.x-n.s)+"px;top:"+(n.y-n.s)+"px;width:"+(n.s*2)+"px;height:"+(n.s*2)+"px";
+    el.textContent = n.t; c.appendChild(el);
+  });
+})();
+</script>
+</body></html>
+
