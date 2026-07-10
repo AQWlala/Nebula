@@ -2,6 +2,52 @@
 
 所有Nebula版本的重要变更都会记录在这里。格式基于 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [2.1.0] - 2026-07-10
+
+🚀 **Phase 1 可见性提升 + Phase 2 生态增强 — 模型配置中心 / 对话框宽度可配 / 首次向导 / 技能生态 / 自动发明 / 模型健康面板 / 自动发现 / 热更新 / 技能调试 / OpenClaw 集成**。
+
+### Added
+
+* 模型配置中心 — 统一管理多 Provider / Model,支持增删改查与健康检测
+* 对话框宽度可配 — 用户可自定义聊天面板宽度
+* 首次启动向导 — 引导新用户完成初始配置
+* 技能生态 — 技能市场 / 技能导入导出 / 技能调试面板
+* 技能自动发明 — AutoInventor 基于任务模式自动生成候选技能
+* 模型健康面板 — 实时展示 Provider 延迟 / 错误率 / 可用性
+* 模型自动发现 — 自动扫描本地 Ollama 可用模型
+* 模型热更新 — 运行时切换模型无需重启
+* 技能调试面板 — 单步执行 / 断点 / 变量查看
+* OpenClaw 集成 — 外部工具调用框架接入
+
+### Fixed
+
+* 修复 6 个 clippy 错误 (unused_parens / matches_macro / single_char_add_str / manual_checked_ops / dead_code)
+* ROADMAP §6.2-§6.5 Phase 计划 ✅ 回填 (Phase 0-3 全部标记完成)
+
+## [2.0.0] - 2026-07-10
+
+🎉 **Phase 0 地基修复 + Phase 1-3 功能补齐 — 131 个 T-E-* 功能任务 100% 完成**。
+
+### Added
+
+* Phase 1 (智能): 18 个 T-E-B 任务 — 蜂群编排 / MOC 自动整理 / 上下文池 / Canvas 交互
+* Phase 2 (功能补齐): WorkflowCanvas / 蜂群运行时画布 / Event Stream / OS-Controller VLM / Loop 运行时 / Cron 引擎 / Calendar / OAuth / 多端协同 / GitHub MCP / GeneMutator / AgentBus / 8 人格系统 / ProactiveEngine / 12 场景配置 / MOC 聚类
+* Phase 3 (蜂群架构升级): PrimaryAgent / 场景化角色 / AgentBus 分派协议 / GeneMutator 进化 / 自媒体写作场景 / 长篇小说写作场景 / 6 子智能体重定义
+* Loop Engineering 内化 — 6 大要素映射 (Automations/Worktrees/Skills/Connectors/Sub-agents/Memory)
+* 黑洞海绵双引擎记忆架构 — BlackholeEngine + SpongeEngine
+* E2EE 双棘轮升级 — Double Ratchet DH+KDF 链棘轮
+* 28 个写作场景模板覆盖
+
+### Fixed
+
+* 41 个 T-D-* 技术债务清理 (40 完成,1 跟踪中)
+* 修复 Rust 1.96.1 增量编译 ICE (禁用 incremental)
+* 修复 SQLite migration UTF-8 BOM 问题
+* 修复 gRPC proto 输出目录在 CI 缺失
+* 修复 Windows Git SSL revocation check 失败
+* 修复 MockChatServer flaky tests
+* 修复 i18n 测试 vi.mock 导致 7 个测试失败
+
 ## [1.1.10] - 2026-07-01
 
 🔧 **启动修复版 — 修复 autostart 插件配置导致启动 panic**。
