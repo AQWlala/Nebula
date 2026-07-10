@@ -125,6 +125,16 @@ textarea:focus {
   animation: pulse 2s infinite;
 }
 
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .app-loading .title {
   font-family: var(--font-display);
   font-size: 32px;
@@ -141,16 +151,6 @@ textarea:focus {
 .app-loading .spinner {
   margin-top: 24px;
   color: var(--accent-neon);
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
 }
 
 .app-error {

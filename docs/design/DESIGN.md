@@ -12,10 +12,12 @@
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `--font-sans` | `'Inter', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif` | 正文、UI 文案、按钮、表单 |
+| `--font-sans` | `'Geist', 'Outfit', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif` | 正文、UI 文案、按钮、表单 |
+| `--font-display` | `'Geist Display', 'Outfit', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif` | 标题、品牌字、英雄区文案 |
 | `--font-mono` | `'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace` | 代码块、行内代码、命令行、对齐数值 |
 
-- 西文优先 Inter，中文回退到 Source Han Sans SC / PingFang SC / Microsoft YaHei。
+- 西文优先 Geist（P0 修复：从 Inter 切换，避免 Impeccable 审计标记的「Inter 单字族 AI slop」指纹），Outfit 作为几何无衬线回退；中文回退到 Source Han Sans SC / PingFang SC / Microsoft YaHei。
+- 标题类（`.brand-text` / `.panel-title` / `.skill-marketplace__header h2` / `.app-loading .title`）强制使用 `--font-display` + `letter-spacing: -0.02em`，与正文形成层级对比。
 - 等宽字体优先 JetBrains Mono，保证代码字符等宽与连字（ligature）一致。
 
 ### 字号阶梯
@@ -36,12 +38,19 @@
 
 ### 字重
 
-| 字重 | 值 | 用途 |
-| --- | --- | --- |
-| Regular | 400 | 正文 |
-| Medium | 500 | 次级强调、按钮、导航 |
-| Semibold | 600 | 卡片标题、表头 |
-| Bold | 700 | 页面标题、英雄区文案 |
+| 字重 | 值 | 用途 | 强制场景 |
+| --- | --- | --- | --- |
+| Regular | 400 | 正文 | 段落、列表项、说明文案（默认值，无需显式声明） |
+| Medium | 500 | 次级强调、按钮、导航 | `.btn` / `.nav-item.active` / `.command-item.active` / `.tag` 强制使用 |
+| Semibold | 600 | 卡片标题、表头、激活态 | `.panel-title` / `.skill-card__header h3` / `.nav-item.active` / 表头单元格强制使用 |
+| Bold | 700 | 页面标题、英雄区文案 | `.brand-text` / `.app-loading .title` / `.skill-marketplace__header h2` 强制使用 |
+
+**字重一致性约束（Impeccable G38 / Taste-skill DENSITY）：**
+
+- 禁止「全 400」扁平化：同一视图内必须有明确的字重层级（400 → 500/600 → 700），避免 AI 生成的默认扁平外观。
+- 禁止「全 700」过度强调：仅在标题与英雄区使用 700，正文过度加粗会破坏可读性层级。
+- 500 与 600 不可互换：500 用于交互态（按钮、激活导航），600 用于结构性标题（卡片标题、表头）。混用会模糊「交互强调」与「信息层级」的语义边界。
+- 新增组件须在下表登记字重选择，未登记的字重默认回落到 400。
 
 ### line-height
 
