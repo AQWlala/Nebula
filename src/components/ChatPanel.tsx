@@ -33,6 +33,50 @@ import { TemplatesDialog } from './TemplatesDialog';
 import { KnowledgeCardDialog } from './KnowledgeCardDialog';
 import { Spinner } from './Spinner';
 
+/* P0-3: 对话区域宽度 4 档可配。
+ * narrow   720px / 消息 80%   — 窄屏聚焦阅读
+ * medium   960px / 消息 75%   — 默认平衡
+ * wide    1200px / 消息 70%   — 宽屏信息密度
+ * immersive 100% / 消息 800px — 全屏沉浸（F11 切换，隐藏侧边栏） */
+type ChatWidthMode = 'narrow' | 'medium' | 'wide' | 'immersive';
+
+const WIDTH_MODE_STORAGE_KEY = 'nebula-chat-width-mode';
+const DEFAULT_WIDTH_MODE: ChatWidthMode = 'medium';
+
+/** 各模式对应的 CSS 变量值与按钮显示文案。 */
+const WIDTH_MODE_CONFIG: Record<
+  ChatWidthMode,
+  { chatWidth: string; msgMaxWidth: string; label: string; title: string }
+> = {
+  narrow: { chatWidth: '720px', msgMaxWidth: '80%', label: '窄', title: '窄 (720px)' },
+  medium: { chatWidth: '960px', msgMaxWidth: '75%', label: '中', title: '中 (960px)' },
+  wide: { chatWidth: '1200px', msgMaxWidth: '70%', label: '宽', title: '宽 (1200px)' },
+  immersive: { chatWidth: '100%', msgMaxWidth: '800px', label: '沉浸', title: '沉浸 (100% / F11)' },
+};
+
+const WIDTH_MODE_ORDER: ChatWidthMode[] = ['narrow', 'medium', 'wide', 'immersive'];
+
+/** 把宽度模式写入 CSS 变量（<html> 上），驱动 global.css 中的 .chat-panel / .msg。 */
+function applyWidthMode(mode: ChatWidthMode): void {
+  const config = WIDTH_MODE_CONFIG[mode];
+  const root = document.documentElement;
+  root.style.setProperty('--chat-width-mode', config.chatWidth);
+  root.style.setProperty('--chat-msg-max-width', config.msgMaxWidth);
+}
+
+/** 从 localStorage 读取宽度模式，非法值回退为默认 medium。 */
+function loadWidthMode(): ChatWidthMode {
+  try {
+    const saved = localStorage.getItem(WIDTH_MODE_STORAGE_KEY);
+    if (saved && (WIDTH_MODE_ORDER as string[]).includes(saved)) {
+      return saved as ChatWidthMode;
+    }
+  } catch {
+    /* localStorage 不可用时静默回退 */
+  }
+  return DEFAULT_WIDTH_MODE;
+}
+
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -248,6 +292,60 @@ export function ChatPanel() {
   // 没有 rAF 时(非流式或首次 token)直接 setMessages;有 rAF 时只累加 accumulated,
   // 等 rAF 回调统一 flush 到 state,避免每个 token 都触发一次 React 渲染。
   const rafPendingRef = useRef(false);
+
+  // P0-3: 对话宽度模式状态。挂载时从 localStorage 恢复并立即应用到 CSS 变量。
+  const [widthMode, setWidthMode] = useState<ChatWidthMode>(() => loadWidthMode());
+  // F11 沉浸模式切换前保存的上一个模式，再按 F11 时恢复。
+  const prevWidthModeRef = useRef<ChatWidthMode | null>(null);
+
+  // P0-3: 挂载时把恢复的模式应用到 CSS 变量（仅执行一次）。
+  // 若恢复为 immersive，同步隐藏侧边栏。
+  // 卸载时移除 immersive-mode body class，保证其它视图侧边栏可见。
+  useEffect(() => {
+    applyWidthMode(widthMode);
+    if (widthMode === 'immersive') {
+      document.body.classList.add('immersive-mode');
+    }
+    return () => {
+      document.body.classList.remove('immersive-mode');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // P0-3: F11 沉浸模式快捷键 — 切换到 immersive + 隐藏侧边栏，再按恢复。
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'F11') return;
+      e.preventDefault();
+      setWidthMode((current) => {
+        if (current === 'immersive') {
+          // 退出沉浸：恢复之前保存的模式（无则回退默认 medium）
+          const restore = prevWidthModeRef.current ?? DEFAULT_WIDTH_MODE;
+          prevWidthModeRef.current = null;
+          document.body.classList.remove('immersive-mode');
+          applyWidthMode(restore);
+          try {
+            localStorage.setItem(WIDTH_MODE_STORAGE_KEY, restore);
+          } catch {
+            /* localStorage 不可用时忽略 */
+          }
+          return restore;
+        }
+        // 进入沉浸：保存当前模式，切换到 immersive + 隐藏侧边栏
+        prevWidthModeRef.current = current;
+        document.body.classList.add('immersive-mode');
+        applyWidthMode('immersive');
+        try {
+          localStorage.setItem(WIDTH_MODE_STORAGE_KEY, 'immersive');
+        } catch {
+          /* localStorage 不可用时忽略 */
+        }
+        return 'immersive';
+      });
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // T-E-C-14: 监听剪贴板智能监听事件。后端 ClipboardWatcherEngine 检测到
   // 有结构的内容(URL/代码/表格/JSON 等)时推送 ClipboardEvent,前端显示
@@ -552,6 +650,32 @@ export function ChatPanel() {
     }
   }
 
+  /** P0-3: 切换对话宽度模式 — 写入 CSS 变量 + 持久化到 localStorage。
+   *  从非沉浸模式切到沉浸模式时同步隐藏侧边栏；反之恢复侧边栏。 */
+  function handleSetWidthMode(mode: ChatWidthMode) {
+    setWidthMode((current) => {
+      if (current === mode) return current;
+      // 进入/退出沉浸模式时同步 body class（控制侧边栏显隐）
+      if (mode === 'immersive') {
+        prevWidthModeRef.current = current;
+        document.body.classList.add('immersive-mode');
+      } else {
+        // 离开沉浸模式（无论是点按钮还是切到其它档）
+        if (current === 'immersive') {
+          prevWidthModeRef.current = null;
+        }
+        document.body.classList.remove('immersive-mode');
+      }
+      applyWidthMode(mode);
+      try {
+        localStorage.setItem(WIDTH_MODE_STORAGE_KEY, mode);
+      } catch {
+        /* localStorage 不可用时忽略 */
+      }
+      return mode;
+    });
+  }
+
   return (
     <div class="panel chat-panel">
       <div class="panel-header">
@@ -562,6 +686,23 @@ export function ChatPanel() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
+          {/* P0-3: 对话宽度 4 档切换按钮组 */}
+          <div class="chat-width-toggle" role="group" aria-label="对话宽度">
+            {WIDTH_MODE_ORDER.map((mode) => {
+              const config = WIDTH_MODE_CONFIG[mode];
+              return (
+                <button
+                  key={mode}
+                  class={`chat-width-toggle__btn${widthMode === mode ? ' is-active' : ''}`}
+                  onClick={() => handleSetWidthMode(mode)}
+                  title={config.title}
+                  aria-pressed={widthMode === mode}
+                >
+                  {config.label}
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={() => setShowTemplatesDialog(true)}
             title={t('chatPanel.templatesTitle')}

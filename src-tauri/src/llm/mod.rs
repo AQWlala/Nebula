@@ -37,10 +37,9 @@ pub mod persona;
 pub mod prefetch;
 // T-E-A-14: Arena A/B 测试 — 模型对战 + ELO 评分 + SQLite 持久化。
 pub mod arena;
-// ADR-003 v3.1: 统一模型调度层（unified-dispatcher feature gate）。
-// 默认 off，启用方式：cargo build --features unified-dispatcher。
-// 运行时还需 UNIFIED_DISPATCHER_ENABLED=1 才会真正启用（ADR-004）。
-#[cfg(feature = "unified-dispatcher")]
+// ADR-003 v3.1: 统一模型调度层。
+// P0-2: unified-dispatcher feature 已改为默认启用，不再需要 cfg gate。
+// 运行时仍可通过 UNIFIED_DISPATCHER_ENABLED=0 禁用作为安全网（ADR-004）。
 pub mod dispatcher;
 
 pub use anthropic::{AnthropicClient, Role as AnthropicRole};

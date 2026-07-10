@@ -6,10 +6,11 @@
  *    re-applies whenever any of the three theme signals change.
  *  - P0#07: kick off the first Ollama health check, then poll every
  *    30s while the app is alive.
- *  - P0#09: read the onboarding flag exactly once after boot
- *    completes.  `shouldShowOnboarding()` now returns synchronously
- *    from a signal, so a re-mount cannot race with the localStorage
- *    write.
+ *  - P0#09 / P0-4: read the onboarding flag exactly once after boot
+ *    completes.  We check `localStorage.getItem('nebula-onboarding-completed')`
+ *    directly so a re-mount cannot race with the localStorage write.
+ *    P0-4 replaces the old 3-step Onboarding with a 4-step
+ *    OnboardingWizard (欢迎 / 配置模型 / 选择技能 / 完成)。
  */
 import { useEffect, useState } from 'preact/hooks';
 import { lazy, Suspense } from 'preact/compat';
@@ -17,7 +18,7 @@ import { signal } from '@preact/signals';
 import { CodeMode } from './components/CodeMode';
 import { ModeSwitcher } from './components/ModeSwitcher';
 import { AutonomySlider } from './components/AutonomySlider';
-import { Onboarding, shouldShowOnboarding } from './components/Onboarding';
+import { OnboardingWizard, ONBOARDING_STORAGE_KEY } from './components/OnboardingWizard';
 import { StatusBar } from './components/StatusBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
@@ -37,7 +38,7 @@ import { invokeTauri } from './lib/tauri';
 // 仅在用户切换到对应视图时按需加载。
 // 保留 eager 的组件: CodeMode(默认视图,避免首屏闪烁)、
 // ModeSwitcher/StatusBar/ErrorBoundary/Toasts(常驻)、
-// Onboarding(模块因 shouldShowOnboarding 已加载)、
+// OnboardingWizard(首次启动需立即可见,且需读取 localStorage 判定是否渲染)、
 // CommandPalette(工具函数需 eager)。
 const ChatPanel = lazy(() =>
   import('./components/ChatPanel').then((m) => ({ default: m.ChatPanel }))
@@ -108,12 +109,11 @@ const OLLAMA_POLL_MS = 30_000;
 export function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // P0#09: hold the onboarding decision in a ref-ish local state
-  // so it is computed exactly once after `ready` flips, regardless
-  // of any later re-mount of the App tree (e.g. ErrorBoundary
-  // onReload → appKey.value++).  Reading the signal is cheap and
-  // always returns the same value because the signal only flips
-  // when the user explicitly finishes the onboarding.
+  // P0-4: hold the onboarding decision in local state so it is
+  // computed exactly once after `ready` flips, regardless of any
+  // later re-mount of the App tree (e.g. ErrorBoundary
+  // onReload → appKey.value++).  The decision is read directly from
+  // localStorage key `nebula-onboarding-completed`.
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // P1-6 / T-E-B-02: memory view mode — 'map' / 'list' / 'timeline' 三视图。
@@ -138,10 +138,16 @@ export function App() {
     nebulaStore.bootstrap().then(
       () => {
         setReady(true);
-        // P0#09: a single, post-boot read of the onboarding flag.
-        // The signal is hydrated synchronously at module load, so
-        // this is no longer racing with the async backend bootstrap.
-        setShowOnboarding(shouldShowOnboarding());
+        // P0-4: a single, post-boot read of the onboarding flag from
+        // localStorage.  If the user has never finished the wizard
+        // (key missing or not 'true'), we render the 4-step
+        // OnboardingWizard over the whole app.
+        try {
+          setShowOnboarding(localStorage.getItem(ONBOARDING_STORAGE_KEY) !== 'true');
+        } catch {
+          // localStorage 不可用时(隐私模式等)默认不显示向导,避免阻塞。
+          setShowOnboarding(false);
+        }
       },
       (e) => setError(String(e))
     );
@@ -250,7 +256,18 @@ export function App() {
   if (showOnboarding) {
     return (
       <ErrorBoundary>
-        <Onboarding onDone={() => setShowOnboarding(false)} />
+        <OnboardingWizard
+          onDone={() => {
+            // P0-4: 向导完成(包括"稍后"/"跳过"/"进入 Nebula")后,
+            // 标记 localStorage 并隐藏向导。
+            try {
+              localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
+            } catch {
+              /* localStorage 不可用时静默;下次启动仍会显示向导 */
+            }
+            setShowOnboarding(false);
+          }}
+        />
         <Toasts />
       </ErrorBoundary>
     );

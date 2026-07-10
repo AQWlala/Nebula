@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v1.0.1: Settings panel — signal-driven.
  *
  * P0#06: theme / accent / font-size now flow through
@@ -58,6 +58,8 @@ import { Spinner } from './Spinner';
 import { SoulEditor } from './SoulEditor';
 import { EvolutionLogView } from './EvolutionLogView';
 import { WorkTypeConfigView } from './WorkTypeConfigView';
+// P0-1: 模型配置中心(provider 列表 + 配置表单 + WorkType 路由 + 模型健康面板)。
+import { ModelConfigPanel } from './ModelConfigPanel';
 // T-E-B-09: 文件夹选择对话框(tauri-plugin-dialog)。
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 
@@ -192,6 +194,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [evolutionLogOpen, setEvolutionLogOpen] = useState(false);
   // M6 #83: WorkType 配置 Modal 开关。
   const [workTypeConfigOpen, setWorkTypeConfigOpen] = useState(false);
+  // P0-1: 模型配置中心 Modal 开关。
+  const [modelConfigOpen, setModelConfigOpen] = useState(false);
 
   useEffect(() => {
     // P0#4: apply font size + accent to CSS variables on mount
@@ -1054,6 +1058,22 @@ export function Settings({ onClose }: { onClose: () => void }) {
               >
                 {t('workTypeConfig.openButton') }
               </button>
+              <button
+                type="button"
+                onClick={() => setModelConfigOpen(true)}
+                title="打开模型配置中心(provider 管理 / API Key / 连通性测试 / 模型发现 / WorkType 路由)"
+                style={{
+                  fontSize: '12px',
+                  padding: '4px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                模型配置中心
+              </button>
             </div>
           </div>
           <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">
@@ -1503,6 +1523,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
         <WorkTypeConfigView
           open={workTypeConfigOpen}
           onClose={() => setWorkTypeConfigOpen(false)}
+        />
+
+        {/* P0-1: 模型配置中心 Modal — 从 LLM 提供商卡片"模型配置中心"按钮触发。 */}
+        <ModelConfigPanel
+          open={modelConfigOpen}
+          onClose={() => setModelConfigOpen(false)}
         />
 
         <footer class="settings-footer">

@@ -18,8 +18,8 @@
 //!
 //! ## Feature Gate
 //!
-//! `VlmController` 的 LLM 调度依赖 `unified-dispatcher` feature。数据模型和
-//! prompt 构建方法（关联函数）始终可用，便于无 feature 环境下的单元测试。
+//! `VlmController` 的 LLM 调度依赖 `UnifiedModelDispatcher`（P0-2：unified-dispatcher
+//! feature 已默认启用）。数据模型和 prompt 构建方法（关联函数）始终可用，便于单元测试。
 //!
 //! ## 注册
 //!
@@ -29,15 +29,16 @@
 //! pub mod controller_vlm;
 //! ```
 
-#![cfg_attr(not(feature = "unified-dispatcher"), allow(unused_imports, dead_code))]
-
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, instrument, warn};
 
-use crate::os::uiautomator::{ScrollDirection as UiScrollDirection, UiAutomator};
+use crate::os::uiautomator::{
+    ElementBounds, ScrollDirection as UiScrollDirection, UiAutomator, UiElement,
+};
 
 // ── 默认配置 ───────────────────────────────────────────────────────
 
@@ -281,11 +282,11 @@ struct VlmAnalysisResponse {
 /// 持有 `UnifiedModelDispatcher`（LLM 调度，通过 `gateway().describe_image()`
 /// 调用 VLM）和 `dyn UiAutomator`（截图 + 点击 / 输入 / 滚动）。
 ///
-/// `llm_dispatcher` 字段由 `unified-dispatcher` feature 门控；数据模型和
-/// prompt 构建方法（关联函数）始终可用，便于无 feature 环境下的单元测试。
+/// `llm_dispatcher` 字段持有 `UnifiedModelDispatcher`（P0-2：unified-dispatcher
+/// feature 已默认启用）；数据模型和 prompt 构建方法（关联函数）始终可用，
+/// 便于单元测试。
 pub struct VlmController {
     /// LLM 调度器 — 通过 `gateway().describe_image()` 调用 VLM 多模态 API。
-    #[cfg(feature = "unified-dispatcher")]
     llm_dispatcher: Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
     /// UI 自动化执行器 — 截图 + 点击 / 输入 / 滚动。
     uiautomator: Arc<dyn UiAutomator>,
@@ -430,9 +431,8 @@ impl VlmController {
     }
 }
 
-// ── feature-gated 实现（需要 UnifiedModelDispatcher）──
+// ── VlmController 实现（需要 UnifiedModelDispatcher，P0-2 默认启用）──
 
-#[cfg(feature = "unified-dispatcher")]
 impl VlmController {
     /// 创建新的 VLM Controller。
     ///
@@ -552,13 +552,14 @@ impl VlmController {
                 info!(%description, "Click 动作完成");
             }
             VlmAction::Type { bbox, text } => {
-                debug!(?bbox, text_len = text.len(), "执行 Type 动作");
+                let text_len = text.len();
+                debug!(?bbox, text_len, "执行 Type 动作");
                 let element = self.bbox_to_element(&bbox)?;
                 let uia = self.uiautomator.clone();
                 tokio::task::spawn_blocking(move || uia.type_text(&element, &text))
                     .await
                     .context("spawn_blocking type_text 失败")??;
-                info!(text_len = text.len(), "Type 动作完成");
+                info!(text_len, "Type 动作完成");
             }
             VlmAction::Scroll { direction, amount } => {
                 debug!(?direction, amount, "执行 Scroll 动作");

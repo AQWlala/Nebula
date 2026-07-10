@@ -19,7 +19,6 @@ use crate::swarm::bus::BusMessage;
 use crate::swarm::context::TeamContext;
 use crate::swarm::events::SwarmEvent;
 
-#[cfg(feature = "unified-dispatcher")]
 use crate::llm::dispatcher::{UnifiedModelDispatcher, WorkType};
 
 use super::{Agent, AgentOutput};
@@ -53,7 +52,6 @@ pub struct GenericAgent {
     ///
     /// 未注入时回退到 `self.llm.chat(msgs)`(向后兼容)。
     /// 带工具路径(tool_loop)仍走 LlmGateway,等 Phase 3 完整迁移。
-    #[cfg(feature = "unified-dispatcher")]
     dispatcher: Mutex<Option<Arc<UnifiedModelDispatcher>>>,
 }
 
@@ -75,7 +73,6 @@ impl GenericAgent {
             event_sender: Mutex::new(None),
             task_id: Mutex::new(None),
             agent_role: Mutex::new(None),
-            #[cfg(feature = "unified-dispatcher")]
             dispatcher: Mutex::new(None),
         }
     }
@@ -84,13 +81,11 @@ impl GenericAgent {
     ///
     /// 启用后,无工具路径的 LLM 调用会走 `dispatch(SwarmWorker, msgs)`。
     /// 未注入时回退到 `self.llm.chat(msgs)`(向后兼容)。
-    #[cfg(feature = "unified-dispatcher")]
     pub async fn set_dispatcher(&self, dispatcher: Arc<UnifiedModelDispatcher>) {
         *self.dispatcher.lock().await = Some(dispatcher);
     }
 
     /// M3 #48: Builder-style 注入 dispatcher。
-    #[cfg(feature = "unified-dispatcher")]
     pub fn with_dispatcher(mut self, dispatcher: Arc<UnifiedModelDispatcher>) -> Self {
         // Mutex::new 是 const fn,可在非 async 上下文调用。
         self.dispatcher = Mutex::new(Some(dispatcher));
@@ -98,7 +93,6 @@ impl GenericAgent {
     }
 
     /// M3 #48: 是否已注入 dispatcher(主要用于测试与诊断)。
-    #[cfg(feature = "unified-dispatcher")]
     pub async fn has_dispatcher(&self) -> bool {
         self.dispatcher.lock().await.is_some()
     }
@@ -209,7 +203,6 @@ impl Agent for GenericAgent {
 
         let body = if tools.is_empty() {
             // M3 #48: 优先走 dispatcher(若注入),否则回退直连 llm。
-            #[cfg(feature = "unified-dispatcher")]
             {
                 let dispatcher_opt = self.dispatcher.lock().await.clone();
                 if let Some(dispatcher) = dispatcher_opt {
@@ -219,12 +212,6 @@ impl Agent for GenericAgent {
                     let resp = self.llm.chat(msgs).await?;
                     resp.message.content
                 }
-            }
-            // 非 unified-dispatcher 编译路径:保持原行为。
-            #[cfg(not(feature = "unified-dispatcher"))]
-            {
-                let resp = self.llm.chat(msgs).await?;
-                resp.message.content
             }
         } else {
             // 有工具:进入 tool_loop。
@@ -338,7 +325,6 @@ mod tests {
     }
 
     // M3 #48: dispatcher 未注入时 has_dispatcher 返回 false。
-    #[cfg(feature = "unified-dispatcher")]
     #[tokio::test]
     async fn test_has_dispatcher_returns_false_without_dispatcher() {
         let llm = Arc::new(crate::llm::LlmGateway::new_test());
@@ -348,7 +334,6 @@ mod tests {
     }
 
     // M3 #48: with_dispatcher 注入后 has_dispatcher 返回 true。
-    #[cfg(feature = "unified-dispatcher")]
     #[tokio::test]
     async fn test_with_dispatcher_sets_dispatcher() {
         use crate::llm::dispatcher::{ModelPolicy, UnifiedModelDispatcher};
@@ -377,7 +362,6 @@ mod tests {
     }
 
     // M3 #48: set_dispatcher 异步注入。
-    #[cfg(feature = "unified-dispatcher")]
     #[tokio::test]
     async fn test_set_dispatcher_injects_async() {
         use crate::llm::dispatcher::{ModelPolicy, UnifiedModelDispatcher};

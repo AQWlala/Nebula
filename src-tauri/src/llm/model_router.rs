@@ -26,7 +26,6 @@ use tracing::warn;
 
 use crate::llm::ollama::{ChatMessage, OllamaClient};
 
-#[cfg(feature = "unified-dispatcher")]
 use crate::llm::dispatcher::{UnifiedModelDispatcher, WorkType};
 
 /// T-E-A-03: 任务复杂度路由结果,决定首选 LLM provider.
@@ -52,7 +51,6 @@ pub struct ModelRouter {
     /// 旧路径使用的分类器模型名(通常 `qwen2.5:3b`).
     classifier_model: String,
     /// M3 #47: 注入的统一调度器(优先路径)。
-    #[cfg(feature = "unified-dispatcher")]
     dispatcher: Option<Arc<UnifiedModelDispatcher>>,
     cache: Mutex<HashMap<u64, Route>>,
 }
@@ -66,7 +64,6 @@ impl ModelRouter {
         Self {
             ollama,
             classifier_model,
-            #[cfg(feature = "unified-dispatcher")]
             dispatcher: None,
             cache: Mutex::new(HashMap::new()),
         }
@@ -76,14 +73,12 @@ impl ModelRouter {
     ///
     /// 启用后,`classify()` 会先调 `dispatch(WorkType::Classifier, messages)`。
     /// dispatcher 失败/未注入时回退到直连 Ollama 路径。
-    #[cfg(feature = "unified-dispatcher")]
     pub fn with_dispatcher(mut self, dispatcher: Arc<UnifiedModelDispatcher>) -> Self {
         self.dispatcher = Some(dispatcher);
         self
     }
 
     /// M3 #47: 是否已注入 dispatcher(主要用于测试与诊断)。
-    #[cfg(feature = "unified-dispatcher")]
     pub fn has_dispatcher(&self) -> bool {
         self.dispatcher.is_some()
     }
@@ -140,7 +135,6 @@ impl ModelRouter {
     ///
     /// 返回 `Some(lowercased_content)` 表示成功;`None` 表示 dispatcher
     /// 未注入或调用失败(此时上层回退到直连 ollama 路径)。
-    #[cfg(feature = "unified-dispatcher")]
     async fn classify_via_dispatcher(&self, prompt: &[ChatMessage]) -> Option<String> {
         let dispatcher = self.dispatcher.as_ref()?;
         match dispatcher
@@ -157,12 +151,6 @@ impl ModelRouter {
                 None
             }
         }
-    }
-
-    /// 旧路径:dispatcher 未启用时的 stub(返回 None 触发上层回退)。
-    #[cfg(not(feature = "unified-dispatcher"))]
-    async fn classify_via_dispatcher(&self, _prompt: &[ChatMessage]) -> Option<String> {
-        None
     }
 
     /// 直连 Ollama 路径(向后兼容)。
@@ -341,7 +329,6 @@ mod tests {
     }
 
     // M3 #47: dispatcher 未注入时 has_dispatcher 返回 false。
-    #[cfg(feature = "unified-dispatcher")]
     #[test]
     fn test_has_dispatcher_returns_false_without_dispatcher() {
         let ollama = Arc::new(OllamaClient::new("http://127.0.0.1:1"));

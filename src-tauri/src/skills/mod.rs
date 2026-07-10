@@ -20,6 +20,8 @@
 //! * [`exec_approval`] — T-E-S-20 exec 类操作审批门禁（fail-closed 超时拒绝）。
 
 pub mod audit;
+// P0-6: Hermes 式自动发明技能机制 —— 检测重复操作序列并生成 SKILL.md 草稿。
+pub mod auto_inventor;
 // T-E-S-36: 能力层 — Capability + CapabilityRegistry。
 pub mod capability;
 pub mod discover;
@@ -41,6 +43,10 @@ pub mod store;
 pub mod types;
 
 pub use audit::{redact_if_sensitive, truncate_summary, SkillAuditEntry, SkillAuditLogger};
+// P0-6: SkillAutoInventor 类型 re-export(便于 commands::skill_auto_invent 使用)。
+pub use auto_inventor::{
+    AutoInventorConfig, DetectedPattern, OperationRecord, RingBuffer, SkillAutoInventor,
+};
 pub use engine::SkillEngine;
 pub use exec_approval::{
     ExecApprovalRequest, ExecApprovalStatus, ExecApprovalTracker,

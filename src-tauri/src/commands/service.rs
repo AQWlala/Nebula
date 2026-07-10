@@ -118,56 +118,31 @@ impl NebulaService for AppState {
         }
         msgs.push(ChatMessage::user(req.user_message));
         // M7a #86: ADR-003 Phase 4 — chat 走 UnifiedModelDispatcher。
-        // 双路径回滚(P1-19):unified-dispatcher feature on 且 dispatcher 已注入
-        // 时走 `dispatch(WorkType::Chat)`;否则回退到 `LlmGateway::chat`。
-        #[cfg(feature = "unified-dispatcher")]
-        {
-            let resp = if let Some(dispatcher) = &self.llm.dispatcher {
-                use crate::llm::dispatcher::WorkType;
-                dispatcher.dispatch(WorkType::Chat, msgs).await?
-            } else {
-                self.llm.llm.chat(msgs).await?
-            };
-            // T-E-S-64: 调用 consistency::analyze 生成反幻觉报告。
-            // trait 返回类型 `crate::llm::ChatResponse` 无法携带报告,
-            // 此处仅做可观测性记录(risk_score / warning 数);前端 badge
-            // 数据由流式路径 `chat_stream`(commands/chat.rs)直接注入
-            // `ChatComplete.consistency` 字段。
-            let report = crate::memory::consistency::analyze(
-                &context_bundle.cited_memories,
-                &resp.message.content,
-            );
-            tracing::debug!(
-                target: "nebula.memory.consistency",
-                risk_score = report.risk_score,
-                warnings = report.warnings.len(),
-                cited = report.cited.len(),
-                "consistency report generated (non-streaming path)"
-            );
-            return Ok(resp);
-        }
-        // 非 unified-dispatcher 编译路径:走旧 LlmGateway::chat(行为等价)。
-        #[cfg(not(feature = "unified-dispatcher"))]
-        {
-            let resp = { self.llm.llm.chat(msgs).await? };
-            // T-E-S-64: 调用 consistency::analyze 生成反幻觉报告。
-            // trait 返回类型 `crate::llm::ChatResponse` 无法携带报告,
-            // 此处仅做可观测性记录(risk_score / warning 数);前端 badge
-            // 数据由流式路径 `chat_stream`(commands/chat.rs)直接注入
-            // `ChatComplete.consistency` 字段。
-            let report = crate::memory::consistency::analyze(
-                &context_bundle.cited_memories,
-                &resp.message.content,
-            );
-            tracing::debug!(
-                target: "nebula.memory.consistency",
-                risk_score = report.risk_score,
-                warnings = report.warnings.len(),
-                cited = report.cited.len(),
-                "consistency report generated (non-streaming path)"
-            );
-            Ok(resp)
-        }
+        // P0-2: unified-dispatcher 默认启用；dispatcher 已注入时走
+        // `dispatch(WorkType::Chat)`，否则（运行时禁用或未注入）回退到 `LlmGateway::chat`。
+        let resp = if let Some(dispatcher) = &self.llm.dispatcher {
+            use crate::llm::dispatcher::WorkType;
+            dispatcher.dispatch(WorkType::Chat, msgs).await?
+        } else {
+            self.llm.llm.chat(msgs).await?
+        };
+        // T-E-S-64: 调用 consistency::analyze 生成反幻觉报告。
+        // trait 返回类型 `crate::llm::ChatResponse` 无法携带报告,
+        // 此处仅做可观测性记录(risk_score / warning 数);前端 badge
+        // 数据由流式路径 `chat_stream`(commands/chat.rs)直接注入
+        // `ChatComplete.consistency` 字段。
+        let report = crate::memory::consistency::analyze(
+            &context_bundle.cited_memories,
+            &resp.message.content,
+        );
+        tracing::debug!(
+            target: "nebula.memory.consistency",
+            risk_score = report.risk_score,
+            warnings = report.warnings.len(),
+            cited = report.cited.len(),
+            "consistency report generated (non-streaming path)"
+        );
+        Ok(resp)
     }
 
     async fn memory_store(&self, req: StoreMemoryRequest) -> anyhow::Result<StoreMemoryResponse> {

@@ -239,7 +239,9 @@ required-features = ["unified-dispatcher"]
 # keeps working (vector search becomes a linear in-RAM cosine scan).
 # v1.0.1 P1-B-2: channels 默认开启 — native channel adapters (Telegram/Discord)
 # 不再需要显式 --features channels。
-default = ["vector-store", "channels"]
+# P0-2: unified-dispatcher 默认启用（ADR-003）。运行时仍可通过
+# UNIFIED_DISPATCHER_ENABLED=0 禁用作为安全网（参见 dispatcher.rs）。
+default = ["vector-store", "channels", "unified-dispatcher"]
 # T-E-C-20: headless Docker mode — gRPC + REST API, no Tauri window.
 # Usage: cargo build --features headless --no-default-features
 headless = ["grpc", "rest-api"]

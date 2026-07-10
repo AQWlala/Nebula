@@ -17,10 +17,15 @@
 //! - **流式接口**：`dispatch_stream()` 返回 `BoxStream<Result<StreamToken>>`
 //!   （P0-3 修复）。
 //!
-//! ## Feature Gate
+//! ## Feature Gate（P0-2 更新）
 //!
-//! 整个模块由 `unified-dispatcher` feature 控制（默认 off）。
-//! 运行时还需环境变量 `UNIFIED_DISPATCHER_ENABLED=1` 才会真正启用。
+//! `unified-dispatcher` feature 现为 **默认启用**（已加入 `default` feature 列表）。
+//! 编译期不再需要 `#[cfg(feature = "unified-dispatcher")]` 守卫。
+//!
+//! 运行时仍保留 `UNIFIED_DISPATCHER_ENABLED` 环境变量作为 override 安全网：
+//! - 未设置（默认）→ 启用
+//! - `UNIFIED_DISPATCHER_ENABLED=0` / `false` / `off` → 禁用（回退到 LlmGateway 直连）
+//!
 //! 参见 ADR-004 Feature Flag 策略。
 //!
 //! ## 迁移路径（参见 ADR-003 §7.1）
@@ -42,6 +47,61 @@ use super::gateway::{CircuitBreaker, StreamToken};
 use super::ollama::{ChatMessage, ChatResponse};
 use super::semantic_cache::SemanticCache;
 use super::LlmGateway;
+
+// ---------------------------------------------------------------------------
+// 运行时开关（P0-2：默认启用，UNIFIED_DISPATCHER_ENABLED=0 可禁用）
+// ---------------------------------------------------------------------------
+
+/// UnifiedModelDispatcher 运行时启用状态。
+///
+/// P0-2：`unified-dispatcher` feature 已改为默认启用，此 static 默认为 `true`。
+/// 用户可通过环境变量 `UNIFIED_DISPATCHER_ENABLED=0` 在启动时将其关闭，
+/// 作为回退到 `LlmGateway` 直连路径的安全网。
+static UNIFIED_DISPATCHER_ENABLED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(true);
+
+/// 查询 UnifiedModelDispatcher 是否在运行时启用。
+///
+/// 调用方（bootstrap / commands）据此决定是否走 dispatcher 路径；
+/// 返回 `false` 时所有调用方应回退到 `LlmGateway` 直连。
+pub fn unified_dispatcher_enabled() -> bool {
+    UNIFIED_DISPATCHER_ENABLED.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// 设置 UnifiedModelDispatcher 运行时启用状态（供 Settings UI / 测试使用）。
+pub fn set_unified_dispatcher_enabled(on: bool) {
+    UNIFIED_DISPATCHER_ENABLED.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// 启动时从环境变量 `UNIFIED_DISPATCHER_ENABLED` 读取初始状态。
+///
+/// 应在 bootstrap 的 dispatcher 构造前调用一次。语义（与其它运行时开关相反，
+/// 这里默认启用）：
+/// - 未设置 → 保持启用（默认 `true`）
+/// - `0` / `false` / `off`（大小写不敏感）→ 禁用
+/// - 其它值 → 保持启用
+pub fn init_unified_dispatcher_from_env() {
+    let enabled = match std::env::var("UNIFIED_DISPATCHER_ENABLED") {
+        Ok(v) => {
+            let lower = v.to_lowercase();
+            !(lower == "0" || lower == "false" || lower == "off")
+        }
+        Err(_) => true, // 未设置环境变量 → 默认启用
+    };
+    set_unified_dispatcher_enabled(enabled);
+    if enabled {
+        tracing::info!(
+            target: "nebula.llm.dispatcher",
+            "UnifiedModelDispatcher enabled (default; set UNIFIED_DISPATCHER_ENABLED=0 to disable)"
+        );
+    } else {
+        tracing::warn!(
+            target: "nebula.llm.dispatcher",
+            "UnifiedModelDispatcher disabled via UNIFIED_DISPATCHER_ENABLED=0 \
+             (runtime fallback to LlmGateway direct path)"
+        );
+    }
+}
 
 // ---------------------------------------------------------------------------
 // WorkType 枚举

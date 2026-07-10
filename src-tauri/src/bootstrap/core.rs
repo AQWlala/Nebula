@@ -332,18 +332,24 @@ impl AppState {
         info!(target: "nebula", "arena leaderboard ready (T-E-A-14)");
 
         // M7a #86: UnifiedModelDispatcher — 顶层共享实例。
-        #[cfg(feature = "unified-dispatcher")]
+        // P0-2: unified-dispatcher 现为默认启用 feature；运行时通过
+        // UNIFIED_DISPATCHER_ENABLED=0 可禁用（安全网，回退到 LlmGateway 直连）。
+        crate::llm::dispatcher::init_unified_dispatcher_from_env();
         let dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>> = {
-            use crate::llm::dispatcher::{ModelPolicy, UnifiedModelDispatcher};
-            let mc = models_config.read().clone();
-            let policy = ModelPolicy::from_models_config(&mc);
-            Some(Arc::new(UnifiedModelDispatcher::new(
-                llm.clone(),
-                policy,
-                Some(cost_tracker.clone()),
-                None,
-                2,
-            )))
+            if !crate::llm::dispatcher::unified_dispatcher_enabled() {
+                None
+            } else {
+                use crate::llm::dispatcher::{ModelPolicy, UnifiedModelDispatcher};
+                let mc = models_config.read().clone();
+                let policy = ModelPolicy::from_models_config(&mc);
+                Some(Arc::new(UnifiedModelDispatcher::new(
+                    llm.clone(),
+                    policy,
+                    Some(cost_tracker.clone()),
+                    None,
+                    2,
+                )))
+            }
         };
 
         // T-D-C-08: 从环境变量初始化 master-orchestrator 运行时开关
@@ -360,12 +366,7 @@ impl AppState {
         #[cfg(feature = "master-orchestrator")]
         let master_orchestrator = {
             if crate::swarm::master_orchestrator_enabled() {
-                #[cfg(feature = "unified-dispatcher")]
                 let dispatcher = dispatcher.clone();
-                #[cfg(not(feature = "unified-dispatcher"))]
-                let dispatcher: Option<
-                    Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
-                > = None;
                 let mo = Arc::new(crate::swarm::MasterOrchestrator::new(
                     swarm.clone(),
                     dispatcher,
@@ -392,12 +393,7 @@ impl AppState {
             let log = Arc::new(EvolutionLog::new(log_path));
             let roller = Arc::new(Roller::new(log.clone(), soul_md_path));
             let engine = {
-                #[cfg(feature = "unified-dispatcher")]
                 let dispatcher_opt = dispatcher.clone();
-                #[cfg(not(feature = "unified-dispatcher"))]
-                let dispatcher_opt: Option<
-                    Arc<crate::llm::dispatcher::UnifiedModelDispatcher>,
-                > = None;
                 if let Some(dispatcher) = dispatcher_opt {
                     let config = EvolutionEngineConfig::default();
                     Some(Arc::new(EvolutionEngine::new(
@@ -440,7 +436,6 @@ impl AppState {
                 models_config,
                 arena,
                 inline_completion,
-                #[cfg(feature = "unified-dispatcher")]
                 dispatcher,
             },
             swarm: crate::app_state::SwarmSubsystem {

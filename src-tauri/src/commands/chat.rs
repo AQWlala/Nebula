@@ -161,19 +161,17 @@ pub async fn chat_stream(
     let mut first_token_recorded = false;
 
     // M7a #86: ADR-003 Phase 4 — chat_stream 走 UnifiedModelDispatcher。
-    // 双路径回滚(P1-19):unified-dispatcher feature on 且 dispatcher 已注入
-    // 时走 `dispatch_stream(WorkType::Chat)`;否则回退到 `LlmGateway::chat_stream`。
-    // 注:dispatch_stream 远端路径内部就是转发 gateway.chat_stream,行为等价;
-    // 本地路径走 OllamaClient.chat_stream,与 LlmGateway 的 ollama 路径一致。
-    #[cfg(feature = "unified-dispatcher")]
+    // P0-2: unified-dispatcher 默认启用；dispatcher 已注入时走
+    // `dispatch_stream(WorkType::Chat)`，否则（运行时禁用或未注入）回退到
+    // `LlmGateway::chat_stream`。注:dispatch_stream 远端路径内部就是转发
+    // gateway.chat_stream,行为等价;本地路径走 OllamaClient.chat_stream,
+    // 与 LlmGateway 的 ollama 路径一致。
     let stream = if let Some(dispatcher) = &state.llm.dispatcher {
         use crate::llm::dispatcher::WorkType;
         dispatcher.dispatch_stream(WorkType::Chat, msgs)
     } else {
         state.llm.llm.chat_stream(msgs)
     };
-    #[cfg(not(feature = "unified-dispatcher"))]
-    let stream = state.llm.llm.chat_stream(msgs);
     use futures::StreamExt;
     let mut stream = stream;
     while let Some(result) = stream.next().await {

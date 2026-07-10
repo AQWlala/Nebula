@@ -967,6 +967,21 @@ export interface ProviderTestResult {
   error: string | null;
 }
 
+// P0-1: 模型配置中心命令的返回类型。
+/** `test_provider_connection` 返回的连通性测试结果。 */
+export interface ConnectionTestResult {
+  success: boolean;
+  latency_ms: number;
+  error: string | null;
+}
+
+/** `discover_models` 返回的自动发现的模型信息。 */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  context_length: number | null;
+}
+
 export interface WatchStatus {
   active: boolean;
   paths: string[];

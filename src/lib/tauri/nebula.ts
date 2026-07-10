@@ -16,6 +16,7 @@ import type {
   GenerateDidResponse, ResolveDidResponse,
   SkillAuditEntry, PersonaConfig, MaskedApiKey, ModelsConfig,
   ProviderConfig, ProviderTestResult,
+  ConnectionTestResult, ModelInfo,
   UnifiedMessage, Annotation, AnnotationStats,
   SnapshotInfo, SpongeAbsorbFileResult, ContextMenuStatus,
   DiagnosticsSnapshot, DiagnosticEvent, WatchStatus,
@@ -479,6 +480,59 @@ export class nebulaAPI {
 
   static getProviderKey(providerId: string): Promise<MaskedApiKey | null> {
     return invoke('get_provider_key', { providerId });
+  }
+
+  // P0-1: 模型配置中心命令封装。
+
+  /** 查询 keychain 中是否存在该 provider 的 key(不返回明文,只返回 bool)。 */
+  static getProviderKeyStatus(providerId: string): Promise<boolean> {
+    return invoke('get_provider_key_status', { providerId });
+  }
+
+  /** 测试 provider 连通性,返回延迟和状态。 */
+  static testProviderConnection(
+    providerId: string,
+    baseUrl: string,
+    apiKey: string | null
+  ): Promise<ConnectionTestResult> {
+    return invoke('test_provider_connection', {
+      providerId,
+      baseUrl,
+      apiKey: apiKey ?? null,
+    });
+  }
+
+  /** 自动拉取可用模型列表。 */
+  static discoverModels(
+    providerId: string,
+    baseUrl: string,
+    apiKey: string | null
+  ): Promise<ModelInfo[]> {
+    return invoke('discover_models', {
+      providerId,
+      baseUrl,
+      apiKey: apiKey ?? null,
+    });
+  }
+
+  /** 添加自定义 provider,返回新生成的 provider_id。 */
+  static addCustomProvider(name: string, baseUrl: string, kind: string): Promise<string> {
+    return invoke('add_custom_provider', { name, baseUrl, kind });
+  }
+
+  /** 删除 provider(内置或默认 provider 不可删除)。 */
+  static removeProvider(providerId: string): Promise<void> {
+    return invoke('remove_provider', { providerId });
+  }
+
+  /** 设置默认 provider 和 model。 */
+  static setDefaultProvider(providerId: string, modelId: string): Promise<void> {
+    return invoke('set_default_provider', { providerId, modelId });
+  }
+
+  /** 按 WorkType 设置路由。 */
+  static setWorktypeRouting(workType: string, providerId: string): Promise<void> {
+    return invoke('set_worktype_routing', { workType, providerId });
   }
 
   static personaReload(): Promise<PersonaConfig> {

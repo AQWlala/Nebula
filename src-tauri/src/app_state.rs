@@ -87,7 +87,7 @@ pub struct LlmSubsystem {
     /// T-E-S-51: Level 0 内联补全引擎。
     pub inline_completion: Arc<crate::editor::InlineCompletionEngine>,
     /// M7a #86: UnifiedModelDispatcher。
-    #[cfg(feature = "unified-dispatcher")]
+    /// P0-2: unified-dispatcher 默认启用；运行时关闭或未注入时为 None。
     pub dispatcher: Option<Arc<crate::llm::dispatcher::UnifiedModelDispatcher>>,
 }
 

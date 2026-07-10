@@ -90,6 +90,8 @@ pub mod directed_edit;
 pub mod watch;
 // T-E-S-41: models.json 动态配置命令。
 pub mod models_config;
+// P0-1: 模型配置中心命令(provider 状态/连通性测试/模型发现/路由配置)。
+pub mod llm_config;
 // T-E-S-27: Trusted Diagnostics Channels 命令。
 pub mod diagnostics;
 // T-E-S-24: 文件快照回滚命令。
@@ -127,6 +129,9 @@ pub mod evolution;
 // M7b #97: Soul 系统运行时开关命令(soul_system_enabled / soul_system_set_enabled)。
 // 由 soul-system feature 门控,对齐 evolution_enabled / evolution_set_enabled 模式。
 pub mod soul;
+// P0-6: Hermes 式自动发明技能命令(auto_invent_get_patterns / accept_pattern /
+// reject_pattern / get_config / set_config)。
+pub mod skill_auto_invent;
 
 // Re-export the API DTOs so other modules (gRPC, tests) can reach them
 // through the `commands` namespace without depending on the internal
@@ -191,6 +196,8 @@ pub use directed_edit::*;
 pub use watch::*;
 // T-E-S-41: models.json 动态配置命令 re-export。
 pub use models_config::*;
+// P0-1: 模型配置中心命令 re-export。
+pub use llm_config::*;
 // T-E-S-27: Trusted Diagnostics 命令 re-export。
 pub use diagnostics::*;
 // T-E-S-24: 文件快照回滚命令 re-export。
@@ -225,5 +232,8 @@ pub use evolution::*;
 
 #[cfg(feature = "soul-system")]
 pub use soul::*;
+
+// P0-6: SkillAutoInventor 命令 re-export。
+pub use skill_auto_invent::*;
 
 pub use error::{CommandError, ErrorCode};

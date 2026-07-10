@@ -678,6 +678,21 @@ pub fn run() {
             crate::commands::master::loop_audit_query,
             #[cfg(feature = "master-orchestrator")]
             crate::commands::master::loop_audit_count,
+            // P0-1: 模型配置中心命令(provider 状态/连通性测试/模型发现/路由配置)。
+            crate::commands::get_provider_key_status,
+            crate::commands::test_provider_connection,
+            crate::commands::discover_models,
+            crate::commands::add_custom_provider,
+            crate::commands::remove_provider,
+            crate::commands::set_default_provider,
+            crate::commands::set_worktype_routing,
+            // P0-6: Hermes 式自动发明技能命令(auto_invent_get_patterns /
+            // accept_pattern / reject_pattern / get_config / set_config)。
+            crate::commands::auto_invent_get_patterns,
+            crate::commands::auto_invent_accept_pattern,
+            crate::commands::auto_invent_reject_pattern,
+            crate::commands::auto_invent_get_config,
+            crate::commands::auto_invent_set_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -150,7 +150,7 @@ impl SoulCompiler {
     ///
     /// Soul 系统启用条件：
     /// 1. `soul_system_enabled()` 返回 true（运行时开关）
-    /// 2. dispatcher 的 `unified-dispatcher` feature 已编译
+    /// 2. unified-dispatcher feature 已默认编译（P0-2 起默认启用）
     pub fn is_enabled(&self) -> bool {
         super::soul_system_enabled()
     }

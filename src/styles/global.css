@@ -45,6 +45,16 @@
      The Settings panel flips `--accent` between
      `--accent-purple`, `--accent-neon` and an amber value. */
   --accent: var(--accent-purple);
+
+  /* P0-3: 对话区域宽度 4 档可配 + CSS 变量。
+     ChatPanel.tsx 通过 setProperty 切换 --chat-width-mode 和 --chat-msg-max-width。 */
+  --chat-width-mode: 960px;           /* 对话区域最大宽度：720px/960px/1200px/100% */
+  --chat-width-narrow: 720px;
+  --chat-width-medium: 960px;
+  --chat-width-wide: 1200px;
+  --chat-width-immersive: 100%;
+  --chat-msg-max-width: 75%;          /* 消息气泡最大宽度 */
+  --sidebar-width: 240px;             /* 侧边栏宽度 */
 }
 
 * {
@@ -165,7 +175,7 @@ textarea:focus {
 
 /* 侧边栏 */
 .sidebar {
-  width: 240px;
+  width: var(--sidebar-width, 240px);
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
@@ -2433,6 +2443,10 @@ textarea:focus {
 .chat-panel {
   display: flex;
   flex-direction: column;
+  /* P0-3: 对话区域最大宽度居中，超宽屏体验优化 */
+  max-width: var(--chat-width-mode, 960px);
+  margin: 0 auto;
+  width: 100%;
 }
 .chat-messages {
   flex: 1;
@@ -2443,7 +2457,7 @@ textarea:focus {
   padding: 4px 0;
 }
 .msg {
-  max-width: 80%;
+  max-width: var(--chat-msg-max-width, 75%);
   padding: 8px 12px;
   border-radius: 10px;
   background: var(--bg-secondary);
@@ -2525,6 +2539,55 @@ textarea:focus {
 }
 .chat-input input {
   flex: 1;
+}
+
+/* =====================================================================
+ * P0-3: 对话宽度 4 档切换按钮组 + 沉浸模式
+ * ===================================================================== */
+
+/* 宽度切换按钮组容器：放在 panel-header 右侧 */
+.chat-width-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+/* 单个宽度档位按钮 */
+.chat-width-toggle__btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.chat-width-toggle__btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.chat-width-toggle__btn.is-active {
+  color: var(--accent-neon);
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+/* 沉浸模式：隐藏侧边栏，对话区域占满全屏 */
+body.immersive-mode .sidebar {
+  display: none;
+}
+
+body.immersive-mode .main {
+  width: 100%;
 }
 
 /* =====================================================================
@@ -4676,5 +4739,399 @@ code.evolution-meta-val {
   }
   .work-type-row-grid > div:nth-child(5) {
     grid-column: 1;
+  }
+}
+
+/* ---------- P0-4: 首次使用向导(OnboardingWizard) ---------- */
+/* 全屏遮罩,覆盖整个应用。复用与 .onboarding 一致的层级语义但独立命名,
+   避免与旧 Onboarding 组件样式冲突。 */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+}
+
+/* 居中卡片 */
+.onboarding-overlay .onboarding-card {
+  width: 600px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow, 0 12px 40px rgba(0, 0, 0, 0.4));
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+/* 步骤进度条 */
+.onboarding-overlay .onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.onboarding-overlay .onboarding-progress .step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-tertiary, #333);
+  border: 1px solid var(--border);
+  transition: background 0.2s ease;
+}
+.onboarding-overlay .onboarding-progress .step-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.onboarding-overlay .onboarding-progress .step-dot.done {
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.7;
+}
+.onboarding-overlay .onboarding-progress .step-counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 单步内容 */
+.onboarding-overlay .onboarding-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.onboarding-overlay .onboarding-step-title {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+.onboarding-overlay .onboarding-step-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Step 1: 欢迎区 */
+.onboarding-overlay .onboarding-welcome {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.onboarding-overlay .onboarding-logo {
+  font-size: 48px;
+  line-height: 1;
+}
+.onboarding-overlay .onboarding-welcome h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  color: var(--text-primary);
+}
+.onboarding-overlay .onboarding-slogan {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+.onboarding-overlay .onboarding-intro {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 480px;
+}
+
+/* 特性卡片 */
+.onboarding-overlay .onboarding-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+.onboarding-overlay .onboarding-feature-card {
+  padding: 14px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.onboarding-overlay .onboarding-feature-card .feature-icon {
+  font-size: 22px;
+}
+.onboarding-overlay .onboarding-feature-card .feature-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.onboarding-overlay .onboarding-feature-card .feature-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Step 2: Provider 选项 */
+.onboarding-overlay .onboarding-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.onboarding-overlay .onboarding-provider-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.onboarding-overlay .onboarding-provider-option.selected {
+  border-color: var(--accent);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+.onboarding-overlay .onboarding-provider-option input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.onboarding-overlay .onboarding-provider-option .provider-radio-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+.onboarding-overlay .onboarding-provider-option.selected .provider-radio-mark {
+  border-color: var(--accent);
+}
+.onboarding-overlay .onboarding-provider-option.selected .provider-radio-mark::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.onboarding-overlay .onboarding-provider-option .provider-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboarding-overlay .onboarding-provider-option .provider-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.onboarding-overlay .onboarding-provider-option .provider-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* 表单字段 */
+.onboarding-overlay .onboarding-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.onboarding-overlay .onboarding-field .field-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.onboarding-overlay .onboarding-field input {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+/* 测试连接行 */
+.onboarding-overlay .onboarding-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.onboarding-overlay .onboarding-test-result {
+  font-size: 12px;
+}
+.onboarding-overlay .onboarding-test-result.ok {
+  color: var(--accent, #4caf50);
+}
+.onboarding-overlay .onboarding-test-result.fail {
+  color: var(--accent-error, #e53935);
+}
+
+/* Step 3: 技能选择 */
+.onboarding-overlay .onboarding-skill-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.onboarding-overlay .onboarding-skill-actions .btn-link {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.onboarding-overlay .onboarding-skill-actions .skill-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.onboarding-overlay .onboarding-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.onboarding-overlay .onboarding-skill-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  cursor: pointer;
+}
+.onboarding-overlay .onboarding-skill-item.checked {
+  border-color: var(--accent);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+.onboarding-overlay .onboarding-skill-item input[type='checkbox'] {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+.onboarding-overlay .onboarding-skill-item .skill-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboarding-overlay .onboarding-skill-item .skill-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.onboarding-overlay .onboarding-skill-item .skill-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Step 4: 完成总结 */
+.onboarding-overlay .onboarding-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+.onboarding-overlay .onboarding-summary .summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.onboarding-overlay .onboarding-summary .summary-label {
+  color: var(--text-secondary);
+}
+.onboarding-overlay .onboarding-summary .summary-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.onboarding-overlay .onboarding-tip {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* 底部按钮区 */
+.onboarding-overlay .onboarding-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.onboarding-overlay .onboarding-buttons-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.onboarding-overlay .onboarding-buttons .btn-ghost {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+}
+.onboarding-overlay .onboarding-buttons .btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.onboarding-overlay .onboarding-buttons .btn-primary {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+.onboarding-overlay .onboarding-buttons .btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 响应式:窄屏单列 */
+@media (max-width: 640px) {
+  .onboarding-overlay {
+    padding: 12px;
+  }
+  .onboarding-overlay .onboarding-card {
+    padding: 20px 18px;
+    max-height: 94vh;
+  }
+  .onboarding-overlay .onboarding-features {
+    grid-template-columns: 1fr;
+  }
+  .onboarding-overlay .onboarding-buttons {
+    flex-wrap: wrap;
+  }
+  .onboarding-overlay .onboarding-buttons-right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
   }
 }
