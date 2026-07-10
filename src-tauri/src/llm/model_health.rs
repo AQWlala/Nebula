@@ -113,7 +113,9 @@ mod tests {
     fn record_success_updates_metrics() {
         let tracker = ModelHealthTracker::new();
         tracker.record_request("deepseek", 150, true, None);
-        let m = tracker.get_metrics("deepseek").expect("metrics should exist");
+        let m = tracker
+            .get_metrics("deepseek")
+            .expect("metrics should exist");
         assert_eq!(m.latency_ms, Some(150));
         assert!(m.last_error.is_none());
         assert_eq!(m.total_requests, 1);
@@ -161,7 +163,9 @@ mod tests {
     fn update_circuit_breaker_status() {
         let tracker = ModelHealthTracker::new();
         tracker.update_circuit_breaker_status("deepseek", "Open");
-        let m = tracker.get_metrics("deepseek").expect("metrics should exist");
+        let m = tracker
+            .get_metrics("deepseek")
+            .expect("metrics should exist");
         assert_eq!(m.circuit_breaker_status, "Open");
     }
 

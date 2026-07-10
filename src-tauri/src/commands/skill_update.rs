@@ -96,37 +96,25 @@ mod tests {
     #[test]
     fn semver_compare_patch_diff() {
         // 1.0.0 < 1.0.1
-        assert_eq!(
-            semver_compare("1.0.0", "1.0.1"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(semver_compare("1.0.0", "1.0.1"), std::cmp::Ordering::Less);
     }
 
     #[test]
     fn semver_compare_minor_diff() {
         // 1.0.0 < 1.1.0
-        assert_eq!(
-            semver_compare("1.0.0", "1.1.0"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(semver_compare("1.0.0", "1.1.0"), std::cmp::Ordering::Less);
     }
 
     #[test]
     fn semver_compare_major_diff() {
         // 1.0.0 < 2.0.0
-        assert_eq!(
-            semver_compare("1.0.0", "2.0.0"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(semver_compare("1.0.0", "2.0.0"), std::cmp::Ordering::Less);
     }
 
     #[test]
     fn semver_compare_equal() {
         // 1.0.0 == 1.0.0
-        assert_eq!(
-            semver_compare("1.0.0", "1.0.0"),
-            std::cmp::Ordering::Equal
-        );
+        assert_eq!(semver_compare("1.0.0", "1.0.0"), std::cmp::Ordering::Equal);
     }
 
     #[test]
@@ -141,14 +129,8 @@ mod tests {
     #[test]
     fn semver_compare_invalid_version() {
         // 无法解析的版本视为 (0, 0, 0)
-        assert_eq!(
-            semver_compare("latest", "0.0.0"),
-            std::cmp::Ordering::Equal
-        );
-        assert_eq!(
-            semver_compare("1.2", "0.0.0"),
-            std::cmp::Ordering::Equal
-        );
+        assert_eq!(semver_compare("latest", "0.0.0"), std::cmp::Ordering::Equal);
+        assert_eq!(semver_compare("1.2", "0.0.0"), std::cmp::Ordering::Equal);
     }
 
     // --- SkillUpdateInfo 序列化测试 ---

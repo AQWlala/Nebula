@@ -728,16 +728,14 @@ impl SkillMarketplace {
     /// 远端拉取失败的技能也返回 `update_available = false`,不中断整体检查。
     pub async fn check_remote_updates(&self) -> Vec<SkillUpdateInfo> {
         // 获取本地所有技能。
-        let local_skills = match self.store.list(
-            None,
-            None,
-            &[],
-            crate::skills::types::TagMatch::Any,
-            1000,
-        ) {
-            Ok(skills) => skills,
-            Err(_) => return Vec::new(),
-        };
+        let local_skills =
+            match self
+                .store
+                .list(None, None, &[], crate::skills::types::TagMatch::Any, 1000)
+            {
+                Ok(skills) => skills,
+                Err(_) => return Vec::new(),
+            };
 
         let mut results = Vec::new();
         for skill in &local_skills {

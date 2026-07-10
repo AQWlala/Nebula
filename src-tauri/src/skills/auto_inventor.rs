@@ -178,7 +178,13 @@ impl OperationRecord {
     ///
     /// `params` 会被 SHA256 摘要后取前 16 位十六进制存入 `params_hash`,
     /// 原始参数不保留。`now_ms` 由调用方传入(便于测试固定时间)。
-    pub fn new(op_type: impl Into<String>, params: &str, now_ms: u64, session_id: impl Into<String>, success: bool) -> Self {
+    pub fn new(
+        op_type: impl Into<String>,
+        params: &str,
+        now_ms: u64,
+        session_id: impl Into<String>,
+        success: bool,
+    ) -> Self {
         Self {
             op_type: op_type.into(),
             params_hash: hash_params(params),
@@ -368,10 +374,7 @@ impl SkillAutoInventor {
             if operations.is_empty() {
                 continue;
             }
-            let first_seen = snapshot
-                .get(*first_idx)
-                .map(|r| r.timestamp)
-                .unwrap_or(0);
+            let first_seen = snapshot.get(*first_idx).map(|r| r.timestamp).unwrap_or(0);
             let last_seen = snapshot.get(*last_idx).map(|r| r.timestamp).unwrap_or(0);
 
             if detected.contains(pid) {
@@ -432,7 +435,10 @@ impl SkillAutoInventor {
             return Err("cannot generate skill draft: empty operation sequence".to_string());
         }
 
-        let name = format!("auto-invented-{}", &pattern.pattern_id[..8.min(pattern.pattern_id.len())]);
+        let name = format!(
+            "auto-invented-{}",
+            &pattern.pattern_id[..8.min(pattern.pattern_id.len())]
+        );
         let description = generate_description(&pattern.operations);
         let capabilities = infer_capabilities(&pattern.operations);
 
@@ -481,8 +487,12 @@ impl SkillAutoInventor {
 
         let skill_md = serialize_skill_md(manifest, body);
         let skill_md_path = skill_dir.join("SKILL.md");
-        std::fs::write(&skill_md_path, skill_md.as_bytes())
-            .map_err(|e| format!("failed to write SKILL.md at {}: {e}", skill_md_path.display()))?;
+        std::fs::write(&skill_md_path, skill_md.as_bytes()).map_err(|e| {
+            format!(
+                "failed to write SKILL.md at {}: {e}",
+                skill_md_path.display()
+            )
+        })?;
 
         info!(
             target: "nebula.skills.auto_inventor",
@@ -923,10 +933,7 @@ mod tests {
         }
 
         let new = inv.detect_patterns().await;
-        assert!(
-            !new.is_empty(),
-            "should detect the repeating 3-op sequence"
-        );
+        assert!(!new.is_empty(), "should detect the repeating 3-op sequence");
         // 至少有一个模式的 operations == seq。
         let hit = new
             .iter()
@@ -956,7 +963,10 @@ mod tests {
             }
         }
         let new = inv.detect_patterns().await;
-        assert!(new.is_empty(), "below-threshold sequence should not be detected");
+        assert!(
+            new.is_empty(),
+            "below-threshold sequence should not be detected"
+        );
     }
 
     #[tokio::test]
@@ -1022,14 +1032,21 @@ mod tests {
         let inv = SkillAutoInventor::with_defaults();
         let pattern = DetectedPattern {
             pattern_id: "abcdef0123456789".to_string(),
-            operations: vec!["file.read".to_string(), "code.search".to_string(), "llm.call".to_string()],
+            operations: vec![
+                "file.read".to_string(),
+                "code.search".to_string(),
+                "llm.call".to_string(),
+            ],
             occurrence_count: 7,
             first_seen: 100,
             last_seen: 200,
             generated_skill: None,
             review_status: "pending".to_string(),
         };
-        let m = inv.generate_skill_draft(&pattern).await.expect("draft should generate");
+        let m = inv
+            .generate_skill_draft(&pattern)
+            .await
+            .expect("draft should generate");
         assert_eq!(m.name, "auto-invented-abcdef01");
         assert_eq!(m.version, "0.1.0");
         assert_eq!(m.status.as_deref(), Some("draft"));
@@ -1041,7 +1058,10 @@ mod tests {
         assert!(m.capabilities.iter().any(|c| c == "llm:call"));
         // description 应包含所有操作类型。
         for op in &pattern.operations {
-            assert!(m.description.contains(op), "description should mention {op}");
+            assert!(
+                m.description.contains(op),
+                "description should mention {op}"
+            );
         }
     }
 
@@ -1131,11 +1151,16 @@ mod tests {
 
         // 接受模式 —— 应生成草稿 + 写文件 + 状态置 accepted。
         let res = inv.review_pattern(&pid, true).await;
-        let path = res.expect("accept should succeed").expect("should return a path");
+        let path = res
+            .expect("accept should succeed")
+            .expect("should return a path");
         assert!(path.exists(), "draft file should exist after accept");
 
         let all = inv.list_patterns().await;
-        let accepted = all.iter().find(|p| p.pattern_id == pid).expect("pattern should exist");
+        let accepted = all
+            .iter()
+            .find(|p| p.pattern_id == pid)
+            .expect("pattern should exist");
         assert_eq!(accepted.review_status, "accepted");
         assert!(accepted.generated_skill.is_some());
     }
@@ -1171,7 +1196,10 @@ mod tests {
         assert!(entries.is_empty(), "no files should be written on reject");
 
         let all = inv.list_patterns().await;
-        let rejected = all.iter().find(|p| p.pattern_id == pid).expect("pattern should exist");
+        let rejected = all
+            .iter()
+            .find(|p| p.pattern_id == pid)
+            .expect("pattern should exist");
         assert_eq!(rejected.review_status, "rejected");
     }
 
@@ -1189,7 +1217,8 @@ mod tests {
     #[test]
     fn set_config_updates_enabled_and_threshold() {
         let inv = SkillAutoInventor::with_defaults();
-        inv.set_config(Some(false), Some(7)).expect("set should succeed");
+        inv.set_config(Some(false), Some(7))
+            .expect("set should succeed");
         let cfg = inv.config();
         assert!(!cfg.enabled);
         assert_eq!(cfg.pattern_threshold, 7);
@@ -1291,8 +1320,14 @@ mod tests {
     fn default_skills_dir_is_under_nebula() {
         let dir = default_skills_dir();
         let s = dir.to_string_lossy().to_string();
-        assert!(s.contains(".nebula"), "skills_dir should be under .nebula: {s}");
-        assert!(s.contains("auto-invented"), "skills_dir should be in auto-invented: {s}");
+        assert!(
+            s.contains(".nebula"),
+            "skills_dir should be under .nebula: {s}"
+        );
+        assert!(
+            s.contains("auto-invented"),
+            "skills_dir should be in auto-invented: {s}"
+        );
     }
 
     #[test]

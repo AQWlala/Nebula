@@ -547,24 +547,22 @@ impl LlmGateway {
                     }
                 }
             }
-            ProviderKind::Anthropic => {
-                match api_key {
-                    Some(key) if !key.is_empty() => {
-                        let model = self.default_model.clone();
-                        let client = AnthropicClient::new(
-                            key.to_string(),
-                            model,
-                            base_url.map(|s| s.to_string()),
-                        );
-                        *self.anthropic.write() = Some(AnthropicFallback { client });
-                        info!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已热重建");
-                    }
-                    _ => {
-                        *self.anthropic.write() = None;
-                        debug!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已清除(api_key 缺失)");
-                    }
+            ProviderKind::Anthropic => match api_key {
+                Some(key) if !key.is_empty() => {
+                    let model = self.default_model.clone();
+                    let client = AnthropicClient::new(
+                        key.to_string(),
+                        model,
+                        base_url.map(|s| s.to_string()),
+                    );
+                    *self.anthropic.write() = Some(AnthropicFallback { client });
+                    info!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已热重建");
                 }
-            }
+                _ => {
+                    *self.anthropic.write() = None;
+                    debug!(target: "nebula.llm", provider = %provider_id, "Anthropic 客户端已清除(api_key 缺失)");
+                }
+            },
             ProviderKind::Ollama => {
                 // Ollama 客户端用于 embedding + 本地 chat fallback,
                 // 不在热更新范围内。base_url 变更需重启生效。
@@ -632,10 +630,7 @@ impl LlmGateway {
     ) {
         if let Some(tracker) = &self.model_health_tracker {
             tracker.record_request(provider_id, latency_ms, success, error);
-            tracker.update_circuit_breaker_status(
-                &self.provider,
-                self.circuit_breaker_status(),
-            );
+            tracker.update_circuit_breaker_status(&self.provider, self.circuit_breaker_status());
         }
     }
 
@@ -775,7 +770,10 @@ impl LlmGateway {
         if effective_provider == "deepseek" {
             let ds_opt = self.deepseek.read().clone();
             if let Some(ds) = ds_opt {
-                match self.call_deepseek(&ds, &self.default_model, &messages).await {
+                match self
+                    .call_deepseek(&ds, &self.default_model, &messages)
+                    .await
+                {
                     Ok((resp, prompt_tokens, completion_tokens)) => {
                         self.breaker.record_success();
                         // P1-1: 记录健康指标(成功)。

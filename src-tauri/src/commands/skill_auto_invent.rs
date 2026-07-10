@@ -25,9 +25,7 @@ use tauri::State;
 use tracing::instrument;
 
 use crate::commands::error::CommandError;
-use crate::skills::auto_inventor::{
-    AutoInventorConfig, DetectedPattern, SkillAutoInventor,
-};
+use crate::skills::auto_inventor::{AutoInventorConfig, DetectedPattern, SkillAutoInventor};
 use crate::AppState;
 
 /// 进程级单例:所有命令共享同一 [`SkillAutoInventor`] 实例。
@@ -98,7 +96,9 @@ pub async fn auto_invent_reject_pattern(
     AUTO_INVENTOR
         .review_pattern(&pattern_id, false)
         .await
-        .map_err(|e| CommandError::internal("auto_invent_reject_pattern", &anyhow::anyhow!("{e}")))?;
+        .map_err(|e| {
+            CommandError::internal("auto_invent_reject_pattern", &anyhow::anyhow!("{e}"))
+        })?;
     Ok(())
 }
 
@@ -125,7 +125,7 @@ pub async fn auto_invent_set_config(
     enabled: Option<bool>,
     threshold: Option<usize>,
 ) -> Result<(), CommandError> {
-    AUTO_INVENTOR.set_config(enabled, threshold).map_err(|e| {
-        CommandError::validation(format!("auto_invent_set_config: {e}"))
-    })
+    AUTO_INVENTOR
+        .set_config(enabled, threshold)
+        .map_err(|e| CommandError::validation(format!("auto_invent_set_config: {e}")))
 }
