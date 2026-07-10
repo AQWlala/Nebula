@@ -112,7 +112,6 @@ function injectStyles(): void {
   border-radius: 50%;
   background: ${NEON_GREEN};
   border: 2px solid var(--bg-secondary);
-  box-shadow: 0 0 6px rgba(57, 217, 138, 0.6);
   cursor: pointer;
   transition: transform 0.1s ease;
 }
@@ -125,7 +124,6 @@ function injectStyles(): void {
   border-radius: 50%;
   background: ${NEON_GREEN};
   border: 2px solid var(--bg-secondary);
-  box-shadow: 0 0 6px rgba(57, 217, 138, 0.6);
   cursor: pointer;
 }
 .autonomy-slider__range:disabled {

@@ -527,7 +527,7 @@ function MonthGrid({
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      borderLeft: `3px solid ${color}`,
+                      border: `1px solid ${color}`,
                       background: theme.bg,
                       color: color,
                     }}
@@ -692,7 +692,7 @@ function WeekGrid({
                         borderRadius: 3,
                         fontSize: 11,
                         overflow: 'hidden',
-                        borderLeft: `3px solid ${color}`,
+                        border: `1px solid ${color}`,
                         background: theme.bg,
                         color: color,
                         boxSizing: 'border-box',

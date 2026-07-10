@@ -286,8 +286,10 @@ export function OnboardingWizard({ onDone }: OnboardingWizardProps) {
               {FEATURE_CARDS.map((f) => (
                 <div key={f.title} class="onboarding-feature-card">
                   <div class="feature-icon">{f.icon}</div>
-                  <div class="feature-title">{f.title}</div>
-                  <div class="feature-desc">{f.desc}</div>
+                  <div class="feature-text">
+                    <div class="feature-title">{f.title}</div>
+                    <div class="feature-desc">{f.desc}</div>
+                  </div>
                 </div>
               ))}
             </div>

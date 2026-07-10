@@ -32,9 +32,19 @@
   --spacing-2xl: 48px;
   --spacing-3xl: 64px;
   --font-sans:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC', 'PingFang SC',
+    'Geist', 'Outfit', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC', 'PingFang SC',
     'Microsoft YaHei', sans-serif;
+  --font-display:
+    'Geist Display', 'Outfit', -apple-system, BlinkMacSystemFont, 'Source Han Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  /* z-index 语义化标尺（Impeccable G12: 禁用 999/9999 任意值） */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 1000;
+  --z-modal: 2000;
+  --z-toast: 3000;
+  --z-tooltip: 4000;
   --shadow: var(--shadow-md);
   --radius: var(--radius-md);
   /* P0#4: base font size.  The Settings panel sets
@@ -116,8 +126,10 @@ textarea:focus {
 }
 
 .app-loading .title {
+  font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--accent);
 }
 
@@ -303,8 +315,10 @@ body.is-resizing * {
 }
 
 .brand-text {
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--accent);
 }
 
@@ -315,8 +329,7 @@ body.is-resizing * {
   padding: 12px 20px;
   width: 100%;
   text-align: left;
-  border-left: 3px solid transparent;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .nav-item:hover {
@@ -325,8 +338,8 @@ body.is-resizing * {
 
 .nav-item.active {
   background: var(--bg-tertiary);
-  border-left-color: var(--accent-neon);
   color: var(--accent-neon);
+  font-weight: 600;
 }
 
 .nav-icon {
@@ -380,8 +393,10 @@ body.is-resizing * {
 }
 
 .panel-title {
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .btn {
@@ -444,7 +459,10 @@ body.is-resizing * {
 }
 
 .skill-marketplace__header h2 {
+  font-family: var(--font-display);
   font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--accent-neon);
 }
 
@@ -1000,7 +1018,6 @@ body.is-resizing * {
   font-weight: 600;
   color: var(--text-primary);
   flex: 0 0 320px;
-  outline: none;
 }
 .save-state {
   font-size: 11px;
@@ -1056,7 +1073,6 @@ body.is-resizing * {
   font-family: 'Menlo', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.7;
-  outline: none;
 }
 .doc-preview {
   flex: 1;
@@ -1251,19 +1267,18 @@ body.is-resizing * {
   padding: 8px 10px;
   margin-bottom: 6px;
   cursor: grab;
-  border-left-width: 3px;
 }
 .task-card.priority-0 {
-  border-left-color: #555;
+  border-color: #555;
 }
 .task-card.priority-1 {
-  border-left-color: #5fa8ff;
+  border-color: #5fa8ff;
 }
 .task-card.priority-2 {
-  border-left-color: #ffb86b;
+  border-color: #ffb86b;
 }
 .task-card.priority-3 {
-  border-left-color: #ff6b6b;
+  border-color: #ff6b6b;
 }
 .task-card.is-timed {
   box-shadow: 0 0 0 1px #39d98a;
@@ -1914,15 +1929,12 @@ body.is-resizing * {
 }
 .status-green {
   background: var(--accent-neon);
-  box-shadow: 0 0 6px var(--accent-neon);
 }
 .status-amber {
   background: var(--accent-warning);
-  box-shadow: 0 0 6px var(--accent-warning);
 }
 .status-red {
   background: var(--accent-error);
-  box-shadow: 0 0 6px var(--accent-error);
 }
 .status-gray {
   background: var(--text-muted);
@@ -2093,23 +2105,22 @@ body.is-resizing * {
   position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent-purple);
   border-radius: var(--radius);
   padding: 10px 32px 10px 12px;
   box-shadow: var(--shadow);
   animation: toast-in 0.18s ease-out;
 }
 .toast-success {
-  border-left-color: var(--accent-neon);
+  border-color: var(--accent-neon);
 }
 .toast-error {
-  border-left-color: var(--accent-error);
+  border-color: var(--accent-error);
 }
 .toast-warning {
-  border-left-color: var(--accent-warning);
+  border-color: var(--accent-warning);
 }
 .toast-info {
-  border-left-color: var(--accent-purple);
+  border-color: var(--accent-purple);
 }
 .toast-title {
   font-weight: 600;
@@ -2225,7 +2236,6 @@ body.is-resizing * {
   color: var(--text-primary);
   padding: 12px 16px;
   font-size: 15px;
-  outline: none;
   border-bottom: 1px solid var(--border);
 }
 .command-list {
@@ -2248,11 +2258,12 @@ body.is-resizing * {
   padding: 8px 16px;
   cursor: pointer;
   font-size: 13px;
-  border-left: 3px solid transparent;
+  transition: background 0.15s;
 }
 .command-item.active {
   background: var(--bg-tertiary);
-  border-left-color: var(--accent-neon);
+  color: var(--accent-neon);
+  font-weight: 600;
 }
 .command-group {
   color: var(--text-muted);
@@ -2475,7 +2486,7 @@ body.is-resizing * {
   cursor: pointer;
   width: 100%;
   text-align: left;
-  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s;
 }
 .sidebar-footer .settings-btn:hover {
   background: var(--bg-tertiary);
@@ -2493,7 +2504,6 @@ body.is-resizing * {
   padding: 10px 14px;
   margin-bottom: 12px;
   border: 1px solid var(--accent-warning);
-  border-left-width: 4px;
   border-radius: var(--radius);
   background: rgba(255, 184, 107, 0.08);
   color: var(--text-primary);
@@ -2906,7 +2916,6 @@ body.immersive-mode .main {
   color: var(--text-primary);
   font-size: 12px;
   padding: 6px 8px;
-  outline: none;
 }
 .floating-chat__input input:focus {
   border-color: var(--accent);
@@ -3412,7 +3421,6 @@ body.immersive-mode .main {
     padding: 8px 12px;
     justify-content: flex-start;
     gap: 8px;
-    border-left: 3px solid transparent;
     border-bottom: 3px solid transparent;
     flex-shrink: 0;
     width: auto;
@@ -3423,7 +3431,6 @@ body.immersive-mode .main {
   }
 
   .nav-item.active {
-    border-left-color: transparent;
     border-bottom-color: var(--accent-neon);
   }
 
@@ -3696,23 +3703,22 @@ body.immersive-mode .main {
   align-items: center;
   padding: 6px 10px;
   background: var(--bg-secondary);
-  border-left: 3px solid transparent;
   border-radius: 4px;
   font-size: 12px;
   font-family: var(--font-mono, monospace);
 }
 
 .timeline-info {
-  border-left-color: var(--text-muted);
+  border: 1px solid var(--text-muted);
 }
 .timeline-success {
-  border-left-color: var(--accent-success, #6dff9c);
+  border: 1px solid var(--accent-success, #6dff9c);
 }
 .timeline-warning {
-  border-left-color: var(--accent-warning, #ffd66d);
+  border: 1px solid var(--accent-warning, #ffd66d);
 }
 .timeline-error {
-  border-left-color: var(--accent-error);
+  border: 1px solid var(--accent-error);
 }
 
 .timeline-time {
@@ -3820,7 +3826,7 @@ body.immersive-mode .main {
   background: var(--bg-tertiary);
   padding: 8px 12px;
   border-radius: 4px;
-  border-left: 3px solid var(--accent-neon);
+  border: 1px solid var(--accent-neon);
   line-height: 1.5;
 }
 .soul-editor-hint code {
@@ -3855,10 +3861,10 @@ body.immersive-mode .main {
   background: var(--bg-secondary);
 }
 .soul-section-editable {
-  border-left: 3px solid var(--accent-neon);
+  border: 1px solid var(--accent-neon);
 }
 .soul-section-readonly {
-  border-left: 3px solid var(--text-muted);
+  border: 1px solid var(--text-muted);
   background: var(--bg-tertiary);
   opacity: 0.92;
 }
@@ -3911,7 +3917,6 @@ body.immersive-mode .main {
   font-size: 12px;
   line-height: 1.5;
   resize: vertical;
-  outline: none;
 }
 .soul-textarea:focus {
   background: var(--bg-primary);
@@ -4292,8 +4297,7 @@ code.evolution-meta-val {
 /* 时间线选中高亮 */
 .timeline-selected {
   background: rgba(59, 130, 246, 0.08) !important;
-  border-left: 3px solid #3b82f6 !important;
-  padding-left: 5px !important;
+  border: 1px solid #3b82f6 !important;
 }
 
 /* ---------- M6 #81: WorkType 分域视图 ---------- */
@@ -4968,25 +4972,33 @@ code.evolution-meta-val {
   max-width: 480px;
 }
 
-/* 特性卡片 */
+/* 特性卡片:垂直列表,图标与标题内联左对齐(避免三列等高 + 图标堆叠的 AI slop) */
 .onboarding-overlay .onboarding-features {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   margin-top: 4px;
 }
 .onboarding-overlay .onboarding-feature-card {
-  padding: 14px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-primary);
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  text-align: left;
 }
 .onboarding-overlay .onboarding-feature-card .feature-icon {
   font-size: 22px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+.onboarding-overlay .onboarding-feature-card .feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .onboarding-overlay .onboarding-feature-card .feature-title {
   font-size: 13px;
@@ -5263,9 +5275,6 @@ code.evolution-meta-val {
     padding: 20px 18px;
     max-height: 94vh;
   }
-  .onboarding-overlay .onboarding-features {
-    grid-template-columns: 1fr;
-  }
   .onboarding-overlay .onboarding-buttons {
     flex-wrap: wrap;
   }
@@ -5408,7 +5417,6 @@ code.evolution-meta-val {
   font-size: 13px;
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   color: #e5e7eb;
-  outline: none;
   transition: border-color 0.15s ease;
 }
 
@@ -5649,5 +5657,30 @@ code.evolution-meta-val {
   color: var(--text-tertiary, #6b7280);
   font-family: var(--font-mono, monospace);
   text-align: right;
+}
+
+/* =====================================================================
+ * 全局无障碍兜底（Impeccable G17 + Taste-skill 交互审计）
+ * ===================================================================== */
+
+/* 全局 focus-visible 指示器：键盘导航时显示，鼠标点击不显示 */
+:focus-visible {
+  outline: 2px solid var(--accent-neon);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 移除无替代的裸 outline:none，保留有 border-color 替代的 :focus */
+
+/* 全局 reduced-motion 兜底：所有动画在用户启用"减少动效"时降级 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

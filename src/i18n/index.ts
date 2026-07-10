@@ -4,7 +4,7 @@
  * Two-locale MVP (zh-CN, en-US).  Locale is read from
  * `localStorage` first, then `navigator.language`, then defaults
  * to `en-US`.  The set of supported locales is fixed; we do not
- * fall back across files — an unknown locale falls back to en-US.
+ * fall back across files; an unknown locale falls back to en-US.
  *
  * P0#3 fix: the current locale is now exposed as a
  * `@preact/signals` signal so any component that reads

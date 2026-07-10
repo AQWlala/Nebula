@@ -80,7 +80,7 @@ export function printToPdf(messages: Message[], options: ExportOptions): void {
           ? `<div style="font-size:12px;color:#888;margin-bottom:4px;">${formatTimestamp(msg.timestamp)}</div>`
           : '';
       return `
-        <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:${msg.role === 'user' ? 'rgba(33,150,243,0.05)' : 'rgba(76,175,80,0.05)'};border-left:4px solid ${roleColor};">
+        <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:${msg.role === 'user' ? 'rgba(33,150,243,0.05)' : 'rgba(76,175,80,0.05)'};border:1px solid ${roleColor};">
           <div style="font-weight:bold;color:${roleColor};margin-bottom:4px;">${roleLabel}</div>
           ${ts}
           <div style="white-space:pre-wrap;line-height:1.6;">${escapeHtml(msg.content)}</div>
