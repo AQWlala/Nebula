@@ -29,7 +29,9 @@ use tauri::State;
 use tracing::{instrument, warn};
 
 use crate::commands::error::CommandError;
-use crate::skills::protocol::{SkillEligibility, SkillManifest, SkillSpecValidator, SkillTransport};
+use crate::skills::protocol::{
+    SkillEligibility, SkillManifest, SkillSpecValidator, SkillTransport,
+};
 use crate::skills::types::{Skill, UseSkillRequest};
 use crate::AppState;
 
@@ -210,15 +212,15 @@ pub async fn skill_inspect(
 
     // 拆分三层校验结果:结构层 / 规范层 / 资格层。
     let structure_ok = report.manifest.is_some()
-        && !report
-            .errors
-            .iter()
-            .any(|e| e.contains("name is required") || e.contains("version is required")
-                || e.contains("frontmatter") || e.contains("semver"));
-    let spec_ok = !report
-        .errors
-        .iter()
-        .any(|e| e.contains("transport") || e.contains("status") || e.contains("min_nebula_version"));
+        && !report.errors.iter().any(|e| {
+            e.contains("name is required")
+                || e.contains("version is required")
+                || e.contains("frontmatter")
+                || e.contains("semver")
+        });
+    let spec_ok = !report.errors.iter().any(|e| {
+        e.contains("transport") || e.contains("status") || e.contains("min_nebula_version")
+    });
     let eligibility_ok = report.eligible;
 
     let validation = ValidationResult {
@@ -258,7 +260,10 @@ pub async fn skill_test_run(
     let skill = load_skill(&state, &skill_id)?;
     let params = parse_test_input(&test_input);
     let mut logs = Vec::new();
-    logs.push(format!("[test_run] skill={} language={}", skill.name, skill.language));
+    logs.push(format!(
+        "[test_run] skill={} language={}",
+        skill.name, skill.language
+    ));
     logs.push(format!("[test_run] params={} keys", params.len()));
 
     let start = Instant::now();
@@ -267,7 +272,12 @@ pub async fn skill_test_run(
         params,
     };
     // 外层 30s 超时(沙箱内部已有 5s 超时,这里只是安全网)。
-    let result = match tokio::time::timeout(Duration::from_secs(30), state.swarm.skills.use_skill(use_req)).await {
+    let result = match tokio::time::timeout(
+        Duration::from_secs(30),
+        state.swarm.skills.use_skill(use_req),
+    )
+    .await
+    {
         Ok(r) => r,
         Err(_) => {
             return Ok(SkillTestResult {
@@ -283,7 +293,10 @@ pub async fn skill_test_run(
     let latency_ms = start.elapsed().as_millis() as u64;
     match result {
         Ok(skill_result) => {
-            logs.push(format!("[test_run] success latency={}ms tokens={}", latency_ms, skill_result.tokens_used));
+            logs.push(format!(
+                "[test_run] success latency={}ms tokens={}",
+                latency_ms, skill_result.tokens_used
+            ));
             Ok(SkillTestResult {
                 success: true,
                 output: skill_result.output,
@@ -380,26 +393,45 @@ pub async fn skill_debug_step(
     match step.as_str() {
         "load" => {
             // 加载元数据:填充 skill 元信息到变量。
-            session.variables.insert("skill.name".into(), skill.name.clone());
-            session.variables.insert("skill.language".into(), skill.language.clone());
-            session.variables.insert("skill.usage_count".into(), skill.usage_count.to_string());
+            session
+                .variables
+                .insert("skill.name".into(), skill.name.clone());
+            session
+                .variables
+                .insert("skill.language".into(), skill.language.clone());
+            session
+                .variables
+                .insert("skill.usage_count".into(), skill.usage_count.to_string());
             session
                 .variables
                 .insert("skill.trust_level".into(), skill.trust_level.to_string());
-            output = format!("loaded skill '{}' (language={}, usage={})",
-                skill.name, skill.language, skill.usage_count);
+            output = format!(
+                "loaded skill '{}' (language={}, usage={})",
+                skill.name, skill.language, skill.usage_count
+            );
         }
         "validate" => {
             // 跑三层校验。
             let skill_md = synthesize_skill_md(&skill);
             let report = SkillSpecValidator::validate_skill_md(&skill_md);
-            session.variables.insert("validation.valid".into(), report.valid.to_string());
-            session.variables.insert("validation.eligible".into(), report.eligible.to_string());
-            session.variables.insert("validation.errors".into(), report.errors.join("; "));
-            session.variables.insert("validation.warnings".into(), report.warnings.join("; "));
+            session
+                .variables
+                .insert("validation.valid".into(), report.valid.to_string());
+            session
+                .variables
+                .insert("validation.eligible".into(), report.eligible.to_string());
+            session
+                .variables
+                .insert("validation.errors".into(), report.errors.join("; "));
+            session
+                .variables
+                .insert("validation.warnings".into(), report.warnings.join("; "));
             output = format!(
                 "validation: valid={} eligible={} errors={} warnings={}",
-                report.valid, report.eligible, report.errors.len(), report.warnings.len()
+                report.valid,
+                report.eligible,
+                report.errors.len(),
+                report.warnings.len()
             );
             if !report.valid {
                 success = false;
@@ -413,9 +445,16 @@ pub async fn skill_debug_step(
                 id: session.skill_id.clone(),
                 params,
             };
-            match tokio::time::timeout(Duration::from_secs(30), state.swarm.skills.use_skill(use_req)).await {
+            match tokio::time::timeout(
+                Duration::from_secs(30),
+                state.swarm.skills.use_skill(use_req),
+            )
+            .await
+            {
                 Ok(Ok(r)) => {
-                    session.variables.insert("execute.output".into(), r.output.clone());
+                    session
+                        .variables
+                        .insert("execute.output".into(), r.output.clone());
                     session
                         .variables
                         .insert("execute.latency_ms".into(), r.execution_time_ms.to_string());
@@ -426,14 +465,18 @@ pub async fn skill_debug_step(
                 }
                 Ok(Err(e)) => {
                     let msg = format!("{e:#}");
-                    session.variables.insert("execute.error".into(), msg.clone());
+                    session
+                        .variables
+                        .insert("execute.error".into(), msg.clone());
                     success = false;
                     error = Some(msg.clone());
                     output = msg;
                 }
                 Err(_) => {
                     let msg = "execute exceeded 30s timeout".to_string();
-                    session.variables.insert("execute.error".into(), msg.clone());
+                    session
+                        .variables
+                        .insert("execute.error".into(), msg.clone());
                     success = false;
                     error = Some(msg.clone());
                     output = msg;
@@ -519,7 +562,11 @@ pub async fn skill_profile(
         params,
     };
     let exec_start = Instant::now();
-    let result = tokio::time::timeout(Duration::from_secs(30), state.swarm.skills.use_skill(use_req)).await;
+    let result = tokio::time::timeout(
+        Duration::from_secs(30),
+        state.swarm.skills.use_skill(use_req),
+    )
+    .await;
     let exec_ms = exec_start.elapsed().as_millis() as u64;
 
     let (output_len, error_msg) = match result {
@@ -814,16 +861,27 @@ mod tests {
         // 关键字段应在 JSON 中出现。
         assert!(j.contains("\"manifest\""), "manifest field missing: {j}");
         assert!(j.contains("\"body\""), "body field missing: {j}");
-        assert!(j.contains("\"validation\""), "validation field missing: {j}");
-        assert!(j.contains("\"dependency_check\""), "dependency_check field missing: {j}");
-        assert!(j.contains("\"usage_stats\""), "usage_stats field missing: {j}");
+        assert!(
+            j.contains("\"validation\""),
+            "validation field missing: {j}"
+        );
+        assert!(
+            j.contains("\"dependency_check\""),
+            "dependency_check field missing: {j}"
+        );
+        assert!(
+            j.contains("\"usage_stats\""),
+            "usage_stats field missing: {j}"
+        );
         // 反序列化还原。
-        let back: SkillInspection =
-            serde_json::from_str(&j).expect("deserialize should succeed");
+        let back: SkillInspection = serde_json::from_str(&j).expect("deserialize should succeed");
         assert_eq!(back.manifest.name, "test-skill");
         assert_eq!(back.usage_stats.call_count, 42);
         assert!((back.usage_stats.success_rate - 0.95).abs() < 1e-9);
-        assert_eq!(back.dependency_check.bins_available.get("python"), Some(&true));
+        assert_eq!(
+            back.dependency_check.bins_available.get("python"),
+            Some(&true)
+        );
     }
 
     /// 测试 ValidationResult 结构 — 三层布尔 + errors/warnings 列表。
@@ -860,7 +918,10 @@ mod tests {
             output: "hello world".to_string(),
             error: None,
             latency_ms: 42,
-            logs: vec!["[test_run] start".to_string(), "[test_run] success".to_string()],
+            logs: vec![
+                "[test_run] start".to_string(),
+                "[test_run] success".to_string(),
+            ],
         };
         let j = serde_json::to_string(&r).expect("serialize should succeed");
         assert!(j.contains("\"success\":true"));
@@ -992,7 +1053,11 @@ mod tests {
             "expected no errors, got: {:?}",
             report.errors
         );
-        assert!(report.valid, "expected valid, got failures: {:?}", report.eligibility_failures);
+        assert!(
+            report.valid,
+            "expected valid, got failures: {:?}",
+            report.eligibility_failures
+        );
     }
 
     /// 测试 check_dependencies — python 语言技能应检查 python 二进制。

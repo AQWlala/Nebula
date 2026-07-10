@@ -462,9 +462,10 @@ impl SkillEngine {
         // P2-2: 所有沙箱语言（python/node/bash/powershell）均需审批。
         if let Some(ref tracker) = self.exec_approval {
             let exec_action = match sandbox_type {
-                "python" | "node" | "bash" | "powershell" => {
-                    Some(format!("exec {} sandbox (skill {})", sandbox_type, skill.id))
-                }
+                "python" | "node" | "bash" | "powershell" => Some(format!(
+                    "exec {} sandbox (skill {})",
+                    sandbox_type, skill.id
+                )),
                 "wasm" => Some(format!("exec wasm sandbox (skill {})", skill.id)),
                 _ => None,
             };
@@ -1446,13 +1447,7 @@ mod tests {
     /// removed from this rejection list.
     #[tokio::test]
     async fn use_skill_other_languages_are_rejected() {
-        for lang in [
-            "javascript",
-            "js",
-            "rust",
-            "ruby",
-            "perl",
-        ] {
+        for lang in ["javascript", "js", "rust", "ruby", "perl"] {
             let (p, sqlite) = temp_db();
             let eng = SkillEngine::new(sqlite, llm());
             let s = eng

@@ -178,9 +178,9 @@ pub async fn test_provider_connection(
 
     let kind = resolve_provider_kind(&state, &provider_id);
     let guard = build_ssrf_guard(kind);
-    guard.validate_url(&base_url).map_err(|e| {
-        format!("SSRF 校验失败: {e}")
-    })?;
+    guard
+        .validate_url(&base_url)
+        .map_err(|e| format!("SSRF 校验失败: {e}"))?;
 
     let (test_url, timeout) = match kind {
         ProviderKind::Ollama => (join_ollama_tags_url(&base_url), Duration::from_secs(2)),
@@ -258,9 +258,9 @@ async fn fetch_models_from_provider(
     }
 
     let guard = build_ssrf_guard(kind);
-    guard.validate_url(base_url).map_err(|e| {
-        format!("SSRF 校验失败: {e}")
-    })?;
+    guard
+        .validate_url(base_url)
+        .map_err(|e| format!("SSRF 校验失败: {e}"))?;
 
     let (fetch_url, timeout) = match kind {
         ProviderKind::Ollama => (join_ollama_tags_url(base_url), Duration::from_secs(10)),
@@ -277,10 +277,7 @@ async fn fetch_models_from_provider(
         req = req.bearer_auth(key);
     }
 
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("请求失败: {e}"))?;
+    let resp = req.send().await.map_err(|e| format!("请求失败: {e}"))?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!("服务端返回 HTTP {}", status.as_u16()));
@@ -332,9 +329,7 @@ async fn fetch_models_from_provider(
                         .filter_map(|item| {
                             let id = item.get("id")?.as_str()?.to_string();
                             // 用 owned_by 作为显示名补充(如 "gpt-4o (openai)");无则与 id 相同。
-                            let owned_by = item
-                                .get("owned_by")
-                                .and_then(|o| o.as_str());
+                            let owned_by = item.get("owned_by").and_then(|o| o.as_str());
                             let name = match owned_by {
                                 Some(o) if !o.is_empty() => format!("{id} ({o})"),
                                 _ => id.clone(),
@@ -452,9 +447,9 @@ pub async fn add_custom_provider(
     // SSRF 校验 base_url(远端 provider 才需要;Ollama 允许内网)。
     if !base_url.trim().is_empty() {
         let guard = build_ssrf_guard(provider_kind);
-        guard.validate_url(&base_url).map_err(|e| {
-            format!("SSRF 校验失败: {e}")
-        })?;
+        guard
+            .validate_url(&base_url)
+            .map_err(|e| format!("SSRF 校验失败: {e}"))?;
     }
 
     let mut guard = state.llm.models_config.write();
@@ -483,9 +478,7 @@ pub async fn add_custom_provider(
         models: Vec::new(),
     };
     guard.providers.push(provider);
-    guard
-        .validate()
-        .map_err(|e| format!("配置校验失败: {e}"))?;
+    guard.validate().map_err(|e| format!("配置校验失败: {e}"))?;
     let snapshot = guard.clone();
     drop(guard);
 
@@ -542,9 +535,7 @@ pub async fn remove_provider(
     // P1-3: 记录被删除 provider 的 kind,用于清除 gateway 客户端。
     let removed_kind = target.kind;
     guard.providers.retain(|p| p.id != provider_id);
-    guard
-        .validate()
-        .map_err(|e| format!("配置校验失败: {e}"))?;
+    guard.validate().map_err(|e| format!("配置校验失败: {e}"))?;
     let snapshot = guard.clone();
     drop(guard);
 
@@ -555,12 +546,10 @@ pub async fn remove_provider(
     crate::llm::cost_tracker::update_models_config_override(snapshot);
 
     // P1-3: 清除 gateway 中对应的客户端(传 None 表示清除)。
-    state.llm.llm.rebuild_provider_client(
-        &provider_id,
-        removed_kind,
-        None,
-        None,
-    );
+    state
+        .llm
+        .llm
+        .rebuild_provider_client(&provider_id, removed_kind, None, None);
 
     Ok(())
 }
@@ -588,9 +577,7 @@ pub async fn set_default_provider(
     }
     guard.default_provider = provider_id;
     guard.default_model = model_id;
-    guard
-        .validate()
-        .map_err(|e| format!("配置校验失败: {e}"))?;
+    guard.validate().map_err(|e| format!("配置校验失败: {e}"))?;
     let snapshot = guard.clone();
     drop(guard);
 
@@ -680,9 +667,9 @@ pub async fn update_provider(
     if let Some(url) = &base_url {
         if !url.trim().is_empty() {
             let guard = build_ssrf_guard(effective_kind);
-            guard.validate_url(url).map_err(|e| {
-                format!("SSRF 校验失败: {e}")
-            })?;
+            guard
+                .validate_url(url)
+                .map_err(|e| format!("SSRF 校验失败: {e}"))?;
         }
     }
 
@@ -690,9 +677,7 @@ pub async fn update_provider(
     guard
         .update_provider(&provider_id, name, base_url, parsed_kind)
         .map_err(|e| format!("更新 provider 失败: {e}"))?;
-    guard
-        .validate()
-        .map_err(|e| format!("配置校验失败: {e}"))?;
+    guard.validate().map_err(|e| format!("配置校验失败: {e}"))?;
 
     // 获取更新后的 provider 快照(用于热重建 gateway 客户端)。
     let snapshot = guard.clone();
@@ -794,11 +779,7 @@ pub async fn auto_populate_models(
         .find(|p| p.id == provider_id)
         .ok_or_else(|| format!("provider `{provider_id}` 不存在"))?;
 
-    let existing: HashSet<String> = provider
-        .models
-        .iter()
-        .map(|m| m.id.clone())
-        .collect();
+    let existing: HashSet<String> = provider.models.iter().map(|m| m.id.clone()).collect();
     let mut added = 0usize;
     for m in &discovered {
         if existing.contains(&m.id) {
@@ -820,9 +801,7 @@ pub async fn auto_populate_models(
         return Ok(0);
     }
 
-    guard
-        .validate()
-        .map_err(|e| format!("配置校验失败: {e}"))?;
+    guard.validate().map_err(|e| format!("配置校验失败: {e}"))?;
     let snapshot = guard.clone();
     drop(guard);
 
@@ -883,7 +862,9 @@ pub async fn get_model_health(state: State<'_, AppState>) -> Result<Vec<ModelHea
     let tracker = &state.llm.model_health_tracker;
     let cost_tracker = &state.llm.cost_tracker;
     let cb_status = state.llm.llm.circuit_breaker_status().to_string();
-    let cache_hit_rate = crate::metrics::global().snapshot().semantic_cache_hit_ratio();
+    let cache_hit_rate = crate::metrics::global()
+        .snapshot()
+        .semantic_cache_hit_ratio();
 
     // 从 CostTracker 获取所有记录,按 provider 聚合当日/当月费用与请求次数。
     let now = chrono::Utc::now();
@@ -897,7 +878,10 @@ pub async fn get_model_health(state: State<'_, AppState>) -> Result<Vec<ModelHea
         let is_configured = if p.kind == crate::llm::models_config::ProviderKind::Ollama {
             true
         } else {
-            matches!(crate::security::keychain::get_provider_key(&p.id), Ok(Some(_)))
+            matches!(
+                crate::security::keychain::get_provider_key(&p.id),
+                Ok(Some(_))
+            )
         };
 
         // 从 ModelHealthTracker 读取指标(若该 provider 有记录)。
@@ -977,8 +961,14 @@ mod tests {
     fn parse_kind_accepts_variants() {
         assert_eq!(parse_kind("ollama").unwrap(), ProviderKind::Ollama);
         assert_eq!(parse_kind("anthropic").unwrap(), ProviderKind::Anthropic);
-        assert_eq!(parse_kind("openai-compat").unwrap(), ProviderKind::OpenAiCompat);
-        assert_eq!(parse_kind("openai_compat").unwrap(), ProviderKind::OpenAiCompat);
+        assert_eq!(
+            parse_kind("openai-compat").unwrap(),
+            ProviderKind::OpenAiCompat
+        );
+        assert_eq!(
+            parse_kind("openai_compat").unwrap(),
+            ProviderKind::OpenAiCompat
+        );
         assert_eq!(parse_kind("custom").unwrap(), ProviderKind::Custom);
         assert!(parse_kind("unknown").is_err());
     }
