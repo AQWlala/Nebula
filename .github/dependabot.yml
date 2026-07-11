@@ -21,6 +21,14 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "aes-gcm"     # 0.10→0.11 from_slice 被弃用,需改 TryFrom
         update-types: ["version-update:semver-major"]
+      - dependency-name: "reqwest"      # 0.12→0.13 major,编译失败
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "opentelemetry" # 0.24→0.32 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdf-extract"  # 0.7→0.12 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prometheus"   # 0.13→0.14 major,API 大改
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -39,6 +47,10 @@ updates:
       - dependency-name: "@typescript-eslint/eslint-plugin"     # 6→8 大版本升级
         update-types: ["version-update:semver-major"]
       - dependency-name: "@typescript-eslint/parser"            # 6→8 大版本升级
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"                           # 3→4 大版本升级,配置系统完全重写
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"                                # 1→4 大版本升级,API 大改
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
