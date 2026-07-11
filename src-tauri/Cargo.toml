@@ -99,7 +99,7 @@ async-stream = "0.3"
 # The minimal build (`--no-default-features`) skips all of these.
 # T-D-B-08: 移除了手写 JSON framing shim，tonic 是唯一 wire 实现。
 # 同时移除了仅服务于 shim 的 tower / futures-util / futures-core 依赖。
-tonic = { version = "0.12", features = ["transport", "server", "prost"], optional = true }
+tonic = { version = "0.13", features = ["transport", "server", "prost"], optional = true }
 tonic-health = { version = "0.12", optional = true }
 prost = { version = "0.13", optional = true }
 prost-types = { version = "0.13", optional = true }
