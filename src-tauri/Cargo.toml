@@ -344,6 +344,10 @@ vision = ["dep:screenshots", "dep:image"]
 # serde_yaml 已是非 optional 依赖(skills/wiki 已使用),不重复声明。
 # OpenApiToolServer / OpenApiToolAdapter / commands::openapi 由 cfg gate。
 openapi = ["dep:openapiv3"]
+# v2.4: Agent 评估体系 — Trace 导出 + 评测集 + LLM-as-Judge + 节点隔离测试。
+# 默认关闭。启用方式: cargo build --features eval
+# 不启用时 TraceCollector 是 no-op, 零开销。
+eval = []
 
 [profile.release]
 # v1.0: minimum-size release build.

@@ -251,4 +251,10 @@ pub use skill_openclaw::*;
 pub mod skill_update;
 pub use skill_update::*;
 
+// v2.4 T-EVAL-007: Agent 评估体系 Trace 导出命令(eval feature 门控)。
+#[cfg(feature = "eval")]
+pub mod eval;
+#[cfg(feature = "eval")]
+pub use eval::*;
+
 pub use error::{CommandError, ErrorCode};

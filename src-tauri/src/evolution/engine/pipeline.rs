@@ -159,6 +159,9 @@ pub struct EvolutionEngine {
     sponge: Arc<SpongeEngine>,
     log: Arc<EvolutionLog>,
     config: EvolutionEngineConfig,
+    /// v2.4 T-EVAL-006: Trace 收集器(可选, eval feature 门控)。
+    #[cfg(feature = "eval")]
+    trace: Option<crate::eval::TraceCollector>,
 }
 
 impl std::fmt::Debug for EvolutionEngine {
@@ -184,12 +187,24 @@ impl EvolutionEngine {
             sponge,
             log,
             config,
+            #[cfg(feature = "eval")]
+            trace: None,
         }
     }
 
     /// Builder: 替换 config。
     pub fn with_config(mut self, config: EvolutionEngineConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// v2.4 T-EVAL-006: Builder — 注入 Trace 收集器。
+    ///
+    /// 启用 eval feature 后,通过此方法注入 `TraceCollector`,
+    /// `run()` 会在进化 pass 阶段自动记录 EvolutionPass span。
+    #[cfg(feature = "eval")]
+    pub fn with_trace(mut self, trace: crate::eval::TraceCollector) -> Self {
+        self.trace = Some(trace);
         self
     }
 
@@ -215,6 +230,17 @@ impl EvolutionEngine {
         if !self.is_enabled() {
             return Err(EvolutionError::Disabled);
         }
+
+        // v2.4 T-EVAL-006: Trace span — 记录进化 pass 执行轨迹。
+        #[cfg(feature = "eval")]
+        let trace_span_id = self.trace.as_ref().map(|tc| {
+            tc.start_span(
+                "evolution-run",
+                None,
+                crate::eval::SpanKind::EvolutionPass,
+                crate::eval::TracePayload::new(master_id),
+            )
+        });
 
         let mut phases: Vec<PhaseOutput> = Vec::with_capacity(4);
         let mut all_warnings: Vec<String> = Vec::new();
@@ -255,13 +281,30 @@ impl EvolutionEngine {
         soul_append_text = p4.content.clone();
         phases.push(p4);
 
-        Ok(EvolutionResult {
+        let result = EvolutionResult {
             phases,
             warnings: all_warnings,
             degraded,
             soul_append_text,
             master_id: master_id.to_string(),
-        })
+        };
+
+        // v2.4 T-EVAL-006: 结束 Trace span。
+        #[cfg(feature = "eval")]
+        if let Some(span_id) = &trace_span_id {
+            if let Some(tc) = &self.trace {
+                tc.end_span(
+                    span_id,
+                    crate::eval::TracePayload::new(&format!(
+                        "degraded={} warnings={}",
+                        result.degraded,
+                        result.warnings.len()
+                    )),
+                );
+            }
+        }
+
+        Ok(result)
     }
 
     /// Phase 1: 经验提取（L1 → L2 Experience）。

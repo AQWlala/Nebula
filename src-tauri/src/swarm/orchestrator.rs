@@ -269,6 +269,10 @@ pub struct SwarmOrchestrator {
     /// (正常完成/失败/取消)后移除。用 parking_lot::Mutex(非重入)避免
     /// std::Mutex 在 select! 路径上的死锁。
     cancel_tokens: parking_lot::Mutex<HashMap<String, CancellationToken>>,
+    /// v2.4 T-EVAL-005: Trace 收集器(可选, eval feature 门控)。
+    /// None 或未启用 eval feature 时为 no-op。通过 `with_trace()` 注入。
+    #[cfg(feature = "eval")]
+    trace: Option<crate::eval::TraceCollector>,
 }
 
 impl SwarmOrchestrator {
@@ -304,6 +308,8 @@ impl SwarmOrchestrator {
             )),
             persona: parking_lot::Mutex::new(None),
             cancel_tokens: parking_lot::Mutex::new(HashMap::new()),
+            #[cfg(feature = "eval")]
+            trace: None,
         }
     }
 
@@ -334,6 +340,8 @@ impl SwarmOrchestrator {
             )),
             persona: parking_lot::Mutex::new(None),
             cancel_tokens: parking_lot::Mutex::new(HashMap::new()),
+            #[cfg(feature = "eval")]
+            trace: None,
         }
     }
 
@@ -342,6 +350,16 @@ impl SwarmOrchestrator {
     /// v1.2: attach a skill composer for automatic skill injection.
     pub fn with_composer(self, composer: Arc<SkillComposer>) -> Self {
         *self.composer.lock() = Some(composer);
+        self
+    }
+
+    /// v2.4 T-EVAL-005: Builder — 注入 Trace 收集器。
+    ///
+    /// 启用 eval feature 后,通过此方法注入 `TraceCollector`,
+    /// `execute()` 会在 fan-out 阶段自动记录 SwarmWorker span。
+    #[cfg(feature = "eval")]
+    pub fn with_trace(mut self, trace: crate::eval::TraceCollector) -> Self {
+        self.trace = Some(trace);
         self
     }
 
@@ -607,6 +625,17 @@ impl SwarmOrchestrator {
     /// failure is recorded but does not abort the remaining agents.
     #[instrument(target = "nebula.swarm", skip(self, task), fields(otel.kind = "swarm"))]
     pub async fn execute(&self, task: SwarmTask) -> Result<OrchestrationReport> {
+        // v2.4 T-EVAL-005: Trace span — 记录 SwarmWorker 执行轨迹。
+        #[cfg(feature = "eval")]
+        let trace_span_id = self.trace.as_ref().map(|tc| {
+            tc.start_span(
+                "swarm-exec",
+                None,
+                crate::eval::SpanKind::SwarmWorker,
+                crate::eval::TracePayload::new(&task.description),
+            )
+        });
+
         let ctx = TeamContext::new();
         ctx.push_str("system", "task", &task.description);
 
@@ -967,13 +996,28 @@ impl SwarmOrchestrator {
             approved,
         ));
 
-        Ok(OrchestrationReport {
+        let report = OrchestrationReport {
             task,
             outputs,
             success_count,
             failure_count,
             approved,
-        })
+        };
+
+        // v2.4 T-EVAL-005: 结束 Trace span。
+        #[cfg(feature = "eval")]
+        if let Some(span_id) = &trace_span_id {
+            if let Some(tc) = &self.trace {
+                tc.end_span(
+                    span_id,
+                    crate::eval::TracePayload::new(
+                        &format!("success={}/{}", report.success_count, report.success_count + report.failure_count),
+                    ),
+                );
+            }
+        }
+
+        Ok(report)
     }
 
     /// T-E-B-18: 按 [`ReasoningStrategy`] 分支执行。

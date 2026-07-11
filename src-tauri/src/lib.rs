@@ -106,6 +106,11 @@ pub mod browser;
 pub mod proactive;
 // T-E-L-04: Connectors — pull-only 数据连接器(GitHub MCP 等)。
 pub mod connectors;
+// v2.4: Agent 评估体系 — Trace 导出 + 评测集 + LLM-as-Judge + 节点隔离测试。
+// 默认关闭, 启用方式: cargo build --features eval
+// 不启用时 TraceCollector 不可用, 零开销。
+#[cfg(feature = "eval")]
+pub mod eval;
 
 // v1.3: closed-loop self-evolution (task outcomes + skill archive +
 // prompt mutator).  Off by default; enable with

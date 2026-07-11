@@ -38,6 +38,9 @@ use super::agents::{AgentScenario, HomogeneityPolicy, ModelDescriptor, ReviewerA
 use crate::autonomy::AutonomyLevel as GlobalAutonomyLevel;
 // T-E-L-07: Loop 审计日志记录器(可选注入,execute_loop 关键节点写入)。
 use super::loop_audit_log::{LoopAuditEntry, LoopAuditLogger, LoopAuditPhase, LoopAuditQuery};
+// v2.4 T-EVAL-004: Trace 收集器(可选注入, eval feature 门控)。
+#[cfg(feature = "eval")]
+use crate::eval::{SpanKind, TraceCollector, TracePayload};
 
 use super::dag::{FailureStrategy, SubTask, SubTaskResult, SubTaskResultMap, TaskDag};
 use super::events::EventEnvelope;
@@ -594,6 +597,10 @@ pub struct MasterOrchestrator {
     /// 控制 decompose/synthesize 阶段使用哪套提示词。通过 `with_scenario()`
     /// 在构造期注入(builder 模式),运行时只读,无需 Mutex。
     scenario: Option<AgentScenario>,
+    /// v2.4 T-EVAL-004: Trace 收集器(可选, eval feature 门控)。
+    /// None 或未启用 eval feature 时为 no-op。通过 `with_trace()` 注入。
+    #[cfg(feature = "eval")]
+    trace: Option<TraceCollector>,
 }
 
 impl MasterOrchestrator {
@@ -611,6 +618,8 @@ impl MasterOrchestrator {
             dispatcher,
             event_sink: Mutex::new(None),
             scenario: None,
+            #[cfg(feature = "eval")]
+            trace: None,
         }
     }
 
@@ -621,6 +630,17 @@ impl MasterOrchestrator {
     /// - 其他值或未调用 → 编程场景(原行为,向后兼容)
     pub fn with_scenario(mut self, scenario: AgentScenario) -> Self {
         self.scenario = Some(scenario);
+        self
+    }
+
+    /// v2.4 T-EVAL-004: Builder — 注入 Trace 收集器。
+    ///
+    /// 启用 eval feature 后,通过此方法注入 `TraceCollector`,
+    /// `execute_loop()` 会在拆解/综合阶段自动记录 span。
+    /// 不调用时 `trace` 为 `None`, 无 Trace 开销。
+    #[cfg(feature = "eval")]
+    pub fn with_trace(mut self, trace: TraceCollector) -> Self {
+        self.trace = Some(trace);
         self
     }
 
@@ -815,6 +835,16 @@ impl MasterOrchestrator {
         let run_id = Uuid::new_v4().to_string();
         let autonomy_label = loop_def.autonomy.as_str(); // "L0".."L5"
         let action_desc_for_audit = loop_def.action.join("; ");
+
+        // v2.4 T-EVAL-004: Trace 根 span — 记录 execute_loop 整体执行轨迹。
+        // eval feature 未启用或 trace 未注入时为 no-op。
+        #[cfg(feature = "eval")]
+        let trace_handle = self.trace.as_ref().map(|tc| {
+            tc.start_trace(
+                SpanKind::MasterDecompose,
+                TracePayload::new(&action_desc_for_audit),
+            )
+        });
 
         // T-E-L-07: 内部辅助闭包 — fire-and-forget 写入一条审计记录。
         // audit_logger 为 None 时为 no-op，确保向后兼容旧调用方。
@@ -1167,7 +1197,7 @@ impl MasterOrchestrator {
         }
 
         // ---- 6. 返回报告 ----
-        Ok(LoopRunReport {
+        let report = LoopRunReport {
             task_id: Some(task.id),
             loop_name: loop_def.name.clone(),
             values_verdict: "allow".to_string(),
@@ -1175,7 +1205,20 @@ impl MasterOrchestrator {
             message: format!("Loop '{}' started", loop_def.name),
             budget_status: Some(budget_status),
             autonomy_downgraded,
-        })
+        };
+
+        // v2.4 T-EVAL-004: 结束 Trace 根 span。
+        #[cfg(feature = "eval")]
+        if let Some(h) = &trace_handle {
+            if let Some(root_id) = &h.parent_id {
+                h.collector.end_span(
+                    root_id,
+                    TracePayload::new(&report.message),
+                );
+            }
+        }
+
+        Ok(report)
     }
 
     /// 任务拆解阶段:调用 LLM 生成 TaskDag JSON,然后解析。
