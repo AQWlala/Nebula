@@ -92,7 +92,7 @@ url = "2.5"
 lru = "0.16"
 # v3.1 ADR-002: DAG dependency management for MasterOrchestrator.
 # default-features = false to skip unnecessary quickcheck/serde deps.
-petgraph = { version = "0.6", default-features = false }
+petgraph = { version = "0.8", default-features = false }
 futures = "0.3"
 async-stream = "0.3"
 # v0.3: gRPC stack. Gated behind the `grpc` feature (on by default).
