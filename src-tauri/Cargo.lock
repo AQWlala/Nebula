@@ -1593,7 +1593,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8144c22e24bbcf26ade86cb6501a0916c46b7e4787abdb0045a467eb1645a1d"
 dependencies = [
  "ambient-authority",
- "rand 0.8.6",
+ "rand 0.8.7",
 ]
 
 [[package]]
@@ -7130,7 +7130,7 @@ dependencies = [
  "prometheus",
  "prost 0.13.5",
  "prost-types 0.13.5",
- "rand 0.8.6",
+ "rand 0.8.7",
  "regex",
  "reqwest 0.12.28",
  "rusqlite",
@@ -7786,7 +7786,7 @@ dependencies = [
  "once_cell",
  "opentelemetry",
  "percent-encoding",
- "rand 0.8.6",
+ "rand 0.8.7",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -8760,9 +8760,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+checksum = "22f6172bdec972074665ed81ed53b71da00bfc44b65a753cfde883ec4c702a1a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -11379,7 +11379,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.6",
+ "rand 0.8.7",
  "slab",
  "tokio",
  "tokio-util",
