@@ -63,9 +63,7 @@ pub async fn eval_export_trace(
         .map_err(|e| CommandError::db("eval_load_trace", &anyhow::anyhow!("{e}")))?;
 
     if spans.is_empty() {
-        return Err(CommandError::not_found(format!(
-            "trace: {trace_id}"
-        )));
+        return Err(CommandError::not_found(format!("trace: {trace_id}")));
     }
 
     let path = PathBuf::from(&output_path);
@@ -117,6 +115,6 @@ pub async fn eval_export_all(
     // Phase 1 实现:返回错误,提示用户使用 eval_export_trace 命令。
     Err(CommandError::validation(
         "use eval_export_trace with a specific trace_id instead. \
-         TraceCollector is injected into Master/Swarm/Evolution, not AppState."
+         TraceCollector is injected into Master/Swarm/Evolution, not AppState.",
     ))
 }

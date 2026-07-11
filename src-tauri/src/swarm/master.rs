@@ -1211,10 +1211,8 @@ impl MasterOrchestrator {
         #[cfg(feature = "eval")]
         if let Some(h) = &trace_handle {
             if let Some(root_id) = &h.parent_id {
-                h.collector.end_span(
-                    root_id,
-                    TracePayload::new(&report.message),
-                );
+                h.collector
+                    .end_span(root_id, TracePayload::new(&report.message));
             }
         }
 

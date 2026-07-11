@@ -1010,9 +1010,11 @@ impl SwarmOrchestrator {
             if let Some(tc) = &self.trace {
                 tc.end_span(
                     span_id,
-                    crate::eval::TracePayload::new(
-                        &format!("success={}/{}", report.success_count, report.success_count + report.failure_count),
-                    ),
+                    crate::eval::TracePayload::new(&format!(
+                        "success={}/{}",
+                        report.success_count,
+                        report.success_count + report.failure_count
+                    )),
                 );
             }
         }

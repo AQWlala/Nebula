@@ -355,12 +355,8 @@ impl TraceCollector {
 impl TraceCollectorHandle {
     /// 开始一个子 span (使用 handle 的 trace_id 和 parent_id)
     pub fn start_child(&self, kind: SpanKind, input: TracePayload) -> String {
-        self.collector.start_span(
-            &self.trace_id,
-            self.parent_id.as_deref(),
-            kind,
-            input,
-        )
+        self.collector
+            .start_span(&self.trace_id, self.parent_id.as_deref(), kind, input)
     }
 
     /// 结束一个 span
@@ -385,17 +381,17 @@ impl TraceCollectorHandle {
 
 /// 将 span 列表导出为 JSONL 文件
 pub fn export_spans_jsonl(spans: &[TraceSpan], path: &std::path::Path) -> anyhow::Result<()> {
-    let file = File::create(path).map_err(|e| {
-        anyhow::anyhow!("无法创建 trace 输出文件 {}: {}", path.display(), e)
-    })?;
+    let file = File::create(path)
+        .map_err(|e| anyhow::anyhow!("无法创建 trace 输出文件 {}: {}", path.display(), e))?;
     let mut writer = BufWriter::new(file);
     for span in spans {
-        let line = serde_json::to_string(span)
-            .map_err(|e| anyhow::anyhow!("序列化 span 失败: {}", e))?;
-        writeln!(writer, "{}", line)
-            .map_err(|e| anyhow::anyhow!("写入 JSONL 失败: {}", e))?;
+        let line =
+            serde_json::to_string(span).map_err(|e| anyhow::anyhow!("序列化 span 失败: {}", e))?;
+        writeln!(writer, "{}", line).map_err(|e| anyhow::anyhow!("写入 JSONL 失败: {}", e))?;
     }
-    writer.flush().map_err(|e| anyhow::anyhow!("flush 失败: {}", e))?;
+    writer
+        .flush()
+        .map_err(|e| anyhow::anyhow!("flush 失败: {}", e))?;
     Ok(())
 }
 
@@ -534,20 +530,12 @@ mod tests {
         let collector = TraceCollector::new();
         EVAL_TRACING_ENABLED.store(true, Ordering::Relaxed);
 
-        let handle = collector.start_trace(
-            SpanKind::MasterDecompose,
-            TracePayload::new("root input"),
-        );
+        let handle =
+            collector.start_trace(SpanKind::MasterDecompose, TracePayload::new("root input"));
         let trace_id = handle.trace_id().to_string();
 
-        let child1 = handle.start_child(
-            SpanKind::SwarmWorker,
-            TracePayload::new("child 1 input"),
-        );
-        let child2 = handle.start_child(
-            SpanKind::SwarmWorker,
-            TracePayload::new("child 2 input"),
-        );
+        let child1 = handle.start_child(SpanKind::SwarmWorker, TracePayload::new("child 1 input"));
+        let child2 = handle.start_child(SpanKind::SwarmWorker, TracePayload::new("child 2 input"));
 
         handle.end_span(&child1, TracePayload::new("child 1 output"));
         handle.end_span(&child2, TracePayload::new("child 2 output"));
@@ -593,14 +581,9 @@ mod tests {
         let collector = TraceCollector::new();
         EVAL_TRACING_ENABLED.store(true, Ordering::Relaxed);
 
-        let handle = collector.start_trace(
-            SpanKind::MasterDecompose,
-            TracePayload::new("root input"),
-        );
-        let child = handle.start_child(
-            SpanKind::SwarmWorker,
-            TracePayload::new("child input"),
-        );
+        let handle =
+            collector.start_trace(SpanKind::MasterDecompose, TracePayload::new("root input"));
+        let child = handle.start_child(SpanKind::SwarmWorker, TracePayload::new("child input"));
         handle.end_span(&child, TracePayload::new("child output"));
 
         let temp_dir = std::env::temp_dir();
@@ -626,8 +609,7 @@ mod tests {
 
     #[test]
     fn trace_payload_with_metadata() {
-        let payload = TracePayload::new("text")
-            .with_metadata(serde_json::json!({"key": "value"}));
+        let payload = TracePayload::new("text").with_metadata(serde_json::json!({"key": "value"}));
         assert_eq!(payload.text, "text");
         assert_eq!(payload.metadata["key"], "value");
     }
@@ -679,12 +661,7 @@ mod tests {
         let collector = TraceCollector::new();
         EVAL_TRACING_ENABLED.store(true, Ordering::Relaxed);
 
-        collector.start_span(
-            "t1",
-            None,
-            SpanKind::SwarmWorker,
-            TracePayload::new("x"),
-        );
+        collector.start_span("t1", None, SpanKind::SwarmWorker, TracePayload::new("x"));
         assert_eq!(collector.len(), 1);
 
         collector.clear();

@@ -48,9 +48,7 @@ impl TraceStore {
     }
 
     /// 从 `SqliteStore` 构造（便捷方法）。
-    pub fn from_sqlite_store(
-        store: &crate::memory::sqlite_store::SqliteStore,
-    ) -> Result<Self> {
+    pub fn from_sqlite_store(store: &crate::memory::sqlite_store::SqliteStore) -> Result<Self> {
         Self::new(store.raw_connection())
     }
 
@@ -136,11 +134,7 @@ impl TraceStore {
     }
 
     /// 将 TraceCollector 中指定 trace 的所有 span 持久化。
-    pub fn save_from_collector(
-        &self,
-        collector: &TraceCollector,
-        trace_id: &str,
-    ) -> Result<usize> {
+    pub fn save_from_collector(&self, collector: &TraceCollector, trace_id: &str) -> Result<usize> {
         let spans = collector.spans_for_trace(trace_id);
         let count = spans.len();
         self.save_trace(&spans)?;
@@ -242,8 +236,7 @@ fn row_to_span(row: &rusqlite::Row<'_>) -> rusqlite::Result<TraceSpan> {
 
     let output = output_json.and_then(|s| serde_json::from_str(&s).ok());
 
-    let llm_meta: Option<LlmMeta> =
-        llm_meta_json.and_then(|s| serde_json::from_str(&s).ok());
+    let llm_meta: Option<LlmMeta> = llm_meta_json.and_then(|s| serde_json::from_str(&s).ok());
 
     let child_task_ids: Vec<String> = child_task_ids_json
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -294,7 +287,12 @@ mod tests {
     }
 
     fn make_test_span(trace_id: &str, parent_id: Option<&str>, kind: SpanKind) -> TraceSpan {
-        let mut span = TraceSpan::start(trace_id, parent_id, kind, super::super::trace::TracePayload::new("test input"));
+        let mut span = TraceSpan::start(
+            trace_id,
+            parent_id,
+            kind,
+            super::super::trace::TracePayload::new("test input"),
+        );
         span.finish(super::super::trace::TracePayload::new("test output"));
         span
     }
