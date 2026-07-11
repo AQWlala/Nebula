@@ -125,7 +125,7 @@ bs58 = "0.5"
 # T-S2-A-01a: wasmtime 24.x with MSVC toolchain (T-S1-PRE-05 fixed the MinGW issue).
 wasmtime = { version = "24", optional = true }
 # T-S2-A-01c: WASI preview2 support for WASM sandbox
-wasmtime-wasi = { version = "24", optional = true }
+wasmtime-wasi = { version = "46", optional = true }
 # v0.5: cross-platform clipboard.
 arboard = "3.3"
 # v1.0: process / memory telemetry for the perf module.  Pulled
