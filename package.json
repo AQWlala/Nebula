@@ -36,7 +36,7 @@
     "dompurify": "^3.4.11",
     "fuse.js": "^7.0.0",
     "highlight.js": "^11.9.0",
-    "marked": "^18.0.5",
+    "marked": "^18.0.6",
     "mermaid": "^11.0.0",
     "monaco-editor": "^0.50.0",
     "pixi.js": "^8.19.0",
