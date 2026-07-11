@@ -150,7 +150,7 @@ arboard = "3.3"
 # well-known location to hijack the process.
 tempfile = "3.0"
 serde_yaml = "0.9"
-getrandom = "0.2"
+getrandom = "0.4"
 # T-E-B-12: PDF/DOCX 文档文本提取(纯 Rust,无系统依赖)。
 pdf-extract = "0.7"
 docx-rs = "0.4"

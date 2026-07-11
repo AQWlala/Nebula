@@ -7072,7 +7072,7 @@ dependencies = [
  "dashmap 5.5.3",
  "docx-rs",
  "futures",
- "getrandom 0.2.17",
+ "getrandom 0.4.3",
  "hkdf",
  "http-body 1.0.1",
  "http-body-util",
