@@ -47,7 +47,7 @@
   "devDependencies": {
     "@playwright/test": "^1.42.0",
     "@preact/preset-vite": "^2.8.0",
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/preact": "^3.2.4",
     "@types/node": "^20.11.0",
