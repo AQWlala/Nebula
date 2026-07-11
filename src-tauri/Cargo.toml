@@ -119,7 +119,7 @@ aes-gcm = "0.10"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 hkdf = "0.13"
 sha2 = "0.11"
-rand = "0.8"
+rand = "0.10"
 base64 = "0.22"
 bs58 = "0.5"
 # T-S2-A-01a: wasmtime 24.x with MSVC toolchain (T-S1-PRE-05 fixed the MinGW issue).
