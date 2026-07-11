@@ -13,10 +13,11 @@ updates:
     labels:
       - "dependencies"
       - "rust"
-    # lru 0.16.4 → 0.18.1 升级导致 Dependabot 解析失败(PR #6 已关闭,
-    # Dependabot 仍尝试 recreate)。暂时忽略,后续手动升级。
+    # 忽略有 breaking changes 的大版本升级,后续手动评估迁移
     ignore:
       - dependency-name: "lru"
+      - dependency-name: "rand"        # 0.8→0.10 API 完全重构,24个编译错误
+      - dependency-name: "aes-gcm"     # 0.10→0.11 from_slice 被弃用,需改 TryFrom
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -26,6 +27,12 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    # 忽略有 breaking changes 的大版本升级
+    ignore:
+      - dependency-name: "typescript"                           # 6→7 大版本升级
+      - dependency-name: "eslint"                               # 8→10 大版本升级
+      - dependency-name: "@typescript-eslint/eslint-plugin"     # 6→8 大版本升级
+      - dependency-name: "@typescript-eslint/parser"            # 6→8 大版本升级
 
   - package-ecosystem: "github-actions"
     directory: "/"
