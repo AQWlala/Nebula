@@ -13,11 +13,14 @@ updates:
     labels:
       - "dependencies"
       - "rust"
-    # 忽略有 breaking changes 的大版本升级,后续手动评估迁移
+    # 只忽略 major 版本升级(有 breaking changes),patch/minor 仍自动更新
     ignore:
       - dependency-name: "lru"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "rand"        # 0.8→0.10 API 完全重构,24个编译错误
+        update-types: ["version-update:semver-major"]
       - dependency-name: "aes-gcm"     # 0.10→0.11 from_slice 被弃用,需改 TryFrom
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -27,12 +30,16 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
-    # 忽略有 breaking changes 的大版本升级
+    # 只忽略 major 版本升级,patch/minor 仍自动更新
     ignore:
       - dependency-name: "typescript"                           # 6→7 大版本升级
+        update-types: ["version-update:semver-major"]
       - dependency-name: "eslint"                               # 8→10 大版本升级
+        update-types: ["version-update:semver-major"]
       - dependency-name: "@typescript-eslint/eslint-plugin"     # 6→8 大版本升级
+        update-types: ["version-update:semver-major"]
       - dependency-name: "@typescript-eslint/parser"            # 6→8 大版本升级
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
