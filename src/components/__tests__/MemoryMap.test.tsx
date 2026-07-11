@@ -230,9 +230,11 @@ describe('MemoryMap (T-E-B-07)', () => {
 
     fireEvent.click(getByTestId('view-graph'));
     await waitFor(() => expect(mockMdrmGetGraph).toHaveBeenCalled());
-    // 头部应显示节点/边计数(en-US: "5 nodes / 4 edges" / zh-CN: "5 节点 / 4 边")
-    const headerText =
-      container.querySelector('.flex.items-center.justify-between')?.textContent ?? '';
-    expect(headerText).toMatch(/5 (nodes|节点) \/ 4 (edges|边)/);
+    // v2.3: header 改为 .page-header 类名,节点/边计数在视图状态栏
+    const headerText = container.querySelector('.page-header')?.textContent ?? '';
+    const statusText = container.textContent ?? '';
+    // 计数可能在 page-header 或状态栏,两处都检查
+    const combinedText = headerText + ' ' + statusText;
+    expect(combinedText).toMatch(/5 (nodes|节点) \/ 4 (edges|边)/);
   });
 });

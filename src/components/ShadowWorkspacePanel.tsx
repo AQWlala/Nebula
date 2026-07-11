@@ -357,6 +357,7 @@ export function ShadowWorkspacePanel() {
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'merge' })}
                     class="tool-btn tool-btn-primary"
                     style={{ cursor: 'pointer' }}
+                    data-testid={`shadow-merge-btn-${ws.id}`}
                   >
                     ▶ {t('shadowWorkspace.merge')}
                   </button>
@@ -366,6 +367,7 @@ export function ShadowWorkspacePanel() {
                     onClick={() => setConfirmAction({ id: ws.id, kind: 'abort' })}
                     class="tool-btn"
                     style={{ cursor: 'pointer', color: '#ff5f57' }}
+                    data-testid={`shadow-abort-btn-${ws.id}`}
                   >
                     🗑 {t('shadowWorkspace.abort')}
                   </button>

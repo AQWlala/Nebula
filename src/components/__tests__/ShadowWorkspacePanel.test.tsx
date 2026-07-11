@@ -142,11 +142,11 @@ describe('ShadowWorkspacePanel', () => {
     mockShadowList.mockResolvedValue([makeWs({ id: 'mrg00001', status: 'completed' })]);
     mockShadowMerge.mockResolvedValue(makeWs({ id: 'mrg00001', status: 'merged' }));
     const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
-    const { findByText, findByTestId, queryByTestId } = render(<ShadowWorkspacePanel />);
+    const { findByTestId, queryByTestId } = render(<ShadowWorkspacePanel />);
     await findByTestId('shadow-item-mrg00001');
 
-    // 点击合并按钮
-    fireEvent.click(await findByText('Merge'));
+    // v2.3: 用 testid 查找 merge 按钮(按钮文本 "▶ Merge" 被拆分成多个文本节点)
+    fireEvent.click(await findByTestId('shadow-merge-btn-mrg00001'));
 
     // 确认对话框出现
     const dialog = await findByTestId('shadow-confirm-dialog');
@@ -166,10 +166,11 @@ describe('ShadowWorkspacePanel', () => {
     mockShadowList.mockResolvedValue([makeWs({ id: 'abt00001', status: 'running' })]);
     mockShadowAbort.mockResolvedValue(makeWs({ id: 'abt00001', status: 'aborted' }));
     const { ShadowWorkspacePanel } = await import('../ShadowWorkspacePanel');
-    const { findByText, findByTestId } = render(<ShadowWorkspacePanel />);
+    const { findByTestId } = render(<ShadowWorkspacePanel />);
     await findByTestId('shadow-item-abt00001');
 
-    fireEvent.click(await findByText('Discard'));
+    // v2.3: 用 testid 查找 abort 按钮
+    fireEvent.click(await findByTestId('shadow-abort-btn-abt00001'));
     await findByTestId('shadow-confirm-dialog');
 
     const confirmBtn = await findByTestId('shadow-confirm-btn');

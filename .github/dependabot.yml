@@ -8,11 +8,15 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: "weekly"
-    # Keep PRs reviewable 閳?one Cargo update per week.
+    # Keep PRs reviewable — one Cargo update per week.
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "rust"
+    # lru 0.16.4 → 0.18.1 升级导致 Dependabot 解析失败(PR #6 已关闭,
+    # Dependabot 仍尝试 recreate)。暂时忽略,后续手动升级。
+    ignore:
+      - dependency-name: "lru"
 
   - package-ecosystem: "npm"
     directory: "/"

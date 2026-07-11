@@ -70,11 +70,12 @@ describe('ChatPanel (P0#07)', () => {
     expect(slowChat).toHaveBeenCalled();
   }, 20_000);
 
-  it('renders the Ollama banner when status is down', () => {
+  // v2.2: OllamaStatusBanner 已改为空壳(return null),不再强制 Ollama。
+  // banner 测试改为验证组件不渲染 banner 即可。
+  it('does not render ollama banner when status is down (v2.2: banner removed)', () => {
     nebulaStore.ollamaStatus.value = 'down';
-    const { getByTestId } = render(<ChatPanel />);
-    expect(getByTestId('ollama-banner')).toBeTruthy();
-    expect(getByTestId('ollama-banner-retry')).toBeTruthy();
+    const { queryByTestId } = render(<ChatPanel />);
+    expect(queryByTestId('ollama-banner')).toBeNull();
   });
 
   it('hides the Ollama banner when status is ok', () => {
@@ -97,10 +98,11 @@ describe('ChatPanel (P0#07)', () => {
         });
       });
 
-    const { getByPlaceholderText, getByText, container } = render(<ChatPanel />);
+    const { getByPlaceholderText, container } = render(<ChatPanel />);
     const input = getByPlaceholderText(/Type a message\.\.\.|输入消息\.\.\./) as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'hi' } });
-    fireEvent.click(getByText(/^Send$|^发送$/));
+    // v2.3: 发送按钮改为 ↑ 符号,通过 class 选择
+    fireEvent.click(container.querySelector('.chat-send-btn')!);
 
     // 等待 Promise 微任务队列刷新
     await new Promise((r) => setTimeout(r, 50));
