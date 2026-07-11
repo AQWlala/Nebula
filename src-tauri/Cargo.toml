@@ -1,6 +1,6 @@
 [package]
 name = "nebula"
-version = "2.3.0"
+version = "2.4.0"
 description = "Nebula — A local-first AI assistant that evolves with your knowledge"
 authors = ["nebula team"]
 edition = "2021"
