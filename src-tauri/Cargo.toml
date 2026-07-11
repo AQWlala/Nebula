@@ -101,7 +101,7 @@ async-stream = "0.3"
 # 同时移除了仅服务于 shim 的 tower / futures-util / futures-core 依赖。
 tonic = { version = "0.12", features = ["transport", "server", "prost"], optional = true }
 tonic-health = { version = "0.12", optional = true }
-prost = { version = "0.13", optional = true }
+prost = { version = "0.14", optional = true }
 prost-types = { version = "0.13", optional = true }
 hyper = { version = "1.0", features = ["server"], optional = true }
 # v1.1 P0-4: hyper-util provides TokioIo for HTTP/2 connection serving.
