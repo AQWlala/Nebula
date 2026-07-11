@@ -7,6 +7,84 @@ on:
     branches: [main, develop]
 
 jobs:
+  # Dependabot 预检: 对 Dependabot PR 快速运行 cargo check + tsc --noEmit,
+  # 失败时自动添加 'broken' 标签并评论,避免浪费 20+ 分钟的完整 CI 编译。
+  # 只在 Dependabot PR 上运行,普通 PR 和 push 不受影响。
+  dependabot-preflight:
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    name: dependabot-preflight
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: true
+          prefix-key: v2-preflight-
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Cargo check
+        id: cargo-check
+        working-directory: src-tauri
+        continue-on-error: true
+        shell: bash
+        run: |
+          cargo check --features grpc,channels 2>&1 | tee cargo-check-output.txt
+          exit ${PIPESTATUS[0]}
+      - name: Setup Node
+        if: steps.cargo-check.outcome == 'success'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: TSC check
+        id: tsc-check
+        if: steps.cargo-check.outcome == 'success'
+        continue-on-error: true
+        run: |
+          npm install
+          npx tsc --noEmit 2>&1 | tee tsc-output.txt
+          exit ${PIPESTATUS[0]}
+      - name: Label and comment on failure
+        if: steps.cargo-check.outcome == 'failure' || steps.tsc-check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          # 添加 broken 标签
+          gh pr edit "$PR_NUMBER" --add-label "broken"
+          # 构建评论内容
+          COMMENT="## ⚠️ Dependabot 预检失败\n\n"
+          COMMENT+="**PR**: $PR_TITLE\n\n"
+          if [ "${{ steps.cargo-check.outcome }}" == "failure" ]; then
+            COMMENT+="### ❌ cargo check 失败\n"
+            COMMENT+="\`\`\`\n$(tail -n 30 src-tauri/cargo-check-output.txt)\n\`\`\`\n\n"
+          fi
+          if [ "${{ steps.tsc-check.outcome }}" == "failure" ]; then
+            COMMENT+="### ❌ tsc --noEmit 失败\n"
+            COMMENT+="\`\`\`\n$(tail -n 30 tsc-output.txt)\n\`\`\`\n\n"
+          fi
+          COMMENT+="---\n此 PR 有 breaking changes,已自动标记为 \`broken\`。\n建议在 \`dependabot.yml\` 中忽略该依赖的 major 版本,后续手动评估迁移。\n参考: \`openspec/changes/deferred-major-upgrades/\`"
+          # 发表评论
+          gh pr comment "$PR_NUMBER" --body "$COMMENT"
+      - name: Auto-close on failure
+        if: steps.cargo-check.outcome == 'failure' || steps.tsc-check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          gh pr close "$PR_NUMBER" --comment "自动关闭: 预检失败(breaking changes)。已添加 broken 标签,请在 dependabot.yml 中忽略该依赖的 major 版本。"
+
   rust:
     name: rust-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
