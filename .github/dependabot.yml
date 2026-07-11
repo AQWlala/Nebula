@@ -68,6 +68,8 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@vitest/coverage-v8"                   # 1→4 配合 vitest 忽略
         update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"                                    # 5→8 大版本升级,构建系统大改
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -28,8 +28,12 @@ jobs:
           workspaces: src-tauri -> target
           cache-on-failure: true
           prefix-key: v2-preflight-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install Linux deps
+        # Tauri 在 Linux 上需要 webkit2gtk/gtk/openssl 系统库才能编译。
+        # 缺少这些会导致 cargo check 失败 (glib-2.0.pc not found)。
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libglib2.0-dev protobuf-compiler
       - name: Cargo check
         id: cargo-check
         working-directory: src-tauri
@@ -60,8 +64,9 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         shell: bash
         run: |
-          # 添加 broken 标签
-          gh pr edit "$PR_NUMBER" --add-label "broken"
+          # 创建 broken 标签(如果不存在),然后添加到 PR
+          gh label create broken --if-not-exists --color D73A4A --description "Dependabot preflight failed" || true
+          gh pr edit "$PR_NUMBER" --add-label "broken" || true
           # 构建评论内容
           COMMENT="## ⚠️ Dependabot 预检失败\n\n"
           COMMENT+="**PR**: $PR_TITLE\n\n"
