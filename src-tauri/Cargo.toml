@@ -152,7 +152,7 @@ tempfile = "3.0"
 serde_yaml = "0.9"
 getrandom = "0.2"
 # T-E-B-12: PDF/DOCX 文档文本提取(纯 Rust,无系统依赖)。
-pdf-extract = "0.7"
+pdf-extract = "0.12"
 docx-rs = "0.4"
 # T-E-S-33: OpenAPI spec 解析(OpenApiToolServer)。feature `openapi` 默认关闭。
 # `openapiv3` 提供 spec 3.0/3.1 数据结构;`serde_yaml` 已是非 optional 依赖(skills/wiki 使用),
