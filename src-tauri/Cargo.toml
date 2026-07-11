@@ -180,7 +180,7 @@ aws-sdk-s3 = { version = "1.0", optional = true }
 # T-E-S-29: 4 个 OTel 依赖改 optional,由 `otel` feature 启用。
 # 默认构建(--no-default-features 或不带 --features otel)不编译 OTel
 # exporter,tracing 仅用 fmt layer。
-prometheus = "0.13"
+prometheus = "0.14"
 axum = "0.7"
 opentelemetry = { version = "0.24", default-features = false, features = ["trace"], optional = true }
 opentelemetry_sdk = { version = "0.24", default-features = false, features = ["trace", "rt-tokio"], optional = true }
