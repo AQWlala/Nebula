@@ -55,7 +55,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 # `lancedb`/`arrow-*` are not pulled in.
 lancedb = { version = "0.31", optional = true }
 arrow-array = { version = "58.0", optional = true }
-arrow-schema = { version = "58.0", optional = true }
+arrow-schema = { version = "59.1", optional = true }
 anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
