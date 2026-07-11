@@ -29,6 +29,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "prometheus"   # 0.13→0.14 major,API 大改
         update-types: ["version-update:semver-major"]
+      - dependency-name: "axum"         # 0.7→0.8 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "arrow-array"  # 58→59 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prost"        # 0.13→0.14 major,API 大改
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -51,6 +57,8 @@ updates:
       - dependency-name: "tailwindcss"                           # 3→4 大版本升级,配置系统完全重写
         update-types: ["version-update:semver-major"]
       - dependency-name: "vitest"                                # 1→4 大版本升级,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"                           # 20→26 大版本升级
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
