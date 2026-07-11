@@ -115,7 +115,7 @@ walkdir = "2.4"
 # v0.5: shell command execution (synchronous, with timeout).
 shell-words = "1.1"
 # v0.5: E2EE — AES-256-GCM AEAD, X25519 ECDH, HKDF-SHA256 key derivation.
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 hkdf = "0.13"
 sha2 = "0.11"
