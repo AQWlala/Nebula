@@ -35,6 +35,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "prost"        # 0.13→0.14 major,API 大改
         update-types: ["version-update:semver-major"]
+      - dependency-name: "getrandom"    # 0.2→0.4 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "notify"       # 6→8 major,API 大改
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "petgraph"     # 0.6→0.8 major,API 大改
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -59,6 +65,8 @@ updates:
       - dependency-name: "vitest"                                # 1→4 大版本升级,API 大改
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/node"                           # 20→26 大版本升级
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-v8"                   # 1→4 配合 vitest 忽略
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
