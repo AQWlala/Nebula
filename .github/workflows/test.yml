@@ -44,7 +44,7 @@ jobs:
           exit ${PIPESTATUS[0]}
       - name: Setup Node
         if: steps.cargo-check.outcome == 'success'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
@@ -572,7 +572,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
